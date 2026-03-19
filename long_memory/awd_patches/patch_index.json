@@ -1,0 +1,55 @@
+{
+  "version": "1.0",
+  "description": "AWD 修补经验索引",
+  "patches": {
+    "sqli": {
+      "count": 0,
+      "description": "SQLI 漏洞修复经验",
+      "keywords": [
+        "sqli"
+      ]
+    },
+    "xss": {
+      "count": 0,
+      "description": "XSS 漏洞修复经验",
+      "keywords": [
+        "xss"
+      ]
+    },
+    "rce": {
+      "count": 0,
+      "description": "RCE 漏洞修复经验",
+      "keywords": [
+        "rce"
+      ]
+    },
+    "lfi": {
+      "count": 0,
+      "description": "LFI 漏洞修复经验",
+      "keywords": [
+        "lfi"
+      ]
+    },
+    "ssrf": {
+      "count": 0,
+      "description": "SSRF 漏洞修复经验",
+      "keywords": [
+        "ssrf"
+      ]
+    },
+    "upload": {
+      "count": 0,
+      "description": "UPLOAD 漏洞修复经验",
+      "keywords": [
+        "upload"
+      ]
+    },
+    "auth": {
+      "count": 0,
+      "description": "AUTH 漏洞修复经验",
+      "keywords": [
+        "auth"
+      ]
+    }
+  }
+}

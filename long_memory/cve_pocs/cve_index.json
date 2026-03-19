@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "last_updated": "2024-03-17",
+  "cves": {
+    "CVE-2023-4911": {
+      "category": "lfi",
+      "description": "GLIBC_TUNABLES缓冲区溢出导致的本地提权",
+      "affected_systems": ["glibc 2.34-2.38"],
+      "keywords": ["ld.so", "GLIBC_TUNABLES", "缓冲区溢出"],
+      "severity": "high",
+      "file_path": "lfi/CVE-2023-4911.py",
+      "verified": true
+    },
+    "CVE-2021-41773": {
+      "category": "lfi",
+      "description": "Apache HTTP Server 路径遍历",
+      "affected_systems": ["Apache 2.4.49"],
+      "keywords": ["apache", "路径遍历", ".htaccess"],
+      "severity": "critical",
+      "file_path": "lfi/CVE-2021-41773.py",
+      "verified": true
+    },
+    "CVE-2017-1000486": {
+      "category": "sqli",
+      "description": "PostgreSQL 9错误SQL注入",
+      "affected_systems": ["PostgreSQL < 9.6"],
+      "keywords": ["postgresql", "error-based", "堆叠查询"],
+      "severity": "high",
+      "file_path": "sqli/CVE-2017-1000486.py",
+      "verified": false
+    }
+  },
+  "category_map": {
+    "sqli": ["sql", "mysql", "postgresql", "sqlite", "mssql", "注入"],
+    "lfi": ["local file inclusion", "文件包含", "../../../", "path traversal"],
+    "rce": ["remote code execution", "命令执行", "eval", "assert", "system"],
+    "ssrf": ["server-side request forgery", "ssrf", "gopher", "file://"],
+    "xss": ["cross-site scripting", "反射型xss", "存储型xss", "dom xss"],
+    "xxe": ["xml external entity", "xml", "xxe", "实体注入"],
+    "upload": ["文件上传", "upload", "file upload"]
+  }
+}
