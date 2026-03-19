@@ -1,0 +1,31 @@
+{
+  "eval_id": 10,
+  "eval_name": "weak-credentials",
+  "prompt": "我需要对一批政府单位的外网系统做弱口令专项检测。目标包括 OA 系统、VPN 网关、邮件系统、堡垒机、数据库等。帮我制定一个系统化的弱口令检测方案。",
+  "assertions": [
+    {
+      "id": "wooyun-cases",
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）"
+    },
+    {
+      "id": "statistics",
+      "text": "statistics: 包含WooYun量化统计（案例数或高危占比百分数）"
+    },
+    {
+      "id": "default-dict",
+      "text": "default-dict: 含常见系统默认口令字典来源"
+    },
+    {
+      "id": "gov-specific",
+      "text": "gov-specific: 针对政府系统（OA/VPN/堡垒机）有专项"
+    },
+    {
+      "id": "automation",
+      "text": "automation: 含自动化脚本思路或代码"
+    },
+    {
+      "id": "report-template",
+      "text": "report-template: 含报告模板"
+    }
+  ]
+}

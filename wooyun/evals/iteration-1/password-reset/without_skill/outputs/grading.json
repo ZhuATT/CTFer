@@ -1,0 +1,34 @@
+{
+  "expectations": [
+    {
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）",
+      "passed": false,
+      "evidence": "全文未提及任何WooYun案例，无公司名引用。内容为通用安全测试方法论，无真实漏洞案例支撑。"
+    },
+    {
+      "text": "statistics: 包含WooYun量化统计（案例数或占比）",
+      "passed": false,
+      "evidence": "全文无任何WooYun统计数据，未出现案例数、占比、高危率等量化指标。'WooYun'一词未在文档中出现。"
+    },
+    {
+      "text": "reset-vectors: >=6种密码重置攻击向量",
+      "passed": true,
+      "evidence": "包含大量向量：1.1验证码暴力破解、1.2可预测性、1.4绑定校验、1.7步骤跳过、2.1 Token可预测、2.5 Host Header注入、3.1安全问题暴力破解、4.6竞态条件、5.1参数篡改、6.1前端验证绕过等，远超6种"
+    },
+    {
+      "text": "three-channels: 覆盖短信/邮箱/安全问题三种方式",
+      "passed": true,
+      "evidence": "第1章短信验证码重置（8个子项）、第2章邮箱链接重置（8个子项）、第3章安全问题重置（6个子项），三通道完整覆盖"
+    },
+    {
+      "text": "cross-channel: 含跨通道攻击",
+      "passed": true,
+      "evidence": "4.7节'重置方式切换逻辑缺陷'：通过短信方式获取验证通过状态后切换到安全问题方式，测试不同方式间的状态管理和频率限制隔离"
+    },
+    {
+      "text": "actionable-steps: 有具体步骤",
+      "passed": true,
+      "evidence": "每个攻击向量包含编号测试步骤，如1.1的5步暴力破解流程含Burp Intruder枚举范围、IP绕过技术（X-Forwarded-For）、2.5的Host Header注入4种变体测试"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+# 临时文件
+*.tmp
+*.bak
+.DS_Store
+
+# 处理状态（可重新生成）
+processing_state.json
+current_batch.json
+batch-results/

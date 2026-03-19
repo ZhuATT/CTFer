@@ -1,0 +1,34 @@
+{
+  "expectations": [
+    {
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）",
+      "passed": false,
+      "evidence": "全文未提及任何WooYun案例，无任何具体公司名的漏洞案例引用。方案为通用竞态条件/状态机测试方案，无历史漏洞数据库支撑。"
+    },
+    {
+      "text": "statistics: 包含WooYun量化统计（案例数或高危占比百分数）",
+      "passed": false,
+      "evidence": "全文无任何WooYun统计数据。无案例数量、无高危占比百分数。仅有测试矩阵中的并发数和预期结果等技术参数。"
+    },
+    {
+      "text": "concurrent-scripts: 含并发测试脚本",
+      "passed": true,
+      "evidence": "包含多个完整并发测试脚本：3.1 Python asyncio优惠券竞态脚本(50并发+Event栅栏同步+详细报告输出)、3.2多用户抢购限量券脚本(100用户x3次)、3.3 Go高并发压测脚本(100 goroutine+channel栅栏+atomic计数)、3.5 curl bash并发验证脚本(50个background jobs)"
+    },
+    {
+      "text": "state-machine: 含状态机非法转换测试",
+      "passed": true,
+      "evidence": "3.4节包含完整的订单状态机非法转换遍历测试：定义8种状态(cart/pending/paying/paid/completed/cancelled/refunding/refunded)、9种合法转换、自动计算所有非法转换(ALL-LEGAL-SELF)并逐一遍历测试。含endpoint_map映射不同状态到不同API端点、test_illegal_transitions函数自动创建测试订单并尝试非法转换"
+    },
+    {
+      "text": "toctou: 含TOCTOU竞态测试",
+      "passed": true,
+      "evidence": "1.1节威胁建模明确分析TOCTOU：'服务端先查询是否已领取，再执行插入领取记录，两步之间存在时间窗口'，给出漏洞代码模式(SELECT→if→INSERT)。RC-01/RC-02测试用例直接针对TOCTOU窗口设计，3.4中test_concurrent_pay_and_cancel函数测试支付+取消的TOCTOU竞态"
+    },
+    {
+      "text": "fix-patterns: 含修复方案",
+      "passed": true,
+      "evidence": "第四节修复建议包含：4.1优惠券竞态修复3种方案(方案A数据库唯一约束+INSERT幂等写入、方案B Redis分布式锁SETNX+二次确认、方案C SELECT FOR UPDATE悲观锁)；4.2订单状态机修复(OrderStateMachine类定义TRANSITIONS白名单+乐观锁WHERE子句+version字段)、支付回调金额校验(分级比较避免浮点精度+幂等性+原子状态转换)"
+    }
+  ]
+}

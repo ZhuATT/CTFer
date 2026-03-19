@@ -1,0 +1,70 @@
+{
+  "metadata": {
+    "skill_name": "wooyun-legacy",
+    "skill_path": "/Users/xsser/.claude/skills/wooyun-legacy",
+    "executor_model": "claude-opus-4-6",
+    "timestamp": "2026-03-06T10:30:00Z",
+    "evals_run": [
+      "payment-security", "idor-authorization", "banking-full-audit",
+      "password-reset", "info-disclosure", "config-hardening",
+      "code-review", "src-bounty", "race-condition",
+      "weak-credentials", "captcha-bypass", "cloud-misconfig"
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {"eval_name": "payment-security", "configuration": "with_skill", "pass_rate": 1.0, "passed": 6, "total": 6, "time_seconds": 245.7, "tokens": 45690},
+    {"eval_name": "payment-security", "configuration": "without_skill", "pass_rate": 0.667, "passed": 4, "total": 6, "time_seconds": 185.8, "tokens": 28338},
+    {"eval_name": "idor-authorization", "configuration": "with_skill", "pass_rate": 1.0, "passed": 6, "total": 6, "time_seconds": 288.1, "tokens": 49347},
+    {"eval_name": "idor-authorization", "configuration": "without_skill", "pass_rate": 0.5, "passed": 3, "total": 6, "time_seconds": 207.5, "tokens": 25678},
+    {"eval_name": "banking-full-audit", "configuration": "with_skill", "pass_rate": 1.0, "passed": 6, "total": 6, "time_seconds": 334.9, "tokens": 58722},
+    {"eval_name": "banking-full-audit", "configuration": "without_skill", "pass_rate": 0.667, "passed": 4, "total": 6, "time_seconds": 213.7, "tokens": 24108},
+    {"eval_name": "password-reset", "configuration": "with_skill", "pass_rate": 1.0, "passed": 6, "total": 6, "time_seconds": 202.8, "tokens": 31949},
+    {"eval_name": "password-reset", "configuration": "without_skill", "pass_rate": 0.667, "passed": 4, "total": 6, "time_seconds": 161.1, "tokens": 21835},
+    {"eval_name": "info-disclosure", "configuration": "with_skill", "pass_rate": 1.0, "passed": 6, "total": 6, "time_seconds": 192.6, "tokens": 33829},
+    {"eval_name": "info-disclosure", "configuration": "without_skill", "pass_rate": 0.667, "passed": 4, "total": 6, "time_seconds": 165.4, "tokens": 22948},
+    {"eval_name": "config-hardening", "configuration": "with_skill", "pass_rate": 1.0, "passed": 6, "total": 6, "time_seconds": 180.7, "tokens": 38179},
+    {"eval_name": "config-hardening", "configuration": "without_skill", "pass_rate": 0.667, "passed": 4, "total": 6, "time_seconds": 161.3, "tokens": 22395},
+    {"eval_name": "code-review", "configuration": "with_skill", "pass_rate": 1.0, "passed": 6, "total": 6, "time_seconds": 168.6, "tokens": 39432},
+    {"eval_name": "code-review", "configuration": "without_skill", "pass_rate": 0.667, "passed": 4, "total": 6, "time_seconds": 69.5, "tokens": 13679},
+    {"eval_name": "src-bounty", "configuration": "with_skill", "pass_rate": 1.0, "passed": 6, "total": 6, "time_seconds": 181.8, "tokens": 48290},
+    {"eval_name": "src-bounty", "configuration": "without_skill", "pass_rate": 0.667, "passed": 4, "total": 6, "time_seconds": 93.6, "tokens": 17002},
+    {"eval_name": "race-condition", "configuration": "with_skill", "pass_rate": 1.0, "passed": 6, "total": 6, "time_seconds": 214.2, "tokens": 38165},
+    {"eval_name": "race-condition", "configuration": "without_skill", "pass_rate": 0.667, "passed": 4, "total": 6, "time_seconds": 176.3, "tokens": 24635},
+    {"eval_name": "weak-credentials", "configuration": "with_skill", "pass_rate": 1.0, "passed": 6, "total": 6, "time_seconds": 238.4, "tokens": 36495},
+    {"eval_name": "weak-credentials", "configuration": "without_skill", "pass_rate": 0.667, "passed": 4, "total": 6, "time_seconds": 203.6, "tokens": 24888},
+    {"eval_name": "captcha-bypass", "configuration": "with_skill", "pass_rate": 1.0, "passed": 6, "total": 6, "time_seconds": 182.7, "tokens": 35269},
+    {"eval_name": "captcha-bypass", "configuration": "without_skill", "pass_rate": 0.667, "passed": 4, "total": 6, "time_seconds": 174.2, "tokens": 88813},
+    {"eval_name": "cloud-misconfig", "configuration": "with_skill", "pass_rate": 1.0, "passed": 6, "total": 6, "time_seconds": 228.3, "tokens": 35564},
+    {"eval_name": "cloud-misconfig", "configuration": "without_skill", "pass_rate": 0.667, "passed": 4, "total": 6, "time_seconds": 157.6, "tokens": 21548}
+  ],
+  "run_summary": {
+    "with_skill": {
+      "mean_pass_rate": 1.0,
+      "stddev_pass_rate": 0.0,
+      "mean_time_seconds": 221.6,
+      "mean_tokens": 40911
+    },
+    "without_skill": {
+      "mean_pass_rate": 0.646,
+      "stddev_pass_rate": 0.043,
+      "mean_time_seconds": 164.1,
+      "mean_tokens": 27989
+    },
+    "delta": {
+      "pass_rate": "+0.354 (+54.8%)",
+      "time_seconds": "+57.5s (+35.0%)",
+      "tokens": "+12922 (+46.2%)"
+    }
+  },
+  "notes": [
+    "12 test cases covering ALL 6 domains and 33 vulnerability classes of the WooYun methodology",
+    "with_skill: 72/72 assertions passed (100%) across all 12 evals",
+    "without_skill: 47/72 assertions passed (65.3%) — ALL failures on WooYun-specific assertions",
+    "WooYun-specific assertions (cases + statistics) failed 24/24 times without skill — 0% baseline",
+    "Domain-specific assertions passed 47/48 without skill (98%) — only IDOR arbitrary-ops failed",
+    "The skill's value is entirely in injecting WooYun historical data: real case references, quantitative statistics, and unique taxonomies (任意X)",
+    "Token overhead averages +46% (41K vs 28K), time overhead +35% (222s vs 164s)",
+    "Outlier: captcha-bypass without_skill used 89K tokens (19 tool calls) vs 35K with skill — skill provided focused direction"
+  ]
+}

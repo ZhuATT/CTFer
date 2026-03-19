@@ -1,0 +1,13 @@
+{
+  "eval_id": 1,
+  "eval_name": "payment-security",
+  "prompt": "我在做一个电商平台的安全审计，这个平台有购物车、在线支付（支付宝/微信）、订单管理、退款流程。请帮我制定一个针对支付和订单流程的安全测试方案，要具体到每个测试点和测试步骤。",
+  "assertions": [
+    {"id": "wooyun-cases", "text": "包含至少2个具体的WooYun真实案例引用（公司名+漏洞描述）"},
+    {"id": "statistics", "text": "包含量化统计数据（案例数或高危占比百分数）"},
+    {"id": "attack-patterns", "text": "覆盖至少5种不同的支付/订单攻击模式"},
+    {"id": "actionable-steps", "text": "每个测试点包含具体可执行的测试步骤"},
+    {"id": "defense-recommendations", "text": "包含针对性的防御/修复建议"},
+    {"id": "methodology-structure", "text": "遵循结构化方法论（有清晰的阶段/分类体系）"}
+  ]
+}

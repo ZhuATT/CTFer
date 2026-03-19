@@ -1,0 +1,26 @@
+{
+  "name": "tanweai-security",
+  "owner": {
+    "name": "探微安全实验室",
+    "email": "contact@tanweai.com"
+  },
+  "metadata": {
+    "description": "探微安全实验室的 Claude Code 安全插件集",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "wooyun-legacy",
+      "source": "./plugins/wooyun-legacy",
+      "description": "WooYun 业务逻辑漏洞方法论 — 基于 22,132 个真实漏洞案例提炼的安全测试数据增强插件。为 Claude 的安全报告注入真实公司案例引用、量化统计数据和数据驱动的测试优先级排序。",
+      "version": "2.0.0",
+      "author": {
+        "name": "探微安全实验室"
+      },
+      "repository": "https://github.com/tanweai/wooyun-legacy",
+      "license": "CC-BY-NC-SA-4.0",
+      "keywords": ["security", "penetration-testing", "wooyun", "business-logic", "vulnerability"],
+      "category": "security"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "expectations": [
+    {
+      "text": "wooyun-cases: 包含至少2个具体的WooYun真实案例引用（公司名+漏洞描述）",
+      "passed": false,
+      "evidence": "文档中没有引用任何WooYun具体案例。没有出现任何具体公司名称或WooYun漏洞描述。整份文档是纯通用安全测试模板，无任何真实案例参考。"
+    },
+    {
+      "text": "statistics: 包含量化统计数据（案例数或高危占比百分数）",
+      "passed": false,
+      "evidence": "文档中没有任何WooYun统计数据。没有案例数量、高危占比百分数等量化指标。所有风险等级标注（如'极高'）都是主观判断而非数据驱动。"
+    },
+    {
+      "text": "attack-patterns: 覆盖至少5种不同的支付/订单攻击模式",
+      "passed": true,
+      "evidence": "覆盖了多种攻击模式：(1) 价格篡改 CART-001 (2) 数量溢出 CART-002 (3) 库存竞态条件 CART-003 (4) 优惠券逻辑 CART-004 (5) 支付金额篡改 PAY-001 (6) 支付回调伪造 PAY-002 (7) 支付状态轮询篡改 PAY-003 (8) 支付超时 PAY-004 (9) 重复退款 REFUND-001 (10) 超额退款 REFUND-002 (11) 退款到账篡改 REFUND-003"
+    },
+    {
+      "text": "actionable-steps: 每个测试点包含具体可执行的测试步骤",
+      "passed": true,
+      "evidence": "每个测试点都有编号、详细步骤和预期结果。例如PAY-002包含4个子测试（签名校验、回调重放、参数篡改、来源IP验证），每个都有具体操作步骤。CART-003和REFUND-001甚至包含Python并发测试脚本。"
+    },
+    {
+      "text": "defense-recommendations: 包含针对性的防御/修复建议",
+      "passed": true,
+      "evidence": "第十一章'常见漏洞修复建议速查'提供了详细的修复方案表：'金额篡改→服务端从数据库读取金额'、'回调伪造→验证签名+验证来源IP+主动查询支付平台确认'、'竞态条件→数据库乐观锁或悲观锁+Redis分布式锁'等，共8种漏洞对应修复方案。"
+    },
+    {
+      "text": "methodology-structure: 遵循结构化方法论（有清晰的阶段/分类体系）",
+      "passed": true,
+      "evidence": "文档有清晰的11章结构：测试范围→购物车安全→支付流程→订单管理→退款流程→通用安全→支付宝/微信特定测试→工具清单→优先级矩阵→报告模板→修复建议。有测试编号体系（CART/PAY/REFUND/ORDER/GEN/ALIPAY/WXPAY），有P0-P4优先级排序。"
+    }
+  ]
+}

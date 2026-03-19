@@ -1,0 +1,31 @@
+{
+  "eval_id": 4,
+  "eval_name": "password-reset",
+  "prompt": "我负责测试一个在线教育平台的密码重置功能。平台支持手机短信验证码重置、邮箱链接重置、安全问题重置三种方式。请帮我出一份密码重置功能的安全测试方案，要覆盖所有可能的绕过方式。",
+  "assertions": [
+    {
+      "id": "wooyun-cases",
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）"
+    },
+    {
+      "id": "statistics",
+      "text": "statistics: 包含WooYun量化统计（案例数或占比）"
+    },
+    {
+      "id": "reset-vectors",
+      "text": "reset-vectors: >=6种密码重置攻击向量"
+    },
+    {
+      "id": "three-channels",
+      "text": "three-channels: 覆盖短信/邮箱/安全问题三种方式"
+    },
+    {
+      "id": "cross-channel",
+      "text": "cross-channel: 含跨通道攻击"
+    },
+    {
+      "id": "actionable-steps",
+      "text": "actionable-steps: 有具体步骤"
+    }
+  ]
+}

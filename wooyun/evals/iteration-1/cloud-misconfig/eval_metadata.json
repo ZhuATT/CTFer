@@ -1,0 +1,31 @@
+{
+  "eval_id": 12,
+  "eval_name": "cloud-misconfig",
+  "prompt": "我们公司要上云（阿里云为主，部分服务在 AWS），使用了 ECS、RDS、OSS、K8s、Docker。帮我制定一个云环境安全检查方案，覆盖计算、存储、网络、容器、IAM 等维度。",
+  "assertions": [
+    {
+      "id": "wooyun-cases",
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）"
+    },
+    {
+      "id": "statistics",
+      "text": "statistics: 包含WooYun量化统计（案例数或高危占比百分数）"
+    },
+    {
+      "id": "k8s-security",
+      "text": "k8s-security: 含K8s集群安全检查"
+    },
+    {
+      "id": "container-security",
+      "text": "container-security: 含Docker镜像安全"
+    },
+    {
+      "id": "oss-security",
+      "text": "oss-security: 含对象存储安全"
+    },
+    {
+      "id": "iam-security",
+      "text": "iam-security: 含RAM/IAM权限管理"
+    }
+  ]
+}

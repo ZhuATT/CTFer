@@ -1,0 +1,13 @@
+{
+  "eval_id": 3,
+  "eval_name": "banking-full-audit",
+  "prompt": "帮我对一个手机银行 App 做全面的业务逻辑安全评估。这个 App 有转账、充值、提现、理财购买、密码重置、实名认证等功能。输出一份完整的安全测试报告模板，我好直接拿来用。",
+  "assertions": [
+    {"id": "wooyun-cases", "text": "包含至少3个具体的WooYun真实案例引用（公司名+漏洞描述）", "type": "content"},
+    {"id": "statistics", "text": "包含量化统计数据（案例数或高危占比百分数）", "type": "content"},
+    {"id": "six-domains", "text": "覆盖全部6个领域（认证、授权、金融、信息泄露、逻辑流、配置）", "type": "coverage"},
+    {"id": "function-mapping", "text": "每个银行功能（转账、充值、提现、理财、密码重置、实名认证）都有对应的测试项", "type": "coverage"},
+    {"id": "report-template", "text": "输出格式为可直接使用的报告模板（包含严重级别、影响评估、重现步骤等字段）", "type": "structure"},
+    {"id": "defense-recommendations", "text": "包含架构级和代码级的防御建议", "type": "content"}
+  ]
+}
