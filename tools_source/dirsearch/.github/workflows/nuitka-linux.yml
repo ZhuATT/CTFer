@@ -1,0 +1,85 @@
+# GitHub Action for building dirsearch with Nuitka (Linux)
+
+name: Nuitka Linux
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  PYTHON_VERSION: '3.11'
+  NUITKA_VERSION: '2.4.8'
+
+jobs:
+  build-linux:
+    name: Build Linux AMD64 (${{ matrix.variant.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - name: threaded
+            async: "False"
+          - name: async
+            async: "True"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y patchelf
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install nuitka==${{ env.NUITKA_VERSION }} ordered-set zstandard
+
+      - name: Set default async mode
+        run: |
+          sed -i "s/^async = .*/async = ${{ matrix.variant.async }}/" config.ini
+
+      - name: Build Linux binary
+        run: |
+          python -m nuitka \
+            --onefile \
+            --assume-yes-for-downloads \
+            --include-package=lib \
+            --include-data-dir=db=db \
+            --include-data-dir=lib/report=lib/report \
+            --include-data-file=config.ini=config.ini \
+            --output-filename=dirsearch \
+            dirsearch.py
+
+      - name: Rename binary
+        run: |
+          mkdir -p dist
+          if [ -f dirsearch ]; then
+            mv dirsearch dist/dirsearch-linux-amd64-${{ matrix.variant.name }}
+          elif [ -f dirsearch.bin ]; then
+            mv dirsearch.bin dist/dirsearch-linux-amd64-${{ matrix.variant.name }}
+          else
+            echo "Expected Nuitka output 'dirsearch' or 'dirsearch.bin' not found" >&2
+            ls -la
+            exit 1
+          fi
+      - name: Test Linux binary
+        run: |
+          ./dist/dirsearch-linux-amd64-${{ matrix.variant.name }} --version
+          ./dist/dirsearch-linux-amd64-${{ matrix.variant.name }} --help
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dirsearch-nuitka-linux-amd64-${{ matrix.variant.name }}
+          path: dist/dirsearch-linux-amd64-${{ matrix.variant.name }}
+          retention-days: 30

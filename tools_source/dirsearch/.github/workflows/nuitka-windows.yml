@@ -1,0 +1,73 @@
+# GitHub Action for building dirsearch with Nuitka (Windows)
+
+name: Nuitka Windows
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  PYTHON_VERSION: '3.11'
+  NUITKA_VERSION: '2.4.8'
+
+jobs:
+  build-windows:
+    name: Build Windows x64 (${{ matrix.variant.name }})
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - name: threaded
+            async: "False"
+          - name: async
+            async: "True"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install nuitka==${{ env.NUITKA_VERSION }} ordered-set zstandard
+
+      - name: Set default async mode
+        run: |
+          (Get-Content config.ini) -replace '^async = .*', 'async = ${{ matrix.variant.async }}' | Set-Content config.ini
+
+      - name: Build Windows binary
+        run: |
+          python -m nuitka `
+            --onefile `
+            --assume-yes-for-downloads `
+            --include-package=lib `
+            --include-data-dir=db=db `
+            --include-data-dir=lib/report=lib/report `
+            --include-data-file=config.ini=config.ini `
+            --output-filename=dirsearch `
+            dirsearch.py
+
+      - name: Rename binary
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Move-Item -Path dirsearch.exe -Destination dist/dirsearch-windows-x64-${{ matrix.variant.name }}.exe
+
+      - name: Test Windows binary
+        run: |
+          .\dist\dirsearch-windows-x64-${{ matrix.variant.name }}.exe --version
+          .\dist\dirsearch-windows-x64-${{ matrix.variant.name }}.exe --help
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dirsearch-nuitka-windows-x64-${{ matrix.variant.name }}
+          path: dist/dirsearch-windows-x64-${{ matrix.variant.name }}.exe
+          retention-days: 30

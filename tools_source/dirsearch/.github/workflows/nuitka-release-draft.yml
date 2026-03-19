@@ -1,0 +1,103 @@
+# GitHub Action for drafting a release from Nuitka builds
+
+name: Nuitka Draft Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag for the draft release (e.g., v0.4.3-nuitka)'
+        required: true
+      target_commitish:
+        description: 'Branch or commit for the tag (default: master)'
+        required: false
+        default: 'master'
+      prerelease:
+        description: 'Mark as prerelease'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-linux:
+    uses: ./.github/workflows/nuitka-linux.yml
+
+  build-windows:
+    uses: ./.github/workflows/nuitka-windows.yml
+
+  build-macos-intel:
+    uses: ./.github/workflows/nuitka-macos-intel.yml
+
+  build-macos-silicon:
+    uses: ./.github/workflows/nuitka-macos-silicon.yml
+
+  prepare-artifacts:
+    name: Prepare Artifacts
+    needs: [build-linux, build-windows, build-macos-intel, build-macos-silicon]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          cp artifacts/dirsearch-nuitka-linux-amd64-threaded/dirsearch-linux-amd64-threaded release/dirsearch-nuitka-linux-amd64-threaded
+          cp artifacts/dirsearch-nuitka-linux-amd64-async/dirsearch-linux-amd64-async release/dirsearch-nuitka-linux-amd64-async
+          cp artifacts/dirsearch-nuitka-windows-x64-threaded/dirsearch-windows-x64-threaded.exe release/dirsearch-nuitka-windows-x64-threaded.exe
+          cp artifacts/dirsearch-nuitka-windows-x64-async/dirsearch-windows-x64-async.exe release/dirsearch-nuitka-windows-x64-async.exe
+          cp artifacts/dirsearch-nuitka-macos-intel-threaded/dirsearch-macos-intel-threaded release/dirsearch-nuitka-macos-intel-threaded
+          cp artifacts/dirsearch-nuitka-macos-intel-async/dirsearch-macos-intel-async release/dirsearch-nuitka-macos-intel-async
+          cp artifacts/dirsearch-nuitka-macos-silicon-threaded/dirsearch-macos-silicon-threaded release/dirsearch-nuitka-macos-silicon-threaded
+          cp artifacts/dirsearch-nuitka-macos-silicon-async/dirsearch-macos-silicon-async release/dirsearch-nuitka-macos-silicon-async
+
+          cd release
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload combined artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dirsearch-nuitka-all-platforms
+          path: release/
+          retention-days: 30
+
+  release:
+    name: Draft Release
+    needs: [prepare-artifacts]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download combined artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dirsearch-nuitka-all-platforms
+          path: release
+
+      - name: Create GitHub Draft Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/dirsearch-nuitka-linux-amd64-threaded
+            release/dirsearch-nuitka-linux-amd64-async
+            release/dirsearch-nuitka-windows-x64-threaded.exe
+            release/dirsearch-nuitka-windows-x64-async.exe
+            release/dirsearch-nuitka-macos-intel-threaded
+            release/dirsearch-nuitka-macos-intel-async
+            release/dirsearch-nuitka-macos-silicon-threaded
+            release/dirsearch-nuitka-macos-silicon-async
+            release/SHA256SUMS.txt
+          generate_release_notes: true
+          draft: true
+          prerelease: ${{ inputs.prerelease }}
+          tag_name: ${{ inputs.tag }}
+          target_commitish: ${{ inputs.target_commitish }}
