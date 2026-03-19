@@ -1,0 +1,31 @@
+{
+  "eval_id": 9,
+  "eval_name": "race-condition",
+  "prompt": "我在测试一个在线票务系统，怀疑存在竞态条件漏洞。系统有抢票、支付、退票、积分兑换等功能，后端是 Java + Redis。帮我设计一个竞态条件专项测试方案，需要包含测试脚本。",
+  "assertions": [
+    {
+      "id": "wooyun-cases",
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）"
+    },
+    {
+      "id": "statistics",
+      "text": "statistics: 包含WooYun量化统计（案例数或高危占比百分数）"
+    },
+    {
+      "id": "concurrent-scripts",
+      "text": "concurrent-scripts: 含并发测试脚本"
+    },
+    {
+      "id": "state-machine",
+      "text": "state-machine: 含状态机非法转换测试"
+    },
+    {
+      "id": "toctou",
+      "text": "toctou: 含TOCTOU竞态测试"
+    },
+    {
+      "id": "fix-patterns",
+      "text": "fix-patterns: 含修复方案"
+    }
+  ]
+}

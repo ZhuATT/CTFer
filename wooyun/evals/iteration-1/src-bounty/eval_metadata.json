@@ -1,0 +1,31 @@
+{
+  "eval_id": 8,
+  "eval_name": "src-bounty",
+  "prompt": "我是一个 SRC 漏洞赏金猎人，目标是某大型互联网公司的 SRC。该公司主要产品包括：社交 App、电商平台、支付系统、云服务控制台。我有两天时间，帮我制定一个高效的漏洞挖掘计划，优先找高危和严重漏洞。",
+  "assertions": [
+    {
+      "id": "wooyun-cases",
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）"
+    },
+    {
+      "id": "statistics",
+      "text": "statistics: 包含WooYun量化统计（案例数或高危占比百分数）"
+    },
+    {
+      "id": "time-optimized",
+      "text": "time-optimized: 按两天限制排优先级"
+    },
+    {
+      "id": "api-specific",
+      "text": "api-specific: 针对4个API有具体方案"
+    },
+    {
+      "id": "priority-ranking",
+      "text": "priority-ranking: 有优先级排序"
+    },
+    {
+      "id": "practical-tools",
+      "text": "practical-tools: 含工具和命令"
+    }
+  ]
+}

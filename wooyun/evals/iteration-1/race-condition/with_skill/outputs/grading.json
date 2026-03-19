@@ -1,0 +1,34 @@
+{
+  "expectations": [
+    {
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）",
+      "passed": true,
+      "evidence": "包含多个具体案例：'M1905电影网价值2588套餐只要5毛钱'、'114票务网某站逻辑漏洞利用支付超时导致上万用户敏感信息泄漏'、'大特宝官网业务逻辑漏洞可免费甚至低款买保险'、'丽子美妆某处严重逻辑漏洞'、'超级课程表某主营业务逻辑缺陷导致全体用户真实姓名手机和QQ泄露'，均有公司名且在案例参考表格中详细说明与测试用例的对应关系"
+    },
+    {
+      "text": "statistics: 包含WooYun量化统计（案例数或高危占比百分数）",
+      "passed": true,
+      "evidence": "详细统计数据表格：竞态条件266案例/74.8%高危、状态机绕过1,391案例/65.3%高危、订单篡改1,227案例/74.2%高危、支付绕过1,056案例/68.7%高危、金融漏洞整体68-83%高危率、逻辑流领域1,679案例、金融领域2,919案例、总计22,132案例"
+    },
+    {
+      "text": "concurrent-scripts: 含并发测试脚本",
+      "passed": true,
+      "evidence": "包含3个完整的Python asyncio+aiohttp并发测试脚本：TC-RACE-01基础并发领券(20并发+barrier同步)、TC-RACE-02多用户并发抢券(库存竞态)、TC-RACE-03优惠券双花测试(1张券→5个订单并发)，以及TC-COMBO-01并发支付回调组合攻击脚本"
+    },
+    {
+      "text": "state-machine: 含状态机非法转换测试",
+      "passed": true,
+      "evidence": "包含完整状态机分析：预期状态机流程图(浏览→购物车→订单→支付→完成)、4种非法转移路径(跳过支付/逆向回退/退款不回收/支付前篡改)。TC-STATE-01跳过支付直接开通(bash脚本尝试3种端点)、TC-STATE-02支付回调重放(Python脚本含签名伪造4种测试)、TC-STATE-03订单状态逆向回退(bash脚本遍历多种状态值)、TC-STATE-04支付前篡改订单内容(Python脚本)"
+    },
+    {
+      "text": "toctou: 含TOCTOU竞态测试",
+      "passed": true,
+      "evidence": "假设H1专门分析TOCTOU：'多个并发请求同时通过是否已领检查，均在写入记录前判定为未领取'，根因分析'SELECT→判断→INSERT三步非原子，缺乏数据库级唯一约束或分布式锁'。TC-RACE-01脚本使用asyncio.Barrier实现精确的TOCTOU窗口触发，并有详细的关键检查-行动模式(TOCTOU风险点)时序图"
+    },
+    {
+      "text": "fix-patterns: 含修复方案",
+      "passed": true,
+      "evidence": "第七节修复建议包含：7.1竞态条件防御(SQL唯一约束+INSERT IGNORE原子操作+限量券原子扣减+Redis分布式锁SETNX)、7.2状态机防御(白名单VALID_TRANSITIONS有限状态机+transition_order函数)、7.3支付回调防御(签名验证+幂等性校验+金额匹配验证+状态校验+事务原子更新的完整handle_payment_callback函数)"
+    }
+  ]
+}

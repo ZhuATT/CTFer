@@ -1,0 +1,34 @@
+{
+  "expectations": [
+    {
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）",
+      "passed": false,
+      "evidence": "全文未提及任何WooYun案例，无公司名引用。内容为通用配置安全检查清单，无真实漏洞案例支撑。'WooYun'一词未在文档中出现。"
+    },
+    {
+      "text": "statistics: 包含WooYun量化统计（案例数或占比）",
+      "passed": false,
+      "evidence": "全文无任何WooYun统计数据，未出现案例数、占比、高危率等量化指标。"
+    },
+    {
+      "text": "all-components: 覆盖Tomcat/MySQL/Redis/Nginx",
+      "passed": true,
+      "evidence": "四大组件完整覆盖：二、Nginx（22项）、三、Tomcat（22项含默认凭据/信息泄露/连接器/Session/JVM）、四、MySQL（21项含认证/网络/文件权限/日志）、五、Redis（11项含认证/危险命令/持久化），总计111个检查项"
+    },
+    {
+      "text": "default-creds: 含默认凭证检查",
+      "passed": true,
+      "evidence": "#38检查tomcat-users.xml默认管理用户（admin/tomcat/manager）、#60 MySQL root无密码检查、#61匿名用户、#62空密码用户、#81 Redis requirepass检查（非空非foobared）、#66提及mysql_secure_installation"
+    },
+    {
+      "text": "specific-commands: 含可执行命令",
+      "passed": true,
+      "evidence": "每个检查项均附具体命令：grep PermitRootLogin检查SSH（#1）、curl检测Manager状态码（#39）、mysql -u root -e测试认证（#60）、grep requirepass检查Redis密码（#81）、ss -tlnp检查端口监听（#11/#12），还包含完整的quick-check.sh一键扫描脚本"
+    },
+    {
+      "text": "priority-ranking: 有优先级排序",
+      "passed": true,
+      "evidence": "文末'检查优先级建议'明确分三级：P0立即修复（Redis无密码、MySQL root无密码、Tomcat Manager默认凭据、AJP Ghostcat、SSH root密码登录）、P1尽快修复（root运行、安全组过度开放、敏感路径暴露）、P2计划修复（HTTPS加固、安全头、版本泄露、日志审计）"
+    }
+  ]
+}

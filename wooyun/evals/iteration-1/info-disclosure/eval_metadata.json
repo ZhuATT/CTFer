@@ -1,0 +1,31 @@
+{
+  "eval_id": 5,
+  "eval_name": "info-disclosure",
+  "prompt": "我在审计一个基于 Spring Boot 的后台管理系统，怀疑存在信息泄露问题。系统有用户管理、日志查看、文件下载、API 接口文档等功能。帮我制定一个信息泄露专项测试方案。",
+  "assertions": [
+    {
+      "id": "wooyun-cases",
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）"
+    },
+    {
+      "id": "statistics",
+      "text": "statistics: 包含WooYun量化统计（案例数或占比）"
+    },
+    {
+      "id": "spring-specific",
+      "text": "spring-specific: 含Spring Boot检查（Actuator等）"
+    },
+    {
+      "id": "data-categories",
+      "text": "data-categories: 区分不同泄露类型"
+    },
+    {
+      "id": "remediation",
+      "text": "remediation: 含修复建议"
+    },
+    {
+      "id": "actionable-steps",
+      "text": "actionable-steps: 有具体步骤"
+    }
+  ]
+}

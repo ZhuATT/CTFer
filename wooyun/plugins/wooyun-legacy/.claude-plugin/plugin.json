@@ -1,0 +1,23 @@
+{
+  "name": "wooyun-legacy",
+  "version": "2.0.0",
+  "description": "WooYun business logic vulnerability methodology — security testing skill based on 22,132 real vulnerability cases covering 6 domains and 33 vulnerability classes",
+  "author": {
+    "name": "探微安全实验室",
+    "url": "https://github.com/tanweai"
+  },
+  "homepage": "https://github.com/tanweai/wooyun-legacy",
+  "repository": "https://github.com/tanweai/wooyun-legacy",
+  "license": "CC-BY-NC-SA-4.0",
+  "keywords": [
+    "security",
+    "penetration-testing",
+    "vulnerability",
+    "wooyun",
+    "business-logic",
+    "payment-security",
+    "authorization",
+    "idor",
+    "code-audit"
+  ]
+}

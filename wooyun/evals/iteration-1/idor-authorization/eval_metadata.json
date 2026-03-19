@@ -1,0 +1,13 @@
+{
+  "eval_id": 2,
+  "eval_name": "idor-authorization",
+  "prompt": "我们公司有一个多租户 SaaS 平台，提供 REST API 给前端和移动端。我需要你帮我设计一个针对越权访问的完整测试计划，包括水平越权（IDOR）、垂直越权（权限提升）、未授权访问。要能直接拿来用的那种。",
+  "assertions": [
+    {"id": "wooyun-cases", "text": "包含至少2个具体的WooYun真实案例引用（公司名+漏洞描述）"},
+    {"id": "statistics", "text": "包含量化统计数据（案例数或高危占比百分数）"},
+    {"id": "idor-depth", "text": "IDOR测试覆盖至少4种ID操纵技术"},
+    {"id": "three-dimensions", "text": "明确区分水平越权、垂直越权、未授权访问三个维度"},
+    {"id": "arbitrary-ops", "text": "包含任意操作/任意X类别的测试"},
+    {"id": "api-specific", "text": "包含针对REST API的具体测试用例"}
+  ]
+}

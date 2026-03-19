@@ -1,0 +1,34 @@
+{
+  "expectations": [
+    {
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）",
+      "passed": false,
+      "evidence": "全文未提及任何WooYun案例，无任何具体公司名的漏洞案例引用。方案为通用SRC渗透测试计划，无历史漏洞数据库支撑。"
+    },
+    {
+      "text": "statistics: 包含WooYun量化统计（案例数或高危占比百分数）",
+      "passed": false,
+      "evidence": "全文无任何WooYun统计数据。无案例数量、无高危占比百分数。仅有主观的预期产出估计如'1-3个高危/严重'。"
+    },
+    {
+      "text": "time-optimized: 按两天限制排优先级",
+      "passed": true,
+      "evidence": "明确两天时间分配：Day1上午P0越权(3-4h)+下午P1支付逻辑(3-4h)+晚上P2信息泄露(2h)；Day2上午P3接口发现(2-3h)+下午P4注入类(2-3h)+晚上P5-P6业务逻辑+扫尾(1-2h)。总览表格清晰。"
+    },
+    {
+      "text": "api-specific: 针对4个API有具体方案",
+      "passed": true,
+      "evidence": "四个API均有具体测试方案：/api/user/info有水平越权读取+字段分析；/api/order/list有越权+orderId遍历+订单详情；/api/payment/create有金额篡改+数量篡改+支付回调伪造+竞态条件；/api/address/update有越权修改+枚举+关联端点检查"
+    },
+    {
+      "text": "priority-ranking: 有优先级排序",
+      "passed": true,
+      "evidence": "P0(越权)→P1(支付逻辑)→P2(信息泄露)→P3(接口发现)→P4(注入)→P5(业务逻辑)→P6(文件上传)，有明确优先级标签和理由说明"
+    },
+    {
+      "text": "practical-tools: 含工具和命令",
+      "passed": true,
+      "evidence": "工具清单含Burp Suite Pro、sqlmap、Turbo Intruder、ffuf/dirsearch、LinkFinder/JSFinder、微信开发者工具、Xray。含具体命令如sqlmap的'--level 3 --risk 2'参数、JS搜索关键词'/api/ axios fetch request baseURL endpoint'、XSS payload示例"
+    }
+  ]
+}

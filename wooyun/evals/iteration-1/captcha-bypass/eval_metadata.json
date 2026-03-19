@@ -1,0 +1,31 @@
+{
+  "eval_id": 11,
+  "eval_name": "captcha-bypass",
+  "prompt": "我在测试一个金融 App 的验证码安全。系统使用了图形验证码（登录）、短信验证码（交易确认）、滑块验证（注册）。帮我出一个验证码绕过测试方案，要覆盖所有类型的验证码。",
+  "assertions": [
+    {
+      "id": "wooyun-cases",
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）"
+    },
+    {
+      "id": "statistics",
+      "text": "statistics: 包含WooYun量化统计（案例数或高危占比百分数）"
+    },
+    {
+      "id": "bypass-methods",
+      "text": "bypass-methods: ≥5种验证码绕过方式"
+    },
+    {
+      "id": "sms-specific",
+      "text": "sms-specific: 含短信验证码测试"
+    },
+    {
+      "id": "ocr-ai",
+      "text": "ocr-ai: 含OCR/AI识别测试"
+    },
+    {
+      "id": "flow-bypass",
+      "text": "flow-bypass: 含流程层面绕过"
+    }
+  ]
+}

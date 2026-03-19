@@ -1,0 +1,34 @@
+{
+  "expectations": [
+    {
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）",
+      "passed": false,
+      "evidence": "全文未提及任何WooYun案例，无公司名引用。内容为通用Spring Boot信息泄露排查清单，无真实漏洞案例支撑。'WooYun'一词未在文档中出现。"
+    },
+    {
+      "text": "statistics: 包含WooYun量化统计（案例数或占比）",
+      "passed": false,
+      "evidence": "全文无任何WooYun统计数据，未出现案例数、占比、高危率等量化指标。"
+    },
+    {
+      "text": "spring-specific: 含Spring Boot检查（Actuator等）",
+      "passed": true,
+      "evidence": "2.1节完整覆盖Actuator端点（17个端点逐一列出含风险等级），含基础探测脚本、变体路径绕过（URL编码/Tomcat路径参数/空字节截断）、自定义管理端口探测、heapdump分析方法、application.yml加固配置。还包括2.9 Spring DevTools泄露检查"
+    },
+    {
+      "text": "data-categories: 区分不同泄露类型",
+      "passed": true,
+      "evidence": "明确区分12类：2.1 Actuator、2.2错误处理、2.3配置文件、2.4 HTTP响应头、2.5 API数据过度暴露、2.6静态资源与目录遍历、2.7日志信息、2.8 Swagger/OpenAPI、2.9 DevTools、2.10数据库与中间件控制台、2.11 Spring Security配置、2.12依赖组件版本"
+    },
+    {
+      "text": "remediation: 含修复建议",
+      "passed": true,
+      "evidence": "每个检查类别均附安全加固建议：Actuator的application.yml推荐配置、错误处理的全局异常处理器Java代码示例、响应头的Spring Security配置代码、Swagger的Profile控制配置。第五章验收标准列出10项合格条件"
+    },
+    {
+      "text": "actionable-steps: 有具体步骤",
+      "passed": true,
+      "evidence": "每个检查类别含可执行bash脚本（Actuator 24个端点探测+变体路径+自定义端口、敏感文件探测数组、Swagger路径探测），代码审计含grep命令模板，三阶段执行计划含优先级和负责人分配"
+    }
+  ]
+}

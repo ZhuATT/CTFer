@@ -1,0 +1,31 @@
+{
+  "eval_id": 7,
+  "eval_name": "code-review",
+  "prompt": "帮我审计以下 Java 电商系统的关键业务代码，找出所有业务逻辑漏洞：\n\n1. 优惠券领取接口：接收 couponId 和 userId，直接查库发放\n2. 订单金额计算：从前端接收 price 和 quantity，后端直接相乘\n3. 用户积分兑换：积分扣减和商品发放不在同一事务中\n4. VIP 等级判断：从 JWT token 中读取 userLevel 字段判断权限\n5. 文件导出：接收 filePath 参数直接读取文件返回",
+  "assertions": [
+    {
+      "id": "wooyun-cases",
+      "text": "wooyun-cases: 包含至少2个具体WooYun案例（需有公司名）"
+    },
+    {
+      "id": "statistics",
+      "text": "statistics: 包含WooYun量化统计（案例数或高危占比百分数）"
+    },
+    {
+      "id": "vuln-count",
+      "text": "vuln-count: 发现>=5个业务逻辑漏洞"
+    },
+    {
+      "id": "severity-rating",
+      "text": "severity-rating: 每个漏洞有严重级别"
+    },
+    {
+      "id": "fix-code",
+      "text": "fix-code: 含修复代码示例"
+    },
+    {
+      "id": "business-impact",
+      "text": "business-impact: 分析业务影响"
+    }
+  ]
+}
