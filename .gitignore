@@ -1,0 +1,86 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv/
+Envs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# Claude Code
+.claude/
+
+# Cache
+.cache/
+*.cache
+
+# Checkpoints (temporary session data)
+checkpoints/
+
+# Workspace (temporary POC scripts)
+workspace/poc_*.py
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Sensitive/Local Data
+# Keep structure but ignore content in auto_experiences
+long_memory/auto_experiences/*.md
+long_memory/auto_experiences/exp_index.json
+
+# Large index files (optional - uncomment if needed)
+# .cache/wooyun_index.json
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Test outputs
+test_output/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment variables
+.env
+.env.local
