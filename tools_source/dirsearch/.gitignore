@@ -1,0 +1,10 @@
+/reports/
+__pycache__/
+*.py[cod]
+*.py.save
+*$py.class
+.idea/
+.ropeproject/
+venv/
+sessions/*
+!sessions/.gitkeep
