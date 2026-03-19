@@ -1,0 +1,44 @@
+{
+ "venv": {
+  "name": "CTFagent",
+  "path": "C:\\Users\\Administrator\\Envs\\CTFagent",
+  "python_path": "C:\\Users\\Administrator\\Envs\\CTFagent\\Scripts\\python.exe",
+  "activate_cmd": "workon CTFagent"
+ },
+ "tools_source": "./tools_source",
+ "tools": {
+  "sqlmap": {
+   "enabled": true,
+   "path": "sqlmap/sqlmap.py",
+   "timeout": 300,
+   "description": "\u81ea\u52a8 SQL \u6ce8\u5165\u68c0\u6d4b\u4e0e\u5229\u7528\u5de5\u5177"
+  },
+  "dirsearch": {
+   "enabled": true,
+   "path": "dirsearch/dirsearch.py",
+   "timeout": 180,
+   "description": "\u76ee\u5f55\u626b\u63cf\u5de5\u5177"
+  },
+  "fengjing": {
+   "enabled": false,
+   "path": "fengjing/main.py",
+   "timeout": 60,
+   "description": "\u6307\u7eb9\u8bc6\u522b\u5de5\u5177"
+  },
+  "decoder": {
+   "enabled": true,
+   "path": "decoder/__init__.py",
+   "timeout": 10,
+   "description": "\u7f16\u7801/\u89e3\u7801\u5de5\u5177\uff08Base64/URL/Hex/Unicode/HTML/Ascii85/Base32\uff09",
+   "internal": true
+  }
+ },
+ "memory": {
+  "max_history": 20,
+  "compression_threshold": 10
+ },
+ "checkpoints": {
+  "enabled": true,
+  "directory": "./checkpoints"
+ }
+}
