@@ -116,6 +116,42 @@ init_problem() 会自动识别并加载对应POC/经验
 4. **经验自动保存** - 解题成功后自动保存到auto_experiences/
 5. **Windows本地** - CTFagent虚拟环境，无Docker/Kali
 
+## ⚠️ Claude Code 解题入口约束（必须遵守）
+
+**当用户在 Claude Code 中提供题目 URL / hint / description / source code 请求解题时，必须默认走项目级唯一主链入口，不得绕过。**
+
+### 默认入口
+```python
+from orchestrator import orchestrate_challenge
+
+result = orchestrate_challenge(
+    url="http://target.com",
+    hint="...",
+    description="..."
+)
+```
+
+或使用 CLI：
+```bash
+python main.py --url "http://target.com" --hint "..." --description "..."
+```
+
+### 角色分工
+- **Claude Code**：交互层 / HITL / 控制面
+- **orchestrator**：项目级唯一执行入口
+- **AutoAgent.run_main_loop()**：主链内部自动解题循环
+
+### 禁止行为
+- ❌ 用户一给题目就直接从零散 `tools.py` 工具开始攻击
+- ❌ 把 `AutoAgent.solve_challenge()` 作为 Claude Code 默认入口
+- ❌ 绕过 orchestrator，自己临时拼接“初始化 → 攻击”流程
+
+### 允许例外
+仅在以下场景允许绕过主链：
+- 调试主链本身
+- 编写/修复单元测试
+- 修复 `orchestrator.py`、`main.py`、`agent_core.py` 的底层问题
+
 ## ⚠️ 强制解题流程（必须遵守）
 
 **在开始攻击前，必须按顺序执行：**
