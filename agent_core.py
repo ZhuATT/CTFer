@@ -19,13 +19,15 @@ CTF Agent 自动化决策与执行模块 v2.1
     )
 """
 
+import hashlib
 import re
 import json
 from typing import Dict, List, Any, Optional, Callable
 
 from tools import (
     get_memory, reset_memory, execute_python_poc, execute_command,
-    extract_flags, get_memory_summary, init_problem, get_agent_context
+    extract_flags, get_memory_summary, init_problem, get_agent_context,
+    quick_dir_scan, sqlmap_scan_url, sqlmap_deep_scan_url,
 )
 from long_memory import auto_save_experience
 
@@ -322,12 +324,29 @@ class AutoAgent:
         self.max_steps = max_steps
         self.verbose = verbose
         self.memory = get_memory()
+        self.agent_context = get_agent_context()
+        self.init_result: Dict[str, Any] = {}
         self.target_url = ""
         self.target_type = "unknown"
         self.problem_classified = False
+        self.current_step_num = 0
+        self.last_action: Dict[str, Any] = {}
+        self.last_result: str = ""
+        self.source_code: str = ""
         self.source_analysis_result = None  # 存储源码分析结果
         self.attack_plan = None  # 存储攻击计划
         self.planner = AttackPlanner()  # 攻击计划器
+        self.action_handlers = {
+            "recon": self._execute_recon_action,
+            "ua_test": self._execute_ua_test_action,
+            "follow_redirect": self._execute_follow_redirect_action,
+            "sqlmap_scan": self._execute_sqlmap_action,
+            "sqlmap_deep_scan": self._execute_sqlmap_deep_action,
+            "dir_scan": self._execute_dir_scan_action,
+            "source_analysis": self._execute_source_analysis_action,
+            "poc": self._execute_poc_action,
+            "attack_step": self._execute_attack_step_action,
+        }
         self.consecutive_help_triggers = 0
         self.last_help_reason: Optional[str] = None
         if min_steps_before_help is None:
@@ -340,6 +359,422 @@ class AutoAgent:
         if self.verbose:
             prefix = f"[{level}]" if level else ""
             print(f"{prefix} {msg}")
+
+    def initialize_challenge(self, url: str = "", hint: str = "", description: str = "",
+                             source_code: str = "") -> Dict[str, Any]:
+        """初始化题目上下文，供 orchestrator 与旧入口复用。"""
+        init_result = init_problem(target_url=url, description=description, hint=hint)
+        self.memory = get_memory()
+        self.init_result = init_result
+        self.target_url = init_result.get("target_url", url)
+        self.target_type = init_result.get("problem_type", "unknown")
+        self.agent_context = get_agent_context()
+
+        if hint:
+            self._classify_problem(hint)
+            if self.target_type and self.target_type != init_result.get("problem_type"):
+                self.memory.update_target(problem_type=self.target_type)
+                self.memory.set_context(problem_type=self.target_type)
+                self.agent_context = get_agent_context()
+                self.init_result["problem_type"] = self.target_type
+
+        if source_code and SOURCE_ANALYSIS_AVAILABLE:
+            self.source_code = source_code
+            self._analyze_source_code(source_code)
+            if self.source_analysis_result:
+                self._create_attack_plan()
+
+        if self.target_type == "unknown" and self.source_analysis_result:
+            self.target_type = self.source_analysis_result.vuln_type
+            self.memory.update_target(problem_type=self.target_type)
+            self.memory.set_context(problem_type=self.target_type)
+            self.agent_context = get_agent_context()
+            self.init_result["problem_type"] = self.target_type
+            self.log(f"[Analysis] Auto-classified as: {self.target_type}")
+
+        return self.init_result
+
+    def _emit_event(
+        self,
+        event_callback: Optional[Callable[[str, Dict[str, Any]], None]],
+        stage: str,
+        payload: Dict[str, Any],
+    ) -> None:
+        """向 orchestrator 发出阶段事件。"""
+        if event_callback:
+            event_callback(stage, payload)
+
+    def _get_consecutive_failures(self) -> int:
+        """返回当前连续失败次数。"""
+        consecutive_failures = 0
+        for step in reversed(self.memory.steps):
+            if step.success:
+                break
+            consecutive_failures += 1
+        return consecutive_failures
+
+    def build_advisor_context(self) -> Dict[str, Any]:
+        """构造 Advisor 阶段使用的上下文快照。"""
+        recent_steps = self.memory.steps[-3:]
+        skill_content = self.init_result.get("skill_content") or getattr(self.agent_context, "skill_content", "")
+        loaded_resources = self.init_result.get("loaded_resources") or self.init_result.get("resources") or {}
+
+        return {
+            "target_url": self.target_url,
+            "target_type": self.target_type,
+            "hint": getattr(self.agent_context, "hint", ""),
+            "problem_type": self.init_result.get("problem_type", self.target_type),
+            "loaded_resources": loaded_resources,
+            "skill_loaded": bool(skill_content),
+            "skill_preview": skill_content[:200] if isinstance(skill_content, str) else "",
+            "attack_plan_ready": bool(self.attack_plan),
+            "consecutive_failures": self._get_consecutive_failures(),
+            "memory_summary": get_memory_summary(),
+            "recent_actions": [
+                {
+                    "tool": step.tool,
+                    "target": step.target,
+                    "success": step.success,
+                }
+                for step in recent_steps
+            ],
+        }
+
+    def _create_attack_plan(self) -> None:
+        """根据当前类型与源码分析结果创建攻击计划。"""
+        if not self.target_url:
+            return
+        self.attack_plan = self.planner.create_plan(
+            vuln_type=self.target_type,
+            target_url=self.target_url,
+            source_analysis=self.source_analysis_result,
+        )
+
+    def _generate_action_id(
+        self,
+        action_type: str,
+        target: str = "",
+        params: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        payload = json.dumps(
+            {
+                "type": action_type,
+                "target": target,
+                "params": params or {},
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        return hashlib.md5(payload.encode("utf-8")).hexdigest()[:12]
+
+    def _build_action(
+        self,
+        action_type: str,
+        target: str = "",
+        description: str = "",
+        intent: str = "",
+        expected_tool: str = "",
+        params: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        normalized_params = dict(params or {})
+        action = {
+            "id": self._generate_action_id(action_type, target, normalized_params),
+            "type": action_type,
+            "target": target,
+            "description": description,
+            "intent": intent or description,
+            "expected_tool": expected_tool or action_type,
+            "params": normalized_params,
+        }
+        if metadata:
+            action.update(metadata)
+        return action
+
+    def _expected_tool_for_attack_step(self, step_name: str, has_code: bool = False) -> str:
+        if step_name in {"detect_sqli", "extract_data"}:
+            return "sqlmap"
+        if step_name == "exploit":
+            return "dirsearch"
+        if step_name in {
+            "extract_flag",
+            "configure_environment",
+            "write_shell",
+            "trigger_include",
+            "test_mobile_ua",
+            "follow_redirect",
+            "test_lfi",
+            "recon",
+        }:
+            return "python_poc"
+        if has_code:
+            return "python_poc"
+        return "attack_step"
+
+    def _canonical_tool_name(self, action: Dict[str, Any]) -> str:
+        action_type = action.get("type", "unknown")
+        params = action.get("params", {})
+        step_name = action.get("step_name") or params.get("from_attack_step", "")
+        has_code = bool(action.get("code") or params.get("code"))
+
+        if action_type == "attack_step":
+            return self._expected_tool_for_attack_step(step_name, has_code)
+
+        tool_name = action.get("expected_tool") or action_type
+        return {
+            "recon": "python_poc",
+            "ua_test": "python_poc",
+            "follow_redirect": "python_poc",
+            "poc": "python_poc",
+            "source_analysis": "source_analysis",
+            "dir_scan": "dirsearch",
+            "dirsearch": "dirsearch",
+            "sqlmap_scan": "sqlmap",
+            "sqlmap_deep_scan": "sqlmap",
+            "sqlmap": "sqlmap",
+        }.get(tool_name, tool_name)
+
+    def _count_recent_failures_by_tool(self, tool: str, window: int = 5) -> int:
+        recent_steps = self.memory.steps[-window:] if window > 0 else self.memory.steps
+        return sum(1 for step in recent_steps if step.tool == tool and not step.success)
+
+    def _mark_action_completed(self, action: Dict[str, Any], result: str) -> None:
+        if action.get("type") == "attack_step" and self.attack_plan:
+            step_name = action.get("step_name")
+            if step_name:
+                self.attack_plan.mark_step_completed(step_name, result)
+
+    def _build_executor_error(self, action: Dict[str, Any], message: str) -> str:
+        return f"[{action.get('type', 'unknown')}] {message}"
+
+    def _generate_help_request(self, step_num: int, summary: str) -> str:
+        last_action = self.last_action or {}
+        last_action_desc = last_action.get("description") or last_action.get("type") or "unknown"
+        return (
+            f"第 {step_num} 步后需要人工介入。\n"
+            f"目标: {self.target_url or 'unknown'}\n"
+            f"题目类型: {self.target_type or 'unknown'}\n"
+            f"最近动作: {last_action_desc}\n\n"
+            f"当前摘要:\n{summary}"
+        )
+
+    def plan_next_action(self) -> Dict[str, Any]:
+        action = dict(self._decide_next_action())
+        action["expected_tool"] = self._canonical_tool_name(action)
+        self.last_action = dict(action)
+        return action
+
+    def _execute_recon_action(self, action: Dict[str, Any]) -> str:
+        target = action.get("target", self.target_url)
+        code = f'''
+import requests
+import urllib3
+import re
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+url = "{target}"
+resp = requests.get(url, timeout=10, verify=False)
+print(f"Status: {{resp.status_code}}")
+print(f"Headers: {{dict(resp.headers)}}")
+if 'Location' in resp.headers:
+    print(f"Redirect: {{resp.headers['Location']}}")
+flags = re.findall(r'ctfshow{{[^}}]+}}|flag{{[^}}]+}}', resp.text)
+if flags:
+    print(f"FLAG_FOUND: {{flags[0]}}")
+print(f"Content preview: {{resp.text[:500]}}")
+'''
+        return execute_python_poc(code, timeout=30)
+
+    def _execute_ua_test_action(self, action: Dict[str, Any]) -> str:
+        target = action.get("target", self.target_url)
+        ua = action.get("params", {}).get("ua") or action.get("ua", "Mobile")
+        code = f'''
+import requests
+import urllib3
+import re
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+url = "{target}"
+headers = {{"User-Agent": "{ua}"}}
+resp = requests.get(url, headers=headers, timeout=10, verify=False, allow_redirects=False)
+print(f"Status: {{resp.status_code}}")
+print(f"Headers: {{dict(resp.headers)}}")
+if 'Location' in resp.headers:
+    print(f"Redirect to: {{resp.headers['Location']}}")
+flags = re.findall(r'ctfshow{{[^}}]+}}|flag{{[^}}]+}}', resp.text)
+if flags:
+    print(f"FLAG: {{flags}}")
+if resp.status_code == 200:
+    print(f"Content: {{resp.text}}")
+'''
+        return execute_python_poc(code, timeout=30)
+
+    def _execute_follow_redirect_action(self, action: Dict[str, Any]) -> str:
+        target = action.get("target", self.target_url)
+        ua = action.get("params", {}).get("ua") or action.get("ua", "Mobile")
+        code = f'''
+import requests
+import urllib3
+import re
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+url = "{target}"
+headers = {{"User-Agent": "{ua}"}}
+resp = requests.get(url, headers=headers, timeout=10, verify=False)
+print(f"Status: {{resp.status_code}}")
+print(f"Content-Length: {{len(resp.text)}}")
+flags = re.findall(r'ctfshow{{[^}}]+}}|flag{{[^}}]+}}|tfshow{{[^}}]+}}', resp.text)
+if flags:
+    print(f"FLAG_FOUND: {{flags[0]}}")
+print(f"Content: {{resp.text}}")
+'''
+        return execute_python_poc(code, timeout=30)
+
+    def _execute_sqlmap_action(self, action: Dict[str, Any]) -> str:
+        return sqlmap_scan_url(action.get("target", self.target_url), **action.get("params", {}))
+
+    def _execute_sqlmap_deep_action(self, action: Dict[str, Any]) -> str:
+        return sqlmap_deep_scan_url(action.get("target", self.target_url), **action.get("params", {}))
+
+    def _execute_dir_scan_action(self, action: Dict[str, Any]) -> str:
+        params = action.get("params", {})
+        return quick_dir_scan(action.get("target", self.target_url), extensions=params.get("extensions"))
+
+    def _execute_source_analysis_action(self, action: Dict[str, Any]) -> str:
+        code = action.get("code") or action.get("params", {}).get("code") or self.source_code
+        if not code:
+            return self._build_executor_error(action, "source code unavailable")
+        result = self._analyze_source_code(code)
+        self.memory.add_step(
+            tool="source_analysis",
+            target="PHP code",
+            params={"action_id": action.get("id", "")},
+            result=result,
+            success=True,
+        )
+        return result
+
+    def _execute_poc_action(self, action: Dict[str, Any]) -> str:
+        steps = action.get("steps") or action.get("params", {}).get("steps") or [action.get("code")]
+        results = []
+        for step_code in steps:
+            if step_code:
+                results.append(execute_python_poc(step_code, timeout=60))
+        return "\n\n".join(results)
+
+    def _execute_attack_step_action(self, action: Dict[str, Any]) -> str:
+        step_name = action.get("step_name", "")
+        code = action.get("code") or action.get("params", {}).get("code", "")
+
+        if step_name == "recon":
+            return self._execute_recon_action(
+                self._build_action(
+                    "recon",
+                    target=action.get("target", self.target_url),
+                    description=action.get("description", "信息收集"),
+                    intent="执行通用侦察以收集首页线索",
+                    expected_tool="python_poc",
+                    params={"from_attack_step": step_name},
+                )
+            )
+
+        if step_name == "test_mobile_ua":
+            ua_action = self._build_action(
+                "ua_test",
+                target=action.get("target", self.target_url),
+                description=action.get("description", "测试Mobile UA"),
+                intent="验证目标是否存在 UA 绕过",
+                expected_tool="python_poc",
+                params={"ua": "Mobile", "from_attack_step": step_name},
+            )
+            return self._execute_ua_test_action(ua_action)
+
+        if step_name == "follow_redirect":
+            redirect_target = action.get("target") or self.target_url
+            if redirect_target == self.target_url and self.memory.steps:
+                redirect_candidate = self._extract_redirect(self.memory.steps[-1].result)
+                if redirect_candidate:
+                    redirect_target = f"{self.target_url.rstrip('/')}/{redirect_candidate.lstrip('/')}"
+            follow_action = self._build_action(
+                "follow_redirect",
+                target=redirect_target,
+                description=action.get("description", "跟随重定向"),
+                intent="访问重定向目标并继续提取线索",
+                expected_tool="python_poc",
+                params={"ua": "Mobile", "from_attack_step": step_name},
+            )
+            return self._execute_follow_redirect_action(follow_action)
+
+        if step_name == "detect_sqli":
+            return self._execute_sqlmap_action(
+                self._build_action(
+                    "sqlmap_scan",
+                    target=action.get("target", self.target_url),
+                    description=action.get("description", "检测SQL注入点"),
+                    intent="用 sqlmap 验证注入点",
+                    expected_tool="sqlmap",
+                    params={"batch": True},
+                )
+            )
+
+        if step_name == "extract_data":
+            return self._execute_sqlmap_deep_action(
+                self._build_action(
+                    "sqlmap_deep_scan",
+                    target=action.get("target", self.target_url),
+                    description=action.get("description", "提取数据"),
+                    intent="提升扫描等级以提取数据",
+                    expected_tool="sqlmap",
+                    params={"batch": True},
+                )
+            )
+
+        if step_name == "test_lfi":
+            payload_target = action.get("target", self.target_url)
+            if "?" not in payload_target:
+                payload_target = f"{payload_target}?file=../../../../etc/passwd"
+            return self._execute_recon_action(
+                self._build_action(
+                    "recon",
+                    target=payload_target,
+                    description=action.get("description", "测试文件包含"),
+                    intent="读取典型敏感文件验证 LFI",
+                    expected_tool="python_poc",
+                    params={"from_attack_step": step_name},
+                )
+            )
+
+        if step_name == "exploit":
+            return self._execute_dir_scan_action(
+                self._build_action(
+                    "dir_scan",
+                    target=action.get("target", self.target_url),
+                    description=action.get("description", "尝试利用前先补充目录扫描"),
+                    intent="先扩展端点情报，再决定利用方式",
+                    expected_tool="dirsearch",
+                    params={"extensions": ["php", "bak", "txt"], "from_attack_step": step_name},
+                )
+            )
+
+        if step_name == "extract_flag":
+            recent_text = "\n\n".join(str(step.result) for step in self.memory.steps[-3:])
+            flags = extract_flags(recent_text)
+            if flags:
+                return f"FLAG_FOUND: {flags[0]}"
+            return self._build_executor_error(action, "flag not found in recent outputs")
+
+        if code:
+            return self._execute_poc_action(action)
+
+        return self._build_executor_error(action, f"unsupported attack step: {step_name}")
+
+    def maybe_request_help(self, step_num: int) -> Optional[str]:
+        """根据当前状态判断是否需要求助。"""
+        if not self._should_ask_for_help():
+            return None
+
+        summary = get_memory_summary()
+        return self._generate_help_request(step_num, summary)
 
     def solve_challenge(self, url: str = "", hint: str = "", description: str = "",
                         source_code: str = "") -> Dict[str, Any]:
@@ -355,52 +790,71 @@ class AutoAgent:
         Returns:
             解题结果
         """
-        # 1. 初始化
-        init_result = init_problem(target_url=url, description=description, hint=hint)
-        self.memory = get_memory()
-        self.target_url = init_result.get("target_url", url)
-        self.target_type = init_result.get("problem_type", "unknown")
-        self.agent_context = get_agent_context()
+        self.initialize_challenge(
+            url=url,
+            hint=hint,
+            description=description,
+            source_code=source_code
+        )
+        return self.run_main_loop()
 
+    def run_main_loop(
+        self,
+        event_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    ) -> Dict[str, Any]:
+        """执行唯一主循环。"""
         self.log(f"=" * 60)
         self.log(f"[Agent] 开始自动化解题: {self.target_url}")
-        self.log(f"[Hint] {hint}")
+        self.log(f"[Hint] {self.agent_context.hint}")
         self.log(f"=" * 60)
 
-        # 2. 自动识别类型（hint 覆盖）
-        if hint:
-            self._classify_problem(hint)
-            # 如果分类结果与初始化不同，更新记忆上下文
-            if self.target_type and self.target_type != init_result.get("problem_type"):
-                self.memory.update_target(problem_type=self.target_type)
-                self.memory.set_context(problem_type=self.target_type)
-
-        # 3. 如果有源码，进行代码分析
-        if source_code and SOURCE_ANALYSIS_AVAILABLE:
-            self._analyze_source_code(source_code)
-
-            # 根据分析结果创建攻击计划
-            if self.source_analysis_result:
-                self._create_attack_plan()
-
-        # 如果没识别出类型但分析了源码，用分析结果更新类型
-        if self.target_type == "unknown" and self.source_analysis_result:
-            self.target_type = self.source_analysis_result.vuln_type
-            self.log(f"[Analysis] Auto-classified as: {self.target_type}")
-
-        # 4. 循环解题
         for step_num in range(1, self.max_steps + 1):
+            self.current_step_num = step_num
             self.log(f"\n[Step {step_num}/{self.max_steps}] ---")
 
-            # 3.1 决策下一步
-            action = self._decide_next_action()
+            advisor_context = self.build_advisor_context()
+            self._emit_event(
+                event_callback,
+                "advisor",
+                {
+                    "step": step_num,
+                    "context": advisor_context,
+                },
+            )
+
+            action = self.plan_next_action()
             self.log(f"决策: {action['type']}", "DECISION")
+            self._emit_event(
+                event_callback,
+                "planner",
+                {
+                    "step": step_num,
+                    "action": dict(action),
+                },
+            )
 
-            # 3.2 执行POC
             try:
+                self._emit_event(
+                    event_callback,
+                    "executor",
+                    {
+                        "step": step_num,
+                        "action": dict(action),
+                    },
+                )
                 result = self._execute_action(action)
+                self.last_result = result
+                self._emit_event(
+                    event_callback,
+                    "tool_node",
+                    {
+                        "step": step_num,
+                        "action": dict(action),
+                        "result": result,
+                        "success": True,
+                    },
+                )
 
-                # 3.3 检查结果 - **如果发现flag立即返回**
                 flags = extract_flags(result)
                 if flags:
                     flag = flags[0]
@@ -408,7 +862,6 @@ class AutoAgent:
                     self.log(f"[SUCCESS] FLAG FOUND: {flag}", "SUCCESS")
                     self.log(f"=" * 60)
 
-                    # **立即自动保存经验**
                     self._auto_save_experience(flag)
 
                     return {
@@ -418,48 +871,80 @@ class AutoAgent:
                         "message": f"步骤{step_num}: 成功获取flag"
                     }
 
-                # 3.4 分析输出发现新线索
                 clues = self._analyze_output(result)
                 self.log(f"发现线索: {clues}", "ANALYSIS")
 
             except Exception as e:
+                self.last_result = str(e)
                 self.log(f"执行失败: {e}", "ERROR")
                 self.memory.add_step(
-                    tool=action.get("type", "unknown"),
-                    target=action.get("target", ""),
-                    params={},
+                    tool=self._canonical_tool_name(action),
+                    target=action.get("target", self.target_url),
+                    params={
+                        "action_id": action.get("id", ""),
+                        "action_type": action.get("type", "unknown"),
+                    },
                     result=str(e),
                     success=False
                 )
+                self._emit_event(
+                    event_callback,
+                    "tool_node",
+                    {
+                        "step": step_num,
+                        "action": dict(action),
+                        "result": str(e),
+                        "success": False,
+                    },
+                )
 
-            # 3.5 检查是否需要求助（失败过多或明确失败）
-            if self._should_ask_for_help():
-                summary = get_memory_summary()
-                error_msg = self._generate_help_request(step_num, summary)
-
-                # **立即向用户求救**
+            help_request = self.maybe_request_help(step_num)
+            if help_request:
                 self.log("=" * 60)
                 self.log("[AGENT] 无法继续，需要人类干预！", "HELP")
                 self.log("=" * 60)
+                self._emit_event(
+                    event_callback,
+                    "help",
+                    {
+                        "step": step_num,
+                        "message": help_request,
+                    },
+                )
 
-                # 抛出异常中断执行，等待用户指示
-                raise AgentNeedsHelpException(error_msg)
+                raise AgentNeedsHelpException(help_request)
 
-        # 4. 达到最大步数仍未成功
-        raise AgentNeedsHelpException(
+        final_help = (
             f"已尝试{self.max_steps}步仍未获得flag，所有自动策略均已失败。\n\n"
             f"最终状态:\n{get_memory_summary()}"
         )
+        self._emit_event(
+            event_callback,
+            "help",
+            {
+                "step": self.max_steps,
+                "message": final_help,
+            },
+        )
+        raise AgentNeedsHelpException(final_help)
 
     def reset(self):
         """重置Agent状态"""
         reset_memory()
         self.memory = get_memory()
+        self.agent_context = get_agent_context()
+        self.init_result = {}
         self.target_url = ""
         self.target_type = "unknown"
         self.problem_classified = False
+        self.current_step_num = 0
+        self.last_action = {}
+        self.last_result = ""
+        self.source_code = ""
         self.source_analysis_result = None
         self.attack_plan = None
+        self.consecutive_help_triggers = 0
+        self.last_help_reason = None
 
     def _classify_problem(self, hint: str):
         """自动分类题目类型"""
@@ -556,170 +1041,122 @@ class AutoAgent:
         steps = self.memory.steps
         target = self.target_url
 
-        # 如果存在攻击计划，优先按步骤执行
         if self.attack_plan:
             next_step = self.attack_plan.get_next_step()
             if next_step:
                 self.log(f"[AttackPlan] Executing: {next_step.name}", "PLAN")
-                return {
-                    "type": "attack_step",
-                    "step_name": next_step.name,
-                    "code": next_step.code,
-                    "description": next_step.description
-                }
-            else:
-                self.log("[AttackPlan] All steps completed")
+                return self._build_action(
+                    "attack_step",
+                    target=target,
+                    description=next_step.description,
+                    intent=f"执行攻击计划步骤 {next_step.name}",
+                    expected_tool="attack_step",
+                    params={"code": next_step.code},
+                    metadata={
+                        "step_name": next_step.name,
+                        "code": next_step.code,
+                    },
+                )
+            self.log("[AttackPlan] All steps completed")
 
-        # 规则1: 根据题目类型直接选择策略
+        if self.source_analysis_result and not any(s.tool == "source_analysis" for s in steps):
+            return self._build_action(
+                "source_analysis",
+                target="PHP code",
+                description="分析已提供源码",
+                intent="基于源码提取漏洞线索",
+                expected_tool="source_analysis",
+                params={"code": self.source_code},
+                metadata={"code": self.source_code},
+            )
+
         if not steps:
-            # 第一步：信息收集
-            return {
-                "type": "recon",
-                "target": target,
-                "description": "初始信息收集"
-            }
+            return self._build_action(
+                "recon",
+                target=target,
+                description="初始信息收集",
+                intent="收集首页响应、头和可能的跳转信息",
+                expected_tool="recon",
+            )
 
-        # 规则2: 根据题目类型决策
         if self.target_type == "ua_bypass":
-            if not any(s.tool == "ua_test" for s in steps):
-                return {
-                    "type": "ua_test",
-                    "target": target,
-                    "ua": "Mobile",
-                    "description": "测试Mobile UA"
-                }
-            # 如果前面已测试UA，跟进重定向
+            if not any(s.tool in {"ua_test", "python_poc"} and "Mobile" in str(s.result) for s in steps):
+                return self._build_action(
+                    "ua_test",
+                    target=target,
+                    description="测试Mobile UA",
+                    intent="验证目标是否依赖 User-Agent 分支",
+                    expected_tool="ua_test",
+                    params={"ua": "Mobile"},
+                    metadata={"ua": "Mobile"},
+                )
             last_step = steps[-1]
             if "301" in str(last_step.result) or "302" in str(last_step.result):
                 redirect_url = self._extract_redirect(last_step.result)
                 if redirect_url:
-                    return {
-                        "type": "follow_redirect",
-                        "target": target + "/" + redirect_url,
-                        "ua": "Mobile",
-                        "description": "跟随重定向"
-                    }
+                    redirect_target = f"{target.rstrip('/')}/{redirect_url.lstrip('/')}"
+                    return self._build_action(
+                        "follow_redirect",
+                        target=redirect_target,
+                        description="跟随重定向",
+                        intent="访问重定向位置继续验证 UA 绕过",
+                        expected_tool="follow_redirect",
+                        params={"ua": "Mobile"},
+                        metadata={"ua": "Mobile"},
+                    )
 
-        # 规则3: 如果最后一个action失败，换策略
+        if self.target_type == "sqli":
+            if not any(s.tool == "sqlmap" for s in steps):
+                return self._build_action(
+                    "sqlmap_scan",
+                    target=target,
+                    description="检测SQL注入点",
+                    intent="先用 sqlmap 做基础注入检测",
+                    expected_tool="sqlmap",
+                    params={"batch": True},
+                )
+            if any(s.tool == "sqlmap" and not s.success for s in steps[-2:]):
+                return self._build_action(
+                    "dir_scan",
+                    target=target,
+                    description="补充目录扫描",
+                    intent="收集更多端点后再决定注入路径",
+                    expected_tool="dirsearch",
+                    params={"extensions": ["php", "txt", "bak"]},
+                )
+
         if steps and not steps[-1].success:
-            fail_count = self.memory.fail_count(steps[-1].tool, steps[-1].target)
+            fail_count = self.memory.fail_count(steps[-1].tool, steps[-1].target, steps[-1].params)
             if fail_count >= 2:
-                return {
-                    "type": "explore",
-                    "target": target,
-                    "description": "当前方法多次失败，尝试其他方法",
-                    "alternative": True
-                }
+                return self._build_action(
+                    "dir_scan",
+                    target=target,
+                    description="当前方法多次失败，改做目录探索",
+                    intent="切换到不同工具获取新线索",
+                    expected_tool="dirsearch",
+                    params={"extensions": ["php", "html", "txt"]},
+                    metadata={"alternative": True},
+                )
 
-        # 默认：继续侦察
-        return {
-            "type": "recon",
-            "target": target,
-            "description": "继续信息收集"
-        }
+        return self._build_action(
+            "recon",
+            target=target,
+            description="继续信息收集",
+            intent="重新采样响应并寻找新的利用线索",
+            expected_tool="recon",
+        )
 
     def _execute_action(self, action: Dict[str, Any]) -> str:
-        """执行决策的动作"""
-
+        """执行标准化动作。"""
         action_type = action.get("type", "unknown")
-        target = action.get("target", "")
+        handler = self.action_handlers.get(action_type)
+        if not handler:
+            return self._build_executor_error(action, f"unknown action type: {action_type}")
 
-        if action_type == "recon":
-            # 初始侦察
-            code = f'''
-import requests
-import urllib3
-import re
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-url = "{target}"
-resp = requests.get(url, timeout=10, verify=False)
-print(f"Status: {{resp.status_code}}")
-print(f"Headers: {{dict(resp.headers)}}")
-# 查找重定向
-if 'Location' in resp.headers:
-    print(f"Redirect: {{resp.headers['Location']}}")
-# 查找flag
-flags = re.findall(r'ctfshow{{[^}}]+}}|flag{{[^}}]+}}', resp.text)
-if flags:
-    print(f"FLAG_FOUND: {{flags[0]}}")
-print(f"Content preview: {{resp.text[:500]}}")
-'''
-            return execute_python_poc(code, timeout=30)
-
-        elif action_type == "ua_test":
-            ua = action.get("ua", "Mobile")
-            code = f'''
-import requests
-import urllib3
-import re
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-url = "{target}"
-headers = {{"User-Agent": "{ua}"}}
-resp = requests.get(url, headers=headers, timeout=10, verify=False, allow_redirects=False)
-print(f"Status: {{resp.status_code}}")
-print(f"Headers: {{dict(resp.headers)}}")
-if 'Location' in resp.headers:
-    print(f"Redirect to: {{resp.headers['Location']}}")
-# 检查内容
-flags = re.findall(r'ctfshow{{[^}}]+}}|flag{{[^}}]+}}', resp.text)
-if flags:
-    print(f"FLAG: {{flags}}")
-if resp.status_code == 200:
-    print(f"Content: {{resp.text}}")
-'''
-            return execute_python_poc(code, timeout=30)
-
-        elif action_type == "follow_redirect":
-            redirect_target = action.get("target", "")
-            ua = action.get("ua", "Mobile")
-            code = f'''
-import requests
-import urllib3
-import re
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-url = "{redirect_target}"
-headers = {{"User-Agent": "{ua}"}}
-resp = requests.get(url, headers=headers, timeout=10, verify=False)
-print(f"Status: {{resp.status_code}}")
-print(f"Content-Length: {{len(resp.text)}}")
-# 查找flag
-flags = re.findall(r'ctfshow{{[^}}]+}}|flag{{[^}}]+}}|tfshow{{[^}}]+}}', resp.text)
-if flags:
-    print(f"FLAG_FOUND: {{flags[0]}}")
-print(f"Content: {{resp.text}}")
-'''
-            return execute_python_poc(code, timeout=30)
-
-        # 检查是否提供了源码
-        if self.source_analysis_result and action_type == "code_available":
-            code = action.get("code", "")
-            result = self._analyze_source_code(code)
-            self.memory.add_step(
-                tool="source_analysis",
-                target="PHP code",
-                params={},
-                result=result,
-                success=True
-            )
-            return result
-
-        elif action_type == "phppoc" or action_type == "poc":
-            # 执行PoC（可以是单一payload或分步打击）
-            steps = action.get("steps", [action.get("code")])
-            results = []
-            for step_code in steps:
-                if step_code:
-                    result = execute_python_poc(step_code, timeout=60)
-                    results.append(result)
-            return "\n\n".join(results)
-            # 尝试其他常见方法
-            return self._try_common_bypasses(target)
-
-        else:
-            return f"Unknown action type: {action_type}"
+        result = handler(action)
+        if action_type == "attack_step" and not result.startswith("[attack_step]"):
+            self._mark_action_completed(action, result)
+        return result
 
     def _try_common_bypasses(self, target: str) -> str:
         """尝试常见的绕过方法"""
@@ -809,15 +1246,13 @@ print(f"Content: {{resp.text}}")
                 break
             consecutive_failures += 1
 
-        # 最近步骤子集用于更精细的失败检测
         recent_steps = steps[-5:] if len(steps) >= 5 else steps
         distinct_tools = {s.tool for s in recent_steps}
-        # 如果最近尝试的工具过少，认为策略陷入循环
         if total_steps >= 5 and len(distinct_tools) <= 2:
             self.log("[FAIL_ANALYSIS] Limited action diversity, forcing replanning", "FAIL")
+            self.last_help_reason = "limited_diversity"
             return True
 
-        # 分析失败类型并让策略调整器先尝试自愈
         fail_types = self._analyze_failures()
         self._auto_adjust_strategy(fail_types)
 
@@ -836,40 +1271,41 @@ print(f"Content: {{resp.text}}")
 
         if same_error >= 3:
             self.log("[FAIL_ANALYSIS] Repeated same error, escalate to human", "FAIL")
+            self.last_help_reason = "same_error"
             return True
 
         if timeouts >= 3:
             self.log("[FAIL_ANALYSIS] Multiple timeouts encountered", "FAIL")
+            self.last_help_reason = "timeouts"
             return True
 
-        # 求助节奏控制：避免少量步数内重复触发
         if total_steps < self.min_steps_before_help and consecutive_failures < self.max_failures:
             return False
 
         if consecutive_failures >= self.max_failures:
             self.log(f"[FAIL_ANALYSIS] Consecutive failures reached {consecutive_failures}", "FAIL")
+            self.last_help_reason = "consecutive_failures"
             return True
 
-        # 针对关键动作的累计失败数
-        critical_tools = {"recon", "ua_test", "follow_redirect", "attack_step", "explore"}
+        critical_tools = {"python_poc", "sqlmap", "dirsearch", "source_analysis"}
         for tool in critical_tools:
-            if self.memory.fail_count(tool, self.target_url) >= self.max_failures:
-                self.log(f"[FAIL_ANALYSIS] Tool {tool} failed {self.max_failures}+ times", "FAIL")
+            if self._count_recent_failures_by_tool(tool) >= self.max_failures:
+                self.log(f"[FAIL_ANALYSIS] Tool {tool} failed {self.max_failures}+ times recently", "FAIL")
+                self.last_help_reason = f"tool_failures:{tool}"
                 return True
 
-        # 步数上限兜底
         if total_steps >= self.max_steps:
             self.log(f"[FAIL_ANALYSIS] Max steps ({self.max_steps}) reached", "FAIL")
             self.consecutive_help_triggers += 1
             self.last_help_reason = "max_steps"
             return True
 
-        # 让求助节奏有节制：同一原因连续触发则稍作等待
         if self.consecutive_help_triggers >= 1 and self.last_help_reason == "max_steps":
             if total_steps < self.max_steps + 2:
                 self.log("[FAIL_ANALYSIS] Recently hit max_steps, retrying before escalating", "INFO")
                 return False
 
+        self.last_help_reason = None
         return False
 
     def _auto_save_experience(self, flag: str):
@@ -904,42 +1340,45 @@ print(f"Content: {{resp.text}}")
 
 
 # 便捷函数
-def auto_solve(url: str = "", hint: str = "") -> Dict[str, Any]:
+def auto_solve(
+    url: str = "",
+    hint: str = "",
+    description: str = "",
+    source_code: str = ""
+) -> Dict[str, Any]:
     """
-    一键自动解题
+    一键自动解题。
 
-    Args:
-        url: 目标URL
-        hint: 题目提示
-
-    Returns:
-        解题结果
+    默认转发到项目级 orchestrator 统一主链入口，避免绕过初始化与状态编排。
     """
-    agent = AutoAgent()
-    return agent.solve_challenge(url=url, hint=hint)
+    from orchestrator import orchestrate_challenge
+
+    return orchestrate_challenge(
+        url=url,
+        hint=hint,
+        description=description,
+        source_code=source_code,
+    )
 
 
 # 测试
 if __name__ == "__main__":
     # 使用说明
     print("""
-TF Agent v2.1 - 自动化解题模块
+CTF Agent v2.1 - 自动化解题模块
 ==============================
 
 使用方式:
-    from agent_core import auto_solve
+    from orchestrator import orchestrate_challenge
 
-    # 一行代码自动解题
-    result = auto_solve(
+    result = orchestrate_challenge(
         url="https://target.com",
-        hint="有手机就行"
+        hint="有手机就行",
+        description="题目描述"
     )
 
-    print(result["flag"])  # 输出flag
+    print(result.get("flag", ""))
 
 或者:
-    from agent_core import AutoAgent
-
-    agent = AutoAgent()
-    result = agent.solve_challenge(url="...", hint="...")
+    python main.py --url "https://target.com" --hint "有手机就行" --description "题目描述"
     """)
