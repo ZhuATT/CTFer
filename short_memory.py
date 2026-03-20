@@ -62,6 +62,19 @@ class TargetInfo:
     patches: List[Dict] = field(default_factory=list)  # 修补点列表
 
 
+@dataclass
+class AgentContext:
+    """题目初始化上下文，供主链路共享"""
+    problem_type: Optional[str] = None
+    url: Optional[str] = None
+    description: str = ""
+    hint: str = ""
+    skill_content: str = ""
+    loaded_resources: Dict[str, Any] = field(default_factory=dict)
+    wooyun_ref: str = ""
+    initialized_at: str = field(default_factory=lambda: datetime.now().isoformat())
+
+
 class ShortMemory:
     """
     短期记忆系统 - 单道题目内使用
@@ -76,6 +89,7 @@ class ShortMemory:
     def __init__(self):
         self.steps: List[Step] = []
         self.target = TargetInfo()
+        self.context = AgentContext()
         self._attempted: Set[str] = set()  # 已尝试的签名
         self._failures: Dict[str, int] = {}  # 失败计数
 
@@ -135,13 +149,15 @@ class ShortMemory:
     def get_summary(self) -> str:
         """获取当前解题摘要"""
         lines = []
-        lines.append(f"=" * 50)
+        lines.append(f"{"=" * 50}")
         lines.append(f"题目进度: {len(self.steps)} 步")
-        lines.append(f"=" * 50)
+        lines.append(f"{"=" * 50}")
 
         # 目标信息
         if self.target.url or self.target.ip:
             lines.append(f"\n目标: {self.target.url or self.target.ip}")
+        if self.target.problem_type:
+            lines.append(f"题目类型: {self.target.problem_type}")
         if self.target.tech_stack:
             lines.append(f"技术栈: {', '.join(self.target.tech_stack)}")
         if self.target.endpoints:
@@ -192,6 +208,11 @@ class ShortMemory:
         for key, value in kwargs.items():
             if hasattr(self.target, key):
                 setattr(self.target, key, value)
+        # 同步可能的上下文字段
+        if "problem_type" in kwargs and kwargs["problem_type"]:
+            self.context.problem_type = kwargs["problem_type"]
+        if "url" in kwargs and kwargs["url"]:
+            self.context.url = kwargs["url"]
 
     def add_endpoint(self, endpoint: str):
         """添加发现的端点"""
@@ -208,6 +229,25 @@ class ShortMemory:
         """添加找到的flag"""
         if flag not in self.target.flags:
             self.target.flags.append(flag)
+
+    def set_context(self, context: Optional[AgentContext] = None, **kwargs) -> AgentContext:
+        """设置题目上下文，支持传入 dataclass 或关键字"""
+        if context is not None:
+            self.context = context
+        else:
+            for key, value in kwargs.items():
+                if hasattr(self.context, key):
+                    setattr(self.context, key, value)
+        # 同步关键信息到 target
+        if self.context.url:
+            self.target.url = self.context.url
+        if self.context.problem_type:
+            self.target.problem_type = self.context.problem_type
+        return self.context
+
+    def get_context(self) -> AgentContext:
+        """获取当前题目的上下文信息"""
+        return self.context
 
     # === AWD 方法 ===
 
@@ -232,7 +272,7 @@ class ShortMemory:
         """获取修补点摘要"""
         if not self.target.patches:
             return "暂无修补点"
-        
+
         lines = ["=== 修补点建议 ==="]
         for i, p in enumerate(self.target.patches, 1):
             lines.append(f"{i}. 位置: {p['location']}")
@@ -248,6 +288,7 @@ class ShortMemory:
         self._attempted.clear()
         self._failures.clear()
         self.target = TargetInfo()
+        self.context = AgentContext()
 
     def _signature(self, tool: str, target: str, params: Dict = None) -> str:
         """生成尝试签名"""
@@ -263,6 +304,7 @@ class ShortMemory:
         url_match = re.search(r'https?://[^\s<>"\']+', result)
         if url_match and not self.target.url:
             self.target.url = url_match.group(0)
+            self.context.url = self.target.url
 
         # 提取IP
         ip_match = re.search(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', result)
@@ -308,4 +350,4 @@ def reset_short_memory():
     print("[Memory] 已开始新题目的短期记忆")
 
 
-__all__ = ["ShortMemory", "get_short_memory", "reset_short_memory"]
+__all__ = ["ShortMemory", "get_short_memory", "reset_short_memory", "AgentContext"]
