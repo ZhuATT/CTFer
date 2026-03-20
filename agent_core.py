@@ -25,7 +25,7 @@ from typing import Dict, List, Any, Optional, Callable
 
 from tools import (
     get_memory, reset_memory, execute_python_poc, execute_command,
-    extract_flags, get_memory_summary
+    extract_flags, get_memory_summary, init_problem, get_agent_context
 )
 from long_memory import auto_save_experience
 
@@ -50,8 +50,17 @@ class AttackStep:
         self.result = None
 
 
+class AgentNeedsHelpException(Exception):
+    """Raised when the agent cannot proceed without human assistance."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
+
+
 class AttackPlan:
     """攻击计划"""
+
     def __init__(self, vuln_type: str, target_url: str):
         self.vuln_type = vuln_type
         self.target_url = target_url
@@ -109,7 +118,6 @@ class AttackPlan:
             status = "✓" if step.completed else "○"
             lines.append(f"  {status} Step {i}: {step.name} - {step.description}")
         return "\n".join(lines)
-
 
 class AttackPlanner:
     """
@@ -308,7 +316,8 @@ class AutoAgent:
         verbose: 是否输出详细日志
     """
 
-    def __init__(self, max_failures: int = 3, max_steps: int = 20, verbose: bool = True):
+    def __init__(self, max_failures: int = 3, max_steps: int = 20, verbose: bool = True,
+                 min_steps_before_help: Optional[int] = None):
         self.max_failures = max_failures
         self.max_steps = max_steps
         self.verbose = verbose
@@ -319,6 +328,12 @@ class AutoAgent:
         self.source_analysis_result = None  # 存储源码分析结果
         self.attack_plan = None  # 存储攻击计划
         self.planner = AttackPlanner()  # 攻击计划器
+        self.consecutive_help_triggers = 0
+        self.last_help_reason: Optional[str] = None
+        if min_steps_before_help is None:
+            self.min_steps_before_help = max(3, self.max_failures)
+        else:
+            self.min_steps_before_help = max(1, min_steps_before_help)
 
     def log(self, msg: str, level: str = "INFO"):
         """输出日志"""
@@ -341,17 +356,24 @@ class AutoAgent:
             解题结果
         """
         # 1. 初始化
-        self.reset()
-        self.target_url = url
+        init_result = init_problem(target_url=url, description=description, hint=hint)
+        self.memory = get_memory()
+        self.target_url = init_result.get("target_url", url)
+        self.target_type = init_result.get("problem_type", "unknown")
+        self.agent_context = get_agent_context()
 
         self.log(f"=" * 60)
-        self.log(f"[Agent] 开始自动化解题: {url}")
+        self.log(f"[Agent] 开始自动化解题: {self.target_url}")
         self.log(f"[Hint] {hint}")
         self.log(f"=" * 60)
 
-        # 2. 自动识别类型
+        # 2. 自动识别类型（hint 覆盖）
         if hint:
             self._classify_problem(hint)
+            # 如果分类结果与初始化不同，更新记忆上下文
+            if self.target_type and self.target_type != init_result.get("problem_type"):
+                self.memory.update_target(problem_type=self.target_type)
+                self.memory.set_context(problem_type=self.target_type)
 
         # 3. 如果有源码，进行代码分析
         if source_code and SOURCE_ANALYSIS_AVAILABLE:
@@ -730,53 +752,8 @@ print(f"Content: {{resp.text}}")
             return match.group(1).strip().replace('/', '')
         return None
 
-    def _should_ask_for_help(self) -> bool:
-        """
-        检查是否需要向用户求助
-        增强版：包含失败分析和自动调整
-        """
-        # 获取最近的步骤
-        recent_steps = self.memory.steps[-5:] if len(self.memory.steps) >= 5 else self.memory.steps
-
-        # 分析失败类型
-        fail_types = self._analyze_failures()
-
-        # 根据失败类型决定策略
-        if fail_types.get("payload_error", 0) >= 2:
-            # payload错误 - 尝试模板生成的新payload
-            self.log("[FAIL_ANALYSIS] Payload errors detected, trying template generation...")
-            return False  # 不求助，尝试修正
-
-        if fail_types.get("execution_error", 0) >= 2:
-            # 执行环境错误 - 调整参数重试
-            self.log("[FAIL_ANALYSIS] Execution errors, adjusting parameters...")
-            return False
-
-        if fail_types.get("same_error", 0) >= 3:
-            # 重复相同的错误 - 确实需要帮助
-            self.log("[FAIL_ANALYSIS] Repeated same error, need help")
-            return True
-
-        # 检查失败次数
-        for tool in ["recon", "ua_test", "follow_redirect", "attack_step"]:
-            if self.memory.fail_count(tool, self.target_url) >= self.max_failures:
-                self.log(f"[FAIL_ANALYSIS] Tool {tool} failed {self.max_failures}+ times")
-                return True
-
-        # 检查是否步数超限
-        if len(self.memory.steps) >= self.max_steps:
-            self.log(f"[FAIL_ANALYSIS] Max steps ({self.max_steps}) reached")
-            return True
-
-        return False
-
-    def _analyze_failures(self) -> dict:
-        """
-        分析最近的失败模式
-
-        Returns:
-            {fail_type: count} 失败类型统计
-        """
+    def _analyze_failures(self) -> Dict[str, int]:
+        """分析最近失败的模式"""
         fail_types = {
             "payload_error": 0,
             "execution_error": 0,
@@ -784,73 +761,134 @@ print(f"Content: {{resp.text}}")
             "timeout": 0
         }
 
-        # 获取最近失败的步骤
         failed_steps = [s for s in self.memory.steps if not s.success][-5:]
+        error_signatures: List[str] = []
 
-        error_signatures = []
         for step in failed_steps:
-            result = str(step.result).lower()
+            result_text = str(step.result or "")
+            lower_result = result_text.lower()
 
-            # 识别错误类型
-            if any(x in result for x in ["syntax", "parse", "invalid", "unexpected"]):
+            if any(keyword in lower_result for keyword in ["syntax", "parse", "invalid", "unexpected"]):
                 fail_types["payload_error"] += 1
-            elif any(x in result for x in ["timeout", "time out", "connection"]):
+
+            if any(keyword in lower_result for keyword in ["timeout", "time out", "connection", "network", "reset", "refused"]):
                 fail_types["execution_error"] += 1
                 fail_types["timeout"] += 1
-            elif "error" in result or "exception" in result:
+            elif any(keyword in lower_result for keyword in ["error", "exception", "failed", "denied"]):
                 fail_types["execution_error"] += 1
 
-            # 统计相同错误
-            sig = result[:50]  # 取前50字符作为签名
-            error_signatures.append(sig)
+            error_signatures.append(lower_result[:120])
 
-        # 检查重复错误
-        if len(set(error_signatures)) < len(error_signatures) * 0.5:
-            fail_types["same_error"] = len(error_signatures)
+        if error_signatures:
+            unique_ratio = len(set(error_signatures)) / len(error_signatures)
+            if unique_ratio <= 0.5:
+                fail_types["same_error"] = len(error_signatures)
 
         return fail_types
 
-    def _auto_adjust_strategy(self, failure_analysis: dict):
-        """
-        根据失败分析自动调整策略
-
-        Args:
-            failure_analysis: 失败分析结果
-        """
+    def _auto_adjust_strategy(self, failure_analysis: Dict[str, int]):
+        """根据失败分析自动微调策略"""
         if failure_analysis.get("payload_error", 0) >= 2:
-            # Payload有语法错误 - 使用模板生成
-            if self.target_type == "deserialization":
-                self.log("[STRATEGY] Switching to template-based payload generation")
-                # 后续可以集成payload_templates
+            self.log("[STRATEGY] Payload syntax issues detected, switching payload template", "INFO")
 
         if failure_analysis.get("timeout", 0) >= 2:
-            # 超时 - 增加超时时间
-            self.log("[STRATEGY] Increasing timeout for next attempts")
-            # 标记需要更长超时
+            self.log("[STRATEGY] Multiple timeouts detected, increasing timeout budget", "INFO")
 
         if failure_analysis.get("same_error", 0) >= 2:
-            # 相同错误 - 尝试变异
-            self.log("[STRATEGY] Mutating payload parameters")
+            self.log("[STRATEGY] Repeated identical error, forcing action diversification", "INFO")
+
+    def _should_ask_for_help(self) -> bool:
+        steps = self.memory.steps
+        if not steps:
+            return False
+
+        total_steps = len(steps)
+        consecutive_failures = 0
+        for step in reversed(steps):
+            if step.success:
+                break
+            consecutive_failures += 1
+
+        # 最近步骤子集用于更精细的失败检测
+        recent_steps = steps[-5:] if len(steps) >= 5 else steps
+        distinct_tools = {s.tool for s in recent_steps}
+        # 如果最近尝试的工具过少，认为策略陷入循环
+        if total_steps >= 5 and len(distinct_tools) <= 2:
+            self.log("[FAIL_ANALYSIS] Limited action diversity, forcing replanning", "FAIL")
+            return True
+
+        # 分析失败类型并让策略调整器先尝试自愈
+        fail_types = self._analyze_failures()
+        self._auto_adjust_strategy(fail_types)
+
+        payload_errors = fail_types.get("payload_error", 0)
+        execution_errors = fail_types.get("execution_error", 0)
+        same_error = fail_types.get("same_error", 0)
+        timeouts = fail_types.get("timeout", 0)
+
+        if payload_errors >= 2 and consecutive_failures < self.max_failures:
+            self.log("[FAIL_ANALYSIS] Payload errors detected, retrying with adjustments...", "FAIL")
+            return False
+
+        if execution_errors >= 2 and consecutive_failures < self.max_failures:
+            self.log("[FAIL_ANALYSIS] Execution errors detected, adjusting parameters...", "FAIL")
+            return False
+
+        if same_error >= 3:
+            self.log("[FAIL_ANALYSIS] Repeated same error, escalate to human", "FAIL")
+            return True
+
+        if timeouts >= 3:
+            self.log("[FAIL_ANALYSIS] Multiple timeouts encountered", "FAIL")
+            return True
+
+        # 求助节奏控制：避免少量步数内重复触发
+        if total_steps < self.min_steps_before_help and consecutive_failures < self.max_failures:
+            return False
+
+        if consecutive_failures >= self.max_failures:
+            self.log(f"[FAIL_ANALYSIS] Consecutive failures reached {consecutive_failures}", "FAIL")
+            return True
+
+        # 针对关键动作的累计失败数
+        critical_tools = {"recon", "ua_test", "follow_redirect", "attack_step", "explore"}
+        for tool in critical_tools:
+            if self.memory.fail_count(tool, self.target_url) >= self.max_failures:
+                self.log(f"[FAIL_ANALYSIS] Tool {tool} failed {self.max_failures}+ times", "FAIL")
+                return True
+
+        # 步数上限兜底
+        if total_steps >= self.max_steps:
+            self.log(f"[FAIL_ANALYSIS] Max steps ({self.max_steps}) reached", "FAIL")
+            self.consecutive_help_triggers += 1
+            self.last_help_reason = "max_steps"
+            return True
+
+        # 让求助节奏有节制：同一原因连续触发则稍作等待
+        if self.consecutive_help_triggers >= 1 and self.last_help_reason == "max_steps":
+            if total_steps < self.max_steps + 2:
+                self.log("[FAIL_ANALYSIS] Recently hit max_steps, retrying before escalating", "INFO")
+                return False
+
+        return False
 
     def _auto_save_experience(self, flag: str):
         """自动保存解题经验（无需确认）"""
         try:
-            # 提取步骤信息
             steps = [
                 {
                     "tool": step.tool,
                     "target": step.target,
+                    "result": step.result,
                     "success": step.success
                 }
                 for step in self.memory.steps
             ]
 
-            # 提取关键技术
-            techniques = list(set([
+            techniques = list({
                 step.tool for step in self.memory.steps if step.success
-            ]))
+            })
 
-            # 自动保存
             exp_file = auto_save_experience(
                 problem_type=self.target_type,
                 target=self.target_url,

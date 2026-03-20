@@ -23,7 +23,7 @@ from typing import Dict, List, Any, Optional
 from pathlib import Path
 
 # 导入短期记忆
-from short_memory import get_short_memory, reset_short_memory, ShortMemory
+from short_memory import get_short_memory, reset_short_memory, ShortMemory, AgentContext
 
 # 导入长期记忆系统
 try:
@@ -65,6 +65,10 @@ def get_memory() -> ShortMemory:
     return _short_memory_instance
 
 
+def get_agent_context() -> AgentContext:
+    """获取当前题目的初始化上下文"""
+    memory = get_memory()
+    return memory.get_context()
 def reset_memory():
     """开始新题目时重置记忆"""
     global _short_memory_instance
@@ -72,7 +76,7 @@ def reset_memory():
     _short_memory_instance = get_short_memory()
 
 
-def init_problem(target_url: str, description: str = "", hint: str = ""):
+def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict[str, Any]:
     """
     初始化题目并自动识别类型、加载资源
     """
@@ -80,11 +84,13 @@ def init_problem(target_url: str, description: str = "", hint: str = ""):
     reset_memory()
     memory = get_memory()
 
-    # 设置目标信息
+    # 设置目标信息与基础上下文
     memory.update_target(url=target_url)
-
-    # 尝试自动识别题目类型
-    problem_type = "unknown"
+    memory.set_context(
+        url=target_url,
+        description=description,
+        hint=hint
+    )
 
     # 基于URL和描述自动识别
     url_lower = target_url.lower()
@@ -107,43 +113,28 @@ def init_problem(target_url: str, description: str = "", hint: str = ""):
         "ssti": ["ssti", "template injection", "模板注入", "jinja2"],
         "xxe": ["xxe", "xml", "entity", "dtd"],
     }
+    problem_type = "unknown"
 
     for ptype, keywords in type_keywords.items():
         if any(k in url_lower or k in desc_lower or k in hint_lower for k in keywords):
             problem_type = ptype
             break
 
-    # 如果还是识别不到，尝试访问网站获取更多信息
-    if problem_type == "unknown":
+    if problem_type == "unknown" and target_url:
         try:
-            import requests
             resp = requests.get(target_url, timeout=10)
             page_content = resp.text.lower()
-
-            # 从页面内容中提取关键词
             for ptype, keywords in type_keywords.items():
                 if any(k in page_content for k in keywords):
                     problem_type = ptype
                     print(f"[Auto-detect] 从页面内容识别出类型: {ptype}")
                     break
-
-            # 额外检测：检查 Server header
             server = resp.headers.get("Server", "").lower()
             if "tornado" in server:
                 problem_type = "tornado"
-                print(f"[Auto-detect] 从Server header识别出类型: tornado")
+                print("[Auto-detect] 从Server header识别出类型: tornado")
         except Exception as e:
             print(f"[Auto-detect] 访问目标失败: {e}")
-
-    # 更新题目类型
-    memory.update_target(problem_type=problem_type)
-
-    # ========== 自动加载并展示知识资源 ==========
-    print(f"\n{'='*60}")
-    print(f"[Knowledge] 自动加载解题资源...")
-    print(f"{'='*60}")
-
-    # 1. 加载 skills 知识库
     skill_content = ""
     if problem_type != "unknown":
         skill_path = Path(__file__).parent / "skills" / problem_type / "SKILL.md"
@@ -204,17 +195,25 @@ def init_problem(target_url: str, description: str = "", hint: str = ""):
     print(f"[Problem Init Complete] Type: {problem_type}")
     print(f"{'='*60}\n")
 
+    memory.set_context(
+        url=target_url,
+        description=description,
+        hint=hint,
+        problem_type=problem_type,
+        skill_content=skill_content,
+        loaded_resources=loaded_resources,
+        wooyun_ref=wooyun_ref
+    )
+
     return {
-        "type": problem_type,
-        "url": target_url,
+        "target_url": target_url,
         "description": description,
         "hint": hint,
+        "problem_type": problem_type,
+        "skill_content": skill_content,
         "loaded_resources": loaded_resources,
-        "wooyun_ref": wooyun_ref,
-        "skill_content": skill_content  # 新增：返回skill内容
+        "wooyun_ref": wooyun_ref
     }
-
-
 def get_available_resources() -> Dict[str, Any]:
     """
     获取当前题目可用的资源（POC、经验、知识）
