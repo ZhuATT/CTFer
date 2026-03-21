@@ -22,6 +22,8 @@ import requests
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
+from toolkit.base import get_venv_python, run_subprocess
+
 # 导入短期记忆
 from short_memory import get_short_memory, reset_short_memory, ShortMemory, AgentContext
 
@@ -644,16 +646,10 @@ def execute_command(cmd: str, timeout: int = 120,
         return f"[Skip] 该命令已失败 {fail_count} 次，跳过执行"
 
     try:
-        # 先激活虚拟环境再执行
-        full_cmd = f'workon CTFagent && {cmd}'
-        result = subprocess.run(
-            full_cmd,
+        result = run_subprocess(
+            cmd,
             shell=True,
-            capture_output=True,
-            text=True,
-            encoding='utf-8',
-            errors='replace',
-            timeout=timeout
+            timeout=timeout,
         )
 
         output = f"""Exit Code: {result.returncode}
@@ -755,15 +751,10 @@ def execute_python_poc(code: str, timeout: int = 120,
         with open(temp_file, 'w', encoding='utf-8') as f:
             f.write(code)
 
-        # 使用虚拟环境Python执行
-        venv_python = r"C:\Users\Administrator\Envs\CTFagent\Scripts\python.exe"
-        result = subprocess.run(
-            [venv_python, temp_file_str],
-            capture_output=True,
-            text=True,
-            encoding='utf-8',
-            errors='replace',
-            timeout=timeout
+        result = run_subprocess(
+            [get_venv_python(), temp_file_str],
+            timeout=timeout,
+            cwd=workspace,
         )
 
         # 执行完成后自动清理文件（除非keep=True）

@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from agent_core import AutoAgent
+from agent_core import AutoAgent, AgentNeedsHelpException
 from short_memory import ShortMemory
 
 
@@ -146,6 +146,47 @@ class AutoAgentActionFailureTests(unittest.TestCase):
         self.assertEqual(next_action["type"], "dir_scan")
         self.assertEqual(next_action["expected_tool"], "dirsearch")
         self.assertTrue(next_action.get("alternative"))
+
+    def test_tool_node_success_uses_memory_step_success(self):
+        agent = self.make_agent(max_failures=5, max_steps=1)
+        action = agent._build_action(
+            "sqlmap_scan",
+            target=agent.target_url,
+            description="detect injection",
+            intent="validate sql injection",
+            expected_tool="sqlmap",
+            params={"batch": True},
+        )
+        events = []
+
+        def fake_plan_next_action():
+            return dict(action)
+
+        def fake_execute_action(current_action):
+            agent.memory.add_step(
+                tool="sqlmap",
+                target=agent.target_url,
+                params={"batch": True},
+                result="blocked by waf",
+                success=False,
+                action_meta=agent._build_memory_action_meta(current_action),
+            )
+            return "[SQLMap] blocked by waf"
+
+        callback = lambda stage, payload: events.append({"stage": stage, "payload": payload})
+
+        with patch.object(agent, "plan_next_action", side_effect=fake_plan_next_action), patch.object(
+            agent, "_execute_action", side_effect=fake_execute_action
+        ), patch("agent_core.extract_flags", return_value=[]), patch.object(
+            agent, "maybe_request_help", return_value=None
+        ), patch("agent_core.get_memory_summary", return_value="summary"):
+            with self.assertRaises(AgentNeedsHelpException):
+                agent.run_main_loop(event_callback=callback)
+
+        tool_events = [event for event in events if event["stage"] == "tool_node"]
+        self.assertEqual(len(tool_events), 1)
+        self.assertFalse(tool_events[0]["payload"]["success"])
+        self.assertFalse(agent.memory.steps[-1].success)
 
     def test_should_ask_for_help_uses_action_failure_counts(self):
         agent = self.make_agent(max_failures=3, max_steps=10)
