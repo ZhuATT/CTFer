@@ -612,6 +612,14 @@ class AutoAgent:
     def _build_executor_error(self, action: Dict[str, Any], message: str) -> str:
         return f"[{action.get('type', 'unknown')}] {message}"
 
+    def _resolve_action_success(self, action: Dict[str, Any], default: bool = True) -> bool:
+        """优先使用 memory 中当前 action 的实际 success。"""
+        action_id = str((action or {}).get("id", ""))
+        step = self.memory.latest_step_for_action(action_id)
+        if step is not None:
+            return step.success
+        return default
+
     def _generate_help_request(self, step_num: int, summary: str) -> str:
         last_action = self.last_action or {}
         last_action_desc = last_action.get("description") or last_action.get("type") or "unknown"
@@ -951,6 +959,7 @@ print(f"Content: {{resp.text}}")
                 )
                 result = self._execute_action(action)
                 self.last_result = result
+                action_success = self._resolve_action_success(action, default=True)
                 self._emit_event(
                     event_callback,
                     "tool_node",
@@ -958,7 +967,7 @@ print(f"Content: {{resp.text}}")
                         "step": step_num,
                         "action": dict(action),
                         "result": result,
-                        "success": True,
+                        "success": action_success,
                     },
                 )
 

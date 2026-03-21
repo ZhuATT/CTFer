@@ -11,13 +11,11 @@
     result = run_python_script("test_causal_system.py")
 """
 
-import subprocess
-import sys
 import os
+from pathlib import Path
 from typing import List, Optional
 
-# Virtualenv Python 路径
-VENV_PYTHON = r"C:\Users\Administrator\Envs\CTFagent\Scripts\python.exe"
+from toolkit.base import get_venv_python, run_subprocess
 
 
 def run_python_script(script_path: str, args: Optional[List[str]] = None, timeout: int = 120) -> tuple[int, str, str]:
@@ -32,35 +30,29 @@ def run_python_script(script_path: str, args: Optional[List[str]] = None, timeou
     返回：
         (exit_code, stdout, stderr)
     """
-    if not os.path.exists(VENV_PYTHON):
-        raise RuntimeError(f"CTFagent 虚拟环境 Python 不存在: {VENV_PYTHON}")
+    python_exe = get_venv_python()
+    script_abspath = Path(script_path).resolve()
 
-    if not os.path.exists(script_path):
+    if not script_abspath.exists():
         raise FileNotFoundError(f"脚本不存在: {script_path}")
 
-    # 构建命令
-    cmd = [VENV_PYTHON, script_path]
+    cmd = [python_exe, str(script_abspath)]
     if args:
         cmd.extend(args)
 
-    # 执行
     try:
-        result = subprocess.run(
+        result = run_subprocess(
             cmd,
-            cwd=os.path.dirname(os.path.abspath(script_path)),
-            capture_output=True,
-            text=True,
             timeout=timeout,
-            check=False  # 不检查退出码，由调用者处理
+            cwd=script_abspath.parent,
         )
-
         return result.returncode, result.stdout, result.stderr
 
-    except subprocess.TimeoutExpired as e:
-        return -1, e.stdout or "", f"超时（{timeout}秒）"
-
     except Exception as e:
-        return -1, "", f"执行错误: {str(e)}"
+        error_message = str(e)
+        if "timed out" in error_message.lower():
+            return -1, "", f"超时（{timeout}秒）"
+        return -1, "", f"执行错误: {error_message}"
 
 
 def run_python_code(code: str, timeout: int = 60) -> tuple[int, str, str]:
@@ -76,28 +68,15 @@ def run_python_code(code: str, timeout: int = 60) -> tuple[int, str, str]:
     """
     import tempfile
 
-    if not os.path.exists(VENV_PYTHON):
-        raise RuntimeError(f"CTFagent 虚拟环境 Python 不存在: {VENV_PYTHON}")
+    get_venv_python()
 
-    # 创建临时文件
     with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as f:
         f.write(code)
         temp_file = f.name
 
     try:
-        # 执行临时文件
-        result = subprocess.run(
-            [VENV_PYTHON, temp_file],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False
-        )
-
-        return result.returncode, result.stdout, result.stderr
-
+        return run_python_script(temp_file, timeout=timeout)
     finally:
-        # 清理临时文件
         try:
             os.unlink(temp_file)
         except:
@@ -109,7 +88,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("虚拟环境 Python 执行器测试")
     print("=" * 60)
-    print(f"虚拟环境 Python: {VENV_PYTHON}")
+    print(f"虚拟环境 Python: {get_venv_python()}")
     print()
 
     # 测试 1：执行简单代码

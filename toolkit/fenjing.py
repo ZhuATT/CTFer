@@ -9,10 +9,14 @@ Fenjing SSTI自动攻击工具封装
 - 支持交互式命令执行
 """
 
+import json
 import logging
+import subprocess
 import requests
 from typing import Callable, Optional, Tuple, Dict, Any
 from pathlib import Path
+
+from toolkit.base import get_venv_python, run_subprocess
 
 # 添加fenjing源码路径
 FENJING_PATH = Path(__file__).parent.parent / "tools_source" / "Fenjing"
@@ -249,6 +253,15 @@ def run_command(url: str, command: str = "id", **kwargs) -> Dict[str, Any]:
         }
 
 
+def _run_fenjing_cli(cmd_parts: list[str], timeout: int) -> subprocess.CompletedProcess:
+    """使用统一 runtime 执行 fenjing CLI。"""
+    return run_subprocess(
+        [get_venv_python(), "-m", "fenjing", *cmd_parts],
+        timeout=timeout,
+        cwd=FENJING_PATH,
+    )
+
+
 def scan_forms(
     url: str,
     timeout: int = 300,
@@ -270,14 +283,8 @@ def scan_forms(
     if not FENJING_AVAILABLE:
         return {"success": False, "error": "Fenjing not available"}
 
-    import subprocess
-    import sys
-
-    # 使用当前Python解释器路径，确保在CTFagent环境中
-    python_exe = sys.executable
-
     cmd_parts = [
-        python_exe, "-m", "fenjing", "scan",
+        "scan",
         "--url", url,
         "--detect-mode", detect_mode,
         "--environment", environment,
@@ -286,10 +293,7 @@ def scan_forms(
     ]
 
     try:
-        result = subprocess.run(
-            cmd_parts, capture_output=True, text=True, timeout=timeout + 60
-        )
-
+        result = _run_fenjing_cli(cmd_parts, timeout=timeout + 60)
         return {
             "success": result.returncode == 0,
             "output": result.stdout,
@@ -325,14 +329,8 @@ def crack_specific_form(
     if not FENJING_AVAILABLE:
         return {"success": False, "error": "Fenjing not available"}
 
-    import subprocess
-    import sys
-
-    # 使用当前Python解释器路径
-    python_exe = sys.executable
-
     cmd_parts = [
-        python_exe, "-m", "fenjing", "crack",
+        "crack",
         "--url", url,
         "--method", method,
         "--inputs", inputs,
@@ -341,7 +339,6 @@ def crack_specific_form(
         "--environment", kwargs.get('environment', 'flask')
     ]
 
-    # 添加可选参数
     if 'interval' in kwargs:
         cmd_parts.extend(["--interval", str(kwargs['interval'])])
 
@@ -359,16 +356,13 @@ def crack_specific_form(
         cmd_parts.extend(["--proxy", kwargs['proxy']])
 
     try:
-        result = subprocess.run(
-            cmd_parts, capture_output=True, text=True, timeout=kwargs.get('timeout', 300) + 60
-        )
-
+        result = _run_fenjing_cli(cmd_parts, timeout=kwargs.get('timeout', 300) + 60)
         return {
             "success": result.returncode == 0,
             "output": result.stdout,
             "error": result.stderr,
             "returncode": result.returncode,
-            "command": cmd
+            "command": " ".join(cmd_parts)
         }
     except subprocess.TimeoutExpired:
         return {"success": False, "error": "攻击超时", "output": ""}
@@ -396,15 +390,8 @@ def crack_json_api(
     Returns:
         攻击结果
     """
-    import json
-    import subprocess
-    import sys
-
-    # 使用当前Python解释器路径
-    python_exe = sys.executable
-
     cmd_parts = [
-        python_exe, "-m", "fenjing", "crack-json",
+        "crack-json",
         "--url", url,
         "--json-data", json.dumps(json_data),
         "--key", key,
@@ -413,10 +400,7 @@ def crack_json_api(
     ]
 
     try:
-        result = subprocess.run(
-            cmd_parts, capture_output=True, text=True, timeout=kwargs.get('timeout', 300) + 60
-        )
-
+        result = _run_fenjing_cli(cmd_parts, timeout=kwargs.get('timeout', 300) + 60)
         return {
             "success": result.returncode == 0,
             "output": result.stdout,

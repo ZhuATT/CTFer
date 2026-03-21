@@ -5,11 +5,12 @@ CTF Toolkit - 工具封装基类
 提供统一的工具调用接口，支持虚拟环境执行。
 """
 
+import os
 import subprocess
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from dataclasses import dataclass
 
 
@@ -60,7 +61,7 @@ class BaseTool:
         self.timeout = config.get("timeout", 120)
 
         # 虚拟环境 Python 路径
-        self.venv_python = global_config["venv"]["python_path"]
+        self.venv_python = get_venv_python(global_config)
 
         # 验证工具存在
         if not self.tool_path.exists():
@@ -94,15 +95,12 @@ class BaseTool:
 
         # 2. 执行命令
         try:
-            result = subprocess.run(
+            result = run_subprocess(
                 full_cmd,
                 shell=True,
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
                 timeout=self.timeout,
-                cwd=str(self.tool_path.parent)
+                cwd=self.tool_path.parent,
+                global_config=self.global_config,
             )
 
             success = result.returncode == 0 or self._check_success(result.stdout)
@@ -158,6 +156,70 @@ def load_config() -> dict:
         raise FileNotFoundError(f"配置文件不存在: {config_path}")
 
 
+def get_venv_python(global_config: Optional[dict] = None) -> str:
+    """返回 config.json 中配置的唯一 Python 解释器路径。"""
+    config = global_config or load_config()
+    venv_config = config.get("venv") or {}
+    python_path = venv_config.get("python_path", "")
+
+    if not python_path:
+        raise RuntimeError("虚拟环境 Python 路径未配置，请检查 config.json -> venv.python_path")
+
+    python_exe = Path(python_path)
+    if not python_exe.exists():
+        raise RuntimeError(f"虚拟环境 Python 不存在: {python_exe}")
+
+    return str(python_exe)
+
+
+
+def build_runtime_env(global_config: Optional[dict] = None, env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """构建统一运行时环境，确保 shell 中的 python 指向虚拟环境。"""
+    config = global_config or load_config()
+    merged_env = dict(os.environ)
+    if env:
+        merged_env.update(env)
+
+    venv_config = config.get("venv") or {}
+    python_path = Path(get_venv_python(config))
+    scripts_dir = str(python_path.parent)
+    venv_path = venv_config.get("path", "")
+
+    path_entries = [scripts_dir]
+    if venv_path:
+        path_entries.append(venv_path)
+        merged_env["VIRTUAL_ENV"] = venv_path
+
+    existing_path = merged_env.get("PATH", "")
+    merged_env["PATH"] = os.pathsep.join(path_entries + ([existing_path] if existing_path else []))
+    return merged_env
+
+
+
+def run_subprocess(
+    command: Union[str, List[str]],
+    *,
+    timeout: int,
+    cwd: Optional[Union[str, Path]] = None,
+    shell: bool = False,
+    env: Optional[Dict[str, str]] = None,
+    global_config: Optional[dict] = None,
+) -> subprocess.CompletedProcess:
+    """用统一虚拟环境执行子进程。"""
+    return subprocess.run(
+        command,
+        shell=shell,
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        timeout=timeout,
+        cwd=str(cwd) if cwd is not None else None,
+        env=build_runtime_env(global_config=global_config, env=env),
+    )
+
+
+
 def check_virtualenv_python() -> str:
     """
     检查并返回虚拟环境 Python 路径
@@ -168,17 +230,7 @@ def check_virtualenv_python() -> str:
     Raises:
         RuntimeError: 如果虚拟环境未配置或不存在
     """
-    config = load_config()
-    venv_path = config.get("virtualenv_path", "")
-
-    if not venv_path:
-        raise RuntimeError("虚拟环境路径未配置，请检查 config.json")
-
-    python_exe = Path(venv_path) / "Scripts" / "python.exe"
-    if not python_exe.exists():
-        raise RuntimeError(f"虚拟环境 Python 不存在: {python_exe}")
-
-    return str(python_exe)
+    return get_venv_python()
 
 
 def get_config() -> dict:
@@ -201,11 +253,20 @@ def get_tool(name: str) -> BaseTool:
         raise ValueError(f"工具未启用: {name}")
 
     if name == "sqlmap":
-        return sqlmap.SQLMapTool(tool_config, config)
+        return sqlmap.SQLMapTool("sqlmap", tool_config, config)
     elif name == "dirsearch":
         return dirsearch.DirsearchTool(tool_config, config)
     else:
         raise ValueError(f"工具封装未实现: {name}")
 
 
-__all__ = ["BaseTool", "ToolResult", "load_config", "check_virtualenv_python", "get_tool"]
+__all__ = [
+    "BaseTool",
+    "ToolResult",
+    "load_config",
+    "check_virtualenv_python",
+    "get_venv_python",
+    "build_runtime_env",
+    "run_subprocess",
+    "get_tool",
+]

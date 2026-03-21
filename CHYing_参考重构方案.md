@@ -14,8 +14,8 @@
 - [x] 定向回归已补齐：`test_orchestrator_resume.py` 覆盖 help → resume continuity，以及 `ShortMemory.add_patch()` / `get_patch_summary()` 回归
 - [x] 进度文档口径已对齐：规范执行顺序明确为 `orchestrator/main -> initialize_challenge -> init_problem -> 先消费知识资源 -> Advisor/Planner/Executor/ToolNode -> 受阻后主动 RAG -> help/resume`，并明确区分“规范顺序”与“当前代码已完全强制实现”
 - [ ] `graph_manager.py` / PoG / `GraphOp` / `shared_findings` 尚未落地
-- [ ] 工具执行环境与成功语义尚未统一（`tools.py`、`toolkit/base.py`、`toolkit/fenjing.py` 仍并存多套路径与判定逻辑）
-- [ ] 已确认下一阶段工具接入方向：以 `config.json["venv"]["python_path"]` 为唯一 Python 真值源，并采用 `tools_source/<tool>/README.md` 驱动适配器封装，但尚未落地代码
+- [x] P2-Beta 已完成：`ShortMemory` 已支持 `action_id` 级失败聚合、`latest_step_for_action()` 查询，`_should_ask_for_help()` / replanning / skip 判定已优先消费动作级失败信息，并补齐 `test_failure_statistics.py` 回归
+- [x] P2-Gamma 核心已完成：`config.json["venv"]["python_path"]` 已成为唯一 Python 真值源，`tools.py` / `toolkit/base.py` / `utils/python_runner.py` / `toolkit/fenjing.py` 已收敛到 shared runtime，`tool_node.success` 已与 memory step success 对齐，并补齐定向 runtime 回归测试
 
 ## 1. 背景与目标
 - [x] 入口断层的第一步已修补：`AutoAgent.solve_challenge()` 已接入 `tools.init_problem()`，技能、长期记忆与 WooYun 可在主入口初始化阶段装载。

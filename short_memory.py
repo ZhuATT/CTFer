@@ -188,6 +188,15 @@ class ShortMemory:
         """判断某个 action_id 是否应该跳过。"""
         return bool(action_id) and self.action_fail_count(action_id) >= max_failures
 
+    def latest_step_for_action(self, action_id: str) -> Optional[Step]:
+        """返回某个 action_id 对应的最新一步。"""
+        if not action_id:
+            return None
+        for step in reversed(self.steps):
+            if step.action_id == action_id:
+                return step
+        return None
+
     def get_summary(self) -> str:
         """获取当前解题摘要"""
         lines = []

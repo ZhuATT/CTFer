@@ -64,6 +64,7 @@ class ResumeFlowAgent(AutoAgent):
                 params={"action_id": action["id"]},
                 result="blocked",
                 success=False,
+                action_meta=self._build_memory_action_meta(action),
             )
             return "blocked"
 
@@ -73,6 +74,7 @@ class ResumeFlowAgent(AutoAgent):
             params={"action_id": action["id"]},
             result="flag{resumed}",
             success=True,
+            action_meta=self._build_memory_action_meta(action),
         )
         return "flag{resumed}"
 
@@ -168,8 +170,12 @@ class ResumeFlowTests(unittest.TestCase):
         self.assertTrue(resumed_result["success"])
         self.assertEqual(resumed_result["flag"], "flag{resumed}")
         self.assertEqual(resumed_result["steps"], 2)
-        self.assertEqual(orchestrator.state.help_request["reason"], "unit_test_blocker")
-        self.assertEqual(orchestrator.state.help_request["guidance"], "try cookies")
+        tool_events = [event for event in orchestrator.state.route_trace if event["stage"] == "tool_node"]
+        self.assertEqual([event["payload"]["success"] for event in tool_events], [False, True])
+        self.assertEqual(tool_events[0]["payload"]["result"], "blocked")
+        self.assertTrue(orchestrator.state.tool_node_state["success"])
+        self.assertEqual(orchestrator.state.tool_node_state["result"], "flag{resumed}")
+
         self.assertEqual(orchestrator.state.resume_count, 1)
         self.assertEqual(orchestrator.state.paused_action, {})
         self.assertEqual(orchestrator.state.pending_flag, "flag{resumed}")
