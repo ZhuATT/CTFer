@@ -704,7 +704,7 @@ def execute_command(cmd: str, timeout: int = 120,
 
 def execute_python_poc(code: str, timeout: int = 120,
                        skip_if_failed: bool = True, max_failures: int = 2,
-                       keep: bool = False) -> str:
+                       keep: bool = False, memory_meta: Optional[Dict[str, Any]] = None) -> str:
     """
     执行Python PoC代码（自动防重复 + 失败追踪 + 自动清理）
 
@@ -720,6 +720,8 @@ def execute_python_poc(code: str, timeout: int = 120,
     """
     memory = get_memory()
     code_summary = code[:100] + "..." if len(code) > 100 else code
+
+    action_meta = dict(memory_meta or {})
 
     # 检查是否已尝试过（成功的不重复执行）
     if memory.has_tried("python_poc", code_summary, None):
@@ -789,7 +791,8 @@ def execute_python_poc(code: str, timeout: int = 120,
             params={},
             result=output,
             success=success,
-            key_findings=findings
+            key_findings=findings,
+            action_meta=action_meta,
         )
 
         return output
@@ -805,7 +808,8 @@ def execute_python_poc(code: str, timeout: int = 120,
             target=code_summary,
             params={},
             result=error_msg,
-            success=False
+            success=False,
+            action_meta=action_meta,
         )
         return error_msg
 
@@ -820,7 +824,8 @@ def execute_python_poc(code: str, timeout: int = 120,
             target=code_summary,
             params={},
             result=error_msg,
-            success=False
+            success=False,
+            action_meta=action_meta,
         )
         return error_msg
 
@@ -874,9 +879,10 @@ def extract_form_fields(html: str, form_index: int = 0) -> Dict[str, Any]:
 
 # ==================== 工具封装（带记忆） ====================
 
-def sqlmap_scan_url(url: str, **kwargs) -> str:
+def sqlmap_scan_url(url: str, memory_meta: Optional[Dict[str, Any]] = None, **kwargs) -> str:
     """SQLMap扫描（防重复）"""
     memory = get_memory()
+    memory_meta = dict(memory_meta or {})
 
     # 检查是否已尝试
     if memory.has_tried("sqlmap", url, kwargs):
@@ -896,20 +902,22 @@ def sqlmap_scan_url(url: str, **kwargs) -> str:
         params=kwargs,
         result=result.stdout[:500] if success else result.stderr,
         success=success,
-        key_findings=findings
+        key_findings=findings,
+        action_meta=memory_meta,
     )
 
     return f"[SQLMap] {url}\n{result.stdout if success else result.stderr}"
 
 
-def sqlmap_deep_scan_url(url: str, **kwargs) -> str:
+def sqlmap_deep_scan_url(url: str, memory_meta: Optional[Dict[str, Any]] = None, **kwargs) -> str:
     """SQLMap深度扫描"""
-    return sqlmap_scan_url(url, level=5, risk=3, **kwargs)
+    return sqlmap_scan_url(url, memory_meta=memory_meta, level=5, risk=3, **kwargs)
 
 
-def dirsearch_scan_url(url: str, **kwargs) -> str:
+def dirsearch_scan_url(url: str, memory_meta: Optional[Dict[str, Any]] = None, **kwargs) -> str:
     """Dirsearch扫描（防重复）"""
     memory = get_memory()
+    memory_meta = dict(memory_meta or {})
 
     if memory.has_tried("dirsearch", url, kwargs):
         return f"[Skip] Dirsearch已扫描过 {url}"
@@ -927,17 +935,18 @@ def dirsearch_scan_url(url: str, **kwargs) -> str:
         params=kwargs,
         result=result.stdout[:500] if success else result.stderr,
         success=success,
-        key_findings=findings
+        key_findings=findings,
+        action_meta=memory_meta,
     )
 
     return f"[Dirsearch] {url}\n{result.stdout if success else result.stderr}"
 
 
-def quick_dir_scan(url: str, extensions: List[str] = None) -> str:
+def quick_dir_scan(url: str, extensions: List[str] = None, memory_meta: Optional[Dict[str, Any]] = None) -> str:
     """快速目录扫描"""
     if extensions is None:
         extensions = ["php", "html", "js", "css", "txt"]
-    return dirsearch_scan_url(url=url, extensions=extensions, threads=30)
+    return dirsearch_scan_url(url=url, extensions=extensions, threads=30, memory_meta=memory_meta)
 
 
 # ==================== 记忆查询 ====================

@@ -41,6 +41,10 @@ class Step:
     success: bool
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     key_findings: List[str] = field(default_factory=list)
+    action_id: str = ""
+    action_type: str = ""
+    expected_tool: str = ""
+    canonical_tool: str = ""
 
 
 @dataclass
@@ -72,6 +76,9 @@ class AgentContext:
     skill_content: str = ""
     loaded_resources: Dict[str, Any] = field(default_factory=dict)
     wooyun_ref: str = ""
+    human_guidance: str = ""
+    help_history: List[Dict[str, Any]] = field(default_factory=list)
+    resume_count: int = 0
     initialized_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
@@ -91,11 +98,19 @@ class ShortMemory:
         self.target = TargetInfo()
         self.context = AgentContext()
         self._attempted: Set[str] = set()  # 已尝试的签名
-        self._failures: Dict[str, int] = {}  # 失败计数
+        self._failures: Dict[str, int] = {}  # 签名级失败计数
+        self._action_failures: Dict[str, int] = {}  # action_id 级失败计数
 
-    def add_step(self, tool: str, target: str, params: Dict = None,
-                 result: str = "", success: bool = False,
-                 key_findings: List[str] = None) -> Step:
+    def add_step(
+        self,
+        tool: str,
+        target: str,
+        params: Dict = None,
+        result: str = "",
+        success: bool = False,
+        key_findings: List[str] = None,
+        action_meta: Optional[Dict[str, Any]] = None,
+    ) -> Step:
         """
         添加解题步骤
 
@@ -106,25 +121,36 @@ class ShortMemory:
             result: 执行结果
             success: 是否成功
             key_findings: 关键发现
+            action_meta: 动作元信息
         """
+        normalized_params = dict(params or {})
+        normalized_action = self._normalize_action_meta(tool, normalized_params, action_meta)
+        result_text = str(result)
+
         step = Step(
             num=len(self.steps) + 1,
             tool=tool,
             target=target,
-            params=params or {},
-            result=result[:500] if len(result) > 500 else result,
+            params=normalized_params,
+            result=result_text[:500] if len(result_text) > 500 else result_text,
             success=success,
-            key_findings=key_findings or []
+            key_findings=key_findings or [],
+            action_id=normalized_action.get("action_id", ""),
+            action_type=normalized_action.get("action_type", ""),
+            expected_tool=normalized_action.get("expected_tool", ""),
+            canonical_tool=normalized_action.get("canonical_tool", tool),
         )
         self.steps.append(step)
 
         # 记录尝试 - 同时记录完整签名和简单签名，支持模糊匹配
-        sig = self._signature(tool, target, params)
+        sig = self._signature(tool, target, normalized_params)
         sig_simple = self._signature(tool, target, None)
         self._attempted.add(sig)
         self._attempted.add(sig_simple)  # 支持不带params的查询
         if not success:
             self._failures[sig] = self._failures.get(sig, 0) + 1
+            if step.action_id:
+                self._action_failures[step.action_id] = self._action_failures.get(step.action_id, 0) + 1
 
         # 自动提取关键信息
         self._extract_from_step(step)
@@ -146,12 +172,28 @@ class ShortMemory:
         """判断是否应该跳过（失败太多次）"""
         return self.fail_count(tool, target, params) >= max_failures
 
+    def action_fail_count(self, action_id: str) -> int:
+        """获取某个 action_id 的失败次数。"""
+        if not action_id:
+            return 0
+        return self._action_failures.get(action_id, 0)
+
+    def fail_count_for_step(self, step: Step) -> int:
+        """优先按 action_id 查询失败次数，缺失时退回旧签名。"""
+        if step.action_id:
+            return self.action_fail_count(step.action_id)
+        return self.fail_count(step.tool, step.target, step.params)
+
+    def should_skip_action(self, action_id: str, max_failures: int = 3) -> bool:
+        """判断某个 action_id 是否应该跳过。"""
+        return bool(action_id) and self.action_fail_count(action_id) >= max_failures
+
     def get_summary(self) -> str:
         """获取当前解题摘要"""
         lines = []
-        lines.append(f"{"=" * 50}")
+        lines.append(f"{'=' * 50}")
         lines.append(f"题目进度: {len(self.steps)} 步")
-        lines.append(f"{"=" * 50}")
+        lines.append(f"{'=' * 50}")
 
         # 目标信息
         if self.target.url or self.target.ip:
@@ -168,16 +210,22 @@ class ShortMemory:
             lines.append(f"[FLAG] {self.target.flags}")
 
         # 最近步骤
-        lines.append(f"\n最近尝试:")
+        lines.append("\n最近尝试:")
         for step in self.steps[-5:]:
             status = "[OK]" if step.success else "[FAIL]"
-            lines.append(f"  {status} [{step.tool}] {step.target[:50]}...")
+            action_hint = f" action={step.action_id}" if step.action_id else ""
+            lines.append(f"  {status} [{step.tool}] {step.target[:50]}...{action_hint}")
             if step.key_findings:
                 lines.append(f"    -> {', '.join(step.key_findings[:3])}")
 
         # 重复尝试警告
-        if self._failures:
-            lines.append(f"\n失败统计:")
+        if self._action_failures:
+            lines.append("\n动作失败统计:")
+            for action_id, count in sorted(self._action_failures.items(), key=lambda x: -x[1])[:3]:
+                if count >= 2:
+                    lines.append(f"  {action_id}: 失败 {count} 次")
+        elif self._failures:
+            lines.append("\n失败统计:")
             for sig, count in sorted(self._failures.items(), key=lambda x: -x[1])[:3]:
                 if count >= 2:
                     lines.append(f"  {sig[:20]}...: 失败 {count} 次")
@@ -189,7 +237,11 @@ class ShortMemory:
         suggestions = []
 
         # 分析重复失败的模式
-        if self._failures:
+        if self._action_failures:
+            for action_id, count in self._action_failures.items():
+                if count >= 2:
+                    suggestions.append(f"避免重复动作: {action_id} 已失败 {count} 次")
+        elif self._failures:
             for sig, count in self._failures.items():
                 if count >= 2:
                     suggestions.append(f"避免重复: {sig[:30]}... 已失败 {count} 次")
@@ -230,6 +282,39 @@ class ShortMemory:
         if flag not in self.target.flags:
             self.target.flags.append(flag)
 
+    def add_patch(
+        self,
+        location: str,
+        vuln_type: str,
+        fix_suggestion: str,
+        code_snippet: str = "",
+    ) -> Dict[str, Any]:
+        """添加 AWD 修补点。"""
+        patch = {
+            "location": location,
+            "vuln_type": vuln_type,
+            "fix_suggestion": fix_suggestion,
+            "code_snippet": code_snippet,
+        }
+        if patch not in self.target.patches:
+            self.target.patches.append(patch)
+        return patch
+
+    def get_patch_summary(self) -> str:
+        """获取当前修补点摘要。"""
+        if not self.target.patches:
+            return "暂无修补点"
+
+        lines = [f"修补点: {len(self.target.patches)} 处"]
+        for idx, patch in enumerate(self.target.patches, 1):
+            lines.append(
+                f"{idx}. [{patch.get('vuln_type', 'unknown')}] {patch.get('location', 'unknown')} -> {patch.get('fix_suggestion', '')}"
+            )
+            code_snippet = (patch.get("code_snippet") or "").strip()
+            if code_snippet:
+                lines.append(f"   代码: {code_snippet[:120]}")
+        return "\n".join(lines)
+
     def set_context(self, context: Optional[AgentContext] = None, **kwargs) -> AgentContext:
         """设置题目上下文，支持传入 dataclass 或关键字"""
         if context is not None:
@@ -249,44 +334,63 @@ class ShortMemory:
         """获取当前题目的上下文信息"""
         return self.context
 
+    def add_help_entry(
+        self,
+        request: str,
+        guidance: str = "",
+        reason: str = "",
+        step: int = 0,
+    ) -> Dict[str, Any]:
+        """记录一次 help / resume 交互。"""
+        entry = {
+            "step": step,
+            "request": request,
+            "guidance": guidance,
+            "reason": reason,
+            "timestamp": datetime.now().isoformat(),
+        }
+        self.context.help_history.append(entry)
+        self.context.help_history = self.context.help_history[-10:]
+        if guidance:
+            self.context.human_guidance = guidance
+        return entry
+
+    def apply_human_guidance(
+        self,
+        guidance: str,
+        step: int = 0,
+        reason: str = "",
+    ) -> Dict[str, Any]:
+        """把人工提示关联到最近一次 help 记录。"""
+        if self.context.help_history and not self.context.help_history[-1].get("guidance"):
+            entry = self.context.help_history[-1]
+            entry["guidance"] = guidance
+            if step:
+                entry["resume_step"] = step
+            if reason and not entry.get("reason"):
+                entry["reason"] = reason
+            entry["updated_at"] = datetime.now().isoformat()
+        else:
+            entry = self.add_help_entry(request="", guidance=guidance, reason=reason, step=step)
+
+        self.context.human_guidance = guidance
+        self.context.resume_count += 1
+        return entry
+
     # === AWD 方法 ===
 
     def set_awd_phase(self, phase: str):
         """切换 AWD 阶段"""
         if phase in ["attack", "defense"]:
-            self.awd_phase = phase
+            self.target.awd_mode = True
             self.target.awd_phase = phase
-
-    def add_patch(self, location: str, vuln_type: str, fix_suggestion: str, code_snippet: str = ""):
-        """添加修补点"""
-        patch = {
-            "location": location,
-            "vulnerability": vuln_type,
-            "fix": fix_suggestion,
-            "code": code_snippet
-        }
-        if patch not in self.target.patches:
-            self.target.patches.append(patch)
-
-    def get_patch_summary(self) -> str:
-        """获取修补点摘要"""
-        if not self.target.patches:
-            return "暂无修补点"
-
-        lines = ["=== 修补点建议 ==="]
-        for i, p in enumerate(self.target.patches, 1):
-            lines.append(f"{i}. 位置: {p['location']}")
-            lines.append(f"   漏洞类型: {p['vulnerability']}")
-            lines.append(f"   修复建议: {p['fix']}")
-            if p.get('code'):
-                lines.append(f"   相关代码: {p['code'][:50]}...")
-        return "\n".join(lines)
 
     def clear(self):
         """清除记忆（题目结束时）"""
         self.steps.clear()
         self._attempted.clear()
         self._failures.clear()
+        self._action_failures.clear()
         self.target = TargetInfo()
         self.context = AgentContext()
 
@@ -295,6 +399,33 @@ class ShortMemory:
         params = params or {}
         normalized = f"{tool}:{target}:{str(sorted(params.items()))}"
         return hashlib.md5(normalized.encode()).hexdigest()[:16]
+
+    def _normalize_action_meta(
+        self,
+        tool: str,
+        params: Optional[Dict[str, Any]] = None,
+        action_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, str]:
+        """从 action_meta 或旧 params 中提取统一动作元信息。"""
+        params = params or {}
+        action_meta = dict(action_meta or {})
+
+        action_id = str(action_meta.get("action_id") or params.get("action_id") or "")
+        action_type = str(action_meta.get("action_type") or params.get("action_type") or "")
+        expected_tool = str(action_meta.get("expected_tool") or params.get("expected_tool") or "")
+        canonical_tool = str(
+            action_meta.get("canonical_tool")
+            or params.get("canonical_tool")
+            or expected_tool
+            or tool
+        )
+
+        return {
+            "action_id": action_id,
+            "action_type": action_type,
+            "expected_tool": expected_tool,
+            "canonical_tool": canonical_tool,
+        }
 
     def _extract_from_step(self, step: Step):
         """从步骤中自动提取关键信息"""
@@ -350,4 +481,4 @@ def reset_short_memory():
     print("[Memory] 已开始新题目的短期记忆")
 
 
-__all__ = ["ShortMemory", "get_short_memory", "reset_short_memory", "AgentContext"]
+__all__ = ["ShortMemory", "get_short_memory", "reset_short_memory", "AgentContext", "Step"]
