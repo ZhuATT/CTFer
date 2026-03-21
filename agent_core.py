@@ -349,6 +349,8 @@ class AutoAgent:
         }
         self.consecutive_help_triggers = 0
         self.last_help_reason: Optional[str] = None
+        self.help_cooldown_remaining = 0
+        self.step_budget_limit = max_steps
         if min_steps_before_help is None:
             self.min_steps_before_help = max(3, self.max_failures)
         else:
@@ -394,6 +396,48 @@ class AutoAgent:
 
         return self.init_result
 
+    def _sync_agent_context(self) -> None:
+        """同步最新短期记忆上下文。"""
+        self.agent_context = get_agent_context()
+
+    def _reset_help_cooldown(self) -> None:
+        """恢复后降低再次立即求助的概率。"""
+        self.consecutive_help_triggers = 0
+        self.last_help_reason = None
+        self.help_cooldown_remaining = 2
+
+    def resume_with_guidance(
+        self,
+        human_guidance: str,
+        event_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    ) -> Dict[str, Any]:
+        """在不重新初始化题目的前提下，基于人工提示继续主链。"""
+        if not self.init_result:
+            raise ValueError("Challenge not initialized. Call initialize_challenge() first.")
+
+        guidance = human_guidance.strip()
+        if not guidance:
+            raise ValueError("human_guidance must not be empty")
+
+        self._sync_agent_context()
+        self.memory.apply_human_guidance(
+            guidance=guidance,
+            step=self.current_step_num,
+            reason=self.last_help_reason or "resume",
+        )
+        self._sync_agent_context()
+        self._reset_help_cooldown()
+        self._emit_event(
+            event_callback,
+            "resume",
+            {
+                "step": self.current_step_num,
+                "guidance": guidance,
+                "resume_count": getattr(self.agent_context, "resume_count", 0),
+            },
+        )
+        return self.run_main_loop(event_callback=event_callback, resume=True)
+
     def _emit_event(
         self,
         event_callback: Optional[Callable[[str, Dict[str, Any]], None]],
@@ -418,6 +462,8 @@ class AutoAgent:
         recent_steps = self.memory.steps[-3:]
         skill_content = self.init_result.get("skill_content") or getattr(self.agent_context, "skill_content", "")
         loaded_resources = self.init_result.get("loaded_resources") or self.init_result.get("resources") or {}
+        help_history = list(getattr(self.agent_context, "help_history", [])[-3:])
+        human_guidance = getattr(self.agent_context, "human_guidance", "")
 
         return {
             "target_url": self.target_url,
@@ -430,6 +476,9 @@ class AutoAgent:
             "attack_plan_ready": bool(self.attack_plan),
             "consecutive_failures": self._get_consecutive_failures(),
             "memory_summary": get_memory_summary(),
+            "human_guidance": human_guidance,
+            "resume_count": getattr(self.agent_context, "resume_count", 0),
+            "help_history": help_history,
             "recent_actions": [
                 {
                     "tool": step.tool,
@@ -534,9 +583,25 @@ class AutoAgent:
             "sqlmap": "sqlmap",
         }.get(tool_name, tool_name)
 
+    def _build_memory_action_meta(self, action: Dict[str, Any]) -> Dict[str, str]:
+        if not action:
+            return {}
+        action_type = str(action.get("type", ""))
+        expected_tool = str(action.get("expected_tool") or action_type)
+        return {
+            "action_id": str(action.get("id", "")),
+            "action_type": action_type,
+            "expected_tool": expected_tool,
+            "canonical_tool": self._canonical_tool_name(action),
+        }
+
     def _count_recent_failures_by_tool(self, tool: str, window: int = 5) -> int:
         recent_steps = self.memory.steps[-window:] if window > 0 else self.memory.steps
-        return sum(1 for step in recent_steps if step.tool == tool and not step.success)
+        return sum(
+            1
+            for step in recent_steps
+            if not step.success and (step.canonical_tool or step.tool) == tool
+        )
 
     def _mark_action_completed(self, action: Dict[str, Any], result: str) -> None:
         if action.get("type") == "attack_step" and self.attack_plan:
@@ -583,7 +648,7 @@ if flags:
     print(f"FLAG_FOUND: {{flags[0]}}")
 print(f"Content preview: {{resp.text[:500]}}")
 '''
-        return execute_python_poc(code, timeout=30)
+        return execute_python_poc(code, timeout=30, memory_meta=self._build_memory_action_meta(action))
 
     def _execute_ua_test_action(self, action: Dict[str, Any]) -> str:
         target = action.get("target", self.target_url)
@@ -607,7 +672,7 @@ if flags:
 if resp.status_code == 200:
     print(f"Content: {{resp.text}}")
 '''
-        return execute_python_poc(code, timeout=30)
+        return execute_python_poc(code, timeout=30, memory_meta=self._build_memory_action_meta(action))
 
     def _execute_follow_redirect_action(self, action: Dict[str, Any]) -> str:
         target = action.get("target", self.target_url)
@@ -628,17 +693,29 @@ if flags:
     print(f"FLAG_FOUND: {{flags[0]}}")
 print(f"Content: {{resp.text}}")
 '''
-        return execute_python_poc(code, timeout=30)
+        return execute_python_poc(code, timeout=30, memory_meta=self._build_memory_action_meta(action))
 
     def _execute_sqlmap_action(self, action: Dict[str, Any]) -> str:
-        return sqlmap_scan_url(action.get("target", self.target_url), **action.get("params", {}))
+        return sqlmap_scan_url(
+            action.get("target", self.target_url),
+            memory_meta=self._build_memory_action_meta(action),
+            **action.get("params", {}),
+        )
 
     def _execute_sqlmap_deep_action(self, action: Dict[str, Any]) -> str:
-        return sqlmap_deep_scan_url(action.get("target", self.target_url), **action.get("params", {}))
+        return sqlmap_deep_scan_url(
+            action.get("target", self.target_url),
+            memory_meta=self._build_memory_action_meta(action),
+            **action.get("params", {}),
+        )
 
     def _execute_dir_scan_action(self, action: Dict[str, Any]) -> str:
         params = action.get("params", {})
-        return quick_dir_scan(action.get("target", self.target_url), extensions=params.get("extensions"))
+        return quick_dir_scan(
+            action.get("target", self.target_url),
+            extensions=params.get("extensions"),
+            memory_meta=self._build_memory_action_meta(action),
+        )
 
     def _execute_source_analysis_action(self, action: Dict[str, Any]) -> str:
         code = action.get("code") or action.get("params", {}).get("code") or self.source_code
@@ -648,18 +725,20 @@ print(f"Content: {{resp.text}}")
         self.memory.add_step(
             tool="source_analysis",
             target="PHP code",
-            params={"action_id": action.get("id", "")},
+            params={},
             result=result,
             success=True,
+            action_meta=self._build_memory_action_meta(action),
         )
         return result
 
     def _execute_poc_action(self, action: Dict[str, Any]) -> str:
         steps = action.get("steps") or action.get("params", {}).get("steps") or [action.get("code")]
         results = []
+        memory_meta = self._build_memory_action_meta(action)
         for step_code in steps:
             if step_code:
-                results.append(execute_python_poc(step_code, timeout=60))
+                results.append(execute_python_poc(step_code, timeout=60, memory_meta=memory_meta))
         return "\n\n".join(results)
 
     def _execute_attack_step_action(self, action: Dict[str, Any]) -> str:
@@ -774,7 +853,26 @@ print(f"Content: {{resp.text}}")
             return None
 
         summary = get_memory_summary()
-        return self._generate_help_request(step_num, summary)
+        help_request = self._generate_help_request(step_num, summary)
+        self.memory.add_help_entry(
+            request=help_request,
+            reason=self.last_help_reason or "",
+            step=step_num,
+        )
+        self._sync_agent_context()
+        return help_request
+
+    def _starting_step_num(self, resume: bool = False) -> int:
+        """返回本轮主循环的起始 step 编号。"""
+        if resume and self.current_step_num > 0:
+            return self.current_step_num + 1
+        return 1
+
+    def _max_step_for_current_run(self, resume: bool = False) -> int:
+        """返回当前主循环允许执行到的最大 step 编号。"""
+        if resume:
+            return max(self.max_steps, self.current_step_num + self.step_budget_limit)
+        return self.max_steps
 
     def solve_challenge(self, url: str = "", hint: str = "", description: str = "",
                         source_code: str = "") -> Dict[str, Any]:
@@ -801,17 +899,26 @@ print(f"Content: {{resp.text}}")
     def run_main_loop(
         self,
         event_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+        resume: bool = False,
     ) -> Dict[str, Any]:
         """执行唯一主循环。"""
+        self._sync_agent_context()
+        if not resume:
+            self.help_cooldown_remaining = 0
         self.log(f"=" * 60)
         self.log(f"[Agent] 开始自动化解题: {self.target_url}")
         self.log(f"[Hint] {self.agent_context.hint}")
+        if resume and getattr(self.agent_context, "human_guidance", ""):
+            self.log(f"[Guidance] {self.agent_context.human_guidance}", "INFO")
         self.log(f"=" * 60)
 
-        for step_num in range(1, self.max_steps + 1):
+        start_step = self._starting_step_num(resume=resume)
+        max_step = self._max_step_for_current_run(resume=resume)
+        for step_num in range(start_step, max_step + 1):
             self.current_step_num = step_num
-            self.log(f"\n[Step {step_num}/{self.max_steps}] ---")
+            self.log(f"\n[Step {step_num}/{max_step}] ---")
 
+            self._sync_agent_context()
             advisor_context = self.build_advisor_context()
             self._emit_event(
                 event_callback,
@@ -880,12 +987,10 @@ print(f"Content: {{resp.text}}")
                 self.memory.add_step(
                     tool=self._canonical_tool_name(action),
                     target=action.get("target", self.target_url),
-                    params={
-                        "action_id": action.get("id", ""),
-                        "action_type": action.get("type", "unknown"),
-                    },
+                    params={},
                     result=str(e),
-                    success=False
+                    success=False,
+                    action_meta=self._build_memory_action_meta(action),
                 )
                 self._emit_event(
                     event_callback,
@@ -909,21 +1014,23 @@ print(f"Content: {{resp.text}}")
                     {
                         "step": step_num,
                         "message": help_request,
+                        "reason": self.last_help_reason,
                     },
                 )
 
                 raise AgentNeedsHelpException(help_request)
 
         final_help = (
-            f"已尝试{self.max_steps}步仍未获得flag，所有自动策略均已失败。\n\n"
+            f"已尝试{max_step}步仍未获得flag，所有自动策略均已失败。\n\n"
             f"最终状态:\n{get_memory_summary()}"
         )
         self._emit_event(
             event_callback,
             "help",
             {
-                "step": self.max_steps,
+                "step": max_step,
                 "message": final_help,
+                "reason": "max_steps",
             },
         )
         raise AgentNeedsHelpException(final_help)
@@ -945,6 +1052,8 @@ print(f"Content: {{resp.text}}")
         self.attack_plan = None
         self.consecutive_help_triggers = 0
         self.last_help_reason = None
+        self.help_cooldown_remaining = 0
+        self.step_budget_limit = self.max_steps
 
     def _classify_problem(self, hint: str):
         """自动分类题目类型"""
@@ -1126,7 +1235,7 @@ print(f"Content: {{resp.text}}")
                 )
 
         if steps and not steps[-1].success:
-            fail_count = self.memory.fail_count(steps[-1].tool, steps[-1].target, steps[-1].params)
+            fail_count = self.memory.fail_count_for_step(steps[-1])
             if fail_count >= 2:
                 return self._build_action(
                     "dir_scan",
@@ -1234,7 +1343,51 @@ print(f"Content: {{resp.text}}")
         if failure_analysis.get("same_error", 0) >= 2:
             self.log("[STRATEGY] Repeated identical error, forcing action diversification", "INFO")
 
+    def _recent_action_failure_counts(self, window: int = 5) -> Dict[str, Any]:
+        recent_steps = self.memory.steps[-window:] if window > 0 else self.memory.steps
+        action_ids = {
+            step.action_id
+            for step in recent_steps
+            if not step.success and step.action_id
+        }
+        action_types = {
+            step.action_type or step.expected_tool or step.tool
+            for step in recent_steps
+            if not step.success and (step.action_type or step.expected_tool or step.tool)
+        }
+        canonical_tools = {
+            step.canonical_tool or step.tool
+            for step in recent_steps
+            if not step.success and (step.canonical_tool or step.tool)
+        }
+        return {
+            "recent_steps": recent_steps,
+            "distinct_actions": len(action_ids),
+            "distinct_action_types": len(action_types),
+            "action_id_counts": {
+                action_id: self.memory.action_fail_count(action_id)
+                for action_id in action_ids
+            },
+            "action_type_counts": {
+                action_type: sum(
+                    1
+                    for step in self.memory.steps
+                    if not step.success and (step.action_type or step.expected_tool or step.tool) == action_type
+                )
+                for action_type in action_types
+            },
+            "canonical_tool_counts": {
+                tool: self._count_recent_failures_by_tool(tool, window=window)
+                for tool in canonical_tools
+            },
+        }
+
     def _should_ask_for_help(self) -> bool:
+        if self.help_cooldown_remaining > 0:
+            self.help_cooldown_remaining -= 1
+            self.log("[FAIL_ANALYSIS] Resume cooldown active, delaying help escalation", "INFO")
+            return False
+
         steps = self.memory.steps
         if not steps:
             return False
@@ -1246,9 +1399,8 @@ print(f"Content: {{resp.text}}")
                 break
             consecutive_failures += 1
 
-        recent_steps = steps[-5:] if len(steps) >= 5 else steps
-        distinct_tools = {s.tool for s in recent_steps}
-        if total_steps >= 5 and len(distinct_tools) <= 2:
+        recent_failure_stats = self._recent_action_failure_counts(window=5)
+        if total_steps >= 5 and recent_failure_stats["distinct_actions"] <= 2 and recent_failure_stats["distinct_action_types"] <= 2:
             self.log("[FAIL_ANALYSIS] Limited action diversity, forcing replanning", "FAIL")
             self.last_help_reason = "limited_diversity"
             return True
@@ -1287,10 +1439,22 @@ print(f"Content: {{resp.text}}")
             self.last_help_reason = "consecutive_failures"
             return True
 
+        for action_id, count in recent_failure_stats["action_id_counts"].items():
+            if count >= self.max_failures:
+                self.log(f"[FAIL_ANALYSIS] Action {action_id} failed {count} times", "FAIL")
+                self.last_help_reason = f"action_failures:{action_id}"
+                return True
+
+        for action_type, count in recent_failure_stats["action_type_counts"].items():
+            if count >= self.max_failures:
+                self.log(f"[FAIL_ANALYSIS] Action type {action_type} failed {count} times", "FAIL")
+                self.last_help_reason = f"action_type_failures:{action_type}"
+                return True
+
         critical_tools = {"python_poc", "sqlmap", "dirsearch", "source_analysis"}
-        for tool in critical_tools:
-            if self._count_recent_failures_by_tool(tool) >= self.max_failures:
-                self.log(f"[FAIL_ANALYSIS] Tool {tool} failed {self.max_failures}+ times recently", "FAIL")
+        for tool, count in recent_failure_stats["canonical_tool_counts"].items():
+            if tool in critical_tools and count >= self.max_failures:
+                self.log(f"[FAIL_ANALYSIS] Tool {tool} failed {count} times recently", "FAIL")
                 self.last_help_reason = f"tool_failures:{tool}"
                 return True
 
@@ -1316,7 +1480,7 @@ print(f"Content: {{resp.text}}")
                     "tool": step.tool,
                     "target": step.target,
                     "result": step.result,
-                    "success": step.success
+                    "success": step.success,
                 }
                 for step in self.memory.steps
             ]
@@ -1330,7 +1494,7 @@ print(f"Content: {{resp.text}}")
                 target=self.target_url,
                 steps=steps,
                 flag=flag,
-                key_techniques=techniques
+                key_techniques=techniques,
             )
 
             self.log(f"解题经验已自动保存: {exp_file}", "MEMORY")

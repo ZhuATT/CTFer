@@ -55,6 +55,11 @@ class OrchestratorState:
     executor_output: Dict[str, Any] = field(default_factory=dict)
     tool_node_state: Dict[str, Any] = field(default_factory=dict)
     help_request: Dict[str, Any] = field(default_factory=dict)
+    paused_action: Dict[str, Any] = field(default_factory=dict)
+    help_history: List[Dict[str, Any]] = field(default_factory=list)
+    resume_count: int = 0
+    human_guidance: str = ""
+    last_help_reason: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -87,6 +92,8 @@ class CTFOrchestrator:
             message["content"] = f"ToolNode executed {action.get('type', 'unknown')} with {outcome}"
         elif stage == "help":
             message["content"] = payload.get("message", "")
+        elif stage == "resume":
+            message["content"] = payload.get("guidance", "")
         else:
             message["content"] = json.dumps(payload, ensure_ascii=False)
 
@@ -116,7 +123,17 @@ class CTFOrchestrator:
             self.state.help_request = {
                 "step": payload.get("step", self.agent.current_step_num),
                 "message": payload.get("message", ""),
+                "reason": payload.get("reason", ""),
             }
+            self.state.paused_action = dict(self.agent.last_action or self.state.pending_task or {})
+            self.state.last_help_reason = payload.get("reason", "") or self.agent.last_help_reason or ""
+        elif stage == "resume":
+            self.state.human_guidance = payload.get("guidance", "")
+            self.state.resume_count = payload.get("resume_count", self.state.resume_count)
+            if self.state.help_request and not self.state.help_request.get("guidance"):
+                self.state.help_request["guidance"] = self.state.human_guidance
+            self.state.paused_action = {}
+
 
     def _handle_agent_event(self, stage: str, payload: Dict[str, Any]) -> None:
         self._record_route_event(stage, payload)
@@ -124,15 +141,38 @@ class CTFOrchestrator:
 
     def _sync_state(self) -> None:
         self.state.init_result = dict(self.agent.init_result or {})
-        self.state.agent_context = asdict(get_agent_context())
+        agent_context = get_agent_context()
+        self.state.agent_context = asdict(agent_context)
         self.state.current_step_num = self.agent.current_step_num
         self.state.last_action = dict(self.agent.last_action or {})
         self.state.last_result = self.agent.last_result
         self.state.memory_summary = get_memory_summary()
         self.state.consecutive_failures = self.agent._get_consecutive_failures()
+        self.state.help_history = list(getattr(agent_context, "help_history", []))
+        self.state.resume_count = getattr(agent_context, "resume_count", 0)
+        self.state.human_guidance = getattr(agent_context, "human_guidance", "")
+        self.state.last_help_reason = self.agent.last_help_reason or self.state.last_help_reason
 
         if self.state.last_action:
             self.state.pending_task = dict(self.state.last_action)
+
+        if self.state.status == "needs_help" and not self.state.paused_action:
+            self.state.paused_action = dict(self.agent.last_action or self.state.pending_task or {})
+
+        if self.state.help_history:
+            latest_help = self.state.help_history[-1]
+            if not self.state.help_request:
+                self.state.help_request = {
+                    "step": latest_help.get("step", self.agent.current_step_num),
+                    "message": latest_help.get("request", ""),
+                    "reason": latest_help.get("reason", ""),
+                    "guidance": latest_help.get("guidance", ""),
+                }
+            else:
+                if latest_help.get("guidance"):
+                    self.state.help_request["guidance"] = latest_help.get("guidance", "")
+                if latest_help.get("reason") and not self.state.help_request.get("reason"):
+                    self.state.help_request["reason"] = latest_help.get("reason", "")
 
         if self.state.final_result.get("success"):
             self.state.pending_flag = self.state.final_result.get("flag", "")
@@ -205,6 +245,55 @@ class CTFOrchestrator:
 
         self._sync_state()
         return self.state.final_result
+
+    def resume(self, human_guidance: str) -> Dict[str, Any]:
+        """基于人工提示恢复已暂停的主链。"""
+        if not self.agent.init_result:
+            raise ValueError("Challenge not initialized. Call initialize_challenge() first.")
+
+        guidance = human_guidance.strip()
+        if not guidance:
+            raise ValueError("human_guidance must not be empty")
+
+        if self.state.status != "needs_help":
+            raise ValueError("Orchestrator is not paused for help.")
+
+        self.state.status = "resuming"
+        self.state.error = ""
+        self._sync_state()
+
+        try:
+            result = self.agent.resume_with_guidance(
+                human_guidance=guidance,
+                event_callback=self._handle_agent_event,
+            )
+            self.state.status = "succeeded"
+            self.state.final_result = result
+            self.state.error = ""
+        except AgentNeedsHelpException as exc:
+            self.state.status = "needs_help"
+            self.state.error = exc.message
+            self.state.final_result = {
+                "success": False,
+                "needs_help": True,
+                "message": exc.message,
+                "steps": self.agent.current_step_num,
+            }
+        except Exception as exc:
+            self.state.status = "failed"
+            self.state.error = str(exc)
+            self.state.final_result = {
+                "success": False,
+                "needs_help": False,
+                "message": str(exc),
+                "steps": self.agent.current_step_num,
+            }
+
+        self._sync_state()
+        return {
+            **self.state.final_result,
+            "orchestrator_state": self.state.to_dict(),
+        }
 
     def solve(
         self,
