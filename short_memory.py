@@ -79,6 +79,7 @@ class AgentContext:
     human_guidance: str = ""
     help_history: List[Dict[str, Any]] = field(default_factory=list)
     resume_count: int = 0
+    shared_findings: List[Dict[str, Any]] = field(default_factory=list)
     initialized_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
 

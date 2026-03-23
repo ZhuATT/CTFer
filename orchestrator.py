@@ -60,6 +60,8 @@ class OrchestratorState:
     resume_count: int = 0
     human_guidance: str = ""
     last_help_reason: str = ""
+    graph_state: Dict[str, Any] = field(default_factory=dict)
+    shared_findings: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -152,6 +154,8 @@ class CTFOrchestrator:
         self.state.resume_count = getattr(agent_context, "resume_count", 0)
         self.state.human_guidance = getattr(agent_context, "human_guidance", "")
         self.state.last_help_reason = self.agent.last_help_reason or self.state.last_help_reason
+        self.state.shared_findings = list(getattr(agent_context, "shared_findings", []))
+        self.state.graph_state = self.agent.graph_manager.snapshot()
 
         if self.state.last_action:
             self.state.pending_task = dict(self.state.last_action)
