@@ -30,6 +30,7 @@ from tools import (
     quick_dir_scan, sqlmap_scan_url, sqlmap_deep_scan_url,
 )
 from long_memory import auto_save_experience
+from graph_manager import GraphManager
 
 # 引入源码分析器
 try:
@@ -351,6 +352,7 @@ class AutoAgent:
         self.last_help_reason: Optional[str] = None
         self.help_cooldown_remaining = 0
         self.step_budget_limit = max_steps
+        self.graph_manager = GraphManager()
         if min_steps_before_help is None:
             self.min_steps_before_help = max(3, self.max_failures)
         else:
@@ -371,6 +373,7 @@ class AutoAgent:
         self.target_url = init_result.get("target_url", url)
         self.target_type = init_result.get("problem_type", "unknown")
         self.agent_context = get_agent_context()
+        self.graph_manager.reset()
 
         if hint:
             self._classify_problem(hint)
@@ -394,11 +397,36 @@ class AutoAgent:
             self.init_result["problem_type"] = self.target_type
             self.log(f"[Analysis] Auto-classified as: {self.target_type}")
 
+        self._refresh_graph_state()
         return self.init_result
 
     def _sync_agent_context(self) -> None:
         """同步最新短期记忆上下文。"""
         self.agent_context = get_agent_context()
+
+    def _refresh_graph_state(self) -> List[Dict[str, Any]]:
+        """刷新 graph findings，并回写到 resume-safe context。"""
+        shared_findings = self.graph_manager.refresh_shared_findings(self.memory)
+        if hasattr(self.memory, "context"):
+            self.memory.context.shared_findings = list(shared_findings)
+        self._sync_agent_context()
+        return shared_findings
+
+    def _latest_memory_step_for_action(
+        self,
+        action: Dict[str, Any],
+        step_num: Optional[int] = None,
+    ) -> Optional[Any]:
+        """获取当前 action 最接近的 memory step。"""
+        action_id = str((action or {}).get("id", ""))
+        step = self.memory.latest_step_for_action(action_id)
+        if step is not None:
+            return step
+        if step_num is not None and self.memory.steps:
+            candidate = self.memory.steps[-1]
+            if getattr(candidate, "num", 0) == step_num:
+                return candidate
+        return None
 
     def _reset_help_cooldown(self) -> None:
         """恢复后降低再次立即求助的概率。"""
@@ -427,13 +455,24 @@ class AutoAgent:
         )
         self._sync_agent_context()
         self._reset_help_cooldown()
+        resume_count = getattr(self.agent_context, "resume_count", 0)
+        self.graph_manager.apply_graph_op(
+            self.graph_manager.build_checkpoint_graph_op(
+                "resume",
+                metadata={"resume_count": resume_count},
+            ),
+            step=self.current_step_num,
+            guidance=guidance,
+            resume_count=resume_count,
+        )
+        self._refresh_graph_state()
         self._emit_event(
             event_callback,
             "resume",
             {
                 "step": self.current_step_num,
                 "guidance": guidance,
-                "resume_count": getattr(self.agent_context, "resume_count", 0),
+                "resume_count": resume_count,
             },
         )
         return self.run_main_loop(event_callback=event_callback, resume=True)
@@ -459,6 +498,7 @@ class AutoAgent:
 
     def build_advisor_context(self) -> Dict[str, Any]:
         """构造 Advisor 阶段使用的上下文快照。"""
+        shared_findings = self._refresh_graph_state()
         recent_steps = self.memory.steps[-3:]
         skill_content = self.init_result.get("skill_content") or getattr(self.agent_context, "skill_content", "")
         loaded_resources = self.init_result.get("loaded_resources") or self.init_result.get("resources") or {}
@@ -479,6 +519,8 @@ class AutoAgent:
             "human_guidance": human_guidance,
             "resume_count": getattr(self.agent_context, "resume_count", 0),
             "help_history": help_history,
+            "shared_findings": shared_findings,
+            "graph_summary": self.graph_manager.summary(),
             "recent_actions": [
                 {
                     "tool": step.tool,
@@ -538,6 +580,7 @@ class AutoAgent:
         }
         if metadata:
             action.update(metadata)
+        action["graph_op"] = self.graph_manager.build_action_graph_op(action)
         return action
 
     def _expected_tool_for_attack_step(self, step_name: str, has_code: bool = False) -> str:
@@ -612,10 +655,14 @@ class AutoAgent:
     def _build_executor_error(self, action: Dict[str, Any], message: str) -> str:
         return f"[{action.get('type', 'unknown')}] {message}"
 
-    def _resolve_action_success(self, action: Dict[str, Any], default: bool = True) -> bool:
+    def _resolve_action_success(
+        self,
+        action: Dict[str, Any],
+        default: bool = True,
+        step_num: Optional[int] = None,
+    ) -> bool:
         """优先使用 memory 中当前 action 的实际 success。"""
-        action_id = str((action or {}).get("id", ""))
-        step = self.memory.latest_step_for_action(action_id)
+        step = self._latest_memory_step_for_action(action, step_num=step_num)
         if step is not None:
             return step.success
         return default
@@ -634,6 +681,7 @@ class AutoAgent:
     def plan_next_action(self) -> Dict[str, Any]:
         action = dict(self._decide_next_action())
         action["expected_tool"] = self._canonical_tool_name(action)
+        action["graph_op"] = self.graph_manager.build_action_graph_op(action)
         self.last_action = dict(action)
         return action
 
@@ -939,6 +987,11 @@ print(f"Content: {{resp.text}}")
 
             action = self.plan_next_action()
             self.log(f"决策: {action['type']}", "DECISION")
+            self.graph_manager.apply_graph_op(
+                action.get("graph_op"),
+                action=action,
+                step=step_num,
+            )
             self._emit_event(
                 event_callback,
                 "planner",
@@ -959,7 +1012,16 @@ print(f"Content: {{resp.text}}")
                 )
                 result = self._execute_action(action)
                 self.last_result = result
-                action_success = self._resolve_action_success(action, default=True)
+                action_success = self._resolve_action_success(action, default=True, step_num=step_num)
+                self.graph_manager.apply_graph_op(
+                    action.get("graph_op"),
+                    action=action,
+                    step=step_num,
+                    success=action_success,
+                    result=result,
+                    memory_step=self._latest_memory_step_for_action(action, step_num=step_num),
+                )
+                self._refresh_graph_state()
                 self._emit_event(
                     event_callback,
                     "tool_node",
@@ -1001,6 +1063,15 @@ print(f"Content: {{resp.text}}")
                     success=False,
                     action_meta=self._build_memory_action_meta(action),
                 )
+                self.graph_manager.apply_graph_op(
+                    action.get("graph_op"),
+                    action=action,
+                    step=step_num,
+                    success=False,
+                    result=str(e),
+                    memory_step=self._latest_memory_step_for_action(action, step_num=step_num),
+                )
+                self._refresh_graph_state()
                 self._emit_event(
                     event_callback,
                     "tool_node",
@@ -1017,6 +1088,18 @@ print(f"Content: {{resp.text}}")
                 self.log("=" * 60)
                 self.log("[AGENT] 无法继续，需要人类干预！", "HELP")
                 self.log("=" * 60)
+                self.graph_manager.apply_graph_op(
+                    self.graph_manager.build_checkpoint_graph_op(
+                        "help",
+                        action=action,
+                        reason=self.last_help_reason or "",
+                    ),
+                    action=action,
+                    step=step_num,
+                    message=help_request,
+                    reason=self.last_help_reason or "",
+                )
+                self._refresh_graph_state()
                 self._emit_event(
                     event_callback,
                     "help",
@@ -1033,6 +1116,18 @@ print(f"Content: {{resp.text}}")
             f"已尝试{max_step}步仍未获得flag，所有自动策略均已失败。\n\n"
             f"最终状态:\n{get_memory_summary()}"
         )
+        self.graph_manager.apply_graph_op(
+            self.graph_manager.build_checkpoint_graph_op(
+                "help",
+                action=self.last_action,
+                reason="max_steps",
+            ),
+            action=self.last_action,
+            step=max_step,
+            message=final_help,
+            reason="max_steps",
+        )
+        self._refresh_graph_state()
         self._emit_event(
             event_callback,
             "help",
@@ -1063,6 +1158,7 @@ print(f"Content: {{resp.text}}")
         self.last_help_reason = None
         self.help_cooldown_remaining = 0
         self.step_budget_limit = self.max_steps
+        self.graph_manager.reset()
 
     def _classify_problem(self, hint: str):
         """自动分类题目类型"""
