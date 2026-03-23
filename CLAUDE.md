@@ -71,6 +71,10 @@ python main.py --url "http://target.com" --hint "..." --description "..."
 - P2-Gamma：核心已完成
 - 下一重点：P3 `graph_manager.py` / PoG / `GraphOp` / `shared_findings`
 
+### 6. 联网默认规则
+- 需要联网抓网页或搜索时，默认走自定义 `/web-fetch`
+- 不使用内置 `WebFetch` / `WebSearch`
+
 ## 用户工作流偏好
 - 全自动解题，遇到困难再求助
 - 用户提供 POC；Agent 负责识别、检索、使用

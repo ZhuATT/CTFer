@@ -22,6 +22,7 @@ CTF Agent 自动化决策与执行模块 v2.1
 import hashlib
 import re
 import json
+from urllib.parse import urljoin
 from typing import Dict, List, Any, Optional, Callable
 
 from tools import (
@@ -1246,6 +1247,107 @@ print(f"Content: {{resp.text}}")
         self.log(analysis_text)
         return analysis_text
 
+    def _target_with_endpoint(self, endpoint: str) -> str:
+        endpoint_text = str(endpoint or "").strip()
+        if not endpoint_text:
+            return self.target_url
+        if endpoint_text.startswith(("http://", "https://")):
+            return endpoint_text
+        base = self.target_url or getattr(self.agent_context, "url", "") or ""
+        if not base:
+            return endpoint_text
+        return urljoin(base.rstrip("/") + "/", endpoint_text.lstrip("/"))
+
+    def _build_graph_informed_action(self) -> Optional[Dict[str, Any]]:
+        self._refresh_graph_state()
+        steps = self.memory.steps
+        target = self.target_url
+        signals = self.graph_manager.planner_signals()
+        recent_failure_stats = self._recent_action_failure_counts(window=5)
+        latest_guidance = str(signals.get("latest_guidance") or "").strip()
+        known_endpoints = list(signals.get("known_endpoints") or [])
+        known_parameters = list(signals.get("known_parameters") or [])
+        failed_tools = set(signals.get("failed_tools") or [])
+        failed_tools.update(
+            tool
+            for tool, count in recent_failure_stats.get("canonical_tool_counts", {}).items()
+            if count > 0
+        )
+        failed_action_counts = dict(signals.get("failed_action_counts") or {})
+        for action_id, count in recent_failure_stats.get("action_id_counts", {}).items():
+            failed_action_counts[action_id] = max(failed_action_counts.get(action_id, 0), count)
+
+        if latest_guidance:
+            guidance_lower = latest_guidance.lower()
+            if "cookie" in guidance_lower and self.target_type != "ua_bypass":
+                return self._build_action(
+                    "recon",
+                    target=target,
+                    description="根据人工提示重新侦察",
+                    intent="围绕 cookies/session 线索重新采样响应",
+                    expected_tool="recon",
+                    params={"focus": "cookies"},
+                    metadata={"guided_by": "graph_guidance", "guidance": latest_guidance},
+                )
+            if ("ua" in guidance_lower or "user-agent" in guidance_lower or "mobile" in guidance_lower) and self.target_type != "ua_bypass":
+                return self._build_action(
+                    "ua_test",
+                    target=target,
+                    description="根据提示测试 UA 分支",
+                    intent="优先验证人工提示中的 User-Agent 线索",
+                    expected_tool="ua_test",
+                    params={"ua": "Mobile"},
+                    metadata={"ua": "Mobile", "guided_by": "graph_guidance", "guidance": latest_guidance},
+                )
+
+        if known_endpoints and "dirsearch" not in failed_tools:
+            latest_endpoint = str(signals.get("latest_endpoint") or known_endpoints[-1])
+            endpoint_target = self._target_with_endpoint(latest_endpoint)
+            current_target = self.target_url or getattr(self.agent_context, "url", "") or ""
+            if endpoint_target and endpoint_target != current_target and not any(step.target == endpoint_target for step in steps):
+                return self._build_action(
+                    "recon",
+                    target=endpoint_target,
+                    description="基于已发现端点继续侦察",
+                    intent="沿最新发现的端点继续收集可利用线索",
+                    expected_tool="recon",
+                    metadata={"graph_driven": True, "endpoint": latest_endpoint},
+                )
+
+        if known_parameters and self.target_type == "unknown" and "sqlmap" not in failed_tools:
+            latest_parameter = str(signals.get("latest_parameter") or known_parameters[-1])
+            param_target = target
+            if latest_parameter and "?" not in param_target and "=" not in param_target:
+                separator = "&" if "?" in param_target else "?"
+                param_target = f"{param_target}{separator}{latest_parameter}=1"
+            sqlmap_probe = self._build_action(
+                "sqlmap_scan",
+                target=param_target,
+                description="基于参数线索检测注入",
+                intent="优先验证图中已发现参数是否存在 SQL 注入",
+                expected_tool="sqlmap",
+                params={"batch": True},
+                metadata={"graph_driven": True, "parameter": latest_parameter},
+            )
+            if not self.memory.should_skip_action(sqlmap_probe["id"], max_failures=self.max_failures):
+                return sqlmap_probe
+
+        for action_id, count in failed_action_counts.items():
+            if count >= self.max_failures:
+                latest_step = self.memory.latest_step_for_action(action_id)
+                if latest_step and latest_step.target == target and latest_step.action_type in {"recon", "sqlmap_scan"}:
+                    return self._build_action(
+                        "dir_scan",
+                        target=target,
+                        description="图中动作已多次失败，切换目录探索",
+                        intent="避免重复失败动作，改用目录扫描寻找新入口",
+                        expected_tool="dirsearch",
+                        params={"extensions": ["php", "html", "txt"]},
+                        metadata={"alternative": True, "graph_driven": True, "avoids_action_id": action_id},
+                    )
+
+        return None
+
     def _decide_next_action(self) -> Dict[str, Any]:
         """
         决策下一步行动
@@ -1292,6 +1394,10 @@ print(f"Content: {{resp.text}}")
                 intent="收集首页响应、头和可能的跳转信息",
                 expected_tool="recon",
             )
+
+        graph_action = self._build_graph_informed_action()
+        if graph_action is not None:
+            return graph_action
 
         if self.target_type == "ua_bypass":
             if not any(s.tool in {"ua_test", "python_poc"} and "Mobile" in str(s.result) for s in steps):
@@ -1374,22 +1480,18 @@ print(f"Content: {{resp.text}}")
 
     def _try_common_bypasses(self, target: str) -> str:
         """尝试常见的绕过方法"""
-        # 这里可以集成更多通用绕过策略
         return "尝试其他方法..."
 
     def _analyze_output(self, output: str) -> List[str]:
         """分析输出发现线索"""
         clues = []
 
-        # 检测重定向
         if "301" in output or "302" in output:
             clues.append("redirect")
 
-        # 检测UA相关
         if "User-Agent" in output and "Mobile" in output:
             clues.append("ua_sensitive")
 
-        # 检测新端点
         urls = re.findall(r'/(\w+\.html?|\w+\.php)', output)
         if urls:
             clues.append(f"new_endpoint: {urls}")
@@ -1409,7 +1511,7 @@ print(f"Content: {{resp.text}}")
             "payload_error": 0,
             "execution_error": 0,
             "same_error": 0,
-            "timeout": 0
+            "timeout": 0,
         }
 
         failed_steps = [s for s in self.memory.steps if not s.success][-5:]
@@ -1608,7 +1710,6 @@ print(f"Content: {{resp.text}}")
             self.log(f"保存经验失败: {e}", "ERROR")
 
 
-# 便捷函数
 def auto_solve(
     url: str = "",
     hint: str = "",
