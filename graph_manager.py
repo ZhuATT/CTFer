@@ -425,6 +425,85 @@ class GraphManager:
         )
         return [asdict(finding) for finding in findings]
 
+    def get_findings_by_kind(self, kind: str) -> List[Dict[str, Any]]:
+        return [
+            finding
+            for finding in self.get_shared_findings()
+            if str(finding.get("kind") or "") == kind
+        ]
+
+    def latest_finding(self, kind: str) -> Optional[Dict[str, Any]]:
+        findings = self.get_findings_by_kind(kind)
+        if not findings:
+            return None
+        return max(
+            findings,
+            key=lambda item: (
+                int(item.get("last_seen_step") or 0),
+                int(item.get("first_seen_step") or 0),
+                str(item.get("id") or ""),
+            ),
+        )
+
+    def planner_signals(self) -> Dict[str, Any]:
+        findings = self.get_shared_findings()
+        action_nodes = [node for node in self._nodes.values() if node.kind == "action"]
+        failed_nodes = sorted(
+            (node for node in action_nodes if node.status == "failed"),
+            key=lambda node: (node.updated_step, node.step, node.id),
+            reverse=True,
+        )
+        succeeded_nodes = sorted(
+            (node for node in action_nodes if node.status == "succeeded"),
+            key=lambda node: (node.updated_step, node.step, node.id),
+            reverse=True,
+        )
+
+        failed_action_counts: Dict[str, int] = {}
+        failed_tool_counts: Dict[str, int] = {}
+        for node in failed_nodes:
+            attempts = max(int(node.attempt_count or 0), 1)
+            if node.action_id:
+                failed_action_counts[node.action_id] = max(
+                    failed_action_counts.get(node.action_id, 0),
+                    attempts,
+                )
+            tool_name = node.canonical_tool or node.expected_tool
+            if tool_name:
+                failed_tool_counts[tool_name] = failed_tool_counts.get(tool_name, 0) + attempts
+
+        def finding_values(kind: str) -> List[str]:
+            return self._unique_values(
+                [
+                    str(finding.get("value") or "")
+                    for finding in findings
+                    if str(finding.get("kind") or "") == kind and str(finding.get("value") or "")
+                ]
+            )
+
+        latest_guidance = self.latest_finding("guidance")
+        latest_endpoint = self.latest_finding("endpoint")
+        latest_parameter = self.latest_finding("parameter")
+        return {
+            "latest_guidance": str((latest_guidance or {}).get("value") or ""),
+            "guidance_history": finding_values("guidance")[-3:],
+            "latest_endpoint": str((latest_endpoint or {}).get("value") or ""),
+            "latest_parameter": str((latest_parameter or {}).get("value") or ""),
+            "known_endpoints": finding_values("endpoint"),
+            "known_parameters": finding_values("parameter"),
+            "known_vulnerabilities": finding_values("vulnerability"),
+            "known_flags": finding_values("flag"),
+            "failed_action_ids": self._unique_values([node.action_id for node in failed_nodes if node.action_id]),
+            "failed_action_types": self._unique_values([node.action_type for node in failed_nodes if node.action_type]),
+            "failed_tools": self._unique_values(
+                [node.canonical_tool or node.expected_tool for node in failed_nodes if node.canonical_tool or node.expected_tool]
+            ),
+            "failed_action_counts": failed_action_counts,
+            "failed_tool_counts": failed_tool_counts,
+            "succeeded_action_ids": self._unique_values([node.action_id for node in succeeded_nodes if node.action_id]),
+            "active_node_id": self.active_node_id,
+        }
+
     def summary(self) -> str:
         if not self._nodes:
             return "graph=empty"
@@ -493,6 +572,19 @@ class GraphManager:
         if len(text) <= limit:
             return text
         return text[:limit] + "..."
+
+
+    @staticmethod
+    def _unique_values(values: List[str]) -> List[str]:
+        seen = set()
+        ordered: List[str] = []
+        for value in values:
+            normalized = str(value or "").strip()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            ordered.append(normalized)
+        return ordered
 
     @staticmethod
     def _normalize_finding_value(value: Any) -> str:

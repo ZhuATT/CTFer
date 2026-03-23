@@ -1,7 +1,7 @@
 # CHYing 参考重构方案
 
 ## 0. 当前落地进度（基于当前代码静态检查）
-> 说明：以下勾选基于当前仓库实现与定向测试核对；P2-Alpha help/resume continuity 已完成并通过 `test_orchestrator_resume.py`。
+> 说明：以下勾选基于当前仓库实现与定向验证核对；P2-Alpha help/resume continuity 与本轮 P3-Alpha 最小闭环已完成针对性验证。
 
 - [x] `AutoAgent.solve_challenge()` 已接入 `tools.init_problem()`，主入口不再绕过知识加载链路（`agent_core.py:344-363`）
 - [x] `AgentContext` 已落到 `ShortMemory.context`，并与 `target.url/problem_type` 同步（`short_memory.py:66-79`，`short_memory.py:269-329`）
@@ -11,20 +11,22 @@
 - [x] `ActionSchema` / dispatch table 已落地第一版：已具备统一 `action = {id, type, target, description, intent, expected_tool, params}` 结构、`plan_next_action()` 规范化出口、`action_handlers` 分发表，以及 `attack_step` → 实际工具名的 canonical 映射
 - [x] `orchestrator.py` / 结构化 `agent_state` 已落地第一版：已具备 `messages`、`pending_task`、`pending_flag`、`consecutive_failures`、`route_trace`、`help_request` 等状态字段，并能记录 Advisor / Planner / Executor / ToolNode / help / resume 事件
 - [x] P2-Alpha 已完成：`needs_help` 已成为可恢复暂停态，`orchestrator.resume()` + `AutoAgent.resume_with_guidance()` + `ShortMemory.help_history/human_guidance/resume_count` 已打通同链路恢复
-- [x] 定向回归已补齐：`test_orchestrator_resume.py` 覆盖 help → resume continuity，以及 `ShortMemory.add_patch()` / `get_patch_summary()` 回归
+- [x] 恢复连续性相关的定向验证已完成：help → resume continuity 与 `ShortMemory.add_patch()` / `get_patch_summary()` 链路均已核对
 - [x] 进度文档口径已对齐：规范执行顺序明确为 `orchestrator/main -> initialize_challenge -> init_problem -> 先消费知识资源 -> Advisor/Planner/Executor/ToolNode -> 受阻后主动 RAG -> help/resume`，并明确区分“规范顺序”与“当前代码已完全强制实现”
-- [ ] `graph_manager.py` / PoG / `GraphOp` / `shared_findings` 尚未落地
-- [x] P2-Beta 已完成：`ShortMemory` 已支持 `action_id` 级失败聚合、`latest_step_for_action()` 查询，`_should_ask_for_help()` / replanning / skip 判定已优先消费动作级失败信息，并补齐 `test_failure_statistics.py` 回归
-- [x] P2-Gamma 核心已完成：`config.json["venv"]["python_path"]` 已成为唯一 Python 真值源，`tools.py` / `toolkit/base.py` / `utils/python_runner.py` / `toolkit/fenjing.py` 已收敛到 shared runtime，`tool_node.success` 已与 memory step success 对齐，并补齐定向 runtime 回归测试
+- [~] P3-Alpha 最小闭环已落地：`graph_manager.py` 已提供 `planner_signals()` 等 graph-derived signals，`agent_core.py` 已通过 `_build_graph_informed_action()` 消费 guidance / endpoint / parameter / repeated action failure，并已完成最小 graph/planner 行为验证；但完整 PoG / Reflector / 因果图增强仍未完成
+- [x] P2-Beta 已完成：`ShortMemory` 已支持 `action_id` 级失败聚合、`latest_step_for_action()` 查询，`_should_ask_for_help()` / replanning / skip 判定已优先消费动作级失败信息，相关失败统计与 skip 行为已完成定向验证
+- [x] P2-Gamma 核心已完成：`config.json["venv"]["python_path"]` 已成为唯一 Python 真值源，`tools.py` / `toolkit/base.py` / `utils/python_runner.py` / `toolkit/fenjing.py` 已收敛到 shared runtime，`tool_node.success` 已与 memory step success 对齐，并完成 shared runtime / success 语义相关定向验证
+- [x] 本轮定向验证已完成：graph/planner 最小闭环、help/resume continuity 与 shared runtime 核心语义均已核对
+
 
 ## 1. 背景与目标
 - [x] 入口断层的第一步已修补：`AutoAgent.solve_challenge()` 已接入 `tools.init_problem()`，技能、长期记忆与 WooYun 可在主入口初始化阶段装载。
 - [x] Planner/Executor 契约已收敛到第一版：`_build_action()` / `plan_next_action()` / `action_handlers` 已统一动作结构，`attack_step` / `recon` / `ua_test` / `sqlmap_scan` / `dir_scan` 等动作均可落到 executor；`_should_ask_for_help()` 与异常路径记忆也已对齐 canonical tool 名称。
 - [x] help-resume continuity 已打通：Agent 触发求助后，可在不重新初始化题目、不重置短期记忆的前提下，基于人工提示继续沿同一主链运行。
-- [ ] 类型体系与记忆链路仍漂移：短期记忆仍以粗粒度去重为主，长期记忆、技能与 RAG 之间还没有统一 taxonomy 与保存闭环。
-- [ ] 工具环境仍多头管理：`toolkit/base.py` 已读取 `config.json["venv"]["python_path"]`，但 `tools.py` 与 `toolkit/fenjing.py` 仍存在硬编码 Python 路径、`sys.executable` 等并存逻辑。
+- [ ] 类型体系与记忆链路仍漂移：短期记忆、长期记忆、技能与 RAG 之间还没有统一 taxonomy 与保存闭环。
+- [~] 工具环境统一已完成核心阶段：`config.json["venv"]["python_path"]` 已成为唯一真值源，但 README 驱动适配器化、逐工具迁移与更细粒度 `artifacts/parsed` 解析仍未完全收口。
 
-**目标**：先完成唯一主链 + help/resume continuity + 结构化状态闭环，再进入失败统计精细化、工具执行统一、PoG / 图结构增强。
+**目标**：在不回退 P0-P2 稳定性的前提下，继续把 P3 从“最小 graph 读写闭环”推进到“更强的 PoG / 因果图 / Reflector / RAG-before-help 闭环”。
 
 ## 1.5 强制执行顺序口径（与 `CLAUDE.md` 对齐）
 > 本节描述的是项目要求的规范顺序，不等同于所有环节都已在代码中 100% hard gate；当前已落地的是 orchestrator / `init_problem()` / 主循环 / help-resume 骨架，主动 RAG → help 的判定顺序仍需继续收敛。
@@ -41,18 +43,20 @@
 2. [x] **动作语义第一版已收敛**：Planner 现通过统一动作字典输出，Executor 通过 `action_handlers` / canonical tool 映射统一执行；`_should_ask_for_help()` 与异常路径记录也已改用实际工具名。
 3. [x] **help 后中断重开**：这一缺口已补齐。`needs_help` 不再是终态，而是可恢复暂停态；恢复后保持同一 agent、同一 memory、同一条 route trace 继续运行。
 4. [ ] **知识与记忆断链**：skills、`long_memory/experiences`、`auto_experiences`、WooYun 皆存在，但没有共享分类或统一加载/保存回路。
-5. [ ] **工具执行不可预测**：`execute_python_poc`、`toolkit/base.py`、`fenjing` 仍各自维护环境逻辑，成功语义也未统一。
-6. [ ] **短期记忆精度不足**：失败统计与重复尝试判定还未完全升级到 `action_id` 粒度。
+5. [x] **工具执行不可预测（核心）**：shared runtime / `ToolResult` / success 语义已完成核心收敛，但 README 驱动适配器化与逐工具迁移仍可继续完善。
+6. [x] **短期记忆精度不足（核心）**：失败统计、skip 与重试判定已优先升级到 `action_id` 粒度。
+7. [~] **图结构能力已具备最小读写闭环**：`graph_manager.py`、`GraphOp`、checkpoint、`shared_findings`、`planner_signals()` 与 graph-driven replanning 已接入主链；但完整 PoG、Reflector、因果边消费与图驱动深度重规划还未完成。
 
 ## 3. 当前优先级判断
-- 当前最大断点已经不是“求助后无法继续”，而是：
-  1. `ShortMemory` 失败统计还未完全切到 `action_id`
-  2. 工具执行环境与成功语义仍不统一
-  3. 图结构抽象尚未引入
-- 因此下一阶段顺序保持：
-  1. **P2-Beta：失败统计切到 `action_id` 优先**
-  2. **P2-Gamma：统一工具执行环境与 success 语义**
-  3. **P3：再进入 `graph_manager.py` / PoG / `GraphOp` / `shared_findings`**
+- 当前最大断点已经从“help 后无法继续”转向“P3 已具备最小闭环，但更深层图驱动规划仍未完成”。
+- 现阶段判断：
+  1. `ShortMemory` 失败统计已切到 `action_id` 优先
+  2. 工具执行环境与成功语义已完成核心收敛
+  3. P3-Alpha 最小闭环已完成：planner 已能消费 guidance / endpoint / parameter / repeated-failure signals
+- 因此下一阶段顺序调整为：
+  1. **P3-Beta：引入更明确的 PoG / 因果边 / replan 触发机制**
+  2. **P3-Gamma：让 Planner / Reflector 更系统地消费 `graph_state` / `shared_findings` / `planner_signals()`**
+  3. **Phase 2：统一 taxonomy 与资源语义，并为 RAG-before-help 闭环打底**
 
 ## 3.5 工具执行统一方案（P2-Gamma 细化）
 - **唯一 Python 执行入口**：全项目只保留一个 Python runtime / runner，唯一真值源来自 `config.json["venv"]["python_path"]`。业务层、planner、`tools.py`、`toolkit/*` 都不再自己决定解释器，也不再依赖 `workon CTFagent`、硬编码路径或 `sys.executable`。
@@ -86,29 +90,32 @@
 
 2. **收敛 Action Schema（P1）**
    - [x] 已定义统一动作结构：`{id, type, target, description, intent, expected_tool, params}`；planner 通过 `plan_next_action()` 输出标准动作，executor 通过 `action_handlers` dispatch table 调用工具。
-   - [~] `_should_ask_for_help()` 已与 canonical tool 名称对齐，异常路径已补 `action_id/action_type` 元数据；但 `ShortMemory` 底层失败计数仍以签名为主，尚未完全切到 `ActionSchema.id`。
+   - [x] `_should_ask_for_help()`、异常路径记忆与 executor 日志已与 canonical tool 名称、`action_id/action_type` 元信息对齐；动作失败聚合已由 `ShortMemory` 升级到 `action_id` 优先。
 
 3. **主链恢复闭环（P2-Alpha）**
    - [x] `orchestrator.py` 已补齐 resume 相关状态字段，并新增 `resume(human_guidance)`。
    - [x] `AutoAgent` 已支持基于人工提示恢复，同链路继续，不重新初始化。
    - [x] `AgentContext` / `ShortMemory` 已记录 `human_guidance`、`help_history`、`resume_count`。
    - [x] `build_advisor_context()` 已显式暴露人工提示与历史求助信息。
-   - [x] 已新增 `test_orchestrator_resume.py` 并通过定向回归。
+   - [x] 已完成 help/resume continuity 与 `ShortMemory.add_patch()` / `get_patch_summary()` 相关链路核对。
 
 4. **失败统计升级（P2-Beta）**
-   - [ ] 让 `_should_ask_for_help()`、重复尝试判定、失败趋势统计更多基于动作级别而不是粗粒度签名。
-   - [ ] 优先让 `ShortMemory` 支持 `action_id` 主键化失败记录。
+   - [x] `_should_ask_for_help()`、重复尝试判定、失败趋势统计已优先消费动作级别信息。
+   - [x] `ShortMemory` 已支持 `action_id` 主键化失败记录，并完成 `latest_step_for_action()` / `should_skip_action()` 等核心失败统计行为核对。
 
 5. **工具执行 & 成功语义统一（P2-Gamma）**
-   - [ ] `toolkit/base.py` 统一成为唯一 Python 执行出口；清理硬编码路径、`sys.executable` 等多头环境逻辑。
-   - [ ] 收敛工具返回结构与 success 语义，让 ToolNode / memory logging / help 判定共用同一套标准。
+   - [x] `toolkit/base.py` 已成为唯一 Python 执行出口的核心收敛点；硬编码路径、`sys.executable` 等多头环境逻辑已收敛到 shared runtime / `config.json["venv"]["python_path"]`。
+   - [x] 工具返回结构与 success 语义已基本收敛，ToolNode / memory logging / help 判定共享同一套成功语义。
 
 6. **PoG / 因果图增强（P3）**
-   - [ ] 引入 `graph_manager.py` 维护 DAG + 因果图：节点结构 `{id, type, state, parent_ids, action_schema}`，边结构 `{from, to, condition}`。
-   - [ ] Planner 产出 `GraphOp`，Executor 完成为节点写入 `state`，Reflector 根据失败原因触发重新规划。
-   - [ ] 将短期记忆的执行日志 / 证据沉淀到 `shared_findings`。
+   - [x] 已引入 `graph_manager.py` 维护 Shadow Graph Layer：包含 `GraphNode` / `GraphEdge` / `GraphOp` / `SharedFinding`，并可输出 `planner_signals()` / `snapshot()` / `summary()`。
+   - [~] Planner 产出的 action 已附带 `graph_op`，Executor / ToolNode / help / resume 已能回写节点状态与 checkpoint；`_build_graph_informed_action()` 已能消费 guidance / endpoint / parameter / repeated failure，并已完成最小 graph/planner 行为核对；但完整 PoG / Reflector 驱动重规划仍未落地。
+   - [~] `shared_findings` 已从短期记忆、help_history、human_guidance、target facts 中提取并注入 `AgentContext` / `OrchestratorState`，但更强的因果图、共享发现消费链路与主动 RAG 联动仍待继续增强。
 
 ## 5. 当前结论
-- `main.py` / `orchestrator.py` / `agent_core.py` 已形成项目级唯一主链。
-- help-resume continuity 已不再是阻塞项。
-- 下一步不应立刻跳去 GraphManager，而应先完成 `action_id` 级失败统计与工具执行统一。
+- [x] `main.py` / `orchestrator.py` / `agent_core.py` 已形成项目级唯一主链。
+- [x] help-resume continuity 已不再是阻塞项。
+- [x] P2-Beta / P2-Gamma 核心能力已落地，当前不应再把它们当作下一阶段阻塞项。
+- [~] P3-Alpha 最小闭环已完成：graph 写路径、planner 读路径与最小 graph/planner 回归已打通。
+- [x] 当前定向验证已完成：graph/planner 最小闭环、help/resume continuity、shared runtime 核心语义均已核对。
+- 下一步应继续补齐 P3-Beta / P3-Gamma 以及 taxonomy / RAG-before-help，而不是回退到已完成的 P2 事项。
