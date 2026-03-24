@@ -157,12 +157,3 @@ class WebFingerprintAgent(ReconAgent):
             )
 
 
-if __name__ == "__main__":
-    import asyncio
-
-    async def test():
-        agent = WebFingerprintAgent()
-        result = await agent.run("http://example.com")
-        print(result)
-
-    asyncio.run(test())

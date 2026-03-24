@@ -80,6 +80,12 @@ class AgentContext:
     help_history: List[Dict[str, Any]] = field(default_factory=list)
     resume_count: int = 0
     shared_findings: List[Dict[str, Any]] = field(default_factory=list)
+    rag_attempt_anchor_step: int = 0
+    rag_attempt_step: int = 0
+    rag_query: str = ""
+    rag_summary: str = ""
+    rag_suggested_approach: str = ""
+    rag_attempted_in_current_window: bool = False
     initialized_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
@@ -344,6 +350,15 @@ class ShortMemory:
         """获取当前题目的上下文信息"""
         return self.context
 
+    def _reset_rag_gate_state(self) -> None:
+        """重置当前失败窗口的 RAG-before-help 状态。"""
+        self.context.rag_attempt_anchor_step = 0
+        self.context.rag_attempt_step = 0
+        self.context.rag_query = ""
+        self.context.rag_summary = ""
+        self.context.rag_suggested_approach = ""
+        self.context.rag_attempted_in_current_window = False
+
     def add_help_entry(
         self,
         request: str,
@@ -385,6 +400,7 @@ class ShortMemory:
 
         self.context.human_guidance = guidance
         self.context.resume_count += 1
+        self._reset_rag_gate_state()
         return entry
 
     # === AWD 方法 ===

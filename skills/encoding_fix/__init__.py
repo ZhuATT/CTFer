@@ -195,11 +195,3 @@ def print_bullet(text: str):
 
 # 向后兼容
 print_safe = safe_print
-
-
-if __name__ == "__main__":
-    print("Testing encoding_fix module...")
-    safe_print("[OK] Module loaded")
-    safe_print("[✓] Special char test")  # Auto converts
-    safe_print("中文测试")
-    safe_print("Mixed: 完成 -> 123")
