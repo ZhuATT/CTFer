@@ -1,7 +1,7 @@
 # CHYing 参考重构方案
 
 ## 0. 当前落地进度（基于当前代码静态检查）
-> 说明：以下勾选基于当前仓库实现与定向验证核对；P2-Alpha help/resume continuity 与本轮 P3-Alpha 最小闭环已完成针对性验证。
+> 说明：以下勾选基于当前仓库实现与定向验证核对；P2-Alpha help/resume continuity、RAG-before-help 最小 hard gate 与本轮 P3-Alpha 最小闭环已完成针对性验证。
 
 - [x] `AutoAgent.solve_challenge()` 已接入 `tools.init_problem()`，主入口不再绕过知识加载链路（`agent_core.py:344-363`）
 - [x] `AgentContext` 已落到 `ShortMemory.context`，并与 `target.url/problem_type` 同步（`short_memory.py:66-79`，`short_memory.py:269-329`）
@@ -16,7 +16,9 @@
 - [~] P3-Alpha 最小闭环已落地：`graph_manager.py` 已提供 `planner_signals()` 等 graph-derived signals，`agent_core.py` 已通过 `_build_graph_informed_action()` 消费 guidance / endpoint / parameter / repeated action failure，并已完成最小 graph/planner 行为验证；但完整 PoG / Reflector / 因果图增强仍未完成
 - [x] P2-Beta 已完成：`ShortMemory` 已支持 `action_id` 级失败聚合、`latest_step_for_action()` 查询，`_should_ask_for_help()` / replanning / skip 判定已优先消费动作级失败信息，相关失败统计与 skip 行为已完成定向验证
 - [x] P2-Gamma 核心已完成：`config.json["venv"]["python_path"]` 已成为唯一 Python 真值源，`tools.py` / `toolkit/base.py` / `utils/python_runner.py` / `toolkit/fenjing.py` 已收敛到 shared runtime，`tool_node.success` 已与 memory step success 对齐，并完成 shared runtime / success 语义相关定向验证
-- [x] 本轮定向验证已完成：graph/planner 最小闭环、help/resume continuity 与 shared runtime 核心语义均已核对
+- [x] 本轮定向验证已完成：graph/planner 最小闭环、help/resume continuity、RAG-before-help 最小 hard gate 与 shared runtime 核心语义均已核对
+- [x] RAG-before-help 最小 hard gate 已落地：`agent_core.py::maybe_request_help()` 命中 help 阈值后，会先执行一次 `retrieve_rag_knowledge(...)`，并把 `rag_query/rag_summary/rag_suggested_approach` 写入 `ShortMemory.context` 供下一轮 planner 消费；仅在同一失败窗口再次命中时才真正进入 help
+- [x] RAG-before-help 自动化回归已补齐：`tests/test_rag_before_help.py` 已覆盖“首次命中先 RAG、同窗口二次命中再 help、resume 后重置 RAG gate”三段行为
 
 
 ## 1. 背景与目标
@@ -29,7 +31,7 @@
 **目标**：在不回退 P0-P2 稳定性的前提下，继续把 P3 从“最小 graph 读写闭环”推进到“更强的 PoG / 因果图 / Reflector / RAG-before-help 闭环”。
 
 ## 1.5 强制执行顺序口径（与 `CLAUDE.md` 对齐）
-> 本节描述的是项目要求的规范顺序，不等同于所有环节都已在代码中 100% hard gate；当前已落地的是 orchestrator / `init_problem()` / 主循环 / help-resume 骨架，主动 RAG → help 的判定顺序仍需继续收敛。
+> 本节描述的是项目要求的规范顺序，不等同于所有环节都已在代码中 100% hard gate；当前已落地的是 orchestrator / `init_problem()` / 主循环 / help-resume 骨架，以及“同一失败窗口内先主动 RAG、再进入 help”的最小 gate，taxonomy / 长期记忆 / 更深的 RAG 闭环仍需继续收敛。
 
 1. `python main.py ...` / `orchestrator.orchestrate_challenge(...)` 进入项目级唯一主链。
 2. `CTFOrchestrator.initialize_challenge()` → `AutoAgent.initialize_challenge()` → `tools.init_problem(...)` 完成初始化、类型识别与上下文写入。
@@ -42,10 +44,11 @@
 1. [x] **入口断层**：`main.py` 现已默认进入 `orchestrator.main()`，并由 orchestrator 统一驱动初始化与唯一主循环，项目级入口骨架已打通。
 2. [x] **动作语义第一版已收敛**：Planner 现通过统一动作字典输出，Executor 通过 `action_handlers` / canonical tool 映射统一执行；`_should_ask_for_help()` 与异常路径记录也已改用实际工具名。
 3. [x] **help 后中断重开**：这一缺口已补齐。`needs_help` 不再是终态，而是可恢复暂停态；恢复后保持同一 agent、同一 memory、同一条 route trace 继续运行。
-4. [ ] **知识与记忆断链**：skills、`long_memory/experiences`、`auto_experiences`、WooYun 皆存在，但没有共享分类或统一加载/保存回路。
-5. [x] **工具执行不可预测（核心）**：shared runtime / `ToolResult` / success 语义已完成核心收敛，但 README 驱动适配器化与逐工具迁移仍可继续完善。
-6. [x] **短期记忆精度不足（核心）**：失败统计、skip 与重试判定已优先升级到 `action_id` 粒度。
-7. [~] **图结构能力已具备最小读写闭环**：`graph_manager.py`、`GraphOp`、checkpoint、`shared_findings`、`planner_signals()` 与 graph-driven replanning 已接入主链；但完整 PoG、Reflector、因果边消费与图驱动深度重规划还未完成。
+4. [x] **RAG-before-help 最小硬门已补齐**：`maybe_request_help()` 命中 help 阈值后，现会先执行一次 `retrieve_rag_knowledge(...)`，把结果写回 `AgentContext` / `ShortMemory.context` 并暴露到 `build_advisor_context()`；同一失败窗口再次命中时才真正求助，`resume` 后会重置当前窗口的 RAG gate。
+5. [ ] **知识与记忆断链**：skills、`long_memory/experiences`、`auto_experiences`、WooYun 皆存在，但没有共享分类或统一加载/保存回路。
+6. [x] **工具执行不可预测（核心）**：shared runtime / `ToolResult` / success 语义已完成核心收敛，但 README 驱动适配器化与逐工具迁移仍可继续完善。
+7. [x] **短期记忆精度不足（核心）**：失败统计、skip 与重试判定已优先升级到 `action_id` 粒度。
+8. [~] **图结构能力已具备最小读写闭环**：`graph_manager.py`、`GraphOp`、checkpoint、`shared_findings`、`planner_signals()` 与 graph-driven replanning 已接入主链；但完整 PoG、Reflector、因果边消费与图驱动深度重规划还未完成。
 
 ## 3. 当前优先级判断
 - 当前最大断点已经从“help 后无法继续”转向“P3 已具备最小闭环，但更深层图驱动规划仍未完成”。
@@ -109,6 +112,9 @@
 
 6. **PoG / 因果图增强（P3）**
    - [x] 已引入 `graph_manager.py` 维护 Shadow Graph Layer：包含 `GraphNode` / `GraphEdge` / `GraphOp` / `SharedFinding`，并可输出 `planner_signals()` / `snapshot()` / `summary()`。
+   - [x] RAG-before-help 最小 hard gate 已补齐：`agent_core.py::maybe_request_help()` 达到 help 阈值时会先调用 `retrieve_rag_knowledge(...)`，把 `rag_query`、`rag_summary`、`rag_suggested_approach` 写入 `ShortMemory.context` 并暴露给 `build_advisor_context()`；仅在同一失败窗口再次命中时才真正进入 help。
+   - [x] `short_memory.py` 已承载最小 RAG gate 状态，并在 `apply_human_guidance()` / resume 后清理当前窗口状态，确保恢复后可以重新经历一次“先 RAG、再 help”的决策阶段。
+   - [x] 已新增自动化回归 `tests/test_rag_before_help.py`，覆盖“首次命中先 RAG、同窗口二次命中再 help、resume 后 gate reset”。
    - [~] Planner 产出的 action 已附带 `graph_op`，Executor / ToolNode / help / resume 已能回写节点状态与 checkpoint；`_build_graph_informed_action()` 已能消费 guidance / endpoint / parameter / repeated failure，并已完成最小 graph/planner 行为核对；但完整 PoG / Reflector 驱动重规划仍未落地。
    - [~] `shared_findings` 已从短期记忆、help_history、human_guidance、target facts 中提取并注入 `AgentContext` / `OrchestratorState`，但更强的因果图、共享发现消费链路与主动 RAG 联动仍待继续增强。
 
@@ -116,6 +122,8 @@
 - [x] `main.py` / `orchestrator.py` / `agent_core.py` 已形成项目级唯一主链。
 - [x] help-resume continuity 已不再是阻塞项。
 - [x] P2-Beta / P2-Gamma 核心能力已落地，当前不应再把它们当作下一阶段阻塞项。
+- [x] RAG-before-help 最小 hard gate 已落地，并已有 `tests/test_rag_before_help.py` 自动化回归覆盖。
 - [~] P3-Alpha 最小闭环已完成：graph 写路径、planner 读路径与最小 graph/planner 回归已打通。
-- [x] 当前定向验证已完成：graph/planner 最小闭环、help/resume continuity、shared runtime 核心语义均已核对。
-- 下一步应继续补齐 P3-Beta / P3-Gamma 以及 taxonomy / RAG-before-help，而不是回退到已完成的 P2 事项。
+- [x] 当前定向验证已完成：graph/planner 最小闭环、help/resume continuity、RAG-before-help 最小 hard gate、shared runtime 核心语义均已核对。
+- 下一步应继续补齐 P3-Beta / P3-Gamma 以及 taxonomy / 长期记忆闭环，而不是回退到已完成的 P2 事项。
+

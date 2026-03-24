@@ -180,12 +180,3 @@ class DirBruteAgent(ReconAgent):
             return (False, url, 0)
 
 
-if __name__ == "__main__":
-    import asyncio
-
-    async def test():
-        agent = DirBruteAgent()
-        result = await agent.run("http://challenge.ctf.show")
-        print(result)
-
-    asyncio.run(test())

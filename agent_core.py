@@ -28,7 +28,7 @@ from typing import Dict, List, Any, Optional, Callable
 from tools import (
     get_memory, reset_memory, execute_python_poc, execute_command,
     extract_flags, get_memory_summary, init_problem, get_agent_context,
-    quick_dir_scan, sqlmap_scan_url, sqlmap_deep_scan_url,
+    quick_dir_scan, sqlmap_scan_url, sqlmap_deep_scan_url, retrieve_rag_knowledge,
 )
 from long_memory import auto_save_experience
 from graph_manager import GraphManager
@@ -354,6 +354,9 @@ class AutoAgent:
         self.help_cooldown_remaining = 0
         self.step_budget_limit = max_steps
         self.graph_manager = GraphManager()
+        self.pending_replan: Dict[str, Any] = {}
+        self.last_replan: Dict[str, Any] = {}
+        self.replan_exhausted_reason: Optional[str] = None
         if min_steps_before_help is None:
             self.min_steps_before_help = max(3, self.max_failures)
         else:
@@ -375,6 +378,9 @@ class AutoAgent:
         self.target_type = init_result.get("problem_type", "unknown")
         self.agent_context = get_agent_context()
         self.graph_manager.reset()
+        self.pending_replan = {}
+        self.last_replan = {}
+        self.replan_exhausted_reason = None
 
         if hint:
             self._classify_problem(hint)
@@ -434,6 +440,114 @@ class AutoAgent:
         self.consecutive_help_triggers = 0
         self.last_help_reason = None
         self.help_cooldown_remaining = 2
+
+    def _latest_success_step_num(self) -> int:
+        """返回最近一次成功 step 编号；若从未成功则为 0。"""
+        for step in reversed(self.memory.steps):
+            if step.success:
+                return int(step.num or 0)
+        return 0
+
+    def _current_failure_window_anchor_step(self) -> int:
+        """返回当前失败窗口锚点。"""
+        return self._latest_success_step_num()
+
+    def _should_run_rag_before_help(self) -> bool:
+        """判断当前失败窗口是否需要先做一次主动 RAG。"""
+        self._sync_agent_context()
+        anchor_step = self._current_failure_window_anchor_step()
+        if not getattr(self.agent_context, "rag_attempted_in_current_window", False):
+            return True
+        return int(getattr(self.agent_context, "rag_attempt_anchor_step", 0) or 0) != anchor_step
+
+    def _build_rag_query(self) -> str:
+        """基于当前上下文拼装主动检索问题。"""
+        last_action = self.last_action or {}
+        action_desc = str(last_action.get("description") or last_action.get("intent") or last_action.get("type") or "")
+        graph_signals = self.graph_manager.planner_signals()
+        parts: List[str] = []
+
+        if self.target_type and self.target_type != "unknown":
+            parts.append(f"题型: {self.target_type}")
+        if self.target_url:
+            parts.append(f"目标: {self.target_url}")
+        if action_desc:
+            parts.append(f"最近受阻动作: {action_desc}")
+
+        known_endpoints = list(graph_signals.get("known_endpoints") or [])[:3]
+        if known_endpoints:
+            parts.append("已知端点: " + ", ".join(known_endpoints))
+
+        known_parameters = list(graph_signals.get("known_parameters") or [])[:5]
+        if known_parameters:
+            parts.append("已知参数: " + ", ".join(known_parameters))
+
+        failed_tools = list(graph_signals.get("failed_tools") or [])[:4]
+        if failed_tools:
+            parts.append("失败工具: " + ", ".join(failed_tools))
+
+        guidance = str(getattr(self.agent_context, "human_guidance", "") or graph_signals.get("latest_guidance") or "").strip()
+        if guidance:
+            parts.append(f"人工提示: {guidance}")
+
+        hint = str(getattr(self.agent_context, "hint", "") or "").strip()
+        if hint:
+            parts.append(f"题目提示: {hint}")
+
+        if not parts:
+            parts.append("当前自动解题受阻，需要补充相关利用思路")
+        return "；".join(parts)
+
+    def _summarize_rag_result(self, rag_result: Dict[str, Any]) -> str:
+        """提取精简 RAG 摘要供下一轮规划消费。"""
+        knowledge = list(rag_result.get("retrieved_knowledge") or [])
+        snippets: List[str] = []
+        for item in knowledge[:3]:
+            item_type = str(item.get("type") or "unknown")
+            content = str(item.get("content") or "").strip().replace("\n", " ")
+            if content:
+                snippets.append(f"[{item_type}] {content[:120]}")
+        suggested = str(rag_result.get("suggested_approach") or "").strip()
+        if suggested:
+            snippets.append(f"建议: {suggested[:160]}")
+        error = str(rag_result.get("error") or "").strip()
+        if error and not snippets:
+            snippets.append(f"RAG error: {error[:160]}")
+        return " | ".join(snippets[:4])
+
+    def _run_rag_before_help(self, step_num: int) -> bool:
+        """在真正求助前执行一次主动 RAG，并把结果写回上下文。"""
+        query = self._build_rag_query()
+        graph_signals = self.graph_manager.planner_signals()
+        attempted_methods = list(graph_signals.get("failed_tools") or [])
+        if self.last_action:
+            canonical_tool = self._canonical_tool_name(self.last_action)
+            if canonical_tool and canonical_tool not in attempted_methods:
+                attempted_methods.append(canonical_tool)
+
+        rag_result = retrieve_rag_knowledge(
+            query=query,
+            vuln_type=self.target_type,
+            target_url=self.target_url,
+            attempted_methods=attempted_methods,
+        )
+        rag_summary = self._summarize_rag_result(rag_result)
+        suggested_approach = str(rag_result.get("suggested_approach") or "").strip()
+        anchor_step = self._current_failure_window_anchor_step()
+
+        self.memory.set_context(
+            rag_attempt_anchor_step=anchor_step,
+            rag_attempt_step=step_num,
+            rag_query=query,
+            rag_summary=rag_summary,
+            rag_suggested_approach=suggested_approach,
+            rag_attempted_in_current_window=True,
+        )
+        self._sync_agent_context()
+        self.log("[RAG] Help threshold reached, ran retrieval before escalating", "INFO")
+        if rag_summary:
+            self.log(f"[RAG] {rag_summary}", "INFO")
+        return bool(rag_summary or suggested_approach or rag_result.get("retrieved_knowledge"))
 
     def resume_with_guidance(
         self,
@@ -506,6 +620,11 @@ class AutoAgent:
         help_history = list(getattr(self.agent_context, "help_history", [])[-3:])
         human_guidance = getattr(self.agent_context, "human_guidance", "")
 
+        rag_summary = str(getattr(self.agent_context, "rag_summary", "") or "")
+        rag_suggested_approach = str(getattr(self.agent_context, "rag_suggested_approach", "") or "")
+        rag_query = str(getattr(self.agent_context, "rag_query", "") or "")
+        rag_attempted_in_current_window = bool(getattr(self.agent_context, "rag_attempted_in_current_window", False))
+
         return {
             "target_url": self.target_url,
             "target_type": self.target_type,
@@ -522,6 +641,10 @@ class AutoAgent:
             "help_history": help_history,
             "shared_findings": shared_findings,
             "graph_summary": self.graph_manager.summary(),
+            "latest_rag_query": rag_query,
+            "latest_rag_summary": rag_summary,
+            "latest_rag_suggested_approach": rag_suggested_approach,
+            "rag_attempted_in_current_window": rag_attempted_in_current_window,
             "recent_actions": [
                 {
                     "tool": step.tool,
@@ -531,6 +654,7 @@ class AutoAgent:
                 for step in recent_steps
             ],
         }
+
 
     def _create_attack_plan(self) -> None:
         """根据当前类型与源码分析结果创建攻击计划。"""
@@ -679,8 +803,443 @@ class AutoAgent:
             f"当前摘要:\n{summary}"
         )
 
+    def _action_candidate_summary(self, action: Dict[str, Any]) -> Dict[str, Any]:
+        action = dict(action or {})
+        summary: Dict[str, Any] = {
+            "action_id": str(action.get("id") or ""),
+            "action_type": str(action.get("type") or ""),
+            "target": str(action.get("target") or ""),
+            "description": str(action.get("description") or ""),
+            "intent": str(action.get("intent") or ""),
+            "expected_tool": str(self._canonical_tool_name(action) or action.get("expected_tool") or ""),
+        }
+        params = dict(action.get("params") or {})
+        if params:
+            summary["params"] = params
+        for key in (
+            "source_finding_kind",
+            "source_finding_value",
+            "source_action_id",
+            "source_action_type",
+            "source_node_id",
+            "alternative_to",
+            "derived_from",
+        ):
+            value = str(action.get(key) or "").strip()
+            if value:
+                summary[key] = value
+        return {
+            key: value
+            for key, value in summary.items()
+            if value not in ("", None, [], {})
+        }
+
+    def _build_action_from_candidate(self, candidate: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        candidate = dict(candidate or {})
+        action_type = str(candidate.get("action_type") or candidate.get("type") or "").strip()
+        if not action_type:
+            return None
+
+        metadata: Dict[str, Any] = {}
+        for key in (
+            "source_finding_kind",
+            "source_finding_value",
+            "source_action_id",
+            "source_action_type",
+            "source_node_id",
+            "alternative_to",
+            "derived_from",
+        ):
+            value = str(candidate.get(key) or "").strip()
+            if value:
+                metadata[key] = value
+
+        return self._build_action(
+            action_type,
+            target=str(candidate.get("target") or self.target_url or ""),
+            description=str(candidate.get("description") or ""),
+            intent=str(candidate.get("intent") or candidate.get("description") or ""),
+            expected_tool=str(candidate.get("expected_tool") or action_type),
+            params=dict(candidate.get("params") or {}),
+            metadata=metadata or None,
+        )
+
+    def _apply_replan_to_action(self, action: Dict[str, Any], replan: Dict[str, Any]) -> Dict[str, Any]:
+        action = dict(action or {})
+        replan_payload = dict(replan or {})
+        if not action or not replan_payload:
+            return action
+
+        selected_alternative = dict(replan_payload.get("selected_alternative") or {})
+        if not selected_alternative:
+            selected_alternative = self._action_candidate_summary(action)
+        if not replan_payload.get("alternative_candidates"):
+            replan_payload["alternative_candidates"] = [dict(selected_alternative)]
+        replan_payload["selected_alternative"] = dict(selected_alternative)
+
+        action["graph_driven"] = True
+        action["alternative"] = True
+        action["replan"] = replan_payload
+
+        for key in ("blocked_action_ids", "blocked_tools", "avoid_action_ids", "avoid_tools"):
+            values = list(replan_payload.get(key) or [])
+            if values:
+                action[key] = values
+
+        for key in (
+            "source_finding_kind",
+            "source_finding_value",
+            "source_action_id",
+            "source_action_type",
+            "source_node_id",
+        ):
+            value = str(replan_payload.get(key) or "").strip()
+            if value:
+                action[key] = value
+
+        source_action_id = str(replan_payload.get("source_action_id") or "").strip()
+        if source_action_id:
+            action.setdefault("alternative_to", source_action_id)
+            action.setdefault("derived_from", source_action_id)
+
+        return action
+
+    def _collect_graph_informed_actions(self, replan: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        self._refresh_graph_state()
+        steps = self.memory.steps
+        target = self.target_url
+        signals = self.graph_manager.planner_signals()
+        recent_failure_stats = self._recent_action_failure_counts(window=5)
+        latest_guidance = str(signals.get("latest_guidance") or "").strip()
+        known_endpoints = list(signals.get("known_endpoints") or [])
+        known_parameters = list(signals.get("known_parameters") or [])
+        failed_tools = set(signals.get("failed_tools") or [])
+        failed_tools.update(
+            tool
+            for tool, count in recent_failure_stats.get("canonical_tool_counts", {}).items()
+            if count > 0
+        )
+
+        active_replan = dict(replan or {})
+        blocked_action_ids = set(active_replan.get("blocked_action_ids") or [])
+        blocked_tools = set(active_replan.get("blocked_tools") or [])
+        avoid_action_ids = set(signals.get("avoid_action_ids") or [])
+        avoid_action_ids.update(active_replan.get("avoid_action_ids") or [])
+        avoid_action_ids.update(blocked_action_ids)
+        avoid_tools = set(signals.get("avoid_tools") or [])
+        avoid_tools.update(active_replan.get("avoid_tools") or [])
+        avoid_tools.update(blocked_tools)
+        source_action_id = str(active_replan.get("source_action_id") or "").strip()
+        source_action_type = str(active_replan.get("source_action_type") or "").strip()
+        reason_code = str(active_replan.get("reason_code") or active_replan.get("reason") or "").strip()
+
+        candidates: List[Dict[str, Any]] = []
+        seen_action_ids = set()
+
+        def add_candidate(action: Optional[Dict[str, Any]]) -> None:
+            if not action:
+                return
+            candidate = dict(action)
+            candidate["expected_tool"] = self._canonical_tool_name(candidate)
+            action_id = str(candidate.get("id") or "").strip()
+            tool_name = str(candidate.get("expected_tool") or "").strip()
+            if not action_id or action_id in seen_action_ids:
+                return
+            if action_id in avoid_action_ids:
+                return
+            if tool_name and tool_name in avoid_tools:
+                return
+            if self.memory.should_skip_action(action_id, max_failures=self.max_failures):
+                return
+            seen_action_ids.add(action_id)
+            candidates.append(candidate)
+
+        if latest_guidance and "python_poc" not in avoid_tools:
+            guidance_lower = latest_guidance.lower()
+            if "cookie" in guidance_lower and self.target_type != "ua_bypass":
+                add_candidate(
+                    self._build_action(
+                        "recon",
+                        target=target,
+                        description="根据人工提示重新侦察",
+                        intent="围绕 cookies/session 线索重新采样响应",
+                        expected_tool="recon",
+                        params={"focus": "cookies"},
+                        metadata={
+                            "source_finding_kind": "guidance",
+                            "source_finding_value": latest_guidance,
+                            "source_action_id": source_action_id,
+                            "source_action_type": source_action_type,
+                        },
+                    )
+                )
+            if (
+                "ua" in guidance_lower
+                or "user-agent" in guidance_lower
+                or "mobile" in guidance_lower
+            ) and self.target_type != "ua_bypass":
+                add_candidate(
+                    self._build_action(
+                        "ua_test",
+                        target=target,
+                        description="根据提示测试 UA 分支",
+                        intent="优先验证人工提示中的 User-Agent 线索",
+                        expected_tool="ua_test",
+                        params={"ua": "Mobile"},
+                        metadata={
+                            "ua": "Mobile",
+                            "source_finding_kind": "guidance",
+                            "source_finding_value": latest_guidance,
+                            "source_action_id": source_action_id,
+                            "source_action_type": source_action_type,
+                        },
+                    )
+                )
+
+        if known_endpoints and "dirsearch" not in failed_tools and "python_poc" not in avoid_tools:
+            latest_endpoint = str(signals.get("latest_endpoint") or known_endpoints[-1])
+            endpoint_target = self._target_with_endpoint(latest_endpoint)
+            current_target = self.target_url or getattr(self.agent_context, "url", "") or ""
+            if endpoint_target and endpoint_target != current_target and not any(step.target == endpoint_target for step in steps):
+                add_candidate(
+                    self._build_action(
+                        "recon",
+                        target=endpoint_target,
+                        description="基于已发现端点继续侦察",
+                        intent="沿最新发现的端点继续收集可利用线索",
+                        expected_tool="recon",
+                        metadata={
+                            "source_finding_kind": "endpoint",
+                            "source_finding_value": latest_endpoint,
+                            "source_action_id": source_action_id,
+                            "source_action_type": source_action_type,
+                        },
+                    )
+                )
+
+        if known_parameters and self.target_type == "unknown" and "sqlmap" not in failed_tools and "sqlmap" not in avoid_tools:
+            latest_parameter = str(signals.get("latest_parameter") or known_parameters[-1])
+            param_target = target
+            if latest_parameter and "=" not in param_target:
+                separator = "&" if "?" in param_target else "?"
+                param_target = f"{param_target}{separator}{latest_parameter}=1"
+            add_candidate(
+                self._build_action(
+                    "sqlmap_scan",
+                    target=param_target,
+                    description="基于参数线索检测注入",
+                    intent="优先验证图中已发现参数是否存在 SQL 注入",
+                    expected_tool="sqlmap",
+                    params={"batch": True},
+                    metadata={
+                        "source_finding_kind": "parameter",
+                        "source_finding_value": latest_parameter,
+                        "source_action_id": source_action_id,
+                        "source_action_type": source_action_type,
+                    },
+                )
+            )
+
+        failed_action_counts = dict(signals.get("failed_action_counts") or {})
+        for action_id, count in recent_failure_stats.get("action_id_counts", {}).items():
+            failed_action_counts[action_id] = max(failed_action_counts.get(action_id, 0), count)
+        for action_id, count in failed_action_counts.items():
+            if count < self.max_failures:
+                continue
+            latest_step = self.memory.latest_step_for_action(action_id)
+            if latest_step and latest_step.target == target and latest_step.action_type in {"recon", "sqlmap_scan"}:
+                add_candidate(
+                    self._build_action(
+                        "dir_scan",
+                        target=target,
+                        description="图中动作已多次失败，切换目录探索",
+                        intent="避免重复失败动作，改用目录扫描寻找新入口",
+                        expected_tool="dirsearch",
+                        params={"extensions": ["php", "html", "txt"]},
+                        metadata={
+                            "source_action_id": action_id,
+                            "source_action_type": latest_step.action_type,
+                            "alternative_to": action_id,
+                            "derived_from": action_id,
+                        },
+                    )
+                )
+
+        if (
+            source_action_type in {"recon", "sqlmap_scan", "source_analysis"}
+            or blocked_tools.intersection({"python_poc", "sqlmap", "source_analysis"})
+            or reason_code in {"limited_diversity", "consecutive_failures"}
+        ) and "dirsearch" not in avoid_tools:
+            add_candidate(
+                self._build_action(
+                    "dir_scan",
+                    target=target,
+                    description="当前路径受阻，切换目录探索",
+                    intent="从不同工具视角寻找新入口",
+                    expected_tool="dirsearch",
+                    params={"extensions": ["php", "html", "txt"]},
+                    metadata={
+                        "source_action_id": source_action_id,
+                        "source_action_type": source_action_type,
+                        "alternative_to": source_action_id,
+                        "derived_from": source_action_id,
+                    },
+                )
+            )
+
+        if (source_action_type == "dir_scan" or "dirsearch" in blocked_tools) and "python_poc" not in avoid_tools:
+            add_candidate(
+                self._build_action(
+                    "recon",
+                    target=target,
+                    description="目录扫描受阻后回退侦察",
+                    intent="回到轻量侦察确认可见入口与响应差异",
+                    expected_tool="recon",
+                    params={"focus": "headers"},
+                    metadata={
+                        "source_action_id": source_action_id,
+                        "source_action_type": source_action_type,
+                        "alternative_to": source_action_id,
+                        "derived_from": source_action_id,
+                    },
+                )
+            )
+
+        return candidates
+
+    def _build_replan_payload(self) -> Dict[str, Any]:
+        steps = self.memory.steps
+        if not steps:
+            return {}
+
+        total_steps = len(steps)
+        consecutive_failures = 0
+        for step in reversed(steps):
+            if step.success:
+                break
+            consecutive_failures += 1
+
+        recent_failure_stats = self._recent_action_failure_counts(window=5)
+        current_action = dict(self.last_action or {})
+        latest_step = steps[-1]
+        default_source_action_id = str(
+            current_action.get("id")
+            or getattr(latest_step, "action_id", "")
+            or ""
+        ).strip()
+        default_source_action_type = str(
+            current_action.get("type")
+            or getattr(latest_step, "action_type", "")
+            or ""
+        ).strip()
+        default_source_tool = str(
+            self._canonical_tool_name(current_action)
+            if current_action
+            else getattr(latest_step, "canonical_tool", "") or getattr(latest_step, "tool", "")
+        ).strip()
+
+        def build_payload(
+            reason_code: str,
+            reason_detail: str,
+            *,
+            blocked_action_ids: Optional[List[str]] = None,
+            blocked_tools: Optional[List[str]] = None,
+            source_action_id: str = "",
+            source_action_type: str = "",
+            source_finding_kind: str = "",
+            source_finding_value: str = "",
+        ) -> Dict[str, Any]:
+            payload: Dict[str, Any] = {
+                "reason": reason_code,
+                "reason_code": reason_code,
+                "reason_detail": reason_detail,
+                "source_action_id": source_action_id or default_source_action_id,
+                "source_action_type": source_action_type or default_source_action_type,
+                "blocked_action_ids": list(blocked_action_ids or ([default_source_action_id] if default_source_action_id else [])),
+                "blocked_tools": list(blocked_tools or ([default_source_tool] if default_source_tool else [])),
+            }
+            if source_finding_kind and source_finding_value:
+                payload["source_finding_kind"] = source_finding_kind
+                payload["source_finding_value"] = source_finding_value
+            payload["avoid_action_ids"] = list(payload.get("blocked_action_ids") or [])
+            payload["avoid_tools"] = list(payload.get("blocked_tools") or [])
+            candidates = [
+                self._action_candidate_summary(action)
+                for action in self._collect_graph_informed_actions(replan=payload)
+            ]
+            if candidates:
+                payload["alternative_candidates"] = candidates
+                payload["selected_alternative"] = dict(candidates[0])
+            return payload
+
+        if total_steps >= 5 and recent_failure_stats["distinct_actions"] <= 2 and recent_failure_stats["distinct_action_types"] <= 2:
+            return build_payload(
+                "limited_diversity",
+                "最近多步动作多样性不足，主链在少数路径间反复试错",
+            )
+
+        for action_id, count in recent_failure_stats["action_id_counts"].items():
+            if count >= self.max_failures:
+                latest_failed_step = self.memory.latest_step_for_action(action_id)
+                return build_payload(
+                    f"action_failures:{action_id}",
+                    f"动作 {action_id} 已失败 {count} 次，需要避开该动作并切换分支",
+                    blocked_action_ids=[action_id],
+                    blocked_tools=[
+                        str(
+                            getattr(latest_failed_step, "canonical_tool", "")
+                            or getattr(latest_failed_step, "tool", "")
+                            or default_source_tool
+                        )
+                    ] if latest_failed_step or default_source_tool else [],
+                    source_action_id=action_id,
+                    source_action_type=str(getattr(latest_failed_step, "action_type", "") or default_source_action_type),
+                )
+
+        for action_type, count in recent_failure_stats["action_type_counts"].items():
+            if count >= self.max_failures:
+                return build_payload(
+                    f"action_type_failures:{action_type}",
+                    f"动作类型 {action_type} 已连续失败 {count} 次，需要改道",
+                    source_action_type=action_type,
+                )
+
+        critical_tools = {"python_poc", "sqlmap", "dirsearch", "source_analysis"}
+        for tool, count in recent_failure_stats["canonical_tool_counts"].items():
+            if tool in critical_tools and count >= self.max_failures:
+                return build_payload(
+                    f"tool_failures:{tool}",
+                    f"工具 {tool} 最近失败 {count} 次，需要暂时避开该工具",
+                    blocked_tools=[tool],
+                )
+
+        if consecutive_failures >= self.max_failures:
+            return build_payload(
+                "consecutive_failures",
+                f"已经连续失败 {consecutive_failures} 步，需要在 help 前先进行结构化改道",
+            )
+
+        return {}
+
     def plan_next_action(self) -> Dict[str, Any]:
-        action = dict(self._decide_next_action())
+        active_replan = dict(self.pending_replan or {})
+        if active_replan:
+            action = self._build_action_from_candidate(active_replan.get("selected_alternative") or {})
+            if action is None:
+                action = self._build_graph_informed_action(replan=active_replan)
+            if action is None:
+                self.replan_exhausted_reason = str(active_replan.get("reason_code") or active_replan.get("reason") or "")
+                self.pending_replan = {}
+                action = dict(self._decide_next_action())
+            else:
+                action = self._apply_replan_to_action(action, active_replan)
+                self.last_replan = dict(action.get("replan") or active_replan)
+                self.replan_exhausted_reason = None
+                self.pending_replan = {}
+        else:
+            action = dict(self._decide_next_action())
+            self.last_replan = {}
+
         action["expected_tool"] = self._canonical_tool_name(action)
         action["graph_op"] = self.graph_manager.build_action_graph_op(action)
         self.last_action = dict(action)
@@ -904,9 +1463,55 @@ print(f"Content: {{resp.text}}")
 
         return self._build_executor_error(action, f"unsupported attack step: {step_name}")
 
+    def _consume_replan_payload(self, step_num: int) -> Optional[Dict[str, Any]]:
+        payload = dict(self._build_replan_payload() or {})
+        if not payload:
+            return None
+
+        reason_code = str(payload.get("reason_code") or payload.get("reason") or "").strip()
+        candidates = list(payload.get("alternative_candidates") or [])
+        selected_alternative = dict(payload.get("selected_alternative") or {})
+        if not candidates and selected_alternative:
+            candidates = [dict(selected_alternative)]
+            payload["alternative_candidates"] = list(candidates)
+        if not candidates:
+            self.replan_exhausted_reason = reason_code or None
+            return None
+        if not selected_alternative:
+            selected_alternative = dict(candidates[0])
+            payload["selected_alternative"] = dict(selected_alternative)
+
+        self.pending_replan = dict(payload)
+        self.last_replan = dict(payload)
+        self.replan_exhausted_reason = None
+        self.last_help_reason = None
+
+        graph_op = self.graph_manager.build_checkpoint_graph_op(
+            "replan",
+            action=self.last_action,
+            reason=reason_code,
+            metadata=payload,
+        )
+        self.graph_manager.apply_graph_op(
+            graph_op,
+            action=self.last_action,
+            step=step_num,
+            reason=reason_code,
+        )
+        self._refresh_graph_state()
+        return payload
+
     def maybe_request_help(self, step_num: int) -> Optional[str]:
         """根据当前状态判断是否需要求助。"""
+        replan_payload = self._consume_replan_payload(step_num)
+        if replan_payload:
+            return None
+
         if not self._should_ask_for_help():
+            return None
+
+        if self._should_run_rag_before_help():
+            self._run_rag_before_help(step_num)
             return None
 
         summary = get_memory_summary()
@@ -918,6 +1523,7 @@ print(f"Content: {{resp.text}}")
         )
         self._sync_agent_context()
         return help_request
+
 
     def _starting_step_num(self, resume: bool = False) -> int:
         """返回本轮主循环的起始 step 编号。"""
@@ -1023,18 +1629,27 @@ print(f"Content: {{resp.text}}")
                     memory_step=self._latest_memory_step_for_action(action, step_num=step_num),
                 )
                 self._refresh_graph_state()
+                replan_payload = dict(self.last_replan or {})
+                if replan_payload:
+                    self._emit_event(
+                        event_callback,
+                        "replan",
+                        {
+                            "step": step_num,
+                            "reason": replan_payload.get("reason_code") or replan_payload.get("reason") or "",
+                            "replan": replan_payload,
+                            "action": dict(replan_payload.get("selected_alternative") or {}),
+                        },
+                    )
+                    self.last_replan = {}
                 self._emit_event(
                     event_callback,
-                    "tool_node",
+                    "planner",
                     {
                         "step": step_num,
                         "action": dict(action),
-                        "result": result,
-                        "success": action_success,
                     },
                 )
-
-                flags = extract_flags(result)
                 if flags:
                     flag = flags[0]
                     self.log(f"=" * 60)
@@ -1258,95 +1873,11 @@ print(f"Content: {{resp.text}}")
             return endpoint_text
         return urljoin(base.rstrip("/") + "/", endpoint_text.lstrip("/"))
 
-    def _build_graph_informed_action(self) -> Optional[Dict[str, Any]]:
-        self._refresh_graph_state()
-        steps = self.memory.steps
-        target = self.target_url
-        signals = self.graph_manager.planner_signals()
-        recent_failure_stats = self._recent_action_failure_counts(window=5)
-        latest_guidance = str(signals.get("latest_guidance") or "").strip()
-        known_endpoints = list(signals.get("known_endpoints") or [])
-        known_parameters = list(signals.get("known_parameters") or [])
-        failed_tools = set(signals.get("failed_tools") or [])
-        failed_tools.update(
-            tool
-            for tool, count in recent_failure_stats.get("canonical_tool_counts", {}).items()
-            if count > 0
-        )
-        failed_action_counts = dict(signals.get("failed_action_counts") or {})
-        for action_id, count in recent_failure_stats.get("action_id_counts", {}).items():
-            failed_action_counts[action_id] = max(failed_action_counts.get(action_id, 0), count)
-
-        if latest_guidance:
-            guidance_lower = latest_guidance.lower()
-            if "cookie" in guidance_lower and self.target_type != "ua_bypass":
-                return self._build_action(
-                    "recon",
-                    target=target,
-                    description="根据人工提示重新侦察",
-                    intent="围绕 cookies/session 线索重新采样响应",
-                    expected_tool="recon",
-                    params={"focus": "cookies"},
-                    metadata={"guided_by": "graph_guidance", "guidance": latest_guidance},
-                )
-            if ("ua" in guidance_lower or "user-agent" in guidance_lower or "mobile" in guidance_lower) and self.target_type != "ua_bypass":
-                return self._build_action(
-                    "ua_test",
-                    target=target,
-                    description="根据提示测试 UA 分支",
-                    intent="优先验证人工提示中的 User-Agent 线索",
-                    expected_tool="ua_test",
-                    params={"ua": "Mobile"},
-                    metadata={"ua": "Mobile", "guided_by": "graph_guidance", "guidance": latest_guidance},
-                )
-
-        if known_endpoints and "dirsearch" not in failed_tools:
-            latest_endpoint = str(signals.get("latest_endpoint") or known_endpoints[-1])
-            endpoint_target = self._target_with_endpoint(latest_endpoint)
-            current_target = self.target_url or getattr(self.agent_context, "url", "") or ""
-            if endpoint_target and endpoint_target != current_target and not any(step.target == endpoint_target for step in steps):
-                return self._build_action(
-                    "recon",
-                    target=endpoint_target,
-                    description="基于已发现端点继续侦察",
-                    intent="沿最新发现的端点继续收集可利用线索",
-                    expected_tool="recon",
-                    metadata={"graph_driven": True, "endpoint": latest_endpoint},
-                )
-
-        if known_parameters and self.target_type == "unknown" and "sqlmap" not in failed_tools:
-            latest_parameter = str(signals.get("latest_parameter") or known_parameters[-1])
-            param_target = target
-            if latest_parameter and "?" not in param_target and "=" not in param_target:
-                separator = "&" if "?" in param_target else "?"
-                param_target = f"{param_target}{separator}{latest_parameter}=1"
-            sqlmap_probe = self._build_action(
-                "sqlmap_scan",
-                target=param_target,
-                description="基于参数线索检测注入",
-                intent="优先验证图中已发现参数是否存在 SQL 注入",
-                expected_tool="sqlmap",
-                params={"batch": True},
-                metadata={"graph_driven": True, "parameter": latest_parameter},
-            )
-            if not self.memory.should_skip_action(sqlmap_probe["id"], max_failures=self.max_failures):
-                return sqlmap_probe
-
-        for action_id, count in failed_action_counts.items():
-            if count >= self.max_failures:
-                latest_step = self.memory.latest_step_for_action(action_id)
-                if latest_step and latest_step.target == target and latest_step.action_type in {"recon", "sqlmap_scan"}:
-                    return self._build_action(
-                        "dir_scan",
-                        target=target,
-                        description="图中动作已多次失败，切换目录探索",
-                        intent="避免重复失败动作，改用目录扫描寻找新入口",
-                        expected_tool="dirsearch",
-                        params={"extensions": ["php", "html", "txt"]},
-                        metadata={"alternative": True, "graph_driven": True, "avoids_action_id": action_id},
-                    )
-
-        return None
+    def _build_graph_informed_action(self, replan: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+        candidates = self._collect_graph_informed_actions(replan=replan)
+        if not candidates:
+            return None
+        return dict(candidates[0])
 
     def _decide_next_action(self) -> Dict[str, Any]:
         """

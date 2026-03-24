@@ -422,6 +422,3 @@ def get_fenjing_status() -> Dict[str, Any]:
     }
 
 
-if __name__ == "__main__":
-    # 测试
-    print(get_fenjing_status())

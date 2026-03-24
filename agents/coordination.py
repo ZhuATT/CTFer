@@ -145,16 +145,3 @@ def run_recon_sync(target: str, timeout: int = 60) -> Dict[str, Any]:
     return result
 
 
-if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1:
-        target = sys.argv[1]
-    else:
-        target = "http://httpbin.org"
-
-    print(f"Testing recon coordinator on: {target}\n")
-
-    result = run_recon_sync(target, timeout=30)
-    print("\n" + "=" * 50)
-    print("SUMMARY:")
-    print(result["summary"])

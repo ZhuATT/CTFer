@@ -151,6 +151,13 @@ class GraphManager:
                     resume_count=resolved_resume_count,
                     graph_op=op,
                 )
+            if label == "replan":
+                return self.record_replan(
+                    step=step,
+                    action=action,
+                    reason=resolved_reason,
+                    graph_op=op,
+                )
             raise ValueError(f"unsupported checkpoint graph op: {label}")
 
         if action is None:
@@ -182,11 +189,13 @@ class GraphManager:
         action_id = str(action.get("id") or op.get("action_id") or "")
         node_id = str(op.get("node_id") or self._action_node_id(action, step))
         planned_status = str(op.get("planned_status") or "planned")
+        relationship_metadata = self._action_relationship_metadata(action)
         existing = self._nodes.get(node_id)
         if existing is None:
             metadata = {
                 "intent": str(action.get("intent") or ""),
                 "params": dict(action.get("params") or {}),
+                **relationship_metadata,
             }
             if op:
                 metadata["graph_op"] = dict(op)
@@ -215,11 +224,16 @@ class GraphManager:
             existing.canonical_tool = str(action.get("expected_tool") or action.get("type") or existing.canonical_tool)
             if existing.status in {"observed", "paused"}:
                 existing.status = planned_status
+            existing.metadata["intent"] = str(action.get("intent") or existing.metadata.get("intent", ""))
+            existing.metadata["params"] = dict(action.get("params") or existing.metadata.get("params") or {})
+            if relationship_metadata:
+                existing.metadata.update(relationship_metadata)
             if op:
                 existing.metadata["graph_op"] = dict(op)
 
         if self.active_node_id and self.active_node_id != node_id:
             self._add_edge(self.active_node_id, node_id, kind="next", step=step)
+        self._link_action_relationships(node_id, action, step)
         self.active_node_id = node_id
         return node_id
 
@@ -325,6 +339,135 @@ class GraphManager:
                 source_node_id=node_id,
                 metadata={"resume_count": resume_count},
             )
+        return node_id
+
+    def record_replan(
+        self,
+        step: int,
+        action: Optional[Dict[str, Any]] = None,
+        reason: str = "",
+        graph_op: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        op = dict(graph_op or {})
+        previous_active = self.active_node_id
+        label = str(op.get("checkpoint_label") or "replan")
+        status = str(op.get("checkpoint_status") or "observed")
+        payload = self._normalize_replan_metadata(op.get("metadata") or {})
+        if reason and not payload.get("reason"):
+            payload["reason"] = reason
+        if not payload.get("reason_detail") and payload.get("reason"):
+            payload["reason_detail"] = str(payload.get("reason") or "")
+
+        action = dict(action or {})
+        if action:
+            payload.setdefault("source_action_id", str(action.get("id") or ""))
+            payload.setdefault("source_action_type", str(action.get("type") or ""))
+            payload.setdefault("blocked_action_ids", self._normalize_list(payload.get("blocked_action_ids") or [action.get("id")]))
+            payload.setdefault(
+                "blocked_tools",
+                self._normalize_list(payload.get("blocked_tools") or [action.get("expected_tool") or action.get("type")]),
+            )
+
+        payload["avoid_action_ids"] = self._normalize_list(
+            payload.get("avoid_action_ids") or payload.get("blocked_action_ids") or []
+        )
+        payload["avoid_tools"] = self._normalize_list(payload.get("avoid_tools") or payload.get("blocked_tools") or [])
+        if not payload.get("selected_alternative") and payload.get("alternative_candidates"):
+            payload["selected_alternative"] = dict(payload["alternative_candidates"][0])
+
+        node_id = self._new_checkpoint_id(label)
+        metadata = dict(payload)
+        if op:
+            metadata["graph_op"] = dict(op)
+        node = GraphNode(
+            id=node_id,
+            kind="checkpoint",
+            label=label,
+            status=status,
+            step=step,
+            updated_step=step,
+            action_id=str(payload.get("source_action_id") or (action or {}).get("id") or op.get("action_id") or ""),
+            action_type=str(payload.get("source_action_type") or (action or {}).get("type") or op.get("metadata", {}).get("action_type") or ""),
+            target=str((action or {}).get("target") or op.get("metadata", {}).get("target") or ""),
+            expected_tool=str((action or {}).get("expected_tool") or op.get("metadata", {}).get("expected_tool") or ""),
+            canonical_tool=str((action or {}).get("expected_tool") or (action or {}).get("type") or ""),
+            result_preview=self._preview(payload.get("reason_detail") or payload.get("reason") or reason),
+            metadata=metadata,
+        )
+        self._nodes[node_id] = node
+
+        reason_code = str(payload.get("reason_code") or payload.get("reason") or "")
+        if previous_active and previous_active != node_id:
+            self._add_edge(previous_active, node_id, kind="next", step=step, condition=reason_code)
+
+        blocked_action_ids = self._normalize_list(payload.get("blocked_action_ids"))
+        blocked_tools = self._normalize_list(payload.get("blocked_tools"))
+        for blocked_action_id in blocked_action_ids:
+            related_node_id = self._lookup_node_id(action_id=blocked_action_id)
+            if related_node_id:
+                self._add_edge(
+                    node_id,
+                    related_node_id,
+                    kind="blocked_by",
+                    step=step,
+                    condition=reason_code,
+                    metadata={"reason_detail": str(payload.get("reason_detail") or "")},
+                )
+        for blocked_tool in blocked_tools:
+            related_node_id = self._latest_action_node_by_tool(blocked_tool, statuses={"failed"})
+            if related_node_id:
+                self._add_edge(
+                    node_id,
+                    related_node_id,
+                    kind="blocked_by",
+                    step=step,
+                    condition=blocked_tool,
+                    metadata={"reason_code": reason_code},
+                )
+
+        source_node_id = str(payload.get("source_node_id") or "")
+        if not source_node_id:
+            source_action_id = str(payload.get("source_action_id") or "")
+            if source_action_id:
+                source_node_id = self._lookup_node_id(action_id=source_action_id)
+        if not source_node_id:
+            source_finding_kind = str(payload.get("source_finding_kind") or "")
+            source_finding_value = str(payload.get("source_finding_value") or "")
+            if source_finding_kind and source_finding_value:
+                finding = self._shared_findings.get((source_finding_kind, source_finding_value))
+                if finding and finding.source_node_id:
+                    source_node_id = finding.source_node_id
+
+        if source_node_id:
+            self._add_edge(
+                node_id,
+                source_node_id,
+                kind="guided_by",
+                step=step,
+                condition=str(payload.get("source_finding_kind") or ""),
+                metadata={"value": str(payload.get("source_finding_value") or "")},
+            )
+
+        source_action_id = str(payload.get("source_action_id") or "")
+        if source_action_id:
+            derived_from_id = self._lookup_node_id(action_id=source_action_id)
+            if derived_from_id:
+                self._add_edge(node_id, derived_from_id, kind="derived_from", step=step, condition=reason_code)
+
+        if payload.get("source_finding_kind") and payload.get("source_finding_value"):
+            try:
+                self.upsert_shared_finding(
+                    kind=str(payload.get("source_finding_kind") or "note"),
+                    value=str(payload.get("source_finding_value") or ""),
+                    step=step,
+                    source_node_id=source_node_id,
+                    source_action_id=source_action_id,
+                    metadata={"reason_code": reason_code},
+                )
+            except ValueError:
+                pass
+
+        self.active_node_id = node_id
         return node_id
 
     def upsert_shared_finding(
@@ -458,6 +601,14 @@ class GraphManager:
             key=lambda node: (node.updated_step, node.step, node.id),
             reverse=True,
         )
+        replan_nodes = sorted(
+            (
+                node for node in self._nodes.values()
+                if node.kind == "checkpoint" and node.label == "replan"
+            ),
+            key=lambda node: (node.updated_step, node.step, node.id),
+            reverse=True,
+        )
 
         failed_action_counts: Dict[str, int] = {}
         failed_tool_counts: Dict[str, int] = {}
@@ -481,6 +632,23 @@ class GraphManager:
                 ]
             )
 
+        recent_replans = [self._serialize_replan_node(node) for node in replan_nodes[:5]]
+        latest_replan = recent_replans[0] if recent_replans else {}
+        avoid_action_ids = self._unique_values(
+            [
+                value
+                for item in recent_replans[:3]
+                for value in self._normalize_list(item.get("avoid_action_ids"))
+            ]
+        )
+        avoid_tools = self._unique_values(
+            [
+                value
+                for item in recent_replans[:3]
+                for value in self._normalize_list(item.get("avoid_tools"))
+            ]
+        )
+
         latest_guidance = self.latest_finding("guidance")
         latest_endpoint = self.latest_finding("endpoint")
         latest_parameter = self.latest_finding("parameter")
@@ -500,8 +668,25 @@ class GraphManager:
             ),
             "failed_action_counts": failed_action_counts,
             "failed_tool_counts": failed_tool_counts,
+            "recent_failed_cluster": [
+                {
+                    "node_id": node.id,
+                    "action_id": node.action_id,
+                    "action_type": node.action_type,
+                    "tool": node.canonical_tool or node.expected_tool,
+                    "step": node.updated_step or node.step,
+                    "result_preview": node.result_preview,
+                }
+                for node in failed_nodes[:4]
+            ],
             "succeeded_action_ids": self._unique_values([node.action_id for node in succeeded_nodes if node.action_id]),
             "active_node_id": self.active_node_id,
+            "active_chain": self._active_chain(),
+            "latest_replan": latest_replan,
+            "recent_replans": recent_replans,
+            "avoid_action_ids": avoid_action_ids,
+            "avoid_tools": avoid_tools,
+            "alternative_candidates": list(latest_replan.get("alternative_candidates") or []),
         }
 
     def summary(self) -> str:
@@ -513,22 +698,42 @@ class GraphManager:
         parts = [f"nodes={len(self._nodes)}", f"edges={len(self._edges)}", f"findings={len(self._shared_findings)}"]
         for status in sorted(counts):
             parts.append(f"{status}={counts[status]}")
+        replan_count = sum(
+            1 for node in self._nodes.values() if node.kind == "checkpoint" and node.label == "replan"
+        )
+        if replan_count:
+            parts.append(f"replans={replan_count}")
         if self.active_node_id:
             parts.append(f"active={self.active_node_id}")
         return ", ".join(parts)
 
     def snapshot(self) -> Dict[str, Any]:
         nodes = sorted(self._nodes.values(), key=lambda node: (node.step, node.id))
+        replan_history = [
+            self._serialize_replan_node(node)
+            for node in sorted(
+                (
+                    node for node in self._nodes.values()
+                    if node.kind == "checkpoint" and node.label == "replan"
+                ),
+                key=lambda node: (node.updated_step, node.step, node.id),
+                reverse=True,
+            )[:10]
+        ]
         return {
             "version": 1,
             "active_node_id": self.active_node_id,
             "nodes": [asdict(node) for node in nodes],
             "edges": [asdict(edge) for edge in self._edges],
             "shared_findings": self.get_shared_findings(),
+            "latest_replan": replan_history[0] if replan_history else {},
+            "replan_history": replan_history,
+            "active_chain": self._active_chain(),
             "stats": {
                 "node_count": len(self._nodes),
                 "edge_count": len(self._edges),
                 "finding_count": len(self._shared_findings),
+                "replan_count": len(replan_history),
             },
         }
 
@@ -566,13 +771,301 @@ class GraphManager:
         action_id = str((action or {}).get("id") or "")
         return f"action:{action_id or self._stable_id('action', str(step), str(action))}"
 
+    def _node_id_for_action_id(self, action_id: str) -> str:
+        normalized = str(action_id or "").strip()
+        if not normalized:
+            return ""
+        return normalized if normalized.startswith(("action:", "checkpoint:")) else f"action:{normalized}"
+
+    def _lookup_node_id(
+        self,
+        *,
+        action_id: str = "",
+        tool: str = "",
+        action_type: str = "",
+        statuses: Optional[set[str]] = None,
+    ) -> str:
+        if action_id:
+            node_id = self._node_id_for_action_id(action_id)
+            if node_id in self._nodes:
+                return node_id
+        if tool:
+            return self._latest_action_node_by_tool(tool, statuses=statuses)
+        if action_type:
+            return self._latest_action_node_by_type(action_type, statuses=statuses)
+        return ""
+
+    def _action_relationship_metadata(self, action: Dict[str, Any]) -> Dict[str, Any]:
+        action = dict(action or {})
+        replan = self._normalize_replan_metadata(action.get("replan") or {})
+
+        metadata: Dict[str, Any] = {}
+        if action.get("graph_driven"):
+            metadata["graph_driven"] = True
+        if action.get("alternative"):
+            metadata["alternative"] = True
+
+        source_finding_kind = str(action.get("source_finding_kind") or replan.get("source_finding_kind") or "")
+        source_finding_value = str(action.get("source_finding_value") or replan.get("source_finding_value") or "")
+        source_node_id = str(action.get("source_node_id") or replan.get("source_node_id") or "")
+        source_action_id = str(action.get("source_action_id") or replan.get("source_action_id") or "")
+        alternative_to = str(
+            action.get("alternative_to")
+            or action.get("alternative_to_action_id")
+            or replan.get("source_action_id")
+            or ""
+        )
+        derived_from = str(
+            action.get("derived_from")
+            or action.get("derived_from_action_id")
+            or source_action_id
+            or ""
+        )
+        blocked_action_ids = self._normalize_list(
+            action.get("blocked_action_ids")
+            or replan.get("blocked_action_ids")
+            or [action.get("avoids_action_id")]
+        )
+        blocked_tools = self._normalize_list(action.get("blocked_tools") or replan.get("blocked_tools"))
+        avoid_action_ids = self._normalize_list(
+            action.get("avoid_action_ids")
+            or replan.get("avoid_action_ids")
+            or [action.get("avoids_action_id")]
+        )
+        avoid_tools = self._normalize_list(action.get("avoid_tools") or replan.get("avoid_tools"))
+
+        if source_finding_kind:
+            metadata["source_finding_kind"] = source_finding_kind
+        if source_finding_value:
+            metadata["source_finding_value"] = source_finding_value
+        if source_node_id:
+            metadata["source_node_id"] = source_node_id
+        if source_action_id:
+            metadata["source_action_id"] = source_action_id
+        if alternative_to:
+            metadata["alternative_to"] = alternative_to
+        if derived_from:
+            metadata["derived_from"] = derived_from
+        if blocked_action_ids:
+            metadata["blocked_action_ids"] = blocked_action_ids
+        if blocked_tools:
+            metadata["blocked_tools"] = blocked_tools
+        if avoid_action_ids:
+            metadata["avoid_action_ids"] = avoid_action_ids
+        if avoid_tools:
+            metadata["avoid_tools"] = avoid_tools
+        if replan:
+            metadata["replan"] = replan
+        return metadata
+
+    def _link_action_relationships(self, node_id: str, action: Dict[str, Any], step: int) -> None:
+        metadata = self._action_relationship_metadata(action)
+        replan = dict(metadata.get("replan") or {})
+        reason_code = str(replan.get("reason_code") or replan.get("reason") or "")
+
+        blocked_action_ids = self._normalize_list(metadata.get("blocked_action_ids"))
+        blocked_tools = self._normalize_list(metadata.get("blocked_tools"))
+        for blocked_action_id in blocked_action_ids:
+            related_node_id = self._lookup_node_id(action_id=blocked_action_id)
+            if related_node_id and related_node_id != node_id:
+                self._add_edge(node_id, related_node_id, kind="blocked_by", step=step, condition=reason_code)
+        for blocked_tool in blocked_tools:
+            related_node_id = self._latest_action_node_by_tool(blocked_tool, statuses={"failed"})
+            if related_node_id and related_node_id != node_id:
+                self._add_edge(node_id, related_node_id, kind="blocked_by", step=step, condition=blocked_tool)
+
+        alternative_to = str(metadata.get("alternative_to") or "")
+        if alternative_to:
+            related_node_id = self._lookup_node_id(action_id=alternative_to)
+            if related_node_id and related_node_id != node_id:
+                self._add_edge(node_id, related_node_id, kind="alternative_to", step=step, condition=reason_code)
+
+        derived_from = str(metadata.get("derived_from") or "")
+        if derived_from:
+            related_node_id = self._lookup_node_id(action_id=derived_from)
+            if related_node_id and related_node_id != node_id:
+                self._add_edge(node_id, related_node_id, kind="derived_from", step=step, condition=reason_code)
+
+        source_node_id = str(metadata.get("source_node_id") or "")
+        if not source_node_id:
+            source_action_id = str(metadata.get("source_action_id") or "")
+            if source_action_id:
+                source_node_id = self._lookup_node_id(action_id=source_action_id)
+        if not source_node_id:
+            source_finding_kind = str(metadata.get("source_finding_kind") or "")
+            source_finding_value = str(metadata.get("source_finding_value") or "")
+            if source_finding_kind and source_finding_value:
+                finding = self._shared_findings.get((source_finding_kind, source_finding_value))
+                if finding and finding.source_node_id:
+                    source_node_id = finding.source_node_id
+        if source_node_id and source_node_id != node_id:
+            self._add_edge(
+                node_id,
+                source_node_id,
+                kind="guided_by",
+                step=step,
+                condition=str(metadata.get("source_finding_kind") or ""),
+                metadata={"value": str(metadata.get("source_finding_value") or "")},
+            )
+
+    def _latest_action_node_by_tool(self, tool: str, statuses: Optional[set[str]] = None) -> str:
+        normalized_tool = str(tool or "").strip()
+        if not normalized_tool:
+            return ""
+        candidates = [
+            node
+            for node in self._nodes.values()
+            if node.kind == "action"
+            and (node.canonical_tool == normalized_tool or node.expected_tool == normalized_tool)
+            and (not statuses or node.status in statuses)
+        ]
+        if not candidates:
+            return ""
+        latest = max(candidates, key=lambda node: (node.updated_step, node.step, node.id))
+        return latest.id
+
+    def _latest_action_node_by_type(self, action_type: str, statuses: Optional[set[str]] = None) -> str:
+        normalized_type = str(action_type or "").strip()
+        if not normalized_type:
+            return ""
+        candidates = [
+            node
+            for node in self._nodes.values()
+            if node.kind == "action"
+            and node.action_type == normalized_type
+            and (not statuses or node.status in statuses)
+        ]
+        if not candidates:
+            return ""
+        latest = max(candidates, key=lambda node: (node.updated_step, node.step, node.id))
+        return latest.id
+
+    def _serialize_replan_node(self, node: GraphNode) -> Dict[str, Any]:
+        metadata = self._normalize_replan_metadata(node.metadata)
+        payload = {
+            "node_id": node.id,
+            "step": node.updated_step or node.step,
+            "reason": str(metadata.get("reason") or node.result_preview or ""),
+            "reason_code": str(metadata.get("reason_code") or ""),
+            "reason_detail": str(metadata.get("reason_detail") or metadata.get("reason") or node.result_preview or ""),
+            "blocked_action_ids": self._normalize_list(metadata.get("blocked_action_ids")),
+            "blocked_tools": self._normalize_list(metadata.get("blocked_tools")),
+            "avoid_action_ids": self._normalize_list(metadata.get("avoid_action_ids")),
+            "avoid_tools": self._normalize_list(metadata.get("avoid_tools")),
+            "alternative_candidates": list(metadata.get("alternative_candidates") or []),
+            "selected_alternative": dict(metadata.get("selected_alternative") or {}),
+            "source_finding_kind": str(metadata.get("source_finding_kind") or ""),
+            "source_finding_value": str(metadata.get("source_finding_value") or ""),
+            "source_action_id": str(metadata.get("source_action_id") or node.action_id or ""),
+            "source_action_type": str(metadata.get("source_action_type") or node.action_type or ""),
+            "source_node_id": str(metadata.get("source_node_id") or ""),
+        }
+        return payload
+
+    def _active_chain(self, limit: int = 6) -> List[Dict[str, Any]]:
+        nodes = sorted(
+            self._nodes.values(),
+            key=lambda node: (node.updated_step, node.step, node.id),
+            reverse=True,
+        )
+        return [
+            {
+                "node_id": node.id,
+                "kind": node.kind,
+                "label": node.label,
+                "status": node.status,
+                "step": node.updated_step or node.step,
+                "action_id": node.action_id,
+                "action_type": node.action_type,
+            }
+            for node in nodes[:limit]
+        ]
+
+    @staticmethod
+    def _normalize_list(values: Any) -> List[str]:
+        if values is None:
+            return []
+        if isinstance(values, (list, tuple, set)):
+            raw_values = values
+        else:
+            raw_values = [values]
+        normalized: List[str] = []
+        seen = set()
+        for value in raw_values:
+            text = str(value or "").strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            normalized.append(text)
+        return normalized
+
+    def _normalize_candidate(self, candidate: Any) -> Dict[str, Any]:
+        if isinstance(candidate, dict):
+            normalized = {
+                "action_type": str(candidate.get("action_type") or candidate.get("type") or ""),
+                "action_id": str(candidate.get("action_id") or candidate.get("id") or ""),
+                "target": str(candidate.get("target") or ""),
+                "description": str(candidate.get("description") or ""),
+                "intent": str(candidate.get("intent") or ""),
+                "expected_tool": str(candidate.get("expected_tool") or ""),
+                "source_finding_kind": str(candidate.get("source_finding_kind") or ""),
+                "source_finding_value": str(candidate.get("source_finding_value") or ""),
+                "alternative_to": str(candidate.get("alternative_to") or ""),
+                "derived_from": str(candidate.get("derived_from") or ""),
+            }
+            params = dict(candidate.get("params") or {})
+            if params:
+                normalized["params"] = params
+            return {key: value for key, value in normalized.items() if value not in ("", [], {}, None)}
+        text = str(candidate or "").strip()
+        return {"action_type": text} if text else {}
+
+    def _normalize_replan_metadata(self, metadata: Any) -> Dict[str, Any]:
+        raw = dict(metadata or {})
+        normalized: Dict[str, Any] = {}
+        for key in (
+            "reason",
+            "reason_code",
+            "reason_detail",
+            "source_finding_kind",
+            "source_finding_value",
+            "source_action_id",
+            "source_action_type",
+            "source_node_id",
+        ):
+            value = str(raw.get(key) or "").strip()
+            if value:
+                normalized[key] = value
+
+        blocked_action_ids = self._normalize_list(raw.get("blocked_action_ids") or raw.get("blocked_action_id"))
+        blocked_tools = self._normalize_list(raw.get("blocked_tools") or raw.get("blocked_tool"))
+        avoid_action_ids = self._normalize_list(raw.get("avoid_action_ids") or raw.get("avoid_action_id"))
+        avoid_tools = self._normalize_list(raw.get("avoid_tools") or raw.get("avoid_tool"))
+        alternative_candidates = [
+            item for item in (self._normalize_candidate(candidate) for candidate in raw.get("alternative_candidates") or []) if item
+        ]
+        selected_alternative = self._normalize_candidate(raw.get("selected_alternative") or {})
+
+        if blocked_action_ids:
+            normalized["blocked_action_ids"] = blocked_action_ids
+        if blocked_tools:
+            normalized["blocked_tools"] = blocked_tools
+        if avoid_action_ids:
+            normalized["avoid_action_ids"] = avoid_action_ids
+        if avoid_tools:
+            normalized["avoid_tools"] = avoid_tools
+        if alternative_candidates:
+            normalized["alternative_candidates"] = alternative_candidates
+        if selected_alternative:
+            normalized["selected_alternative"] = selected_alternative
+        return normalized
+
     @staticmethod
     def _preview(result: Any, limit: int = 160) -> str:
         text = str(result or "").strip()
         if len(text) <= limit:
             return text
         return text[:limit] + "..."
-
 
     @staticmethod
     def _unique_values(values: List[str]) -> List[str]:

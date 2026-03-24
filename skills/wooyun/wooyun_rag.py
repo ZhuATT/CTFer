@@ -554,26 +554,3 @@ def retrieve_knowledge(
     return _wooyun_engine.retrieve_knowledge(query, context, top_k)
 
 
-# 测试代码
-if __name__ == "__main__":
-    print("开始测试Wooyun RAG")
-
-    # 构建索引
-    success = build_wooyun_index()
-    if not success:
-        print("索引构建失败")
-        exit(1)
-
-    # 测试检索
-    result = retrieve_knowledge(
-        query="SQL注入如何绕过",
-        context={
-            "current_vuln_type": "sql-injection",
-            "tech_stack": ["PHP", "MySQL"],
-            "attempted_methods": []
-        },
-        top_k=3
-    )
-
-    print("\n检索结果:")
-    print(json.dumps(result, ensure_ascii=False, indent=2))
