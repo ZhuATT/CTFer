@@ -249,45 +249,24 @@ class LongMemory:
 
         # 更新索引
         self._update_exp_index(problem_type, filename, target)
-
-
-
-    
-    def _infer_framework(self, steps: list, prob_type: str) -> str:
-        all_results = ' '.join([s.get('result', '') for s in steps]).lower()
-        
-        frameworks = {
-            'Tornado': ['tornado', 'render', 'handler', 'application'],
-            'Flask': ['flask', 'jinja2', 'request', 'session'],
-            'Django': ['django', 'csrf', 'template'],
-            'Spring': ['spring', 'java', 'thymeleaf'],
-            'PHP': ['php', '<?php'],
-        }
-        
-        for fw, keywords in frameworks.items():
-            if any(k in all_results for k in keywords):
-                return f'{fw}(Python)' if fw != 'PHP' else fw
-        
-        return f'{prob_type.upper()}(General)'
-
-    def _infer_framework(self, steps: list, prob_type: str) -> str:
-        all_results = ' '.join([s.get('result', '') for s in steps]).lower()
-        
-        frameworks = {
-            'Tornado': ['tornado', 'render', 'handler', 'application'],
-            'Flask': ['flask', 'jinja2', 'request', 'session'],
-            'Django': ['django', 'csrf', 'template'],
-            'Spring': ['spring', 'java', 'thymeleaf'],
-            'PHP': ['php', '<?php'],
-        }
-        
-        for fw, keywords in frameworks.items():
-            if any(k in all_results for k in keywords):
-                return f'{fw}(Python)' if fw != 'PHP' else fw
-        
-        return f'{prob_type.upper()}(General)'
-
         return str(exp_file)
+
+    def _infer_framework(self, steps: list, prob_type: str) -> str:
+        all_results = ' '.join([s.get('result', '') for s in steps]).lower()
+
+        frameworks = {
+            'Tornado': ['tornado', 'render', 'handler', 'application'],
+            'Flask': ['flask', 'jinja2', 'request', 'session'],
+            'Django': ['django', 'csrf', 'template'],
+            'Spring': ['spring', 'java', 'thymeleaf'],
+            'PHP': ['php', '<?php'],
+        }
+
+        for fw, keywords in frameworks.items():
+            if any(k in all_results for k in keywords):
+                return f'{fw}(Python)' if fw != 'PHP' else fw
+
+        return f'{prob_type.upper()}(General)'
 
     def generate_report(self, problem_type: str, target: str, steps: list, flag: str) -> str:
         framework = self._infer_framework(steps, problem_type)
