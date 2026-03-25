@@ -18,14 +18,16 @@ CTF Agent 工具集 - v2.0 集成双记忆系统
 import re
 import json
 import subprocess
+import warnings
 import requests
 from typing import Dict, List, Any, Optional
 from pathlib import Path
+from urllib3.exceptions import InsecureRequestWarning
 
 from toolkit.base import get_venv_python, run_subprocess
 
 # 导入短期记忆
-from short_memory import get_short_memory, reset_short_memory, ShortMemory, AgentContext
+from short_memory import get_short_memory, reset_short_memory, ShortMemory, AgentContext, extract_flag_candidates
 
 # 导入长期记忆系统
 try:
@@ -124,7 +126,9 @@ def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict
 
     if problem_type == "unknown" and target_url:
         try:
-            resp = requests.get(target_url, timeout=10)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", InsecureRequestWarning)
+                resp = requests.get(target_url, timeout=10, verify=False)
             page_content = resp.text.lower()
             for ptype, keywords in type_keywords.items():
                 if any(k in page_content for k in keywords):
@@ -1178,19 +1182,7 @@ def _extract_findings(output: str) -> List[str]:
 
 def extract_flags(text: str) -> List[str]:
     """从文本中提取flag"""
-    patterns = [
-        r'flag\{[^}]+\}',
-        r'ctf\{[^}]+\}',
-        r'FLAG\{[^}]+\}',
-        r'HCTF\{[^}]+\}',
-        r'ctfshow\{[^}]+\}',  # 添加CTFshow格式
-        r'tfshow\{[^}]+\}',    # 添加截断的ctfshow格式
-    ]
-    flags = []
-    for pattern in patterns:
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        flags.extend(matches)
-    return list(set(flags))
+    return extract_flag_candidates(text)
 
 
 def summarize_output(output: str, max_length: int = 2000) -> str:
@@ -1365,7 +1357,7 @@ def fenjing_crack_form(
         # 提取flag
         flags = extract_flags(output)
         if flags:
-            memory.target.add_flag(flags[0])
+            memory.add_flag(flags[0])
 
         success = "error" not in output.lower() and resp.status_code == 200
 

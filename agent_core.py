@@ -834,6 +834,110 @@ class AutoAgent:
             if value not in ("", None, [], {})
         }
 
+    def _candidate_canonical_tool(self, candidate: Dict[str, Any]) -> str:
+        candidate = dict(candidate or {})
+        action_type = str(candidate.get("action_type") or candidate.get("type") or "").strip()
+        expected_tool = str(candidate.get("expected_tool") or action_type).strip()
+        return self._canonical_tool_name(
+            {
+                "type": action_type or expected_tool,
+                "expected_tool": expected_tool or action_type,
+                "params": dict(candidate.get("params") or {}),
+            }
+        )
+
+    def _graph_candidate_sort_key(
+        self,
+        candidate: Dict[str, Any],
+        *,
+        signals: Optional[Dict[str, Any]] = None,
+        recent_failure_stats: Optional[Dict[str, Any]] = None,
+        replan: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        candidate = dict(candidate or {})
+        signals = dict(signals or {})
+        recent_failure_stats = dict(recent_failure_stats or {})
+        replan_payload = dict(replan or {})
+
+        action_id = str(candidate.get("action_id") or candidate.get("id") or "").strip()
+        action_type = str(candidate.get("action_type") or candidate.get("type") or "").strip()
+        target = str(candidate.get("target") or "").strip()
+        canonical_tool = self._candidate_canonical_tool(candidate)
+
+        recent_tool_counts = dict(recent_failure_stats.get("canonical_tool_counts") or {})
+        recent_action_type_counts = dict(recent_failure_stats.get("action_type_counts") or {})
+        graph_tool_counts = dict(signals.get("failed_tool_counts") or {})
+        blocked_tools = {
+            str(value or "").strip()
+            for value in replan_payload.get("blocked_tools") or []
+            if str(value or "").strip()
+        }
+        blocked_action_ids = {
+            str(value or "").strip()
+            for value in [
+                *(replan_payload.get("blocked_action_ids") or []),
+                replan_payload.get("source_action_id") or "",
+            ]
+            if str(value or "").strip()
+        }
+        seen_targets = {
+            str(step.target or "").strip()
+            for step in self.memory.steps
+            if str(step.target or "").strip()
+        }
+        current_target = str(self.target_url or getattr(self.agent_context, "url", "") or "").strip()
+
+        recent_tool_failures = int(recent_tool_counts.get(canonical_tool, 0))
+        graph_tool_failures = int(graph_tool_counts.get(canonical_tool, 0))
+        recent_action_type_failures = int(recent_action_type_counts.get(action_type, 0))
+        linked_to_source = any(
+            str(candidate.get(key) or "").strip() in blocked_action_ids
+            for key in ("alternative_to", "derived_from", "source_action_id")
+        )
+        finding_backed = bool(
+            str(candidate.get("source_finding_kind") or "").strip()
+            and str(candidate.get("source_finding_value") or "").strip()
+        )
+        new_target = bool(target and target != current_target and target not in seen_targets)
+        diversification_needed = str(replan_payload.get("reason_code") or replan_payload.get("reason") or "").strip() in {
+            "limited_diversity",
+            "consecutive_failures",
+        }
+
+        return (
+            0 if canonical_tool and canonical_tool not in blocked_tools else 1,
+            0 if diversification_needed and recent_tool_failures == 0 else 1,
+            recent_tool_failures,
+            graph_tool_failures,
+            recent_action_type_failures,
+            0 if new_target else 1,
+            0 if linked_to_source else 1,
+            0 if finding_backed else 1,
+            canonical_tool,
+            action_type,
+            target,
+            action_id,
+        )
+
+    def _rank_graph_informed_candidates(
+        self,
+        candidates: List[Dict[str, Any]],
+        *,
+        signals: Optional[Dict[str, Any]] = None,
+        recent_failure_stats: Optional[Dict[str, Any]] = None,
+        replan: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        ranked = [dict(candidate) for candidate in candidates if candidate]
+        return sorted(
+            ranked,
+            key=lambda candidate: self._graph_candidate_sort_key(
+                candidate,
+                signals=signals,
+                recent_failure_stats=recent_failure_stats,
+                replan=replan,
+            ),
+        )
+
     def _build_action_from_candidate(self, candidate: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         candidate = dict(candidate or {})
         action_type = str(candidate.get("action_type") or candidate.get("type") or "").strip()
@@ -1105,7 +1209,12 @@ class AutoAgent:
                 )
             )
 
-        return candidates
+        return self._rank_graph_informed_candidates(
+            candidates,
+            signals=signals,
+            recent_failure_stats=recent_failure_stats,
+            replan=active_replan,
+        )
 
     def _build_replan_payload(self) -> Dict[str, Any]:
         steps = self.memory.steps
@@ -1619,14 +1728,15 @@ print(f"Content: {{resp.text}}")
                 )
                 result = self._execute_action(action)
                 self.last_result = result
-                action_success = self._resolve_action_success(action, default=True, step_num=step_num)
+                memory_step = self._latest_memory_step_for_action(action, step_num=step_num)
+                action_success = self._resolve_action_success(action, default=False, step_num=step_num)
                 self.graph_manager.apply_graph_op(
                     action.get("graph_op"),
                     action=action,
                     step=step_num,
                     success=action_success,
                     result=result,
-                    memory_step=self._latest_memory_step_for_action(action, step_num=step_num),
+                    memory_step=memory_step,
                 )
                 self._refresh_graph_state()
                 replan_payload = dict(self.last_replan or {})
@@ -1644,14 +1754,18 @@ print(f"Content: {{resp.text}}")
                     self.last_replan = {}
                 self._emit_event(
                     event_callback,
-                    "planner",
+                    "tool_node",
                     {
                         "step": step_num,
                         "action": dict(action),
+                        "result": result,
+                        "success": action_success,
                     },
                 )
-                if flags:
+                flags = extract_flags(result)
+                if flags and action_success:
                     flag = flags[0]
+                    self.memory.add_flag(flag)
                     self.log(f"=" * 60)
                     self.log(f"[SUCCESS] FLAG FOUND: {flag}", "SUCCESS")
                     self.log(f"=" * 60)
@@ -1664,6 +1778,8 @@ print(f"Content: {{resp.text}}")
                         "steps": step_num,
                         "message": f"步骤{step_num}: 成功获取flag"
                     }
+                if flags:
+                    self.log(f"[FLAG_CANDIDATE] 检测到未确认 flag 候选: {flags[0]}", "INFO")
 
                 clues = self._analyze_output(result)
                 self.log(f"发现线索: {clues}", "ANALYSIS")

@@ -1,7 +1,7 @@
 # CHYing 参考重构方案
 
 ## 0. 当前落地进度（基于当前代码静态检查）
-> 说明：以下勾选基于当前仓库实现与定向验证核对；P2-Alpha help/resume continuity、RAG-before-help 最小 hard gate 与本轮 P3-Alpha 最小闭环已完成针对性验证。
+> 说明：以下勾选基于当前仓库实现与定向验证核对；P2-Alpha help/resume continuity、RAG-before-help 最小 hard gate、本轮 P3-Alpha 最小闭环与 P3-Beta 候选排序小切片已完成针对性验证。
 
 - [x] `AutoAgent.solve_challenge()` 已接入 `tools.init_problem()`，主入口不再绕过知识加载链路（`agent_core.py:344-363`）
 - [x] `AgentContext` 已落到 `ShortMemory.context`，并与 `target.url/problem_type` 同步（`short_memory.py:66-79`，`short_memory.py:269-329`）
@@ -14,11 +14,13 @@
 - [x] 恢复连续性相关的定向验证已完成：help → resume continuity 与 `ShortMemory.add_patch()` / `get_patch_summary()` 链路均已核对
 - [x] 进度文档口径已对齐：规范执行顺序明确为 `orchestrator/main -> initialize_challenge -> init_problem -> 先消费知识资源 -> Advisor/Planner/Executor/ToolNode -> 受阻后主动 RAG -> help/resume`，并明确区分“规范顺序”与“当前代码已完全强制实现”
 - [~] P3-Alpha 最小闭环已落地：`graph_manager.py` 已提供 `planner_signals()` 等 graph-derived signals，`agent_core.py` 已通过 `_build_graph_informed_action()` 消费 guidance / endpoint / parameter / repeated action failure，并已完成最小 graph/planner 行为验证；但完整 PoG / Reflector / 因果图增强仍未完成
+- [x] P3-Beta 小切片已落地：graph-informed replan candidates 已接入确定性排序，`_collect_graph_informed_actions()` 会统一经过 `_rank_graph_informed_candidates()`，`selected_alternative`、`_build_graph_informed_action()` 与 `plan_next_action()` 已共享同一排序结果，不再依赖候选生成顺序
 - [x] P2-Beta 已完成：`ShortMemory` 已支持 `action_id` 级失败聚合、`latest_step_for_action()` 查询，`_should_ask_for_help()` / replanning / skip 判定已优先消费动作级失败信息，相关失败统计与 skip 行为已完成定向验证
 - [x] P2-Gamma 核心已完成：`config.json["venv"]["python_path"]` 已成为唯一 Python 真值源，`tools.py` / `toolkit/base.py` / `utils/python_runner.py` / `toolkit/fenjing.py` 已收敛到 shared runtime，`tool_node.success` 已与 memory step success 对齐，并完成 shared runtime / success 语义相关定向验证
 - [x] 本轮定向验证已完成：graph/planner 最小闭环、help/resume continuity、RAG-before-help 最小 hard gate 与 shared runtime 核心语义均已核对
 - [x] RAG-before-help 最小 hard gate 已落地：`agent_core.py::maybe_request_help()` 命中 help 阈值后，会先执行一次 `retrieve_rag_knowledge(...)`，并把 `rag_query/rag_summary/rag_suggested_approach` 写入 `ShortMemory.context` 供下一轮 planner 消费；仅在同一失败窗口再次命中时才真正进入 help
 - [x] RAG-before-help 自动化回归已补齐：`tests/test_rag_before_help.py` 已覆盖“首次命中先 RAG、同窗口二次命中再 help、resume 后重置 RAG gate”三段行为
+- [x] graph replan ranking 自动化回归已补齐：`tests/test_graph_replan_ranking.py` 已覆盖 new endpoint 优先、blocked tool 降权、稳定 tie-breaker，以及 `selected_alternative` / 最终 action 选择一致性
 
 
 ## 1. 背景与目标

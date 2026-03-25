@@ -30,6 +30,41 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 
+FLAG_PATTERNS = [
+    r'ctfshow\{[^}\r\n]+\}',
+    r'tfshow\{[^}\r\n]+\}',
+    r'HCTF\{[^}\r\n]+\}',
+    r'FLAG\{[^}\r\n]+\}',
+    r'flag\{[^}\r\n]+\}',
+    r'ctf\{[^}\r\n]+\}',
+]
+
+
+def extract_flag_candidates(text: str) -> List[str]:
+    """从文本中提取 flag 候选，保持首次出现顺序。"""
+    result_text = str(text or "")
+    matches = []
+    occupied_spans = []
+    for pattern in FLAG_PATTERNS:
+        for match in re.finditer(pattern, result_text, re.IGNORECASE):
+            span = match.span()
+            if any(span[0] < end and span[1] > start for start, end in occupied_spans):
+                continue
+            occupied_spans.append(span)
+            matches.append((match.start(), match.group(0)))
+
+    matches.sort(key=lambda item: item[0])
+    ordered_flags: List[str] = []
+    seen = set()
+    for _, flag in matches:
+        normalized = flag.lower()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        ordered_flags.append(flag)
+    return ordered_flags
+
+
 @dataclass
 class Step:
     """单个解题步骤"""
@@ -481,11 +516,10 @@ class ShortMemory:
             if p not in self.target.parameters:
                 self.target.parameters.append(p)
 
-        # 提取Flag
-        flag_pattern = r'flag\{[^}]+\}|ctf\{[^}]+\}|FLAG\{[^}]+\}'
-        flags = re.findall(flag_pattern, result, re.IGNORECASE)
-        for flag in flags:
-            self.add_flag(flag)
+        # 提取Flag候选
+        for flag in extract_flag_candidates(result):
+            if flag not in step.key_findings:
+                step.key_findings.append(flag)
 
 
 # 全局实例（单道题目使用）
@@ -507,4 +541,4 @@ def reset_short_memory():
     print("[Memory] 已开始新题目的短期记忆")
 
 
-__all__ = ["ShortMemory", "get_short_memory", "reset_short_memory", "AgentContext", "Step"]
+__all__ = ["ShortMemory", "get_short_memory", "reset_short_memory", "AgentContext", "Step", "extract_flag_candidates"]
