@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -344,6 +345,29 @@ def orchestrate_challenge(
     )
 
 
+def _safe_stdout_write(text: str) -> None:
+    try:
+        sys.stdout.write(text)
+        if not text.endswith("\n"):
+            sys.stdout.write("\n")
+        sys.stdout.flush()
+    except UnicodeEncodeError:
+        encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+        data = text.encode(encoding, errors="replace")
+        buffer = getattr(sys.stdout, "buffer", None)
+        if buffer is not None:
+            buffer.write(data)
+            if not text.endswith("\n"):
+                buffer.write(b"\n")
+            buffer.flush()
+        else:
+            fallback = data.decode(encoding, errors="replace")
+            sys.stdout.write(fallback)
+            if not fallback.endswith("\n"):
+                sys.stdout.write("\n")
+            sys.stdout.flush()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="CTF Agent 项目级 orchestrator 入口")
     parser.add_argument("--url", default="", help="目标 URL")
@@ -382,17 +406,17 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
 
     if args.json:
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        _safe_stdout_write(json.dumps(result, ensure_ascii=False, indent=2))
     else:
         if result.get("success"):
-            print(f"[SUCCESS] Flag: {result.get('flag', '')}")
-            print(f"[SUCCESS] Steps: {result.get('steps', 0)}")
+            _safe_stdout_write(f"[SUCCESS] Flag: {result.get('flag', '')}")
+            _safe_stdout_write(f"[SUCCESS] Steps: {result.get('steps', 0)}")
         else:
-            print(f"[RESULT] {result.get('message', 'Unknown result')}")
+            _safe_stdout_write(f"[RESULT] {result.get('message', 'Unknown result')}")
             state = result.get("orchestrator_state", {})
             summary = state.get("memory_summary")
             if summary:
-                print(summary)
+                _safe_stdout_write(summary)
 
     return 0 if result.get("success") else 1
 

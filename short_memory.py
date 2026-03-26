@@ -509,10 +509,20 @@ class ShortMemory:
         for ep in endpoints:
             self.add_endpoint(ep)
 
+        auth_endpoint_pattern = r'Found login form endpoint:\s*(/[^\s]+)'
+        auth_endpoints = re.findall(auth_endpoint_pattern, result, re.IGNORECASE)
+        for ep in auth_endpoints:
+            self.add_endpoint(ep)
+
         # 提取参数
         param_pattern = r'[?&]([^=]+)='
         params = re.findall(param_pattern, result)
         for p in params:
+            if p not in self.target.parameters:
+                self.target.parameters.append(p)
+
+        auth_params = re.findall(r'Form field:\s*([A-Za-z0-9_\-]+)', result)
+        for p in auth_params:
             if p not in self.target.parameters:
                 self.target.parameters.append(p)
 

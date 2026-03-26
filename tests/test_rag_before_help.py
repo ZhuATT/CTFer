@@ -1,3 +1,4 @@
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -381,6 +382,173 @@ class LongMemoryRegressionTest(unittest.TestCase):
             self.assertIn("ctfshow{saved_demo}", exp_file.read_text(encoding="utf-8"))
 
         self.assertTrue(saved_path)
+
+
+
+
+class AuthReconExtractionRegressionTest(unittest.TestCase):
+    def setUp(self):
+        reset_memory()
+
+    def tearDown(self):
+        reset_memory()
+
+    def test_summarize_auth_recon_response_extracts_login_endpoint_and_fields(self):
+        html = """
+        <html>
+          <body>
+            <form action="/check.php" method="post">
+              <input type="text" name="u" />
+              <input type="password" name="p" />
+              <input type="hidden" name="csrf_token" value="abc" />
+            </form>
+          </body>
+        </html>
+        """
+        summary = tools.summarize_auth_recon_response(
+            "https://target.test/login.php",
+            200,
+            {"Set-Cookie": "PHPSESSID=demo"},
+            html,
+        )
+
+        self.assertEqual(summary["form_info"]["action"], "/check.php")
+        self.assertEqual(summary["form_info"]["method"], "POST")
+        self.assertEqual(summary["endpoints"], ["/check.php"])
+        self.assertEqual(summary["parameters"], ["u", "p", "csrf_token"])
+        self.assertIn("password_field:p", summary["auth_hints"])
+        self.assertIn("token_field:csrf_token", summary["auth_hints"])
+        self.assertIn("login_endpoint:/check.php", summary["auth_hints"])
+        self.assertIn("cookie_present", summary["auth_hints"])
+
+    def test_short_memory_extracts_auth_findings_from_recon_output(self):
+        memory = tools.get_memory()
+        memory.add_step(
+            tool="python_poc",
+            target="https://target.test",
+            params={},
+            result="""Status: 200\nFound login form endpoint: /check.php\nForm field: u\nForm field: p\nAUTH_RECON_SUMMARY:\n{\"endpoints\":[\"/check.php\"],\"parameters\":[\"u\",\"p\"],\"auth_hints\":[\"username_field:u\",\"password_field:p\"]}""",
+            success=True,
+            action_meta={
+                "action_id": "recon-1",
+                "action_type": "recon",
+                "expected_tool": "recon",
+                "canonical_tool": "python_poc",
+            },
+        )
+
+        self.assertIn("/check.php", memory.target.endpoints)
+        self.assertIn("u", memory.target.parameters)
+        self.assertIn("p", memory.target.parameters)
+
+
+class OrchestratorEncodingRegressionTest(unittest.TestCase):
+    def test_safe_stdout_write_handles_unicode_encode_error(self):
+        class FailingStdout(io.StringIO):
+            encoding = "gbk"
+
+            def __init__(self):
+                super().__init__()
+                self.buffer = io.BytesIO()
+                self.failed_once = False
+
+            def write(self, s):
+                if not self.failed_once:
+                    self.failed_once = True
+                    raise UnicodeEncodeError("gbk", s, 0, 1, "illegal multibyte sequence")
+                return super().write(s)
+
+            def flush(self):
+                return None
+
+        stdout = FailingStdout()
+        with patch("sys.stdout", stdout):
+            from orchestrator import _safe_stdout_write
+
+            _safe_stdout_write("结果包含替换字符 � 和中文")
+
+        written = stdout.buffer.getvalue().decode("gbk", errors="replace")
+        self.assertIn("结果包含替换字符", written)
+
+
+class AuthPlannerRegressionTest(unittest.TestCase):
+    def setUp(self):
+        reset_memory()
+
+    def tearDown(self):
+        reset_memory()
+
+    def _make_agent(self) -> AutoAgent:
+        agent = AutoAgent(max_failures=3, max_steps=5, verbose=False, min_steps_before_help=10)
+        agent.target_url = "https://target.test"
+        agent.target_type = "auth"
+        agent.init_result = {"problem_type": "auth", "loaded_resources": {}}
+        agent.memory.set_context(url=agent.target_url, description="auth demo")
+        agent._sync_agent_context()
+        return agent
+
+    def test_decide_next_action_prefers_auth_poc_before_graph_action(self):
+        agent = self._make_agent()
+        agent.memory.add_step(
+            tool="python_poc",
+            target=agent.target_url,
+            params={},
+            result="login form discovered",
+            success=False,
+            action_meta={
+                "action_id": "recon-1",
+                "action_type": "recon",
+                "expected_tool": "recon",
+                "canonical_tool": "python_poc",
+            },
+        )
+        agent.memory.target.endpoints = ["check.php"]
+        agent.memory.target.parameters = ["u", "p"]
+        agent._build_graph_informed_action = lambda: agent._build_action(
+            "recon",
+            target=agent.target_url,
+            description="graph fallback",
+            intent="graph fallback",
+            expected_tool="recon",
+        )
+
+        action = agent._decide_next_action()
+
+        self.assertEqual(action["type"], "poc")
+        self.assertEqual(action["expected_tool"], "python_poc")
+        self.assertEqual(action["params"]["endpoint"], "check.php")
+        self.assertEqual(action["params"]["login_params"], ["u", "p"])
+        self.assertIn("admin888", action["params"]["code"])
+        self.assertIn('requests.post', action["params"]["code"])
+
+    def test_execute_poc_action_accepts_code_from_params(self):
+        agent = self._make_agent()
+        captured = []
+        original_execute = agent_core.execute_python_poc
+
+        def fake_execute_python_poc(code, timeout=60, memory_meta=None):
+            captured.append({"code": code, "timeout": timeout, "memory_meta": dict(memory_meta or {})})
+            return "ok"
+
+        agent_core.execute_python_poc = fake_execute_python_poc
+        try:
+            action = agent._build_action(
+                "poc",
+                target=agent.target_url,
+                description="auth brute force",
+                intent="auth brute force",
+                expected_tool="python_poc",
+                params={"code": "print('demo')"},
+            )
+            result = agent._execute_poc_action(action)
+        finally:
+            agent_core.execute_python_poc = original_execute
+
+        self.assertEqual(result, "ok")
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(captured[0]["code"], "print('demo')")
+        self.assertEqual(captured[0]["timeout"], 60)
+        self.assertEqual(captured[0]["memory_meta"]["canonical_tool"], "python_poc")
 
 
 class InitProblemTlsRegressionTest(unittest.TestCase):
