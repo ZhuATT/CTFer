@@ -106,7 +106,7 @@ def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict
         "sqli": ["sql", "injection", "inject", "select", "union", "database", "注入", "mysql", "mariadb", "sqlmap"],
         "xss": ["xss", "script", "alert", "跨站", "javascript"],
         "lfi": ["lfi", "local file", "文件包含", "读取", "file inclusion", "include", "path traversal"],
-        "rce": ["rce", "远程代码", "command", "exec", "命令执行", "eval", "system", "shell"],
+        "rce": ["rce", "远程代码", "command", "exec", "命令执行", "eval", "system", "shell", "cmd"],
         "ssrf": ["ssrf", "内网", "localhost", "gopher", "fetch"],
         "upload": ["upload", "上传", "文件上传"],
         "auth": ["登录", "login", "auth", "password", "认证", "bypass", "admin"],
@@ -725,11 +725,29 @@ def execute_python_poc(code: str, timeout: int = 120,
 
     # 检查是否已尝试过（成功的不重复执行）
     if memory.has_tried("python_poc", code_summary, None):
-        return f"[Skip] 该PoC已执行过"
+        # 写入显式 skip step，避免旧 step 状态泄漏到当前动作
+        memory.add_step(
+            tool="python_poc",
+            target=code_summary,
+            params={},
+            result="[Skip] 该PoC已执行过",
+            success=False,
+            action_meta=action_meta,
+        )
+        return "[Skip] 该PoC已执行过"
 
     # 检查是否已多次失败
     if skip_if_failed and memory.should_skip("python_poc", code_summary, None, max_failures):
         fail_count = memory.fail_count("python_poc", code_summary)
+        # 写入显式 skip step，避免旧 step 状态泄漏到当前动作
+        memory.add_step(
+            tool="python_poc",
+            target=code_summary,
+            params={},
+            result=f"[Skip] 该PoC已失败 {fail_count} 次，跳过执行",
+            success=False,
+            action_meta=action_meta,
+        )
         return f"[Skip] 该PoC已失败 {fail_count} 次，跳过执行"
 
     import os
@@ -831,12 +849,13 @@ def extract_form_fields(html: str, form_index: int = 0) -> Dict[str, Any]:
     """提取HTML表单字段"""
     try:
         from bs4 import BeautifulSoup
+        from urllib.parse import urlparse
         soup = BeautifulSoup(html, 'html.parser')
         forms = soup.find_all('form')
 
         if not forms:
             return {"error": "未找到表单", "action": "", "method": "GET",
-                    "fields": {}, "field_order": []}
+                    "fields": {}, "field_order": [], "form_count": 0, "auth_hints": []}
 
         form = forms[form_index]
         result = {
@@ -844,7 +863,9 @@ def extract_form_fields(html: str, form_index: int = 0) -> Dict[str, Any]:
             'method': form.get('method', 'GET').upper(),
             'fields': {},
             'field_order': [],
-            'error': None
+            'error': None,
+            'form_count': len(forms),
+            'auth_hints': []
         }
 
         # 提取input字段
@@ -862,14 +883,88 @@ def extract_form_fields(html: str, form_index: int = 0) -> Dict[str, Any]:
             }
             result['field_order'].append(name)
 
+        lower_action = str(result['action'] or '').lower()
+        for field_name, field_info in result['fields'].items():
+            field_lower = field_name.lower()
+            field_type = str(field_info.get('type') or '').lower()
+            if any(token in field_lower for token in ['user', 'name', 'email', 'login', 'account']):
+                result['auth_hints'].append(f'username_field:{field_name}')
+            if any(token in field_lower for token in ['pass', 'pwd']):
+                result['auth_hints'].append(f'password_field:{field_name}')
+            if any(token in field_lower for token in ['csrf', 'token']):
+                result['auth_hints'].append(f'token_field:{field_name}')
+            if field_type == 'password' and f'password_field:{field_name}' not in result['auth_hints']:
+                result['auth_hints'].append(f'password_field:{field_name}')
+            if field_info.get('hidden') and any(token in field_lower for token in ['csrf', 'token', 'session']):
+                result['auth_hints'].append(f'hidden_auth_field:{field_name}')
+
+        if any(token in lower_action for token in ['login', 'signin', 'auth', 'check']):
+            result['auth_hints'].append(f'login_action:{result["action"]}')
+
+        parsed_action_path = urlparse(result['action']).path if result['action'] else ''
+        if parsed_action_path and any(token in parsed_action_path.lower() for token in ['login', 'signin', 'auth', 'check']):
+            result['auth_hints'].append(f'login_endpoint:{parsed_action_path}')
+
+        result['auth_hints'] = list(dict.fromkeys(result['auth_hints']))
         return result
 
     except ImportError:
         return {"error": "BeautifulSoup未安装: pip install beautifulsoup4",
-                "action": "", "method": "GET", "fields": {}, "field_order": []}
+                "action": "", "method": "GET", "fields": {}, "field_order": [], "form_count": 0, "auth_hints": []}
     except Exception as e:
         return {"error": str(e), "action": "", "method": "GET",
-                "fields": {}, "field_order": []}
+                "fields": {}, "field_order": [], "form_count": 0, "auth_hints": []}
+
+
+def summarize_auth_recon_response(target_url: str, status_code: int, headers: Dict[str, Any], response_text: str) -> Dict[str, Any]:
+    """从 recon 响应中提取 auth 场景可复用的结构化发现。"""
+    from urllib.parse import urljoin, urlparse
+
+    findings: List[str] = []
+    endpoints: List[str] = []
+    parameters: List[str] = []
+    auth_hints: List[str] = []
+
+    form_info = extract_form_fields(response_text)
+    if not form_info.get("error"):
+        action = str(form_info.get("action") or "").strip()
+        method = str(form_info.get("method") or "GET").upper()
+        field_order = list(form_info.get("field_order") or [])
+        auth_hints.extend(list(form_info.get("auth_hints") or []))
+        if action:
+            joined = urljoin(target_url, action)
+            parsed = urlparse(joined)
+            endpoint = parsed.path or action
+            if endpoint:
+                endpoints.append(endpoint)
+                findings.append(f"Found login form endpoint: {endpoint}")
+        if method:
+            findings.append(f"Form method: {method}")
+        for field_name in field_order:
+            parameters.append(field_name)
+            findings.append(f"Form field: {field_name}")
+
+    set_cookie = headers.get("Set-Cookie") or headers.get("set-cookie") or ""
+    if set_cookie:
+        auth_hints.append("cookie_present")
+        findings.append("Set-Cookie observed")
+        for token in ["session", "phpsessid", "token", "csrf"]:
+            if token in set_cookie.lower():
+                auth_hints.append(f"cookie_hint:{token}")
+
+    lower_text = response_text.lower()
+    if any(token in lower_text for token in ["login", "signin", "password", "username"]):
+        auth_hints.append("login_page_keywords")
+
+    return {
+        "status_code": status_code,
+        "headers": dict(headers),
+        "form_info": form_info,
+        "findings": list(dict.fromkeys(findings)),
+        "endpoints": list(dict.fromkeys([ep for ep in endpoints if ep])),
+        "parameters": list(dict.fromkeys([param for param in parameters if param])),
+        "auth_hints": list(dict.fromkeys(auth_hints)),
+    }
 
 
 # ==================== 工具封装（带记忆） ====================
@@ -1177,7 +1272,20 @@ def _extract_findings(output: str) -> List[str]:
         if re.search(pattern, output, re.IGNORECASE):
             findings.append(desc)
 
-    return findings
+    auth_summary_match = re.search(r'AUTH_RECON_SUMMARY:\s*(\{.*\})', output, re.DOTALL)
+    if auth_summary_match:
+        try:
+            auth_summary = json.loads(auth_summary_match.group(1))
+        except json.JSONDecodeError:
+            auth_summary = {}
+        for endpoint in auth_summary.get("endpoints", []) or []:
+            findings.append(f"Found login form endpoint: {endpoint}")
+        for param in auth_summary.get("parameters", []) or []:
+            findings.append(f"Form field: {param}")
+        for hint in auth_summary.get("auth_hints", []) or []:
+            findings.append(f"Auth hint: {hint}")
+
+    return list(dict.fromkeys(findings))
 
 
 def extract_flags(text: str) -> List[str]:

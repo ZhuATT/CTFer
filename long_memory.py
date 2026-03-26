@@ -216,6 +216,7 @@ class LongMemory:
         filename = f"{date_str}_{self._slugify(target)}.md"
 
         # 构建Markdown内容
+        techniques_md = "".join(f"- {t}\n" for t in (key_techniques or []))
         content = f"""# 解题经验: {problem_type}
 
 ## 基本信息
@@ -225,7 +226,7 @@ class LongMemory:
 - **Flag**: {flag if flag else "未记录"}
 
 ## 关键技术
-{"".join(f"- {t}\\n" for t in key_techniques or [])}
+{techniques_md}
 
 ## 解题步骤
 """
