@@ -63,6 +63,9 @@ class OrchestratorState:
     last_help_reason: str = ""
     graph_state: Dict[str, Any] = field(default_factory=dict)
     shared_findings: List[Dict[str, Any]] = field(default_factory=list)
+    replan_reason: str = ""
+    blocked_findings: List[Dict[str, Any]] = field(default_factory=list)
+    selected_alternative: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -157,6 +160,10 @@ class CTFOrchestrator:
         self.state.last_help_reason = self.agent.last_help_reason or self.state.last_help_reason
         self.state.shared_findings = list(getattr(agent_context, "shared_findings", []))
         self.state.graph_state = self.agent.graph_manager.snapshot()
+        latest_replan = dict(self.state.graph_state.get("latest_replan") or {})
+        self.state.replan_reason = str(latest_replan.get("reason_detail") or latest_replan.get("reason") or "")
+        self.state.blocked_findings = list(latest_replan.get("blocked_findings") or [])
+        self.state.selected_alternative = dict(latest_replan.get("selected_alternative") or {})
 
         if self.state.last_action:
             self.state.pending_task = dict(self.state.last_action)
