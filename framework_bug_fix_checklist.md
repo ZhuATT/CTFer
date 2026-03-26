@@ -49,6 +49,68 @@
 
 ## 本轮新增待修项（基于后续联调补充）
 
+### 联调样例（2026-03-26）
+
+- 目标：`https://d47fc000-7c7f-44dc-90a7-4637936a7a76.challenge.ctf.show/`
+- 首页是 `phpinfo()`，hint 提示“可以扫目录试一下”
+- 主链实际表现：初始化误识别为 `sqli`，先跑 `sqlmap`，随后在 `dir_scan` 上长时间循环；`dirsearch` 运行期因缺少 `psycopg` 崩溃，但整体策略未及时切换，也没有把 `.git/HEAD` 这类高价值发现转成后续规划
+- 手工联调已确认目标存在 `.git` 泄露，可恢复出 `backdoor.php` 并进一步读到 `/var/www/flag.txt`；说明当前问题主要在框架识别、工具契约与 planner 消费链路，而不是目标本身不可利用
+
+### P0：先修会直接污染执行成功语义的问题
+
+- [x] 修正 toolkit runtime 将工具崩溃误记为成功
+  - 问题：`BaseTool.run()` 当前用 `returncode == 0 or _check_success(stdout)` 判定 success，而 `toolkit/dirsearch/__init__.py::_check_success()` 直接返回 `True`，导致 dirsearch 即使 traceback 退出也可能被视为成功。
+  - 暴露现象：本轮联调中 dirsearch 因缺失 `psycopg` 报错退出，但主链摘要与后续行为没有把它稳定当成失败处理。
+  - 修复目标：统一默认 success 语义为“进程成功退出”，只有显式声明的适配器例外才允许放宽；同时补充结构化 `parsed/artifacts` 结果供上层消费。
+  - 当前结果：`toolkit/base.py` 已统一 `ToolResult` 契约并以 `returncode == 0` 作为默认 success 判定；`toolkit/dirsearch/__init__.py` 维持同一语义。
+  - 相关位置：`toolkit/base.py`，`toolkit/dirsearch/__init__.py`
+
+- [x] 修正 dirsearch 包装函数未把高价值发现结构化沉淀
+  - 问题：`tools.py::dirsearch_scan_url()` 目前只按 stdout 文本粗略记账，`.git/HEAD`、备份包、`.env` 等高价值发现没有稳定进入 memory / graph 信号。
+  - 暴露现象：即使手工探测到 `.git/HEAD` 可访问，主链也不会自动切到泄露仓库利用分支。
+  - 修复目标：解析 dirsearch 结果并把命中的端点、状态码、敏感泄露路径写入 memory findings，保证 planner 可消费。
+  - 当前结果：`summarize_dirsearch_findings(...)` 已统一归一化 `typed_findings`；`dirsearch_scan_url()` 现会把 `parsed/artifacts/observations` 连同 `yield_class` 一并写入 memory step，graph/planner 可直接消费。
+  - 相关位置：`tools.py:1114-1223`，`short_memory.py:_extract_from_step()`
+
+### P1：修初始化识别偏航问题
+
+- [ ] 修正 `phpinfo()` 页面被误识别为 `sqli`
+  - 问题：`init_problem()` 当前基于页面关键字做题型识别，`phpinfo()` 页面中包含大量 `mysql/sql` 文本，容易被误判为 `sqli`。
+  - 暴露现象：本轮联调一开始就加载了 SQLi 技能并执行 `sqlmap`，偏离真实利用链。
+  - 修复目标：为 `phpinfo()` / 信息泄露 / 配置泄露建立高优先级 heuristic，避免被泛化 SQL 关键字抢先命中。
+  - 相关位置：`tools.py:82-143`
+
+- [ ] 修正 hint 辅助分类对初始化结果的降级覆盖
+  - 问题：`AutoAgent.initialize_challenge()` 中 `_classify_problem(hint)` 会对 `init_problem()` 的结果进行二次覆盖，缺少“只增强不降级”的保护。
+  - 暴露现象：当 hint 提到“扫目录”“phpinfo”时，主链仍可能被拉回错误题型或泛化侦察路径。
+  - 修复目标：限制 hint 分类只在高置信时覆盖，并保护初始化阶段已识别出的高价值泄露类信号。
+  - 相关位置：`agent_core.py:370-407`，`agent_core.py:_classify_problem()`
+
+### P2：修 planner 空转与高价值发现消费不足
+
+- [ ] 修正 `dir_scan` 无增益循环缺少熔断
+  - 问题：`_decide_next_action()` 当前在失败 fallback 中容易持续回落到 `dir_scan`，即使最近没有新增 endpoint/finding 也会重复构造同类动作。
+  - 暴露现象：本轮联调 20 步内大量步骤都停留在 `dir_scan`，未发生有效横向切换。
+  - 修复目标：为重复 `dir_scan` 增加熔断和改路逻辑，在无增益时优先切到 graph-informed alternative / recon exploit 分支。
+  - 相关位置：`agent_core.py:_decide_next_action()`
+
+- [ ] 修正 `.git/HEAD` 等高价值泄露未触发后续候选动作
+  - 问题：`_collect_graph_informed_actions()` 对 guidance、endpoint、parameter 有一定消费，但没有覆盖 `.git` 泄露、备份包、源码泄露等高价值 finding。
+  - 暴露现象：即使目标已暴露 `.git/HEAD`，planner 仍主要在普通 recon/dir_scan 范围内打转。
+  - 修复目标：把 `.git/HEAD`、`.git/config`、备份文件、源码泄露等纳入 graph-informed candidate 生成，优先导向进一步利用动作。
+  - 相关位置：`agent_core.py:1011-1346`，`graph_manager.py:591-690`
+
+### P3：补回归覆盖
+
+- [ ] 为本轮暴露的框架问题补最小回归测试
+  - 目标：避免后续再次出现“phpinfo 误判”“工具崩溃记成功”“重复 dir_scan 空转”“高价值 `.git` finding 不进 planner”。
+  - 建议至少覆盖：
+    - `init_problem()` 遇到 `phpinfo()` 页面时不应直接判为 `sqli`
+    - dirsearch 非零退出时 memory step / ToolNode 必须是失败
+    - 最近已重复 `dir_scan` 且无新发现时，planner 不应继续选择 `dir_scan`
+    - 出现 `.git/HEAD` finding 时，graph-informed actions 能生成非目录扫描候选
+  - 相关位置：`tests/` 下新增或扩展现有回归测试文件
+
 ### 联调样例（2026-03-25）
 
 - 目标：`https://497ece5a-d79a-449a-a6a2-cffbea3ff381.challenge.ctf.show/`

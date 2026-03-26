@@ -136,18 +136,41 @@ class DirsearchTool(BaseTool):
 
         return " ".join(args)
 
-    def _check_success(self, output: str) -> bool:
-        """
-        检查输出是否表示成功
+    def _is_sensitive_path(self, path: str) -> bool:
+        path_lower = str(path or "").lower()
+        sensitive_tokens = [
+            ".git",
+            ".svn",
+            ".hg",
+            ".env",
+            "backup",
+            ".bak",
+            ".zip",
+            ".tar",
+            ".gz",
+            "phpinfo",
+            "info.php",
+        ]
+        return any(token in path_lower for token in sensitive_tokens)
 
-        Args:
-            output: 命令输出
+    def _collect_artifacts(self, parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+        artifacts: List[Dict[str, Any]] = []
+        for item in list(parsed.get("entries") or []):
+            path = str(item.get("path") or "")
+            status = item.get("status")
+            if not path:
+                continue
+            artifact = {
+                "type": "path",
+                "path": path,
+                "status": status,
+                "sensitive": self._is_sensitive_path(path),
+            }
+            artifacts.append(artifact)
+        return artifacts
 
-        Returns:
-            bool: True 表示成功
-        """
-        # dirsearch 在发现结果时返回 0 或 1，都算成功
-        return True  # 由基类的 run() 方法处理
+    def _is_success(self, returncode: int, stdout: str, stderr: str) -> bool:
+        return returncode == 0
 
     def parse_output(self, output: str) -> Dict[str, Any]:
         """
@@ -160,21 +183,43 @@ class DirsearchTool(BaseTool):
             Dict: 解析后的结果
         """
         try:
-            # dirsearch 的 JSON 输出可能有多行
-            results = []
+            entries = []
+            text_lines = []
             for line in output.strip().split('\n'):
                 line = line.strip()
-                if line:
-                    try:
-                        data = json.loads(line)
-                        results.append(data)
-                    except json.JSONDecodeError:
-                        # 非 JSON 行
-                        if line and not line.startswith("["):
-                            results.append({"text": line})
-            return {"results": results, "count": len(results)}
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    if line and not line.startswith("["):
+                        text_lines.append(line)
+                    continue
+
+                if isinstance(data, dict) and isinstance(data.get("results"), list):
+                    for result in data.get("results") or []:
+                        path = str(result.get("path") or result.get("url") or result.get("content") or "")
+                        status = result.get("status") or result.get("statusCode")
+                        entry = {"path": path, "status": status, "raw": result}
+                        entries.append(entry)
+                    continue
+
+                path = str(data.get("path") or data.get("url") or data.get("content") or data.get("text") or "")
+                status = data.get("status") or data.get("statusCode")
+                if path:
+                    entries.append({"path": path, "status": status, "raw": data})
+                elif data.get("text"):
+                    text_lines.append(str(data.get("text")))
+
+            sensitive_hits = [entry for entry in entries if self._is_sensitive_path(str(entry.get("path") or ""))]
+            return {
+                "entries": entries,
+                "count": len(entries),
+                "sensitive_hits": sensitive_hits,
+                "text_lines": text_lines,
+            }
         except Exception as e:
-            return {"error": str(e), "raw_output": output}
+            return {"error": str(e), "raw_output": output, "entries": [], "count": 0, "sensitive_hits": [], "text_lines": []}
 
     # 高阶接口，保持向后兼容
     def scan(self, **kwargs) -> ToolResult:

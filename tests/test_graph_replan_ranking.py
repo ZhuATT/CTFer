@@ -130,7 +130,51 @@ class GraphReplanRankingRegressionTest(unittest.TestCase):
         self.assertEqual(ranked[0]["action_type"], "recon")
         self.assertEqual(ranked[-1]["action_type"], "dir_scan")
 
-    def test_rank_graph_candidates_uses_stable_tiebreaker(self):
+    def test_rank_graph_candidates_demotes_blocked_lineage(self):
+        agent = self._make_agent()
+        ranked = agent._rank_graph_informed_candidates(
+            [
+                {
+                    "action_id": "blocked-lineage",
+                    "action_type": "recon",
+                    "target": agent.target_url,
+                    "description": "Retry blocked lineage",
+                    "intent": "Retry repo exposure validation",
+                    "expected_tool": "recon",
+                    "source_finding_kind": "repo_exposure",
+                    "source_finding_value": "/.git/HEAD",
+                    "verification_family": "repo_exposure",
+                },
+                {
+                    "action_id": "fresh-lineage",
+                    "action_type": "source_analysis",
+                    "target": agent.target_url,
+                    "description": "Try new source leak lineage",
+                    "intent": "Analyze alternate source leak",
+                    "expected_tool": "source_analysis",
+                    "source_finding_kind": "source_leak",
+                    "source_finding_value": "view-source",
+                    "verification_family": "source_leak",
+                },
+            ],
+            signals={
+                "blocked_findings": [
+                    {
+                        "kind": "repo_exposure",
+                        "value": "/.git/HEAD",
+                        "verification_family": "repo_exposure",
+                        "lineage_key": "repo_exposure::/.git/HEAD::repo_exposure",
+                    }
+                ],
+                "finding_failure_counts": {"repo_exposure::/.git/HEAD::repo_exposure": 3},
+                "finding_attempt_counts": {"repo_exposure::/.git/HEAD::repo_exposure": 3},
+            },
+            replan={"avoid_lineages": ["repo_exposure::/.git/HEAD::repo_exposure"]},
+        )
+
+        self.assertEqual(ranked[0]["action_id"], "fresh-lineage")
+        self.assertEqual(ranked[-1]["action_id"], "blocked-lineage")
+
         agent = self._make_agent()
         candidate_a = {
             "action_id": "a-action",
@@ -156,6 +200,216 @@ class GraphReplanRankingRegressionTest(unittest.TestCase):
 
         self.assertEqual([item["action_id"] for item in ranked_forward], ["a-action", "b-action"])
         self.assertEqual([item["action_id"] for item in ranked_reverse], ["a-action", "b-action"])
+
+    def test_priority_findings_surface_in_planner_signals(self):
+        agent = self._make_agent()
+        agent._refresh_graph_state = AutoAgent._refresh_graph_state.__get__(agent, AutoAgent)
+        agent.memory.add_endpoint("/.git/HEAD")
+        agent.memory.add_step(
+            tool="dirsearch",
+            target=agent.target_url,
+            params={},
+            result="Sensitive path: /.git/HEAD",
+            success=True,
+            key_findings=["repo_exposure:\\.git(?:/head|/config)?"],
+            action_meta={
+                "action_id": "dir-1",
+                "action_type": "dir_scan",
+                "expected_tool": "dirsearch",
+                "canonical_tool": "dirsearch",
+            },
+        )
+        agent._refresh_graph_state()
+        self.assertTrue(any(item.get("kind") == "repo_exposure" for item in agent.graph_manager.get_shared_findings()))
+
+        signals = agent.graph_manager.planner_signals()
+
+        self.assertTrue(any(item.get("kind") == "repo_exposure" for item in signals["priority_findings"]))
+        self.assertTrue(any(item.get("kind") == "repo_exposure" for item in signals["verification_hints"]))
+
+    def test_priority_finding_builds_finding_backed_verification_candidate(self):
+        agent = self._make_agent()
+        self._set_planner_signals(
+            agent,
+            priority_findings=[
+                {
+                    "kind": "repo_exposure",
+                    "value": "/.git/HEAD",
+                    "confidence": 1.0,
+                    "metadata": {},
+                    "source_action_id": "dir-1",
+                    "source_node_id": "action:dir-1",
+                }
+            ],
+            verification_hints=[
+                {
+                    "kind": "repo_exposure",
+                    "value": "/.git/HEAD",
+                    "confidence": 1.0,
+                    "metadata": {},
+                    "source_action_id": "dir-1",
+                    "source_node_id": "action:dir-1",
+                }
+            ],
+        )
+
+        candidates = agent._collect_graph_informed_actions()
+
+        self.assertTrue(any(item.get("source_finding_kind") == "repo_exposure" for item in candidates))
+        self.assertTrue(any(item.get("verification_family") == "repo_exposure" for item in candidates))
+
+    def test_form_findings_build_auth_follow_up_candidates(self):
+        agent = self._make_agent()
+        agent.target_type = "auth"
+        self._set_planner_signals(
+            agent,
+            priority_findings=[
+                {
+                    "kind": "form_field",
+                    "value": "username",
+                    "confidence": 1.0,
+                    "metadata": {},
+                    "source_action_id": "recon-1",
+                    "source_node_id": "action:recon-1",
+                },
+                {
+                    "kind": "form_method",
+                    "value": "POST",
+                    "confidence": 1.0,
+                    "metadata": {},
+                    "source_action_id": "recon-1",
+                    "source_node_id": "action:recon-1",
+                },
+            ],
+            verification_hints=[
+                {
+                    "kind": "auth_hint",
+                    "value": "login_endpoint",
+                    "confidence": 1.0,
+                    "metadata": {},
+                    "source_action_id": "recon-1",
+                    "source_node_id": "action:recon-1",
+                }
+            ],
+            known_endpoints=["/login.php"],
+            known_parameters=["username", "password"],
+        )
+        candidates = agent._collect_graph_informed_actions()
+        self.assertTrue(any(item.get("verification_family") == "endpoint-enum" for item in candidates))
+        self.assertTrue(any(item.get("type") == "poc" for item in candidates))
+
+        agent = self._make_agent()
+        self._set_planner_signals(
+            agent,
+            latest_endpoint="/.git/HEAD",
+            known_endpoints=["/.git/HEAD"],
+        )
+
+        candidates = agent._collect_graph_informed_actions()
+
+        self.assertTrue(any(item.get("target") == "http://target.test/.git/HEAD" for item in candidates))
+        self.assertTrue(any(item.get("source_finding_kind") in {"repo_exposure", "sensitive_endpoint"} for item in candidates))
+
+    def test_build_replan_payload_detects_low_yield_probe_loop(self):
+        agent = self._make_agent()
+        failed_action = agent._build_action(
+            "recon",
+            target=agent.target_url,
+            description="Retry recon",
+            intent="Collect headers",
+            expected_tool="recon",
+            params={"focus": "headers"},
+        )
+        action_meta = agent._build_memory_action_meta(failed_action)
+        agent.last_action = dict(failed_action)
+        for idx in range(3):
+            agent.memory.add_step(
+                tool="recon",
+                target=agent.target_url,
+                params={"focus": "headers"},
+                result=f"header-only-{idx}",
+                success=False,
+                key_findings=[],
+                action_meta=action_meta,
+            )
+
+        payload = agent._build_replan_payload()
+
+        self.assertIn(payload.get("reason_code"), {"low_yield_probe_loop", f"action_failures:{failed_action['id']}"})
+
+    def test_decide_next_action_uses_dir_scan_for_low_yield_probe_loop(self):
+        agent = self._make_agent()
+        failed_action = agent._build_action(
+            "recon",
+            target=agent.target_url,
+            description="Retry recon",
+            intent="Collect headers",
+            expected_tool="recon",
+            params={"focus": "headers"},
+        )
+        action_meta = agent._build_memory_action_meta(failed_action)
+        for idx in range(3):
+            agent.memory.add_step(
+                tool="recon",
+                target=agent.target_url,
+                params={"focus": "headers"},
+                result=f"header-only-{idx}",
+                success=False,
+                key_findings=[],
+                action_meta=action_meta,
+            )
+
+        agent._build_graph_informed_action = lambda: None
+        action = agent._decide_next_action()
+
+        self.assertEqual(action["type"], "dir_scan")
+
+        agent = self._make_agent()
+
+        actions = agent._build_guidance_actions(
+            "Check cookie and source leak behavior",
+            target=agent.target_url,
+            source_action_id="replan-1",
+            source_action_type="recon",
+        )
+
+        self.assertTrue(any(item["source_finding_kind"] == "guidance" for item in actions))
+        self.assertTrue(all(item["verification_family"] == "guidance" for item in actions))
+        self.assertTrue(any(item["type"] == "recon" for item in actions))
+        self.assertTrue(any(item["type"] == "source_analysis" for item in actions))
+
+        agent = self._make_agent()
+        failed_action = agent._build_action(
+            "dir_scan",
+            target=agent.target_url,
+            description="Scan directories",
+            intent="Find paths",
+            expected_tool="dirsearch",
+            params={"extensions": ["php"]},
+        )
+        action_meta = agent._build_memory_action_meta(failed_action)
+        for idx in range(2):
+            agent.memory.add_step(
+                tool="dirsearch",
+                target=agent.target_url,
+                params={"extensions": ["php"]},
+                result=f"dir-failure-{idx}",
+                success=False,
+                key_findings=[],
+                action_meta=action_meta,
+            )
+
+        agent._build_graph_informed_action = lambda: agent._build_action(
+            "recon",
+            target=agent.target_url,
+            description="Fallback recon",
+            intent="Collect better findings",
+            expected_tool="recon",
+        )
+
+        action = agent._decide_next_action()
+
+        self.assertEqual(action["type"], "recon")
 
 
 if __name__ == "__main__":

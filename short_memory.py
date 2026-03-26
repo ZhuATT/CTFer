@@ -40,6 +40,17 @@ FLAG_PATTERNS = [
 ]
 
 
+GENERIC_FINDING_PATTERNS = {
+    "repo_exposure": [r'\.git(?:/head|/config)?', r'\.svn/entries', r'\.hg'],
+    "backup_file": [r'backup', r'\.zip', r'\.tar(?:\.gz)?', r'\.bak', r'\.old', r'\.swp'],
+    "debug_page": [r'phpinfo', r'debug', r'test\.php', r'info\.php'],
+    "source_leak": [r'source leak', r'源码泄露', r'highlight_file', r'view-source'],
+    "shell_artifact": [r'webshell', r'backdoor\.php', r'@eval\(', r'letmein'],
+    "sensitive_file": [r'\.env', r'config\.php', r'flag\.txt', r'/etc/passwd'],
+    "info_leak": [r'php version', r'x-powered-by', r'server:', r'content-type:'],
+}
+
+
 def extract_flag_candidates(text: str) -> List[str]:
     """从文本中提取 flag 候选，保持首次出现顺序。"""
     result_text = str(text or "")
@@ -65,6 +76,19 @@ def extract_flag_candidates(text: str) -> List[str]:
     return ordered_flags
 
 
+def classify_generic_findings(text: str) -> List[Dict[str, str]]:
+    """从通用文本中抽取高价值 finding taxonomy。"""
+    result_text = str(text or "")
+    lower_text = result_text.lower()
+    findings: List[Dict[str, str]] = []
+    for kind, patterns in GENERIC_FINDING_PATTERNS.items():
+        for pattern in patterns:
+            if re.search(pattern, lower_text, re.IGNORECASE):
+                findings.append({"kind": kind, "value": pattern})
+                break
+    return findings
+
+
 @dataclass
 class Step:
     """单个解题步骤"""
@@ -80,6 +104,9 @@ class Step:
     action_type: str = ""
     expected_tool: str = ""
     canonical_tool: str = ""
+    parsed: Dict[str, Any] = field(default_factory=dict)
+    artifacts: List[Dict[str, Any]] = field(default_factory=list)
+    observations: List[Dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -121,6 +148,14 @@ class AgentContext:
     rag_summary: str = ""
     rag_suggested_approach: str = ""
     rag_attempted_in_current_window: bool = False
+    current_round: int = 1
+    round_started_step: int = 0
+    round_new_findings_count: int = 0
+    round_attempted_families: List[str] = field(default_factory=list)
+    round_resource_sources_used: List[str] = field(default_factory=list)
+    help_readiness_reason: str = ""
+    initial_required_families: List[str] = field(default_factory=list)
+    legacy_help_mode: bool = False
     initialized_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
@@ -152,6 +187,9 @@ class ShortMemory:
         success: bool = False,
         key_findings: List[str] = None,
         action_meta: Optional[Dict[str, Any]] = None,
+        parsed: Optional[Dict[str, Any]] = None,
+        artifacts: Optional[List[Dict[str, Any]]] = None,
+        observations: Optional[List[Dict[str, Any]]] = None,
     ) -> Step:
         """
         添加解题步骤
@@ -164,6 +202,9 @@ class ShortMemory:
             success: 是否成功
             key_findings: 关键发现
             action_meta: 动作元信息
+            parsed: 结构化解析结果
+            artifacts: 结构化产物列表
+            observations: 归一化 observation 列表
         """
         normalized_params = dict(params or {})
         normalized_action = self._normalize_action_meta(tool, normalized_params, action_meta)
@@ -181,6 +222,9 @@ class ShortMemory:
             action_type=normalized_action.get("action_type", ""),
             expected_tool=normalized_action.get("expected_tool", ""),
             canonical_tool=normalized_action.get("canonical_tool", tool),
+            parsed=dict(parsed or {}),
+            artifacts=list(artifacts or []),
+            observations=list(observations or []),
         )
         self.steps.append(step)
 
@@ -195,7 +239,11 @@ class ShortMemory:
                 self._action_failures[step.action_id] = self._action_failures.get(step.action_id, 0) + 1
 
         # 自动提取关键信息
+        before_findings = self._count_structured_findings()
         self._extract_from_step(step)
+        after_findings = self._count_structured_findings()
+        if after_findings > before_findings:
+            self.context.round_new_findings_count += after_findings - before_findings
 
         return step
 
@@ -322,6 +370,11 @@ class ShortMemory:
         if endpoint not in self.target.endpoints:
             self.target.endpoints.append(endpoint)
 
+    def add_parameter(self, parameter: str):
+        """添加发现的参数"""
+        if parameter not in self.target.parameters:
+            self.target.parameters.append(parameter)
+
     def add_vulnerability(self, vuln_type: str, description: str = ""):
         """添加发现的漏洞"""
         vuln = {"type": vuln_type, "desc": description}
@@ -385,6 +438,52 @@ class ShortMemory:
         """获取当前题目的上下文信息"""
         return self.context
 
+    def note_attempted_family(self, family: str) -> None:
+        family_text = str(family or "").strip()
+        if not family_text:
+            return
+        if family_text not in self.context.round_attempted_families:
+            self.context.round_attempted_families.append(family_text)
+
+    def note_resource_source_used(self, source: str) -> None:
+        source_text = str(source or "").strip()
+        if not source_text:
+            return
+        if source_text not in self.context.round_resource_sources_used:
+            self.context.round_resource_sources_used.append(source_text)
+
+    def start_new_round(self, step: int = 0, reason: str = "") -> None:
+        self.context.current_round = max(int(getattr(self.context, "current_round", 1) or 1) + 1, 1)
+        self.context.round_started_step = int(step or 0)
+        self.context.round_new_findings_count = 0
+        self.context.round_attempted_families = []
+        self.context.round_resource_sources_used = []
+        self.context.help_readiness_reason = str(reason or "")
+
+    def set_help_readiness_reason(self, reason: str) -> None:
+        self.context.help_readiness_reason = str(reason or "")
+
+    def _count_structured_findings(self) -> int:
+        total = len(self.target.endpoints) + len(self.target.parameters) + len(self.target.flags)
+        total += len(self.target.vulnerabilities)
+        generic_markers = 0
+        for step in self.steps:
+            for finding in list(step.key_findings or []):
+                text = str(finding or "")
+                if text.startswith("repo_exposure:") or text.startswith("backup_file:") or text.startswith("debug_page:") or text.startswith("source_leak:") or text.startswith("shell_artifact:") or text.startswith("sensitive_file:") or text.startswith("info_leak:"):
+                    generic_markers += 1
+        return total + generic_markers
+
+    def snapshot_progress(self) -> Dict[str, Any]:
+        return {
+            "current_round": int(getattr(self.context, "current_round", 1) or 1),
+            "round_started_step": int(getattr(self.context, "round_started_step", 0) or 0),
+            "round_new_findings_count": int(getattr(self.context, "round_new_findings_count", 0) or 0),
+            "round_attempted_families": list(getattr(self.context, "round_attempted_families", []) or []),
+            "round_resource_sources_used": list(getattr(self.context, "round_resource_sources_used", []) or []),
+            "structured_findings_total": self._count_structured_findings(),
+        }
+
     def _reset_rag_gate_state(self) -> None:
         """重置当前失败窗口的 RAG-before-help 状态。"""
         self.context.rag_attempt_anchor_step = 0
@@ -435,6 +534,7 @@ class ShortMemory:
 
         self.context.human_guidance = guidance
         self.context.resume_count += 1
+        self.start_new_round(step=step, reason=reason or "resume")
         self._reset_rag_gate_state()
         return entry
 
@@ -492,6 +592,23 @@ class ShortMemory:
         """从步骤中自动提取关键信息"""
         result = step.result
 
+        for observation in list(step.observations or []):
+            if not isinstance(observation, dict):
+                continue
+            kind = str(observation.get("kind") or "").strip()
+            value = str(observation.get("value") or "").strip()
+            if not kind or not value:
+                continue
+            marker = f"{kind}:{value}"
+            if marker not in step.key_findings:
+                step.key_findings.append(marker)
+            if kind == "endpoint":
+                self.add_endpoint(value)
+            elif kind in {"parameter", "form_field"}:
+                self.add_parameter(value)
+            elif kind == "vulnerability":
+                self.add_vulnerability(value)
+
         # 提取URL
         url_match = re.search(r'https?://[^\s<>"\']+', result)
         if url_match and not self.target.url:
@@ -509,6 +626,13 @@ class ShortMemory:
         for ep in endpoints:
             self.add_endpoint(ep)
 
+        sensitive_endpoint_pattern = r'(?:Sensitive path|Exposed file|Interesting path):\s*(/[^\s]+)'
+        sensitive_endpoints = re.findall(sensitive_endpoint_pattern, result, re.IGNORECASE)
+        for ep in sensitive_endpoints:
+            self.add_endpoint(ep)
+            if ep not in step.key_findings:
+                step.key_findings.append(ep)
+
         auth_endpoint_pattern = r'Found login form endpoint:\s*(/[^\s]+)'
         auth_endpoints = re.findall(auth_endpoint_pattern, result, re.IGNORECASE)
         for ep in auth_endpoints:
@@ -520,6 +644,23 @@ class ShortMemory:
         for p in params:
             if p not in self.target.parameters:
                 self.target.parameters.append(p)
+
+        if "phpinfo" in result.lower():
+            for finding in ["phpinfo_exposed", "info_leak"]:
+                if finding not in step.key_findings:
+                    step.key_findings.append(finding)
+
+        high_value_tokens = [".git/head", ".git/config", ".svn/entries", ".env", "backup", ".zip", ".tar.gz", "webshell", "backdoor.php"]
+        lower_result = result.lower()
+        for token in high_value_tokens:
+            if token in lower_result and token not in [item.lower() for item in step.key_findings]:
+                step.key_findings.append(token)
+
+        generic_findings = classify_generic_findings(result)
+        for finding in generic_findings:
+            marker = f"{finding['kind']}:{finding['value']}"
+            if marker not in step.key_findings:
+                step.key_findings.append(marker)
 
         auth_params = re.findall(r'Form field:\s*([A-Za-z0-9_\-]+)', result)
         for p in auth_params:
@@ -551,4 +692,4 @@ def reset_short_memory():
     print("[Memory] 已开始新题目的短期记忆")
 
 
-__all__ = ["ShortMemory", "get_short_memory", "reset_short_memory", "AgentContext", "Step", "extract_flag_candidates"]
+__all__ = ["ShortMemory", "get_short_memory", "reset_short_memory", "AgentContext", "Step", "extract_flag_candidates", "classify_generic_findings"]

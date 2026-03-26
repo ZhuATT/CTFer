@@ -23,6 +23,8 @@ class ToolResult:
     stderr: str
     command: str
     tool_name: str
+    parsed: Dict[str, Any]
+    artifacts: List[Dict[str, Any]]
 
     def __str__(self) -> str:
         if self.success:
@@ -103,7 +105,9 @@ class BaseTool:
                 global_config=self.global_config,
             )
 
-            success = result.returncode == 0 or self._check_success(result.stdout)
+            parsed = self.parse_output(result.stdout)
+            artifacts = self._collect_artifacts(parsed)
+            success = self._is_success(result.returncode, result.stdout, result.stderr)
 
             return ToolResult(
                 success=success,
@@ -111,7 +115,9 @@ class BaseTool:
                 stdout=result.stdout,
                 stderr=result.stderr,
                 command=full_cmd,
-                tool_name=self.name
+                tool_name=self.name,
+                parsed=parsed,
+                artifacts=artifacts,
             )
 
         except subprocess.TimeoutExpired:
@@ -121,7 +127,9 @@ class BaseTool:
                 stdout="",
                 stderr=f"执行超时 ({self.timeout}秒)",
                 command=full_cmd,
-                tool_name=self.name
+                tool_name=self.name,
+                parsed={},
+                artifacts=[],
             )
         except Exception as e:
             return ToolResult(
@@ -130,16 +138,22 @@ class BaseTool:
                 stdout="",
                 stderr=f"执行错误: {str(e)}",
                 command=full_cmd,
-                tool_name=self.name
+                tool_name=self.name,
+                parsed={},
+                artifacts=[],
             )
 
     def _build_command(self, **kwargs) -> str:
         """子类实现：构建命令行参数"""
         raise NotImplementedError
 
-    def _check_success(self, output: str) -> bool:
-        """检查输出是否表示成功（子类可覆盖）"""
-        return False
+    def _collect_artifacts(self, parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """从解析结果中提取结构化 artifacts。"""
+        return []
+
+    def _is_success(self, returncode: int, stdout: str, stderr: str) -> bool:
+        """统一成功判定；默认仅接受 0 退出码。"""
+        return returncode == 0
 
     def parse_output(self, output: str) -> Dict[str, Any]:
         """子类实现：解析输出结果"""
