@@ -33,6 +33,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
+from taxonomy import canonicalize_problem_type, problem_type_aliases
+
 
 class LongMemory:
     """长期记忆管理器 - Agent内部自动使用"""
@@ -41,15 +43,18 @@ class LongMemory:
 
     # 题目类型识别关键词（用于Agent自动识别）
     TYPE_KEYWORDS = {
-        "sqli": ["sql", "sqlmap", "mysql", "postgresql", "database", "注入", "查询", "union", "select"],
-        "lfi": ["lfi", "file inclusion", "文件包含", "../../../", "path traversal", "文件读取", "secret file", "include(", "file=", "php://filter"],
-        "rce": ["rce", "command", "执行", "eval", "assert", "system", "exec", "命令执行"],
-        "ssrf": ["ssrf", "gopher://", "内网访问", "url=", "fetch=", "远程请求"],
-        "xss": ["xss", "script", "javascript", "alert", "反射型", "跨站"],
-        "xxe": ["xml", "xxe", "entity", "dtd", "DOCTYPE"],
-        "upload": ["upload", "文件上传", ".php", "上传文件"],
-        "auth": ["bypass", "认证绕过", "admin", "login", "登录"],
-        "crypto": ["crypto", "cipher", "加密", "des", "aes", "rsa", "解密"],
+        canonicalize_problem_type(problem_type): keywords
+        for problem_type, keywords in {
+            "sqli": ["sql", "sqlmap", "mysql", "postgresql", "database", "注入", "查询", "union", "select"],
+            "lfi": ["lfi", "file inclusion", "文件包含", "../../../", "path traversal", "文件读取", "secret file", "include(", "file=", "php://filter"],
+            "rce": ["rce", "command", "执行", "eval", "assert", "system", "exec", "命令执行"],
+            "ssrf": ["ssrf", "gopher://", "内网访问", "url=", "fetch=", "远程请求"],
+            "xss": ["xss", "script", "javascript", "alert", "反射型", "跨站"],
+            "xxe": ["xml", "xxe", "entity", "dtd", "DOCTYPE"],
+            "upload": ["upload", "文件上传", ".php", "上传文件"],
+            "auth": ["bypass", "认证绕过", "admin", "login", "登录"],
+            "crypto": ["crypto", "cipher", "加密", "des", "aes", "rsa", "解密"],
+        }.items()
     }
 
     def __init__(self):
@@ -114,14 +119,18 @@ class LongMemory:
             {"pocs": [], "experiences": [], "tips": ""}
         """
         resources = {
+            "canonical_problem_type": canonicalize_problem_type(problem_type),
+            "type_aliases": problem_type_aliases(problem_type),
             "pocs": [],
             "experiences": [],
             "tips": "",
             "cve_list": []
         }
 
+        canonical_type = resources["canonical_problem_type"]
+
         # 1. 加载CVE POC
-        resources["cve_list"] = self.find_pocs_by_type(problem_type)
+        resources["cve_list"] = self.find_pocs_by_type(canonical_type)
         for cve_info in resources["cve_list"]:
             poc_path = self.BASE_PATH / "cve_pocs" / cve_info["file_path"]
             if poc_path.exists():
@@ -135,10 +144,10 @@ class LongMemory:
                     })
 
         # 2. 加载经验
-        resources["experiences"] = self.load_experiences_by_type(problem_type)
+        resources["experiences"] = self.load_experiences_by_type(canonical_type)
 
         # 3. 生成建议
-        resources["tips"] = self._generate_tips(problem_type, resources)
+        resources["tips"] = self._generate_tips(canonical_type, resources)
 
         return resources
 
@@ -207,6 +216,7 @@ class LongMemory:
         Returns:
             保存的文件路径
         """
+        problem_type = canonicalize_problem_type(problem_type)
         # 创建目录
         exp_dir = self.BASE_PATH / "auto_experiences" / problem_type
         exp_dir.mkdir(parents=True, exist_ok=True)
