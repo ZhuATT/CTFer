@@ -29,6 +29,7 @@ from tools import (
     get_memory, reset_memory, execute_python_poc, execute_command,
     extract_flags, get_memory_summary, init_problem, get_agent_context,
     quick_dir_scan, sqlmap_scan_url, sqlmap_deep_scan_url, retrieve_rag_knowledge,
+    summarize_auth_recon_response, summarize_generic_recon_findings,
 )
 from long_memory import auto_save_experience
 from graph_manager import GraphManager
@@ -624,12 +625,22 @@ class AutoAgent:
         rag_suggested_approach = str(getattr(self.agent_context, "rag_suggested_approach", "") or "")
         rag_query = str(getattr(self.agent_context, "rag_query", "") or "")
         rag_attempted_in_current_window = bool(getattr(self.agent_context, "rag_attempted_in_current_window", False))
+        taxonomy_profile = dict(loaded_resources.get("taxonomy_profile") or {})
+        resource_bundle = dict(loaded_resources.get("resource_bundle") or {})
 
         return {
             "target_url": self.target_url,
             "target_type": self.target_type,
             "hint": getattr(self.agent_context, "hint", ""),
             "problem_type": self.init_result.get("problem_type", self.target_type),
+            "canonical_problem_type": str(taxonomy_profile.get("canonical_problem_type") or self.init_result.get("problem_type", self.target_type)),
+            "taxonomy_tags": list(taxonomy_profile.get("taxonomy_tags") or []),
+            "resource_summary": {
+                "skill_names": list(taxonomy_profile.get("skill_names") or []),
+                "type_aliases": list(taxonomy_profile.get("type_aliases") or []),
+                "framework_tags": list(taxonomy_profile.get("framework_tags") or []),
+                "resource_keys": sorted(resource_bundle.keys()),
+            },
             "loaded_resources": loaded_resources,
             "skill_loaded": bool(skill_content),
             "skill_preview": skill_content[:200] if isinstance(skill_content, str) else "",
@@ -645,6 +656,12 @@ class AutoAgent:
             "latest_rag_summary": rag_summary,
             "latest_rag_suggested_approach": rag_suggested_approach,
             "rag_attempted_in_current_window": rag_attempted_in_current_window,
+            "current_round": getattr(self.agent_context, "current_round", 1),
+            "round_started_step": getattr(self.agent_context, "round_started_step", 0),
+            "round_new_findings_count": getattr(self.agent_context, "round_new_findings_count", 0),
+            "round_attempted_families": list(getattr(self.agent_context, "round_attempted_families", []) or []),
+            "round_resource_sources_used": list(getattr(self.agent_context, "round_resource_sources_used", []) or []),
+            "help_readiness_reason": str(getattr(self.agent_context, "help_readiness_reason", "") or ""),
             "recent_actions": [
                 {
                     "tool": step.tool,
@@ -824,6 +841,8 @@ class AutoAgent:
             "source_node_id",
             "alternative_to",
             "derived_from",
+            "verification_family",
+            "priority",
         ):
             value = str(action.get(key) or "").strip()
             if value:
@@ -867,6 +886,10 @@ class AutoAgent:
         recent_tool_counts = dict(recent_failure_stats.get("canonical_tool_counts") or {})
         recent_action_type_counts = dict(recent_failure_stats.get("action_type_counts") or {})
         graph_tool_counts = dict(signals.get("failed_tool_counts") or {})
+        source_finding_kind = str(candidate.get("source_finding_kind") or "").strip()
+        source_finding_value = str(candidate.get("source_finding_value") or "").strip()
+        verification_family = str(candidate.get("verification_family") or source_finding_kind or "").strip()
+        lineage_key = "::".join([part for part in [source_finding_kind, source_finding_value, verification_family] if part])
         blocked_tools = {
             str(value or "").strip()
             for value in replan_payload.get("blocked_tools") or []
@@ -890,6 +913,31 @@ class AutoAgent:
         recent_tool_failures = int(recent_tool_counts.get(canonical_tool, 0))
         graph_tool_failures = int(graph_tool_counts.get(canonical_tool, 0))
         recent_action_type_failures = int(recent_action_type_counts.get(action_type, 0))
+        finding_failure_counts = dict(signals.get("finding_failure_counts") or {})
+        finding_attempt_counts = dict(signals.get("finding_attempt_counts") or {})
+        blocked_findings = {
+            str(item.get("lineage_key") or "").strip()
+            for item in (signals.get("blocked_findings") or [])
+            if str(item.get("lineage_key") or "").strip()
+        }
+        replan_lineage = "::".join(
+            [
+                part
+                for part in [
+                    str(replan_payload.get("source_finding_kind") or "").strip(),
+                    str(replan_payload.get("source_finding_value") or "").strip(),
+                    str(replan_payload.get("verification_family") or replan_payload.get("source_finding_kind") or "").strip(),
+                ]
+                if part
+            ]
+        )
+        avoid_lineages = {
+            str(value or "").strip()
+            for value in [*(replan_payload.get("avoid_lineages") or []), *blocked_findings, replan_lineage]
+            if str(value or "").strip()
+        }
+        lineage_failures = int(finding_failure_counts.get(lineage_key, 0)) if lineage_key else 0
+        lineage_attempts = int(finding_attempt_counts.get(lineage_key, 0)) if lineage_key else 0
         linked_to_source = any(
             str(candidate.get(key) or "").strip() in blocked_action_ids
             for key in ("alternative_to", "derived_from", "source_action_id")
@@ -906,13 +954,17 @@ class AutoAgent:
 
         return (
             0 if canonical_tool and canonical_tool not in blocked_tools else 1,
+            0 if lineage_key and lineage_key not in avoid_lineages else 1,
+            0 if finding_backed else 1,
+            0 if diversification_needed and lineage_failures == 0 else 1,
+            lineage_failures,
+            lineage_attempts,
             0 if diversification_needed and recent_tool_failures == 0 else 1,
             recent_tool_failures,
             graph_tool_failures,
             recent_action_type_failures,
             0 if new_target else 1,
             0 if linked_to_source else 1,
-            0 if finding_backed else 1,
             canonical_tool,
             action_type,
             target,
@@ -953,6 +1005,8 @@ class AutoAgent:
             "source_node_id",
             "alternative_to",
             "derived_from",
+            "verification_family",
+            "priority",
         ):
             value = str(candidate.get(key) or "").strip()
             if value:
@@ -1008,6 +1062,206 @@ class AutoAgent:
 
         return action
 
+    def _build_verification_action_from_finding(self, finding: Dict[str, Any], target: str) -> Optional[Dict[str, Any]]:
+        finding = dict(finding or {})
+        kind = str(finding.get("kind") or "").strip()
+        value = str(finding.get("value") or "").strip()
+        source_action_id = str(finding.get("source_action_id") or "").strip()
+        source_node_id = str(finding.get("source_node_id") or "").strip()
+        metadata = {
+            "source_finding_kind": kind,
+            "source_finding_value": value,
+            "source_action_id": source_action_id,
+            "source_node_id": source_node_id,
+            "verification_family": kind or "finding",
+            "priority": "high",
+        }
+        if kind in {"repo_exposure", "backup_file", "sensitive_file", "debug_page", "info_leak", "shell_artifact"}:
+            return self._build_action(
+                "recon",
+                target=self._target_with_endpoint(value) if value.startswith("/") or value.startswith("http") else target,
+                description="围绕高价值 finding 做定向验证",
+                intent="优先验证已发现的高价值敏感面",
+                expected_tool="recon",
+                params={"focus": kind, "finding_value": value},
+                metadata=metadata,
+            )
+        if kind in {"source_leak"}:
+            return self._build_action(
+                "source_analysis",
+                target=target,
+                description="围绕源码泄露线索做分析",
+                intent="将源码/调试页线索转成可利用分析",
+                expected_tool="source_analysis",
+                params={"focus": kind, "finding_value": value},
+                metadata=metadata,
+            )
+        if kind in {"auth_hint", "form_field", "form_method"}:
+            return self._build_action(
+                "recon",
+                target=target,
+                description="围绕登录表单结构化线索做确认",
+                intent="将表单字段/方法/认证提示转成后续认证攻击分支",
+                expected_tool="recon",
+                params={"focus": kind, "finding_value": value},
+                metadata={**metadata, "tactic_family": "endpoint-enum"},
+            )
+        if kind in {"parameter", "vulnerability"}:
+            return self._build_action(
+                "sqlmap_scan" if kind == "parameter" else "poc",
+                target=target if kind != "parameter" else (target if "=" in target else f"{target}{'&' if '?' in target else '?'}{value}=1"),
+                description="围绕结构化 finding 做验证",
+                intent="优先验证 finding 对应的利用面",
+                expected_tool="sqlmap" if kind == "parameter" else "python_poc",
+                params={"batch": True} if kind == "parameter" else {"finding_value": value},
+                metadata=metadata,
+            )
+        return None
+
+    def _build_guidance_actions(
+        self,
+        guidance: str,
+        *,
+        target: str,
+        source_action_id: str = "",
+        source_action_type: str = "",
+    ) -> List[Dict[str, Any]]:
+        guidance_text = str(guidance or "").strip()
+        if not guidance_text:
+            return []
+        guidance_lower = guidance_text.lower()
+        actions: List[Dict[str, Any]] = []
+
+        def add(action_type: str, description: str, intent: str, expected_tool: str, params: Optional[Dict[str, Any]] = None) -> None:
+            action = self._build_action(
+                action_type,
+                target=target,
+                description=description,
+                intent=intent,
+                expected_tool=expected_tool,
+                params=dict(params or {}),
+                metadata={
+                    "source_finding_kind": "guidance",
+                    "source_finding_value": guidance_text,
+                    "source_action_id": source_action_id,
+                    "source_action_type": source_action_type,
+                    "verification_family": "guidance",
+                    "priority": "medium",
+                },
+            )
+            actions.append(action)
+
+        if "cookie" in guidance_lower:
+            add("recon", "根据人工提示重新侦察", "围绕 cookies/session 线索重新采样响应", "recon", {"focus": "cookies"})
+        if any(token in guidance_lower for token in ["ua", "user-agent", "mobile"]):
+            add("ua_test", "根据提示测试 UA 分支", "优先验证人工提示中的 User-Agent 线索", "ua_test", {"ua": "Mobile"})
+        if any(token in guidance_lower for token in ["cmd", "eval", "rce", "exec", "shell", "命令执行", "代码执行"]):
+            add("python_poc", "根据高价值线索尝试命令执行", "基于 cmd/eval/rce 线索构造 PoC", "python_poc")
+        if any(token in guidance_lower for token in ["source", "源码", "泄露", "leak", "highlight"]):
+            add("source_analysis", "根据源码泄露线索分析", "基于源码泄露线索定位可利用点", "source_analysis")
+        if any(token in guidance_lower for token in ["parameter", "参数", "param", "arg"]):
+            add("recon", "根据参数线索深入侦察", "围绕已发现参数收集更多利用上下文", "recon", {"focus": "parameters"})
+
+        return actions
+
+    def _build_resource_backed_actions(self, target: str, signals: Dict[str, Any], source_action_id: str = "", source_action_type: str = "") -> List[Dict[str, Any]]:
+        actions: List[Dict[str, Any]] = []
+        loaded_resources = dict(getattr(self.agent_context, "loaded_resources", {}) or self.init_result.get("loaded_resources") or {})
+        skill_content = str(getattr(self.agent_context, "skill_content", "") or self.init_result.get("skill_content") or "")
+        rag_summary = str(getattr(self.agent_context, "rag_summary", "") or "")
+        rag_suggested = str(getattr(self.agent_context, "rag_suggested_approach", "") or "")
+        known_endpoints = list(signals.get("known_endpoints") or [])
+        known_parameters = list(signals.get("known_parameters") or [])
+
+        def build(action_type: str, description: str, intent: str, expected_tool: str, *, params: Optional[Dict[str, Any]] = None, tactic_family: str = "", source: str = "") -> Dict[str, Any]:
+            metadata = {
+                "source_finding_kind": source or "resource",
+                "source_finding_value": tactic_family or description,
+                "source_action_id": source_action_id,
+                "source_action_type": source_action_type,
+                "verification_family": tactic_family or source or action_type,
+                "priority": "medium",
+                "tactic_family": tactic_family or action_type,
+                "resource_source": source or "resource",
+            }
+            return self._build_action(
+                action_type,
+                target=target,
+                description=description,
+                intent=intent,
+                expected_tool=expected_tool,
+                params=dict(params or {}),
+                metadata=metadata,
+            )
+
+        lower_skill = skill_content.lower()
+        if self.target_type == "auth":
+            login_endpoints = [ep for ep in known_endpoints if any(token in ep.lower() for token in ["login", "check", "signin", "auth"])]
+            login_params = [p for p in known_parameters if p.lower() in ["u", "p", "username", "password", "user", "pass", "email", "token", "csrf"]]
+            endpoint = login_endpoints[0] if login_endpoints else "check.php"
+            param_u = login_params[0] if login_params else "u"
+            param_p = login_params[1] if len(login_params) > 1 else "p"
+            actions.append(build(
+                "poc",
+                "基于已加载资源尝试弱口令登录",
+                "优先覆盖 auth family: weak-creds",
+                "python_poc",
+                params={
+                    "code": f'''import requests\nimport urllib3\nurllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)\nurl = "{target.rstrip('/')}/{endpoint}"\nfor pwd in ["admin","admin123","123456","password","root","toor","ctfshow"]:\n    r = requests.post(url, data={{"{param_u}": "admin", "{param_p}": pwd}}, verify=False, timeout=10)\n    print(f"TRY {{pwd}} => {{r.status_code}} {{r.text[:120]}}")\n''',
+                    "endpoint": endpoint,
+                    "login_params": [param_u, param_p],
+                },
+                tactic_family="weak-creds",
+                source="long_memory" if loaded_resources else "skill",
+            ))
+            if login_endpoints or login_params or "sql" in lower_skill or "inject" in lower_skill or "注入" in skill_content:
+                param_target = f"{target}{'&' if '?' in target else '?'}{login_params[0] if login_params else 'username'}=1" if "=" not in target else target
+                actions.append(build(
+                    "sqlmap_scan",
+                    "基于认证入口尝试参数注入验证",
+                    "优先覆盖 auth family: auth-sqli",
+                    "sqlmap",
+                    params={"batch": True},
+                    tactic_family="auth-sqli",
+                    source="skill" if skill_content else "resource",
+                ))
+            actions.append(build(
+                "recon",
+                "围绕认证入口继续枚举与分支确认",
+                "优先覆盖 auth family: endpoint-enum",
+                "recon",
+                params={"focus": "auth-endpoints", "known_endpoints": login_endpoints},
+                tactic_family="endpoint-enum",
+                source="skill" if skill_content else "resource",
+            ))
+
+        if rag_summary or rag_suggested:
+            rag_text = (rag_summary + " " + rag_suggested).lower()
+            if any(token in rag_text for token in ["payload", "family", "parameter", "参数", "verify known parameters"]):
+                latest_parameter = (known_parameters[-1] if known_parameters else "id")
+                param_target = target if "=" in target else f"{target}{'&' if '?' in target else '?'}{latest_parameter}=1"
+                actions.append(build(
+                    "sqlmap_scan",
+                    "根据 RAG 建议切换 payload family 验证参数",
+                    "消费 RAG suggested approach 生成下一轮候选",
+                    "sqlmap",
+                    params={"batch": True},
+                    tactic_family="rag-parameter-verify",
+                    source="rag",
+                ))
+            if any(token in rag_text for token in ["source", "源码", "leak", "debug"]):
+                actions.append(build(
+                    "source_analysis",
+                    "根据 RAG 建议围绕源码/泄露线索分析",
+                    "消费 RAG suggested approach 生成源码分析动作",
+                    "source_analysis",
+                    params={"focus": "rag-source-leak"},
+                    tactic_family="rag-source-analysis",
+                    source="rag",
+                ))
+
+        return actions
+
     def _collect_graph_informed_actions(self, replan: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         self._refresh_graph_state()
         steps = self.memory.steps
@@ -1015,6 +1269,8 @@ class AutoAgent:
         signals = self.graph_manager.planner_signals()
         recent_failure_stats = self._recent_action_failure_counts(window=5)
         latest_guidance = str(signals.get("latest_guidance") or "").strip()
+        priority_findings = list(signals.get("priority_findings") or [])
+        verification_hints = list(signals.get("verification_hints") or [])
         known_endpoints = list(signals.get("known_endpoints") or [])
         known_parameters = list(signals.get("known_parameters") or [])
         failed_tools = set(signals.get("failed_tools") or [])
@@ -1027,12 +1283,34 @@ class AutoAgent:
         active_replan = dict(replan or {})
         blocked_action_ids = set(active_replan.get("blocked_action_ids") or [])
         blocked_tools = set(active_replan.get("blocked_tools") or [])
+        blocked_findings = list(active_replan.get("blocked_findings") or [])
         avoid_action_ids = set(signals.get("avoid_action_ids") or [])
         avoid_action_ids.update(active_replan.get("avoid_action_ids") or [])
         avoid_action_ids.update(blocked_action_ids)
         avoid_tools = set(signals.get("avoid_tools") or [])
         avoid_tools.update(active_replan.get("avoid_tools") or [])
         avoid_tools.update(blocked_tools)
+        avoid_lineages = {
+            str(value or "").strip()
+            for value in [*(signals.get("blocked_findings") or []), *(active_replan.get("avoid_lineages") or [])]
+            if isinstance(value, str) and str(value or "").strip()
+        }
+        for finding in blocked_findings:
+            if not isinstance(finding, dict):
+                continue
+            lineage_key = "::".join(
+                [
+                    part
+                    for part in [
+                        str(finding.get("kind") or "").strip(),
+                        str(finding.get("value") or "").strip(),
+                        str(finding.get("verification_family") or finding.get("kind") or "").strip(),
+                    ]
+                    if part
+                ]
+            )
+            if lineage_key:
+                avoid_lineages.add(lineage_key)
         source_action_id = str(active_replan.get("source_action_id") or "").strip()
         source_action_type = str(active_replan.get("source_action_type") or "").strip()
         reason_code = str(active_replan.get("reason_code") or active_replan.get("reason") or "").strip()
@@ -1053,103 +1331,44 @@ class AutoAgent:
                 return
             if tool_name and tool_name in avoid_tools:
                 return
+            lineage_key = "::".join(
+                [
+                    part
+                    for part in [
+                        str(candidate.get("source_finding_kind") or "").strip(),
+                        str(candidate.get("source_finding_value") or "").strip(),
+                        str(candidate.get("verification_family") or candidate.get("source_finding_kind") or "").strip(),
+                    ]
+                    if part
+                ]
+            )
+            if lineage_key and lineage_key in avoid_lineages:
+                return
             if self.memory.should_skip_action(action_id, max_failures=self.max_failures):
                 return
             seen_action_ids.add(action_id)
             candidates.append(candidate)
 
-        if latest_guidance and "python_poc" not in avoid_tools:
-            guidance_lower = latest_guidance.lower()
-            if "cookie" in guidance_lower and self.target_type != "ua_bypass":
-                add_candidate(
-                    self._build_action(
-                        "recon",
-                        target=target,
-                        description="根据人工提示重新侦察",
-                        intent="围绕 cookies/session 线索重新采样响应",
-                        expected_tool="recon",
-                        params={"focus": "cookies"},
-                        metadata={
-                            "source_finding_kind": "guidance",
-                            "source_finding_value": latest_guidance,
-                            "source_action_id": source_action_id,
-                            "source_action_type": source_action_type,
-                        },
-                    )
-                )
-            if (
-                "ua" in guidance_lower
-                or "user-agent" in guidance_lower
-                or "mobile" in guidance_lower
-            ) and self.target_type != "ua_bypass":
-                add_candidate(
-                    self._build_action(
-                        "ua_test",
-                        target=target,
-                        description="根据提示测试 UA 分支",
-                        intent="优先验证人工提示中的 User-Agent 线索",
-                        expected_tool="ua_test",
-                        params={"ua": "Mobile"},
-                        metadata={
-                            "ua": "Mobile",
-                            "source_finding_kind": "guidance",
-                            "source_finding_value": latest_guidance,
-                            "source_action_id": source_action_id,
-                            "source_action_type": source_action_type,
-                        },
-                    )
-                )
-            # 处理 cmd/eval/rce/source_code 等高价值利用线索
-            if any(kw in guidance_lower for kw in ["cmd", "eval", "rce", "exec", "shell", "命令执行", "代码执行"]):
-                add_candidate(
-                    self._build_action(
-                        "python_poc",
-                        target=target,
-                        description="根据高价值线索尝试命令执行",
-                        intent="基于 cmd/eval/rce 线索构造 PoC",
-                        expected_tool="python_poc",
-                        metadata={
-                            "source_finding_kind": "guidance",
-                            "source_finding_value": latest_guidance,
-                            "source_action_id": source_action_id,
-                            "source_action_type": source_action_type,
-                        },
-                    )
-                )
-            # 处理源码泄露线索
-            if any(kw in guidance_lower for kw in ["source", "源码", "泄露", "leak", "highlight"]):
-                add_candidate(
-                    self._build_action(
-                        "source_analysis",
-                        target=target,
-                        description="根据源码泄露线索分析",
-                        intent="基于源码泄露线索定位可利用点",
-                        expected_tool="source_analysis",
-                        metadata={
-                            "source_finding_kind": "guidance",
-                            "source_finding_value": latest_guidance,
-                            "source_action_id": source_action_id,
-                            "source_action_type": source_action_type,
-                        },
-                    )
-                )
-            # 处理参数发现线索
-            if any(kw in guidance_lower for kw in ["parameter", "参数", "param", "arg"]):
-                add_candidate(
-                    self._build_action(
-                        "recon",
-                        target=target,
-                        description="根据参数线索深入侦察",
-                        intent="围绕已发现参数收集更多利用上下文",
-                        expected_tool="recon",
-                        metadata={
-                            "source_finding_kind": "guidance",
-                            "source_finding_value": latest_guidance,
-                            "source_action_id": source_action_id,
-                            "source_action_type": source_action_type,
-                        },
-                    )
-                )
+        for finding in verification_hints or priority_findings:
+            add_action = self._build_verification_action_from_finding(finding, target)
+            if add_action is not None:
+                add_candidate(add_action)
+
+        for action in self._build_guidance_actions(
+            latest_guidance,
+            target=target,
+            source_action_id=source_action_id,
+            source_action_type=source_action_type,
+        ):
+            add_candidate(action)
+
+        for action in self._build_resource_backed_actions(
+            target,
+            signals,
+            source_action_id=source_action_id,
+            source_action_type=source_action_type,
+        ):
+            add_candidate(action)
 
         if known_endpoints and "dirsearch" not in failed_tools and "python_poc" not in avoid_tools:
             latest_endpoint = str(signals.get("latest_endpoint") or known_endpoints[-1])
@@ -1168,9 +1387,19 @@ class AutoAgent:
                             "source_finding_value": latest_endpoint,
                             "source_action_id": source_action_id,
                             "source_action_type": source_action_type,
+                            "verification_family": "endpoint",
+                            "priority": "medium",
                         },
                     )
                 )
+
+                endpoint_lower = latest_endpoint.lower()
+                if any(token in endpoint_lower for token in [".git/", ".svn/", ".env", ".zip", ".tar", "backup", "backdoor", "phpinfo"]):
+                    add_candidate(self._build_verification_action_from_finding({
+                        "kind": "repo_exposure" if any(token in endpoint_lower for token in [".git/", ".svn/"]) else "sensitive_file",
+                        "value": latest_endpoint,
+                        "source_action_id": source_action_id,
+                    }, target))
 
         if known_parameters and self.target_type == "unknown" and "sqlmap" not in failed_tools and "sqlmap" not in avoid_tools:
             latest_parameter = str(signals.get("latest_parameter") or known_parameters[-1])
@@ -1179,44 +1408,31 @@ class AutoAgent:
                 separator = "&" if "?" in param_target else "?"
                 param_target = f"{param_target}{separator}{latest_parameter}=1"
             add_candidate(
-                self._build_action(
-                    "sqlmap_scan",
-                    target=param_target,
-                    description="基于参数线索检测注入",
-                    intent="优先验证图中已发现参数是否存在 SQL 注入",
-                    expected_tool="sqlmap",
-                    params={"batch": True},
-                    metadata={
-                        "source_finding_kind": "parameter",
-                        "source_finding_value": latest_parameter,
+                self._build_verification_action_from_finding(
+                    {
+                        "kind": "parameter",
+                        "value": latest_parameter,
                         "source_action_id": source_action_id,
-                        "source_action_type": source_action_type,
+                        "source_node_id": active_replan.get("source_node_id") or "",
                     },
+                    target,
                 )
             )
 
-        # 检测高价值发现，触发 recon→exploit 切换
         known_vulnerabilities = list(signals.get("known_vulnerabilities") or [])
         if known_vulnerabilities and "python_poc" not in avoid_tools:
             latest_vuln = known_vulnerabilities[-1]
-            vuln_lower = latest_vuln.lower()
-            # 检测到命令执行/代码执行类漏洞，直接尝试利用
-            if any(kw in vuln_lower for kw in ["rce", "cmd", "exec", "eval", "code", "command", "shell"]):
-                add_candidate(
-                    self._build_action(
-                        "python_poc",
-                        target=target,
-                        description="基于高价值漏洞线索尝试利用",
-                        intent="基于已确认的 RCE/命令执行线索构造 PoC",
-                        expected_tool="python_poc",
-                        metadata={
-                            "source_finding_kind": "vulnerability",
-                            "source_finding_value": latest_vuln,
-                            "source_action_id": source_action_id,
-                            "source_action_type": source_action_type,
-                        },
-                    )
+            add_candidate(
+                self._build_verification_action_from_finding(
+                    {
+                        "kind": "vulnerability",
+                        "value": latest_vuln,
+                        "source_action_id": source_action_id,
+                        "source_node_id": active_replan.get("source_node_id") or "",
+                    },
+                    target,
                 )
+            )
 
         # 检测登录端点，生成攻击候选动作
         known_endpoints = list(signals.get("known_endpoints") or [])
@@ -1350,6 +1566,138 @@ print("No valid password found")
             replan=active_replan,
         )
 
+    def _candidate_tactic_family(self, candidate: Dict[str, Any]) -> str:
+        candidate = dict(candidate or {})
+        for key in ("tactic_family", "verification_family", "source_finding_kind", "action_type", "type"):
+            value = str(candidate.get(key) or "").strip()
+            if value:
+                return value
+        return "generic"
+
+    def _action_tactic_family(self, action: Dict[str, Any]) -> str:
+        action = dict(action or {})
+        for key in ("tactic_family", "verification_family", "source_finding_kind", "type"):
+            value = str(action.get(key) or "").strip()
+            if value:
+                return value
+        return "generic"
+
+    def _resource_operationalization_status(self) -> Dict[str, Any]:
+        self._sync_agent_context()
+        skill_loaded = bool(getattr(self.agent_context, "skill_content", "") or self.init_result.get("skill_content"))
+        loaded_resources = dict(getattr(self.agent_context, "loaded_resources", {}) or self.init_result.get("loaded_resources") or {})
+        has_resource_bundle = bool(loaded_resources)
+        has_rag = bool(getattr(self.agent_context, "rag_summary", "") or getattr(self.agent_context, "rag_suggested_approach", ""))
+        used_sources = set(getattr(self.agent_context, "round_resource_sources_used", []) or [])
+        return {
+            "skill_loaded": skill_loaded,
+            "has_resource_bundle": has_resource_bundle,
+            "has_rag": has_rag,
+            "resource_candidates_generated": bool(used_sources),
+            "used_sources": sorted(used_sources),
+        }
+
+    def _required_tactic_families(self) -> List[str]:
+        signals = self.graph_manager.planner_signals()
+        known_endpoints = list(signals.get("known_endpoints") or [])
+        known_parameters = list(signals.get("known_parameters") or [])
+        priority_findings = list(signals.get("priority_findings") or [])
+        families: List[str] = []
+
+        def add(name: str) -> None:
+            if name and name not in families:
+                families.append(name)
+
+        if self.target_type == "auth":
+            add("endpoint-enum")
+            add("weak-creds")
+            if known_parameters or any(any(token in ep.lower() for token in ["login", "check", "signin", "auth"]) for ep in known_endpoints):
+                add("auth-sqli")
+        for finding in priority_findings:
+            kind = str(finding.get("kind") or "").strip()
+            if kind == "repo_exposure":
+                add("repo_exposure")
+            elif kind == "source_leak":
+                add("source_leak")
+            elif kind == "parameter":
+                add("parameter")
+        if getattr(self.agent_context, "rag_summary", "") or getattr(self.agent_context, "rag_suggested_approach", ""):
+            add("rag-parameter-verify")
+        return families
+
+    def _help_readiness(self) -> Dict[str, Any]:
+        self._sync_agent_context()
+        steps = self.memory.steps
+        attempted_families = set(getattr(self.agent_context, "round_attempted_families", []) or [])
+        required_families = self._required_tactic_families()
+        legacy_help_mode = bool(getattr(self.agent_context, "legacy_help_mode", False))
+        initial_required_families = list(getattr(self.agent_context, "initial_required_families", []) or [])
+        if not initial_required_families and not required_families:
+            self.memory.set_context(legacy_help_mode=True)
+            self._sync_agent_context()
+            legacy_help_mode = True
+        if not legacy_help_mode and not initial_required_families and required_families:
+            self.memory.set_context(initial_required_families=list(required_families))
+            self._sync_agent_context()
+            initial_required_families = list(getattr(self.agent_context, "initial_required_families", []) or [])
+        baseline_required_families = [] if legacy_help_mode else (initial_required_families or required_families)
+        missing_families = [family for family in baseline_required_families if family not in attempted_families]
+        progress = self.memory.snapshot_progress()
+        operationalization = self._resource_operationalization_status()
+        round_num = int(progress.get("current_round") or 1)
+        no_progress = int(progress.get("round_new_findings_count") or 0) <= 0
+        recent_failures = self._get_consecutive_failures()
+        rag_done = bool(getattr(self.agent_context, "rag_attempted_in_current_window", False))
+        if not baseline_required_families:
+            reason = "rag_not_attempted" if not rag_done else "ready_for_help"
+            if not rag_done and recent_failures < max(1, self.max_failures - 1):
+                reason = "not_enough_failures_after_coverage"
+            return {
+                "ready": bool(rag_done),
+                "reason": reason,
+                "required_families": baseline_required_families,
+                "missing_families": [],
+                "attempted_families": sorted(attempted_families),
+                "progress": progress,
+                "operationalization": operationalization,
+            }
+        ready = (
+            bool(steps)
+            and not missing_families
+            and no_progress
+            and rag_done
+            and (
+                operationalization["resource_candidates_generated"]
+                or not (operationalization["skill_loaded"] or operationalization["has_resource_bundle"] or operationalization["has_rag"])
+            )
+            and round_num >= 2
+            and recent_failures >= self.max_failures
+        )
+        reason = ""
+        if missing_families:
+            reason = f"missing_families:{','.join(missing_families)}"
+        elif not operationalization["resource_candidates_generated"] and (operationalization["skill_loaded"] or operationalization["has_resource_bundle"] or operationalization["has_rag"]):
+            reason = "resources_not_operationalized"
+        elif not no_progress:
+            reason = "round_still_progressing"
+        elif round_num < 2:
+            reason = "need_more_rounds"
+        elif not rag_done:
+            reason = "rag_not_attempted"
+        elif recent_failures < self.max_failures:
+            reason = "not_enough_failures_after_coverage"
+        else:
+            reason = "ready_for_help"
+        return {
+            "ready": ready,
+            "reason": reason,
+            "required_families": baseline_required_families,
+            "missing_families": missing_families,
+            "attempted_families": sorted(attempted_families),
+            "progress": progress,
+            "operationalization": operationalization,
+        }
+
     def _build_replan_payload(self) -> Dict[str, Any]:
         steps = self.memory.steps
         if not steps:
@@ -1363,6 +1711,7 @@ print("No valid password found")
             consecutive_failures += 1
 
         recent_failure_stats = self._recent_action_failure_counts(window=5)
+        low_yield_stats = self._recent_low_yield_probe_stats(window=5)
         current_action = dict(self.last_action or {})
         latest_step = steps[-1]
         default_source_action_id = str(
@@ -1401,9 +1750,21 @@ print("No valid password found")
                 "blocked_action_ids": list(blocked_action_ids or ([default_source_action_id] if default_source_action_id else [])),
                 "blocked_tools": list(blocked_tools or ([default_source_tool] if default_source_tool else [])),
             }
+            verification_family = source_finding_kind or ""
             if source_finding_kind and source_finding_value:
                 payload["source_finding_kind"] = source_finding_kind
                 payload["source_finding_value"] = source_finding_value
+                payload["verification_family"] = verification_family
+                payload["blocked_findings"] = [
+                    {
+                        "kind": source_finding_kind,
+                        "value": source_finding_value,
+                        "verification_family": verification_family,
+                    }
+                ]
+                payload["avoid_lineages"] = [
+                    "::".join([part for part in [source_finding_kind, source_finding_value, verification_family] if part])
+                ]
             payload["avoid_action_ids"] = list(payload.get("blocked_action_ids") or [])
             payload["avoid_tools"] = list(payload.get("blocked_tools") or [])
             candidates = [
@@ -1419,6 +1780,12 @@ print("No valid password found")
             return build_payload(
                 "limited_diversity",
                 "最近多步动作多样性不足，主链在少数路径间反复试错",
+            )
+
+        if low_yield_stats["low_yield_count"] >= 3 and low_yield_stats["repeated_current_target_count"] >= 2:
+            return build_payload(
+                "low_yield_probe_loop",
+                "最近多次围绕同一目标做轻量探测且没有新增 finding，需要切换 lineage 或 family",
             )
 
         for action_id, count in recent_failure_stats["action_id_counts"].items():
@@ -1495,8 +1862,6 @@ import requests
 import urllib3
 import re
 import json
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 url = "{target}"
@@ -1508,47 +1873,39 @@ if 'Location' in resp.headers:
 flags = re.findall(r'ctfshow{{[^}}]+}}|flag{{[^}}]+}}', resp.text)
 if flags:
     print(f"FLAG_FOUND: {{flags[0]}}")
-
-summary = {{"status_code": resp.status_code, "headers": dict(resp.headers), "endpoints": [], "parameters": [], "auth_hints": [], "form_info": {{"action": "", "method": "GET", "field_order": []}}}}
-soup = BeautifulSoup(resp.text, 'html.parser')
-forms = soup.find_all('form')
-if forms:
-    form = forms[0]
-    action = form.get('action', '')
-    method = form.get('method', 'GET').upper()
-    field_order = []
-    auth_hints = []
-    for input_tag in form.find_all('input'):
-        name = input_tag.get('name')
-        if not name or 'disabled' in input_tag.attrs:
-            continue
-        field_type = input_tag.get('type', 'text').lower()
-        if field_type in ['submit', 'button', 'reset', 'image']:
-            continue
-        field_order.append(name)
-        summary['parameters'].append(name)
-        lowered = name.lower()
-        if any(token in lowered for token in ['user', 'name', 'email', 'login', 'account']):
-            auth_hints.append(f'username_field:{{name}}')
-        if field_type == 'password' or any(token in lowered for token in ['pass', 'pwd']):
-            auth_hints.append(f'password_field:{{name}}')
-        if any(token in lowered for token in ['csrf', 'token']):
-            auth_hints.append(f'token_field:{{name}}')
-    if action:
-        endpoint = urlparse(urljoin(url, action)).path or action
-        if endpoint:
-            summary['endpoints'].append(endpoint)
-    set_cookie = resp.headers.get('Set-Cookie', '')
-    if set_cookie:
-        auth_hints.append('cookie_present')
-    summary['form_info'] = {{"action": action, "method": method, "field_order": field_order}}
-    summary['auth_hints'] = list(dict.fromkeys(auth_hints))
-
-print("AUTH_RECON_SUMMARY:")
-print(json.dumps(summary, ensure_ascii=False))
-print(f"Content preview: {{resp.text[:500]}}")
+print("BODY_START")
+print(resp.text[:4000])
+print("BODY_END")
 '''
-        return execute_python_poc(code, timeout=30, memory_meta=self._build_memory_action_meta(action))
+        result = execute_python_poc(code, timeout=30, memory_meta=self._build_memory_action_meta(action))
+
+        body_match = re.search(r'BODY_START\n([\s\S]*?)\nBODY_END', result)
+        body = body_match.group(1) if body_match else ""
+        headers_match = re.search(r"Headers:\s*(\{.*\})", result)
+        headers = {}
+        if headers_match:
+            try:
+                headers = json.loads(headers_match.group(1).replace("'", '"'))
+            except Exception:
+                headers = {}
+        status_match = re.search(r"Status:\s*(\d+)", result)
+        status_code = int(status_match.group(1)) if status_match else 0
+
+        recon_summary = summarize_auth_recon_response(target, status_code, headers, body)
+        generic_summary = summarize_generic_recon_findings(target, status_code, headers, body)
+        findings = list(recon_summary.get("findings") or []) + list(generic_summary.get("findings") or [])
+        lower_body = body.lower()
+        if "phpinfo()" in lower_body or ("php version" in lower_body and "php credits" in lower_body):
+            findings.extend(["phpinfo_exposed", "info_leak"])
+        for token in [".git/HEAD", ".git/config", "backdoor.php", ".env"]:
+            if token.lower() in lower_body:
+                findings.append(token)
+
+        latest_step = self._latest_memory_step_for_action(action)
+        if latest_step is not None:
+            latest_step.key_findings = list(dict.fromkeys(list(latest_step.key_findings or []) + findings))
+            latest_step.result = result[:500] if len(result) > 500 else result
+        return result
 
     def _execute_ua_test_action(self, action: Dict[str, Any]) -> str:
         target = action.get("target", self.target_url)
@@ -1797,6 +2154,12 @@ print(f"Content: {{resp.text}}")
             return None
 
         if not self._should_ask_for_help():
+            readiness = self._help_readiness()
+            reason = str(readiness.get("reason") or "")
+            self.memory.set_help_readiness_reason(reason)
+            if reason in {"need_more_rounds", "resources_not_operationalized"}:
+                self.memory.start_new_round(step=step_num, reason=reason)
+                self._sync_agent_context()
             return None
 
         if self._should_run_rag_before_help():
@@ -1883,6 +2246,11 @@ print(f"Content: {{resp.text}}")
 
             action = self.plan_next_action()
             self.log(f"决策: {action['type']}", "DECISION")
+            self.memory.note_attempted_family(self._action_tactic_family(action))
+            resource_source = str(action.get("resource_source") or "").strip()
+            if resource_source:
+                self.memory.note_resource_source_used(resource_source)
+            self._sync_agent_context()
             self.graph_manager.apply_graph_op(
                 action.get("graph_op"),
                 action=action,
@@ -2072,9 +2440,16 @@ print(f"Content: {{resp.text}}")
         self.step_budget_limit = self.max_steps
         self.graph_manager.reset()
 
+    def _hint_indicates_info_leak(self, hint: str) -> bool:
+        hint_lower = str(hint or "").lower()
+        return any(token in hint_lower for token in ["phpinfo", ".git", "git泄露", "git 泄露", "源码泄露", "信息泄露", "配置泄露"])
+
     def _classify_problem(self, hint: str):
         """自动分类题目类型"""
         hint_lower = hint.lower()
+        if self._hint_indicates_info_leak(hint):
+            self.log("题目提示更偏向信息泄露/仓库泄露，保留初始化分类结果", "ANALYSIS")
+            return
 
         # UA相关
         if any(k in hint_lower for k in ["手机", "mobile", "ua", "user-agent", "安卓", "android", "iphone"]):
@@ -2315,6 +2690,9 @@ print("No valid password found")
                     params={"batch": True},
                 )
             if any(s.tool == "sqlmap" and not s.success for s in steps[-2:]):
+                graph_action = self._build_graph_informed_action()
+                if graph_action is not None and graph_action.get("type") != "dir_scan":
+                    return graph_action
                 return self._build_action(
                     "dir_scan",
                     target=target,
@@ -2324,18 +2702,52 @@ print("No valid password found")
                     params={"extensions": ["php", "txt", "bak"]},
                 )
 
+        recent_dir_scans = [s for s in steps[-4:] if (s.canonical_tool or s.tool) == "dirsearch"]
+        repeated_dir_scan_without_new_findings = (
+            len(recent_dir_scans) >= 2
+            and all(not step.key_findings for step in recent_dir_scans)
+        )
+        low_yield_stats = self._recent_low_yield_probe_stats(window=5)
+        low_yield_probe_loop = (
+            low_yield_stats["low_yield_count"] >= 3
+            and low_yield_stats["repeated_current_target_count"] >= 2
+        )
+
         if steps and not steps[-1].success:
             fail_count = self.memory.fail_count_for_step(steps[-1])
             if fail_count >= 2:
-                return self._build_action(
-                    "dir_scan",
-                    target=target,
-                    description="当前方法多次失败，改做目录探索",
-                    intent="切换到不同工具获取新线索",
-                    expected_tool="dirsearch",
-                    params={"extensions": ["php", "html", "txt"]},
-                    metadata={"alternative": True},
-                )
+                graph_action = self._build_graph_informed_action()
+                if graph_action is not None and (
+                    graph_action.get("type") != "dir_scan" or not repeated_dir_scan_without_new_findings
+                ):
+                    return graph_action
+                if not repeated_dir_scan_without_new_findings and not low_yield_probe_loop:
+                    return self._build_action(
+                        "dir_scan",
+                        target=target,
+                        description="当前方法多次失败，改做目录探索",
+                        intent="切换到不同工具获取新线索",
+                        expected_tool="dirsearch",
+                        params={"extensions": ["php", "html", "txt"]},
+                        metadata={"alternative": True},
+                    )
+
+        graph_action = self._build_graph_informed_action()
+        if graph_action is not None and (
+            graph_action.get("type") != "dir_scan" or not repeated_dir_scan_without_new_findings
+        ):
+            return graph_action
+
+        if low_yield_probe_loop:
+            return self._build_action(
+                "dir_scan",
+                target=target,
+                description="轻量探测低收益，切换目录探索",
+                intent="避免围绕同一目标重复轻量探测，改用目录扫描寻找新线索",
+                expected_tool="dirsearch",
+                params={"extensions": ["php", "html", "txt"]},
+                metadata={"alternative": True, "reason": "low_yield_probe_loop"},
+            )
 
         return self._build_action(
             "recon",
@@ -2344,6 +2756,39 @@ print("No valid password found")
             intent="重新采样响应并寻找新的利用线索",
             expected_tool="recon",
         )
+
+    def _is_low_yield_step(self, step: Any) -> bool:
+        result_text = str(getattr(step, "result", "") or "").strip()
+        key_findings = list(getattr(step, "key_findings", []) or [])
+        target = str(getattr(step, "target", "") or "").strip()
+        canonical_tool = str(getattr(step, "canonical_tool", "") or getattr(step, "tool", "") or "").strip()
+        return (
+            canonical_tool in {"recon", "dirsearch", "ua_test", "follow_redirect"}
+            and not key_findings
+            and not getattr(step, "success", False)
+            and bool(target)
+            and bool(result_text)
+        )
+
+    def _recent_low_yield_probe_stats(self, window: int = 5) -> Dict[str, Any]:
+        recent_steps = self.memory.steps[-window:] if window > 0 else self.memory.steps
+        same_target_counts: Dict[str, int] = {}
+        low_yield_steps = []
+        for step in recent_steps:
+            if not self._is_low_yield_step(step):
+                continue
+            low_yield_steps.append(step)
+            target = str(step.target or "").strip()
+            same_target_counts[target] = same_target_counts.get(target, 0) + 1
+        repeated_target = max(same_target_counts.values(), default=0)
+        repeated_current_target = same_target_counts.get(str(self.target_url or "").strip(), 0)
+        return {
+            "low_yield_steps": low_yield_steps,
+            "low_yield_count": len(low_yield_steps),
+            "same_target_counts": same_target_counts,
+            "repeated_target_count": repeated_target,
+            "repeated_current_target_count": repeated_current_target,
+        }
 
     def _execute_action(self, action: Dict[str, Any]) -> str:
         """执行标准化动作。"""
@@ -2486,6 +2931,22 @@ print("No valid password found")
             consecutive_failures += 1
 
         recent_failure_stats = self._recent_action_failure_counts(window=5)
+        readiness = self._help_readiness()
+        self.memory.set_help_readiness_reason(str(readiness.get("reason") or ""))
+        if not readiness.get("ready"):
+            reason = str(readiness.get("reason") or "")
+            if reason == "rag_not_attempted":
+                self.last_help_reason = reason
+                self.log("[FAIL_ANALYSIS] Trigger pre-help RAG before escalation", "INFO")
+                return True
+            if reason == "need_more_rounds" and self._should_run_rag_before_help() and self._get_consecutive_failures() >= self.max_failures:
+                self.memory.set_help_readiness_reason("rag_not_attempted")
+                self.last_help_reason = "rag_not_attempted"
+                self.log("[FAIL_ANALYSIS] Help delayed until pre-help RAG runs", "INFO")
+                return True
+            self.log(f"[FAIL_ANALYSIS] Help gate delayed: {reason}", "INFO")
+            self.last_help_reason = reason
+            return False
         if total_steps >= 5 and recent_failure_stats["distinct_actions"] <= 2 and recent_failure_stats["distinct_action_types"] <= 2:
             self.log("[FAIL_ANALYSIS] Limited action diversity, forcing replanning", "FAIL")
             self.last_help_reason = "limited_diversity"
@@ -2498,6 +2959,11 @@ print("No valid password found")
         execution_errors = fail_types.get("execution_error", 0)
         same_error = fail_types.get("same_error", 0)
         timeouts = fail_types.get("timeout", 0)
+
+        if readiness.get("reason") == "not_enough_failures_after_coverage" and same_error >= 3:
+            self.last_help_reason = "rag_not_attempted"
+            self.log("[FAIL_ANALYSIS] Same error repeated, trigger pre-help RAG", "INFO")
+            return True
 
         if payload_errors >= 2 and consecutive_failures < self.max_failures:
             self.log("[FAIL_ANALYSIS] Payload errors detected, retrying with adjustments...", "FAIL")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -510,11 +511,14 @@ class GraphManager:
     def refresh_shared_findings(self, memory: Any) -> List[Dict[str, Any]]:
         target = getattr(memory, "target", None)
         context = getattr(memory, "context", None)
-        current_step = len(getattr(memory, "steps", []) or [])
+        steps = list(getattr(memory, "steps", []) or [])
+        current_step = len(steps)
 
         if target is not None:
             for endpoint in getattr(target, "endpoints", []) or []:
                 self.upsert_shared_finding("endpoint", endpoint, step=current_step)
+                for kind, value in self._derive_findings_from_value(endpoint):
+                    self.upsert_shared_finding(kind, value, step=current_step, metadata={"derived_from": "endpoint"})
             for parameter in getattr(target, "parameters", []) or []:
                 self.upsert_shared_finding("parameter", parameter, step=current_step)
             for vuln in getattr(target, "vulnerabilities", []) or []:
@@ -527,6 +531,95 @@ class GraphManager:
                 )
             for flag in getattr(target, "flags", []) or []:
                 self.upsert_shared_finding("flag", flag, step=current_step)
+
+        for node in self._nodes.values():
+            metadata = dict(node.metadata or {})
+            for raw_value in [node.target, node.result_preview, metadata.get("result"), metadata.get("label")]:
+                text_value = str(raw_value or "").strip()
+                if not text_value:
+                    continue
+                if text_value.startswith("/"):
+                    self.upsert_shared_finding(
+                        "endpoint",
+                        text_value,
+                        step=node.updated_step or node.step or current_step,
+                        source_node_id=node.id,
+                        source_action_id=node.action_id,
+                        metadata={"derived_from": "graph.node"},
+                    )
+                for kind, value in self._derive_findings_from_value(text_value):
+                    self.upsert_shared_finding(
+                        kind,
+                        value,
+                        step=node.updated_step or node.step or current_step,
+                        source_node_id=node.id,
+                        source_action_id=node.action_id,
+                        metadata={"derived_from": "graph.node"},
+                    )
+
+        for index, step_item in enumerate(steps, start=1):
+            source_action_id = str(getattr(step_item, "action_id", "") or "")
+            source_node_id = f"action:{source_action_id}" if source_action_id else ""
+            result_text = str(getattr(step_item, "result", "") or "")
+            key_findings = list(getattr(step_item, "key_findings", []) or [])
+
+            for value in key_findings:
+                finding_value = str(value or "").strip()
+                if not finding_value:
+                    continue
+                metadata = {"derived_from": "step.key_findings"}
+                if ":" in finding_value:
+                    kind, raw_value = finding_value.split(":", 1)
+                    kind = kind.strip()
+                    raw_value = raw_value.strip()
+                    if kind and raw_value:
+                        self.upsert_shared_finding(
+                            kind,
+                            raw_value,
+                            step=index,
+                            source_node_id=source_node_id,
+                            source_action_id=source_action_id,
+                            metadata=metadata,
+                        )
+                        continue
+                if finding_value.startswith("/"):
+                    self.upsert_shared_finding(
+                        "endpoint",
+                        finding_value,
+                        step=index,
+                        source_node_id=source_node_id,
+                        source_action_id=source_action_id,
+                        metadata=metadata,
+                    )
+                    for kind, value in self._derive_findings_from_value(finding_value):
+                        self.upsert_shared_finding(
+                            kind,
+                            value,
+                            step=index,
+                            source_node_id=source_node_id,
+                            source_action_id=source_action_id,
+                            metadata={"derived_from": "step.endpoint"},
+                        )
+                    continue
+                for kind, value in self._derive_findings_from_value(finding_value):
+                    self.upsert_shared_finding(
+                        kind,
+                        value,
+                        step=index,
+                        source_node_id=source_node_id,
+                        source_action_id=source_action_id,
+                        metadata=metadata,
+                    )
+
+            for kind, value in self._derive_findings_from_value(result_text):
+                self.upsert_shared_finding(
+                    kind,
+                    value,
+                    step=index,
+                    source_node_id=source_node_id,
+                    source_action_id=source_action_id,
+                    metadata={"derived_from": "step.result"},
+                )
 
         if context is not None:
             shared_findings = getattr(context, "shared_findings", []) or []
@@ -588,8 +681,167 @@ class GraphManager:
             ),
         )
 
+    def _derive_findings_from_value(self, value: Any) -> List[Tuple[str, str]]:
+        text = str(value or "").strip()
+        if not text:
+            return []
+
+        lower_text = text.lower()
+        derived: List[Tuple[str, str]] = []
+
+        def add(kind: str, finding_value: str) -> None:
+            item = (kind, str(finding_value or "").strip())
+            if not item[1] or item in derived:
+                return
+            derived.append(item)
+
+        if any(token in lower_text for token in [".git/head", ".git/config", "/.git", ".svn/entries", ".hg"]):
+            add("repo_exposure", text)
+        if any(token in lower_text for token in [".env", "config.php", "flag.txt", "/etc/passwd"]):
+            add("sensitive_file", text)
+        if any(token in lower_text for token in ["backup", ".zip", ".tar", ".gz", ".bak", ".old", ".swp"]):
+            add("backup_file", text)
+        if any(token in lower_text for token in ["phpinfo", "debug", "test.php", "info.php"]):
+            add("debug_page", text)
+        if any(token in lower_text for token in ["backdoor.php", "webshell", "letmein"]):
+            add("shell_artifact", text)
+        if any(token in lower_text for token in ["source leak", "highlight_file", "view-source", "源码泄露"]):
+            add("source_leak", text)
+        if any(token in lower_text for token in ["php version", "x-powered-by", "server:", "content-type:"]):
+            add("info_leak", text)
+
+        for match in re.findall(r"[?&]([^=&#]+)=", text):
+            add("parameter", match)
+
+        return derived
+
+    def _finding_lineage_key(self, kind: str = "", value: str = "", family: str = "") -> str:
+        parts = [str(kind or "").strip(), str(value or "").strip(), str(family or "").strip()]
+        normalized = [part for part in parts if part]
+        return "::".join(normalized)
+
+    def _finding_lineage_summary(self, finding: Dict[str, Any], recent_replans: List[Dict[str, Any]]) -> Dict[str, Any]:
+        item = dict(finding or {})
+        kind = str(item.get("kind") or "").strip()
+        value = str(item.get("value") or "").strip()
+        family = str(item.get("verification_family") or kind or "").strip()
+        lineage_key = self._finding_lineage_key(kind, value, family)
+
+        failed_attempts = 0
+        total_attempts = 0
+        last_attempt_step = 0
+        last_status = ""
+        for node in self._nodes.values():
+            if node.kind != "action":
+                continue
+            metadata = dict(node.metadata or {})
+            node_kind = str(metadata.get("source_finding_kind") or "").strip()
+            node_value = str(metadata.get("source_finding_value") or "").strip()
+            node_family = str(metadata.get("verification_family") or node_kind or "").strip()
+            if self._finding_lineage_key(node_kind, node_value, node_family) != lineage_key:
+                continue
+            attempts = max(int(node.attempt_count or 0), 1)
+            total_attempts += attempts
+            if node.status == "failed":
+                failed_attempts += attempts
+            step = int(node.updated_step or node.step or 0)
+            if step >= last_attempt_step:
+                last_attempt_step = step
+                last_status = str(node.status or "")
+
+        blocked = False
+        blocked_by_replans: List[str] = []
+        for replan in recent_replans[:3]:
+            blocked_findings = list(replan.get("blocked_findings") or [])
+            avoid_lineages = self._normalize_list(replan.get("avoid_lineages") or [])
+            replan_lineage_key = self._finding_lineage_key(
+                replan.get("source_finding_kind") or "",
+                replan.get("source_finding_value") or "",
+                replan.get("verification_family") or replan.get("source_finding_kind") or "",
+            )
+            if replan_lineage_key == lineage_key or lineage_key in avoid_lineages:
+                blocked = True
+                blocked_by_replans.append(str(replan.get("node_id") or ""))
+                continue
+            for blocked_item in blocked_findings:
+                blocked_kind = str(blocked_item.get("kind") or "").strip()
+                blocked_value = str(blocked_item.get("value") or "").strip()
+                blocked_family = str(blocked_item.get("verification_family") or blocked_kind or "").strip()
+                if self._finding_lineage_key(blocked_kind, blocked_value, blocked_family) == lineage_key:
+                    blocked = True
+                    blocked_by_replans.append(str(replan.get("node_id") or ""))
+                    break
+
+        summary = {
+            "lineage_key": lineage_key,
+            "kind": kind,
+            "value": value,
+            "verification_family": family,
+            "source_action_id": str(item.get("source_action_id") or ""),
+            "source_node_id": str(item.get("source_node_id") or ""),
+            "failed_attempts": failed_attempts,
+            "attempts": total_attempts,
+            "blocked": blocked,
+            "last_attempt_step": last_attempt_step,
+            "last_status": last_status,
+        }
+        if blocked_by_replans:
+            summary["blocked_by_replans"] = self._unique_values(blocked_by_replans)
+        return summary
+
+    def _finding_priority(self, finding: Dict[str, Any]) -> int:
+        priority_map = {
+            "repo_exposure": 100,
+            "shell_artifact": 95,
+            "source_leak": 90,
+            "backup_file": 85,
+            "sensitive_file": 80,
+            "debug_page": 75,
+            "info_leak": 70,
+            "vulnerability": 65,
+            "parameter": 60,
+            "auth_hint": 58,
+            "form_field": 57,
+            "form_method": 56,
+            "endpoint": 50,
+            "guidance": 40,
+            "flag": 120,
+        }
+        return priority_map.get(str(finding.get("kind") or ""), 10)
+
     def planner_signals(self) -> Dict[str, Any]:
         findings = self.get_shared_findings()
+        if not findings:
+            latest_step = 0
+            for node in self._nodes.values():
+                latest_step = max(latest_step, int(node.updated_step or node.step or 0))
+            fallback_target = type("GraphTargetView", (), {"endpoints": [], "parameters": [], "vulnerabilities": [], "flags": []})()
+            fallback_context = type("GraphContextView", (), {"shared_findings": [], "human_guidance": "", "help_history": []})()
+            fallback_steps = []
+            for node in self._nodes.values():
+                result_text = str(node.metadata.get("result") or node.result_preview or "")
+                key_findings = list(node.metadata.get("key_findings") or [])
+                fallback_steps.append(
+                    type(
+                        "GraphStepView",
+                        (),
+                        {
+                            "action_id": node.action_id,
+                            "result": result_text,
+                            "key_findings": key_findings,
+                        },
+                    )()
+                )
+                target_value = str(node.target or "").strip()
+                if target_value.startswith("/") and target_value not in fallback_target.endpoints:
+                    fallback_target.endpoints.append(target_value)
+            fallback_memory = type(
+                "GraphMemoryView",
+                (),
+                {"target": fallback_target, "context": fallback_context, "steps": fallback_steps},
+            )()
+            self.refresh_shared_findings(fallback_memory)
+            findings = self.get_shared_findings()
         action_nodes = [node for node in self._nodes.values() if node.kind == "action"]
         failed_nodes = sorted(
             (node for node in action_nodes if node.status == "failed"),
@@ -652,6 +904,72 @@ class GraphManager:
         latest_guidance = self.latest_finding("guidance")
         latest_endpoint = self.latest_finding("endpoint")
         latest_parameter = self.latest_finding("parameter")
+        priority_findings = sorted(
+            [
+                finding for finding in findings
+                if str(finding.get("kind") or "") in {
+                    "repo_exposure",
+                    "backup_file",
+                    "sensitive_file",
+                    "debug_page",
+                    "source_leak",
+                    "shell_artifact",
+                    "info_leak",
+                    "parameter",
+                    "endpoint",
+                    "vulnerability",
+                    "auth_hint",
+                    "form_field",
+                    "form_method",
+                }
+            ],
+            key=lambda item: (
+                -self._finding_priority(item),
+                -int(item.get("last_seen_step") or 0),
+                str(item.get("kind") or ""),
+                str(item.get("value") or ""),
+            ),
+        )
+        verification_hints = [
+            {
+                "kind": str(item.get("kind") or ""),
+                "value": str(item.get("value") or ""),
+                "confidence": float(item.get("confidence") or 1.0),
+                "metadata": dict(item.get("metadata") or {}),
+                "source_action_id": str(item.get("source_action_id") or ""),
+                "source_node_id": str(item.get("source_node_id") or ""),
+                "verification_family": str(item.get("verification_family") or item.get("kind") or ""),
+            }
+            for item in priority_findings[:8]
+        ]
+        finding_lineages = [
+            self._finding_lineage_summary(item, recent_replans)
+            for item in priority_findings[:8]
+        ]
+        blocked_findings = [
+            dict(item)
+            for lineage in finding_lineages
+            if lineage.get("blocked")
+            for item in [
+                {
+                    "kind": str(lineage.get("kind") or ""),
+                    "value": str(lineage.get("value") or ""),
+                    "verification_family": str(lineage.get("verification_family") or ""),
+                    "lineage_key": str(lineage.get("lineage_key") or ""),
+                }
+            ]
+            if item.get("kind") and item.get("value")
+        ]
+        finding_failure_counts = {
+            str(lineage.get("lineage_key") or ""): int(lineage.get("failed_attempts") or 0)
+            for lineage in finding_lineages
+            if str(lineage.get("lineage_key") or "")
+        }
+        finding_attempt_counts = {
+            str(lineage.get("lineage_key") or ""): int(lineage.get("attempts") or 0)
+            for lineage in finding_lineages
+            if str(lineage.get("lineage_key") or "")
+        }
         return {
             "latest_guidance": str((latest_guidance or {}).get("value") or ""),
             "guidance_history": finding_values("guidance")[-3:],
@@ -687,6 +1005,12 @@ class GraphManager:
             "avoid_action_ids": avoid_action_ids,
             "avoid_tools": avoid_tools,
             "alternative_candidates": list(latest_replan.get("alternative_candidates") or []),
+            "priority_findings": priority_findings[:8],
+            "verification_hints": verification_hints,
+            "finding_lineages": finding_lineages,
+            "blocked_findings": blocked_findings,
+            "finding_failure_counts": finding_failure_counts,
+            "finding_attempt_counts": finding_attempt_counts,
         }
 
     def summary(self) -> str:
@@ -952,10 +1276,13 @@ class GraphManager:
             "blocked_tools": self._normalize_list(metadata.get("blocked_tools")),
             "avoid_action_ids": self._normalize_list(metadata.get("avoid_action_ids")),
             "avoid_tools": self._normalize_list(metadata.get("avoid_tools")),
+            "avoid_lineages": self._normalize_list(metadata.get("avoid_lineages")),
+            "blocked_findings": list(metadata.get("blocked_findings") or []),
             "alternative_candidates": list(metadata.get("alternative_candidates") or []),
             "selected_alternative": dict(metadata.get("selected_alternative") or {}),
             "source_finding_kind": str(metadata.get("source_finding_kind") or ""),
             "source_finding_value": str(metadata.get("source_finding_value") or ""),
+            "verification_family": str(metadata.get("verification_family") or metadata.get("source_finding_kind") or ""),
             "source_action_id": str(metadata.get("source_action_id") or node.action_id or ""),
             "source_action_type": str(metadata.get("source_action_type") or node.action_type or ""),
             "source_node_id": str(metadata.get("source_node_id") or ""),
@@ -1032,6 +1359,7 @@ class GraphManager:
             "source_action_id",
             "source_action_type",
             "source_node_id",
+            "verification_family",
         ):
             value = str(raw.get(key) or "").strip()
             if value:
@@ -1041,6 +1369,10 @@ class GraphManager:
         blocked_tools = self._normalize_list(raw.get("blocked_tools") or raw.get("blocked_tool"))
         avoid_action_ids = self._normalize_list(raw.get("avoid_action_ids") or raw.get("avoid_action_id"))
         avoid_tools = self._normalize_list(raw.get("avoid_tools") or raw.get("avoid_tool"))
+        avoid_lineages = self._normalize_list(raw.get("avoid_lineages") or raw.get("avoid_lineage"))
+        blocked_findings = [
+            item for item in (self._normalize_blocked_finding(finding) for finding in raw.get("blocked_findings") or []) if item
+        ]
         alternative_candidates = [
             item for item in (self._normalize_candidate(candidate) for candidate in raw.get("alternative_candidates") or []) if item
         ]
@@ -1054,11 +1386,27 @@ class GraphManager:
             normalized["avoid_action_ids"] = avoid_action_ids
         if avoid_tools:
             normalized["avoid_tools"] = avoid_tools
+        if avoid_lineages:
+            normalized["avoid_lineages"] = avoid_lineages
+        if blocked_findings:
+            normalized["blocked_findings"] = blocked_findings
         if alternative_candidates:
             normalized["alternative_candidates"] = alternative_candidates
         if selected_alternative:
             normalized["selected_alternative"] = selected_alternative
         return normalized
+
+    def _normalize_blocked_finding(self, finding: Any) -> Dict[str, Any]:
+        if not isinstance(finding, dict):
+            return {}
+        normalized = {
+            "kind": str(finding.get("kind") or "").strip(),
+            "value": str(finding.get("value") or "").strip(),
+            "verification_family": str(
+                finding.get("verification_family") or finding.get("kind") or ""
+            ).strip(),
+        }
+        return {key: value for key, value in normalized.items() if value}
 
     @staticmethod
     def _preview(result: Any, limit: int = 160) -> str:

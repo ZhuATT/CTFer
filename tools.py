@@ -25,9 +25,10 @@ from pathlib import Path
 from urllib3.exceptions import InsecureRequestWarning
 
 from toolkit.base import get_venv_python, run_subprocess
+from taxonomy import build_taxonomy_profile, canonical_skill_names, canonicalize_problem_type, problem_type_aliases, taxonomy_findings_from_profile
 
 # 导入短期记忆
-from short_memory import get_short_memory, reset_short_memory, ShortMemory, AgentContext, extract_flag_candidates
+from short_memory import get_short_memory, reset_short_memory, ShortMemory, AgentContext, extract_flag_candidates, classify_generic_findings
 
 # 导入长期记忆系统
 try:
@@ -102,7 +103,7 @@ def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict
     hint_lower = hint.lower()
 
     # 扩展关键词列表，包含框架名称和更多变体
-    type_keywords = {
+    type_keywords = KEYWORD_HINTS = {
         "sqli": ["sql", "injection", "inject", "select", "union", "database", "注入", "mysql", "mariadb", "sqlmap"],
         "xss": ["xss", "script", "alert", "跨站", "javascript"],
         "lfi": ["lfi", "local file", "文件包含", "读取", "file inclusion", "include", "path traversal"],
@@ -119,10 +120,20 @@ def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict
     }
     problem_type = "unknown"
 
+    direct_hint_signals = {
+        "phpinfo": any(token in (desc_lower + " " + hint_lower) for token in ["phpinfo", "信息泄露", "配置泄露"]),
+        "git_exposure": any(token in (desc_lower + " " + hint_lower) for token in [".git", "git 泄露", "git泄露", "源码泄露", "目录扫描", "扫目录"]),
+    }
+
     for ptype, keywords in type_keywords.items():
         if any(k in url_lower or k in desc_lower or k in hint_lower for k in keywords):
             problem_type = ptype
             break
+
+    if direct_hint_signals["phpinfo"] or direct_hint_signals["git_exposure"]:
+        problem_type = "unknown"
+
+    problem_type = canonicalize_problem_type(problem_type)
 
     if problem_type == "unknown" and target_url:
         try:
@@ -130,33 +141,48 @@ def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict
                 warnings.simplefilter("ignore", InsecureRequestWarning)
                 resp = requests.get(target_url, timeout=10, verify=False)
             page_content = resp.text.lower()
-            for ptype, keywords in type_keywords.items():
-                if any(k in page_content for k in keywords):
-                    problem_type = ptype
-                    print(f"[Auto-detect] 从页面内容识别出类型: {ptype}")
-                    break
+            if "phpinfo()" in page_content or "php version" in page_content and "php credits" in page_content:
+                print("[Auto-detect] 页面特征命中 phpinfo，标记为信息泄露场景")
+                memory.add_step(
+                    tool="init_probe",
+                    target=target_url,
+                    params={},
+                    result="phpinfo exposed",
+                    success=True,
+                    key_findings=["phpinfo_exposed", "info_leak"],
+                )
+                problem_type = "unknown"
+            else:
+                for ptype, keywords in type_keywords.items():
+                    if any(k in page_content for k in keywords):
+                        problem_type = ptype
+                        print(f"[Auto-detect] 从页面内容识别出类型: {ptype}")
+                        break
             server = resp.headers.get("Server", "").lower()
             if "tornado" in server:
                 problem_type = "tornado"
                 print("[Auto-detect] 从Server header识别出类型: tornado")
         except Exception as e:
             print(f"[Auto-detect] 访问目标失败: {e}")
+    problem_type = canonicalize_problem_type(problem_type)
+    taxonomy_profile = build_taxonomy_profile(problem_type, target_url, description, hint)
     skill_content = ""
     if problem_type != "unknown":
-        skill_path = Path(__file__).parent / "skills" / problem_type / "SKILL.md"
-        if skill_path.exists():
+        for skill_name in canonical_skill_names(problem_type):
+            skill_path = Path(__file__).parent / "skills" / skill_name / "SKILL.md"
+            if not skill_path.exists():
+                continue
             skill_content = skill_path.read_text(encoding="utf-8")
-            # 打印关键部分（前1500字符）
-            print(f"\n>>> Skills知识库 [{problem_type}]:")
+            print(f"\n>>> Skills知识库 [{skill_name}]:")
             print("-" * 40)
-            # 提取关键部分
-            lines = skill_content.split('\n')[:50]  # 只显示前50行
+            lines = skill_content.split('\n')[:50]
             print('\n'.join(lines))
             if len(skill_content) > 2000:
                 print(f"\n... [知识库内容过长，已截断，共{len(skill_content)}字符]")
+            break
 
     # 2. 加载长期记忆（经验/POC）
-    loaded_resources = {}
+    loaded_resources = {"taxonomy_profile": taxonomy_profile, "resource_bundle": {}, "source_breakdown": {}}
     if LONG_MEMORY_AVAILABLE and auto_identify_and_load:
         try:
             loaded_resources = auto_identify_and_load(
@@ -164,6 +190,9 @@ def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict
                 description=description,
                 hint=hint
             )
+            loaded_resources.setdefault("taxonomy_profile", taxonomy_profile)
+            loaded_resources.setdefault("resource_bundle", _assemble_resource_bundle(taxonomy_profile, target_url=target_url))
+            loaded_resources.setdefault("source_breakdown", {})
             # 打印加载的资源
             if loaded_resources.get("probable_types"):
                 print(f"\n>>> 识别类型: {loaded_resources['probable_types']}")
@@ -201,6 +230,11 @@ def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict
     print(f"[Problem Init Complete] Type: {problem_type}")
     print(f"{'='*60}\n")
 
+    for finding in taxonomy_findings_from_profile(taxonomy_profile):
+        current_shared = list(memory.context.shared_findings or [])
+        current_shared.append(finding)
+        memory.context.shared_findings = current_shared
+
     memory.set_context(
         url=target_url,
         description=description,
@@ -218,23 +252,79 @@ def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict
         "problem_type": problem_type,
         "skill_content": skill_content,
         "loaded_resources": loaded_resources,
-        "wooyun_ref": wooyun_ref
+        "wooyun_ref": wooyun_ref,
+        "taxonomy_profile": taxonomy_profile,
     }
+def _assemble_resource_bundle(profile: Dict[str, Any], target_url: str = "") -> Dict[str, Any]:
+    canonical_type = canonicalize_problem_type(profile.get("canonical_problem_type") or "unknown")
+    aliases = list(profile.get("type_aliases") or problem_type_aliases(canonical_type))
+    bundle = {
+        "canonical_problem_type": canonical_type,
+        "type_aliases": aliases,
+        "skills": [],
+        "experiences": [],
+        "pocs": [],
+        "wooyun_seed_knowledge": [],
+        "taxonomy_tags": list(profile.get("taxonomy_tags") or []),
+        "resource_hints": dict(profile.get("resource_hints") or {}),
+    }
+
+    for skill_name in profile.get("skill_names") or canonical_skill_names(canonical_type):
+        skill_path = Path(__file__).parent / "skills" / skill_name / "SKILL.md"
+        if skill_path.exists():
+            bundle["skills"].append(skill_name)
+
+    if LONG_MEMORY_AVAILABLE:
+        try:
+            from long_memory import auto_memory
+            memory_resources = auto_memory.load_resources_for_type(canonical_type)
+            bundle["experiences"] = list(memory_resources.get("experiences") or [])
+            bundle["pocs"] = list(memory_resources.get("pocs") or [])
+        except Exception:
+            pass
+
+    try:
+        from skills.wooyun.wooyun_rag import retrieve_knowledge
+        wooyun_context = retrieve_knowledge(
+            query=f"{canonical_type} {' '.join(aliases[:3])}",
+            context={
+                "current_vuln_type": canonical_type,
+                "target_url": target_url,
+                "tech_stack": list(profile.get("framework_tags") or []),
+                "attempted_methods": [],
+                "problem_description": canonical_type,
+            },
+            top_k=3,
+        )
+        bundle["wooyun_seed_knowledge"] = list(wooyun_context.get("retrieved_knowledge") or [])
+    except Exception:
+        pass
+
+    return bundle
+
+
 def get_available_resources() -> Dict[str, Any]:
     """
     获取当前题目可用的资源（POC、经验、知识）
     Agent 可在任何时候调用查看可用资源
     """
     memory = get_memory()
-    prob_type = memory.target.problem_type or "unknown"
+    prob_type = canonicalize_problem_type(memory.target.problem_type or "unknown")
     target_url = memory.target.url or ""
+    context = memory.get_context()
+    loaded_resources = dict(getattr(context, "loaded_resources", {}) or {})
+    taxonomy_profile = dict(loaded_resources.get("taxonomy_profile") or build_taxonomy_profile(prob_type, target_url, getattr(context, "description", ""), getattr(context, "hint", "")))
+    resource_bundle = _assemble_resource_bundle(taxonomy_profile, target_url=target_url)
 
     result = {
         "problem_type": prob_type,
+        "canonical_problem_type": taxonomy_profile.get("canonical_problem_type", prob_type),
         "target": target_url,
-        "pocs": [],
-        "experiences": [],
-        "wooyun_knowledge": []
+        "pocs": list(resource_bundle.get("pocs") or []),
+        "experiences": list(resource_bundle.get("experiences") or []),
+        "wooyun_knowledge": list(resource_bundle.get("wooyun_seed_knowledge") or []),
+        "taxonomy_profile": taxonomy_profile,
+        "resource_bundle": resource_bundle,
     }
 
     # 加载长期记忆 POC
@@ -266,7 +356,7 @@ def get_available_resources() -> Dict[str, Any]:
 
     # 打印摘要
     print(f"\n{'='*60}")
-    print(f"[Available Resources] Type: {prob_type}")
+    print(f"[Available Resources] Type: {result['canonical_problem_type']}")
     print(f"{'='*60}")
 
     if result["pocs"]:
@@ -299,6 +389,31 @@ def update_problem_type(problem_type: str) -> str:
 
 # ===================== WooYun RAG Integration =====================
 
+def _build_rag_query_context(
+    query: str,
+    vuln_type: str,
+    target_url: str,
+    attempted_methods: List[str],
+) -> Dict[str, Any]:
+    memory = get_memory()
+    context = memory.get_context()
+    description = getattr(context, "description", "")
+    hint = getattr(context, "hint", "")
+    loaded_resources = dict(getattr(context, "loaded_resources", {}) or {})
+    taxonomy_profile = dict(loaded_resources.get("taxonomy_profile") or build_taxonomy_profile(vuln_type, target_url, description, hint))
+    shared_findings = list(getattr(context, "shared_findings", []) or [])
+    return {
+        "current_vuln_type": canonicalize_problem_type(vuln_type or taxonomy_profile.get("canonical_problem_type") or "unknown"),
+        "target_url": target_url or getattr(context, "url", ""),
+        "tech_stack": list(taxonomy_profile.get("framework_tags") or []),
+        "attempted_methods": list(attempted_methods or []),
+        "problem_description": query,
+        "taxonomy_aliases": list(taxonomy_profile.get("type_aliases") or []),
+        "taxonomy_tags": list(taxonomy_profile.get("taxonomy_tags") or []),
+        "shared_findings": shared_findings,
+    }
+
+
 def retrieve_rag_knowledge(query: str = "", vuln_type: str = "", target_url: str = "", attempted_methods: List[str] = None) -> Dict[str, Any]:
     """
     解题过程中主动检索 WooYun 知识库
@@ -327,14 +442,7 @@ def retrieve_rag_knowledge(query: str = "", vuln_type: str = "", target_url: str
 
         from wooyun_rag import retrieve_knowledge as wooyun_retrieve
 
-        context = {
-            "current_vuln_type": vuln_type,
-            "target_url": target_url,
-            "tech_stack": [],
-            "attempted_methods": attempted_methods,
-            "problem_description": query
-        }
-
+        context = _build_rag_query_context(query, vuln_type, target_url, attempted_methods)
         result = wooyun_retrieve(query=query, context=context, top_k=5)
 
         # 格式化输出
@@ -967,6 +1075,98 @@ def summarize_auth_recon_response(target_url: str, status_code: int, headers: Di
     }
 
 
+def summarize_generic_recon_findings(target_url: str, status_code: int, headers: Dict[str, Any], response_text: str) -> Dict[str, Any]:
+    """从通用 recon 响应中提取高价值 finding taxonomy。"""
+    findings: List[str] = []
+    typed_findings: List[Dict[str, Any]] = []
+    lower_text = str(response_text or "").lower()
+    title_match = re.search(r"<title>(.*?)</title>", response_text or "", re.IGNORECASE | re.DOTALL)
+    title_text = title_match.group(1).strip() if title_match else ""
+
+    for item in classify_generic_findings(response_text):
+        typed_findings.append(item)
+    for item in classify_generic_findings(title_text):
+        typed_findings.append(item)
+
+    header_text = "\n".join(f"{key}: {value}" for key, value in dict(headers or {}).items())
+    for item in classify_generic_findings(header_text):
+        typed_findings.append(item)
+
+    if title_text:
+        findings.append(f"Page title: {title_text}")
+    if status_code:
+        findings.append(f"HTTP status: {status_code}")
+    if "phpinfo()" in lower_text or ("php version" in lower_text and "php credits" in lower_text):
+        typed_findings.append({"kind": "debug_page", "value": "phpinfo"})
+        typed_findings.append({"kind": "info_leak", "value": "phpinfo"})
+        findings.append("Debug page detected: phpinfo")
+
+    dedup_typed = list({(item.get('kind'), item.get('value')): item for item in typed_findings}.values())
+    return {
+        "findings": list(dict.fromkeys(findings)),
+        "typed_findings": dedup_typed,
+        "title": title_text,
+        "status_code": status_code,
+        "target_url": target_url,
+    }
+
+
+def summarize_dirsearch_findings(result: Any) -> Dict[str, Any]:
+    """把 dirsearch 的 parsed/artifacts 结果归一化为 memory/planner 可消费发现。"""
+    parsed = dict(getattr(result, "parsed", {}) or {})
+    artifacts = list(getattr(result, "artifacts", []) or [])
+    endpoints: List[str] = []
+    findings: List[str] = []
+    typed_findings: List[Dict[str, Any]] = []
+
+    def add_typed(kind: str, value: str, **metadata: Any) -> None:
+        item = {"kind": str(kind or "").strip(), "value": str(value or "").strip(), "metadata": dict(metadata or {})}
+        if not item["kind"] or not item["value"]:
+            return
+        typed_findings.append(item)
+
+    for artifact in artifacts:
+        path = str(artifact.get("path") or "").strip()
+        if not path:
+            continue
+        endpoints.append(path)
+        status = artifact.get("status")
+        if artifact.get("sensitive"):
+            findings.append(f"Sensitive path: {path}")
+            for derived in classify_generic_findings(path):
+                add_typed(derived.get("kind") or "note", path, source="artifact", status=status)
+        else:
+            findings.append(f"Path: {path}")
+            add_typed("endpoint", path, source="artifact", status=status)
+
+    for entry in parsed.get("sensitive_hits") or []:
+        path = str(entry.get("path") or "").strip()
+        status = entry.get("status")
+        if path and f"Sensitive path: {path}" not in findings:
+            findings.append(f"Sensitive path: {path}")
+        for derived in classify_generic_findings(path):
+            add_typed(derived.get("kind") or "note", path, source="parsed_sensitive_hit", status=status)
+
+    for entry in parsed.get("entries") or []:
+        path = str(entry.get("path") or "").strip()
+        status = entry.get("status")
+        if not path:
+            continue
+        if path not in endpoints:
+            endpoints.append(path)
+        add_typed("endpoint", path, source="parsed_entry", status=status)
+        for derived in classify_generic_findings(path):
+            add_typed(derived.get("kind") or "note", path, source="parsed_entry", status=status)
+
+    return {
+        "endpoints": list(dict.fromkeys([ep for ep in endpoints if ep])),
+        "findings": list(dict.fromkeys(findings)),
+        "typed_findings": list({(item.get('kind'), item.get('value')): item for item in typed_findings}.values()),
+        "sensitive_hits": list(parsed.get("sensitive_hits") or []),
+        "count": int(parsed.get("count") or 0),
+    }
+
+
 # ==================== 工具封装（带记忆） ====================
 
 def sqlmap_scan_url(url: str, memory_meta: Optional[Dict[str, Any]] = None, **kwargs) -> str:
@@ -1016,20 +1216,61 @@ def dirsearch_scan_url(url: str, memory_meta: Optional[Dict[str, Any]] = None, *
         return "[Error] Dirsearch工具未安装"
 
     result = dirsearch_scan(url=url, **kwargs)
+    summary = summarize_dirsearch_findings(result)
+    findings = list(summary.get("findings") or [])
+    typed_findings = list(summary.get("typed_findings") or [])
+    observation_payload = []
+    for item in typed_findings:
+        kind = str(item.get("kind") or "").strip()
+        value = str(item.get("value") or "").strip()
+        if kind and value:
+            observation_payload.append({
+                "kind": kind,
+                "value": value,
+                "metadata": dict(item.get("metadata") or {}),
+            })
+    for endpoint in summary.get("endpoints") or []:
+        if endpoint not in findings:
+            findings.append(endpoint)
+        observation_payload.append({"kind": "endpoint", "value": endpoint, "metadata": {"source": "dirsearch"}})
+    for item in typed_findings:
+        kind = str(item.get("kind") or "").strip()
+        value = str(item.get("value") or "").strip()
+        if kind and value:
+            marker = f"{kind}:{value}"
+            if marker not in findings:
+                findings.append(marker)
 
-    success = result.success
-    findings = ["发现目录"] if success and "200" in result.stdout else []
+    output_text = result.stdout if result.stdout else result.stderr
+    novelty = {
+        "endpoints": list(summary.get("endpoints") or []),
+        "count": int(summary.get("count") or 0),
+        "sensitive_hits": list(summary.get("sensitive_hits") or []),
+        "yield_class": "empty" if not summary.get("endpoints") else ("high" if summary.get("sensitive_hits") else "low"),
+    }
     memory.add_step(
         tool="dirsearch",
         target=url,
         params=kwargs,
-        result=result.stdout[:500] if success else result.stderr,
-        success=success,
+        result=output_text[:500] if len(output_text) > 500 else output_text,
+        success=result.success,
         key_findings=findings,
         action_meta=memory_meta,
+        parsed={"dirsearch_summary": summary, "novelty": novelty},
+        artifacts=list(getattr(result, "artifacts", []) or []),
+        observations=observation_payload,
     )
 
-    return f"[Dirsearch] {url}\n{result.stdout if success else result.stderr}"
+    if result.success:
+        header = f"[Dirsearch] {url}"
+    else:
+        header = f"[Dirsearch][Error] {url} (exit={result.exit_code})"
+
+    detail_lines = [header]
+    detail_lines.extend(findings[:10])
+    if output_text:
+        detail_lines.append(output_text)
+    return "\n".join(detail_lines)
 
 
 def quick_dir_scan(url: str, extensions: List[str] = None, memory_meta: Optional[Dict[str, Any]] = None) -> str:

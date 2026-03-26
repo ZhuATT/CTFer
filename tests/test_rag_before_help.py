@@ -13,6 +13,93 @@ from short_memory import extract_flag_candidates
 from tools import reset_memory
 
 
+class HelpReadinessRegressionTest(unittest.TestCase):
+    def setUp(self):
+        reset_memory()
+
+    def tearDown(self):
+        reset_memory()
+
+    def _make_agent(self) -> AutoAgent:
+        agent = AutoAgent(max_failures=3, max_steps=20, verbose=False, min_steps_before_help=1)
+        agent.target_url = "http://target.test"
+        agent.target_type = "auth"
+        agent.init_result = {
+            "problem_type": "auth",
+            "skill_content": "auth bypass skill mentions SQL injection and weak password testing",
+            "loaded_resources": {"resource_bundle": {"skills": ["auth-bypass"]}},
+        }
+        agent.memory.set_context(
+            problem_type="auth",
+            url=agent.target_url,
+            hint="login page",
+            skill_content=agent.init_result["skill_content"],
+            loaded_resources=agent.init_result["loaded_resources"],
+        )
+        agent.memory.add_endpoint("/login.php")
+        agent.memory.add_parameter("username")
+        agent.memory.add_parameter("password")
+        agent._sync_agent_context()
+        return agent
+
+    def _add_failures(self, agent: AutoAgent, count: int, *, action_type: str = "recon", tool: str = "python_poc") -> None:
+        for idx in range(count):
+            action = agent._build_action(
+                action_type,
+                target=agent.target_url,
+                description=f"attempt-{idx}",
+                intent="demo",
+                expected_tool=tool,
+            )
+            agent.last_action = dict(action)
+            agent.memory.add_step(
+                tool=tool,
+                target=agent.target_url,
+                params={},
+                result="blocked",
+                success=False,
+                action_meta=agent._build_memory_action_meta(action),
+            )
+
+    def test_help_gate_blocks_when_required_families_missing(self):
+        agent = self._make_agent()
+        self._add_failures(agent, 4)
+        readiness = agent._help_readiness()
+        self.assertFalse(readiness["ready"])
+        self.assertIn("weak-creds", readiness["missing_families"])
+        self.assertFalse(agent._should_ask_for_help())
+
+    def test_help_gate_blocks_when_resources_not_operationalized(self):
+        agent = self._make_agent()
+        agent.memory.note_attempted_family("weak-creds")
+        agent.memory.note_attempted_family("auth-sqli")
+        agent.memory.note_attempted_family("endpoint-enum")
+        agent.memory.set_context(round_new_findings_count=0, current_round=2, rag_attempted_in_current_window=True)
+        agent._sync_agent_context()
+        self._add_failures(agent, 4, action_type="poc")
+        readiness = agent._help_readiness()
+        self.assertEqual(readiness["reason"], "resources_not_operationalized")
+        self.assertFalse(agent._should_ask_for_help())
+
+    def test_help_gate_allows_help_after_rounds_coverage_and_resource_usage(self):
+        agent = self._make_agent()
+        agent.memory.note_attempted_family("weak-creds")
+        agent.memory.note_attempted_family("auth-sqli")
+        agent.memory.note_attempted_family("endpoint-enum")
+        agent.memory.note_resource_source_used("skill")
+        agent.memory.start_new_round(step=3, reason="need_more_rounds")
+        agent.memory.note_attempted_family("weak-creds")
+        agent.memory.note_attempted_family("auth-sqli")
+        agent.memory.note_attempted_family("endpoint-enum")
+        agent.memory.note_resource_source_used("rag")
+        agent.memory.set_context(round_new_findings_count=0, rag_attempted_in_current_window=True)
+        agent._sync_agent_context()
+        self._add_failures(agent, 4, action_type="poc")
+        readiness = agent._help_readiness()
+        self.assertTrue(readiness["ready"])
+        self.assertTrue(agent._should_ask_for_help())
+
+
 class RagBeforeHelpRegressionTest(unittest.TestCase):
     def setUp(self):
         reset_memory()
@@ -551,7 +638,92 @@ class AuthPlannerRegressionTest(unittest.TestCase):
         self.assertEqual(captured[0]["memory_meta"]["canonical_tool"], "python_poc")
 
 
-class InitProblemTlsRegressionTest(unittest.TestCase):
+
+
+
+
+class GenericFindingPropagationRegressionTest(unittest.TestCase):
+    def setUp(self):
+        reset_memory()
+
+    def tearDown(self):
+        reset_memory()
+
+    def test_generic_recon_findings_flow_into_memory_and_graph(self):
+        memory = tools.get_memory()
+        memory.update_target(url="https://target.test")
+        memory.add_step(
+            tool="python_poc",
+            target="https://target.test",
+            params={},
+            result="Page title: PHP 7.3.11 - phpinfo()\nSensitive path: /.git/HEAD\nX-Powered-By: PHP/7.3.11",
+            success=True,
+            key_findings=[],
+            action_meta={
+                "action_id": "recon-1",
+                "action_type": "recon",
+                "expected_tool": "recon",
+                "canonical_tool": "python_poc",
+            },
+        )
+
+        agent = AutoAgent(max_failures=3, max_steps=5, verbose=False, min_steps_before_help=10)
+        agent.target_url = "https://target.test"
+        agent.init_result = {"problem_type": "unknown", "loaded_resources": {}}
+        agent._refresh_graph_state()
+        context = agent.build_advisor_context()
+        signals = agent.graph_manager.planner_signals()
+
+        self.assertTrue(any("repo_exposure" in item for item in memory.steps[-1].key_findings))
+        self.assertTrue(any(item.get("kind") == "repo_exposure" for item in context["shared_findings"]))
+        self.assertTrue(any(item.get("kind") == "repo_exposure" for item in signals["priority_findings"]))
+    def setUp(self):
+        reset_memory()
+
+    def tearDown(self):
+        reset_memory()
+
+    def test_init_problem_phpinfo_page_is_not_misclassified_as_sqli(self):
+        response = Mock(
+            status_code=200,
+            text="<html><title>PHP 7.3.11 - phpinfo()</title><body>PHP Version mysql support</body></html>",
+            headers={"Server": "nginx"},
+        )
+
+        with patch("tools.requests.get", return_value=response), patch.object(
+            tools, "LONG_MEMORY_AVAILABLE", False
+        ), patch.object(tools, "_retrieve_wooyun_knowledge", return_value=""):
+            result = tools.init_problem("https://target.test", hint="打开是一个phpinfo")
+
+        self.assertNotEqual(result["problem_type"], "sqli")
+        memory = tools.get_memory()
+        self.assertIn("phpinfo_exposed", memory.steps[-1].key_findings)
+
+
+class DirsearchContractRegressionTest(unittest.TestCase):
+    def setUp(self):
+        reset_memory()
+
+    def tearDown(self):
+        reset_memory()
+
+    def test_dirsearch_nonzero_exit_is_recorded_as_failure(self):
+        fake_result = Mock(
+            success=False,
+            exit_code=1,
+            stdout="",
+            stderr="Traceback: ModuleNotFoundError: psycopg",
+            parsed={"entries": [], "count": 0, "sensitive_hits": []},
+            artifacts=[],
+        )
+
+        with patch.object(tools, "TOOLKIT_AVAILABLE", True), patch.object(tools, "dirsearch_scan", return_value=fake_result):
+            output = tools.dirsearch_scan_url("https://target.test")
+
+        memory = tools.get_memory()
+        self.assertFalse(memory.steps[-1].success)
+        self.assertIn("ModuleNotFoundError", memory.steps[-1].result)
+        self.assertIn("[Dirsearch][Error]", output)
     def setUp(self):
         reset_memory()
 
