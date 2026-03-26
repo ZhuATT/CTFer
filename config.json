@@ -5,31 +5,38 @@
   "python_path": "C:\\Users\\Administrator\\Envs\\CTFagent\\Scripts\\python.exe",
   "activate_cmd": "workon CTFagent"
  },
+ "llm": {
+  "api_key": "sk-qNKzzEypdM8lIBlSSkpotmKCZykCjJpj0WyVqmX7951R4rhE",
+  "api_base": "http://model.imfan.top",
+  "model": "MiniMax-M2.5",
+  "temperature": 0.3,
+  "max_tokens": 500
+ },
  "tools_source": "./tools_source",
  "tools": {
   "sqlmap": {
    "enabled": true,
    "path": "sqlmap/sqlmap.py",
    "timeout": 300,
-   "description": "\u81ea\u52a8 SQL \u6ce8\u5165\u68c0\u6d4b\u4e0e\u5229\u7528\u5de5\u5177"
+   "description": "自动 SQL 注入检测与利用工具"
   },
   "dirsearch": {
    "enabled": true,
    "path": "dirsearch/dirsearch.py",
    "timeout": 180,
-   "description": "\u76ee\u5f55\u626b\u63cf\u5de5\u5177"
+   "description": "目录扫描工具"
   },
   "fengjing": {
    "enabled": false,
    "path": "fengjing/main.py",
    "timeout": 60,
-   "description": "\u6307\u7eb9\u8bc6\u522b\u5de5\u5177"
+   "description": "指紋识别工具"
   },
   "decoder": {
    "enabled": true,
    "path": "decoder/__init__.py",
    "timeout": 10,
-   "description": "\u7f16\u7801/\u89e3\u7801\u5de5\u5177\uff08Base64/URL/Hex/Unicode/HTML/Ascii85/Base32\uff09",
+   "description": "编码/解码工具（Base64/URL/Hex/Unicode/HTML/Ascii85/Base32）",
    "internal": true
   }
  },

@@ -88,17 +88,19 @@
 
 ### P2：修 planner 空转与高价值发现消费不足
 
-- [ ] 修正 `dir_scan` 无增益循环缺少熔断
+- [x] 修正 `dir_scan` 无增益循环缺少熔断
   - 问题：`_decide_next_action()` 当前在失败 fallback 中容易持续回落到 `dir_scan`，即使最近没有新增 endpoint/finding 也会重复构造同类动作。
   - 暴露现象：本轮联调 20 步内大量步骤都停留在 `dir_scan`，未发生有效横向切换。
   - 修复目标：为重复 `dir_scan` 增加熔断和改路逻辑，在无增益时优先切到 graph-informed alternative / recon exploit 分支。
-  - 相关位置：`agent_core.py:_decide_next_action()`
+  - 当前结果：`agent_core.py::_recent_low_yield_probe_stats()` 已额外统计低收益 `dirsearch` 次数与无 finding 的重复目录扫描；`_decide_next_action()` 在识别到 `dir_scan_stuck_loop` 后会优先切回 `recon` 并打上 `reason=dir_scan_stuck_loop`，不再继续回落到同类目录扫描。已补回归覆盖重复 `dir_scan` 空转后必须改路。
+  - 相关位置：`agent_core.py:_recent_low_yield_probe_stats()`，`agent_core.py:_decide_next_action()`，`tests/test_graph_replan_ranking.py`
 
-- [ ] 修正 `.git/HEAD` 等高价值泄露未触发后续候选动作
+- [x] 修正 `.git/HEAD` 等高价值泄露未触发后续候选动作
   - 问题：`_collect_graph_informed_actions()` 对 guidance、endpoint、parameter 有一定消费，但没有覆盖 `.git` 泄露、备份包、源码泄露等高价值 finding。
   - 暴露现象：即使目标已暴露 `.git/HEAD`，planner 仍主要在普通 recon/dir_scan 范围内打转。
   - 修复目标：把 `.git/HEAD`、`.git/config`、备份文件、源码泄露等纳入 graph-informed candidate 生成，优先导向进一步利用动作。
-  - 相关位置：`agent_core.py:1011-1346`，`graph_manager.py:591-690`
+  - 当前结果：`agent_core.py::_build_verification_action_from_finding()` 已为 `repo_exposure`、`backup_file`、`source_leak` 等高价值 finding 生成带 family 的定向 follow-up；其中仓库泄露会优先落到 `focus=repo-exposure` 的定向验证动作，源码泄露会导向 `source_analysis`。新增回归已覆盖 `/.git/HEAD` finding 必须产生 repo-specific 非目录扫描候选。
+  - 相关位置：`agent_core.py:_build_verification_action_from_finding()`，`agent_core.py:_collect_graph_informed_actions()`，`tests/test_graph_replan_ranking.py`
 
 ### P3：补回归覆盖
 
@@ -154,6 +156,13 @@
   - 暴露现象：HTTPS 目标可能在初始化阶段报证书错误、导致类型识别 / 资源加载退化，但进入主循环后又能访问，形成前后语义不一致。
   - 修复目标：统一初始化与执行阶段的网络访问契约，至少保证类型识别、资源加载与主循环对同一目标的可达性判断一致。
   - 相关位置：`tools.py:81-139`，`agent_core.py:1357-1390`
+
+- [x] 修正 auth 动作 family 记账与 planner 候选排序漂移
+  - 问题：`agent_core.py::_action_tactic_family()` 之前会把 auth 场景下的 `recon` / `sqlmap_scan` 退化记成通用动作类型，导致 `weak-creds` / `endpoint-enum` / `auth-sqli` 覆盖统计失真；同时 auth 图候选在某些场景下会优先跳到 `sqlmap_scan`，与预期的 endpoint-enum 补齐顺序不一致。
+  - 暴露现象：日志里 planner / tool / help gate 对同一轮 auth 尝试的理解不一致，出现 `missing_families` 误报，且 POC 失败后可能先跳 SQLi 而不是继续 auth recon。
+  - 修复目标：让 auth `poc`、`recon`、`sqlmap_scan` 稳定映射到 `weak-creds` / `endpoint-enum` / `auth-sqli`；同时在 auth 场景下优先消费 endpoint-enum 候选，避免 family 顺序漂移。
+  - 当前结果：`agent_core.py::_action_tactic_family()` 已按 auth 语义优先判定 family；`_auth_stuck_with_all_families_attempted()` 仅基于当前 required families 判断；`_collect_graph_informed_actions()` 在 auth 场景下会优先返回 `endpoint-enum` 候选。新增回归已覆盖 family 映射、auth POC 后的 recon family 与 help gate 语义。
+  - 相关位置：`agent_core.py:1577-1597`，`agent_core.py:1642-1652`，`agent_core.py:1265-1500`，`tests/test_rag_before_help.py`
 
 ### P3: 修复 auth 类型识别后缺少攻击动作的问题
 

@@ -44,18 +44,33 @@ class HelpReadinessRegressionTest(unittest.TestCase):
 
     def _add_failures(self, agent: AutoAgent, count: int, *, action_type: str = "recon", tool: str = "python_poc") -> None:
         for idx in range(count):
+            params = {}
+            metadata = {}
+            if action_type == "poc":
+                params = {
+                    "endpoint": "check.php",
+                    "login_params": ["username", "password"],
+                    "code": "print('blocked')",
+                }
+            elif action_type == "recon" and agent.target_type == "auth":
+                metadata = {"tactic_family": "endpoint-enum"}
+            elif action_type == "sqlmap_scan" and agent.target_type == "auth":
+                params = {"batch": True}
+                metadata = {"tactic_family": "auth-sqli"}
             action = agent._build_action(
                 action_type,
                 target=agent.target_url,
                 description=f"attempt-{idx}",
                 intent="demo",
                 expected_tool=tool,
+                params=params,
+                metadata=metadata,
             )
             agent.last_action = dict(action)
             agent.memory.add_step(
                 tool=tool,
                 target=agent.target_url,
-                params={},
+                params=dict(params),
                 result="blocked",
                 success=False,
                 action_meta=agent._build_memory_action_meta(action),
@@ -81,6 +96,189 @@ class HelpReadinessRegressionTest(unittest.TestCase):
         self.assertEqual(readiness["reason"], "resources_not_operationalized")
         self.assertFalse(agent._should_ask_for_help())
 
+    def test_auth_actions_map_to_required_families(self):
+        agent = self._make_agent()
+        weak_creds = agent._build_action(
+            "poc",
+            target=agent.target_url,
+            description="Try weak creds",
+            intent="auth test",
+            expected_tool="python_poc",
+            params={"endpoint": "check.php", "login_params": ["username", "password"], "code": "print('x')"},
+        )
+        endpoint_enum = agent._build_action(
+            "recon",
+            target=agent.target_url,
+            description="Enumerate auth endpoints",
+            intent="auth recon",
+            expected_tool="recon",
+            metadata={"tactic_family": "endpoint-enum"},
+        )
+        auth_sqli = agent._build_action(
+            "sqlmap_scan",
+            target=agent.target_url,
+            description="Try auth sqli",
+            intent="auth sqli",
+            expected_tool="sqlmap",
+            params={"batch": True},
+            metadata={"tactic_family": "auth-sqli"},
+        )
+
+        self.assertEqual(agent._action_tactic_family(weak_creds), "weak-creds")
+        self.assertEqual(agent._action_tactic_family(endpoint_enum), "endpoint-enum")
+        self.assertEqual(agent._action_tactic_family(auth_sqli), "auth-sqli")
+
+    def test_decide_next_action_marks_auth_recon_as_endpoint_enum(self):
+        agent = self._make_agent()
+        agent.memory.add_step(
+            tool="python_poc",
+            target=agent.target_url,
+            params={"endpoint": "check.php", "login_params": ["username", "password"], "code": "print('x')"},
+            result="login failed",
+            success=False,
+            action_meta={
+                "action_id": "poc-1",
+                "action_type": "poc",
+                "expected_tool": "python_poc",
+                "canonical_tool": "python_poc",
+            },
+        )
+        agent._build_graph_informed_action = lambda: None
+        action = agent._decide_next_action()
+        self.assertEqual(action["type"], "recon")
+        self.assertEqual(action.get("tactic_family"), "endpoint-enum")
+
+    def test_auth_graph_candidates_prioritize_weak_creds_before_endpoint_enum(self):
+        agent = self._make_agent()
+        candidates = agent._collect_graph_informed_actions()
+        self.assertGreaterEqual(len(candidates), 2)
+        self.assertEqual(agent._candidate_tactic_family(candidates[0]), "weak-creds")
+
+    def test_auth_graph_candidates_switch_to_endpoint_enum_after_weak_creds_attempts(self):
+        agent = self._make_agent()
+        action = agent._build_action(
+            "poc",
+            target=agent.target_url,
+            description="Try weak creds",
+            intent="auth weak creds",
+            expected_tool="python_poc",
+            params={"endpoint": "check.php", "login_params": ["username", "password"], "code": "print('blocked')"},
+            metadata={"tactic_family": "weak-creds"},
+        )
+        agent.memory.add_step(
+            tool="python_poc",
+            target=agent.target_url,
+            params=dict(action["params"]),
+            result="blocked",
+            success=False,
+            action_meta=agent._build_memory_action_meta(action),
+        )
+
+        candidates = agent._collect_graph_informed_actions()
+        self.assertGreaterEqual(len(candidates), 2)
+        self.assertEqual(agent._candidate_tactic_family(candidates[0]), "endpoint-enum")
+
+    def test_auth_endpoint_enum_must_precede_auth_sqli(self):
+        agent = self._make_agent()
+        weak_action = agent._build_action(
+            "poc",
+            target=agent.target_url,
+            description="Try weak creds",
+            intent="auth weak creds",
+            expected_tool="python_poc",
+            params={"endpoint": "check.php", "login_params": ["username", "password"], "code": "print('blocked')"},
+            metadata={"tactic_family": "weak-creds"},
+        )
+        agent.memory.add_step(
+            tool="python_poc",
+            target=agent.target_url,
+            params=dict(weak_action["params"]),
+            result="blocked",
+            success=False,
+            action_meta=agent._build_memory_action_meta(weak_action),
+        )
+
+        candidates = agent._collect_graph_informed_actions()
+        families = [agent._candidate_tactic_family(item) for item in candidates[:3]]
+        self.assertIn("endpoint-enum", families)
+        if "auth-sqli" in families:
+            self.assertLess(families.index("endpoint-enum"), families.index("auth-sqli"))
+
+    def test_auth_sqli_is_suppressed_before_endpoint_enum_signal(self):
+        agent = self._make_agent()
+        weak_action = agent._build_action(
+            "poc",
+            target=agent.target_url,
+            description="Try weak creds",
+            intent="auth weak creds",
+            expected_tool="python_poc",
+            params={"endpoint": "check.php", "login_params": ["username", "password"], "code": "print('blocked')"},
+            metadata={"tactic_family": "weak-creds"},
+        )
+        agent.memory.add_step(
+            tool="python_poc",
+            target=agent.target_url,
+            params=dict(weak_action["params"]),
+            result="blocked",
+            success=False,
+            action_meta=agent._build_memory_action_meta(weak_action),
+        )
+
+        candidates = agent._collect_graph_informed_actions()
+        families = [agent._candidate_tactic_family(item) for item in candidates]
+        self.assertNotIn("auth-sqli", families[:2])
+
+        agent = self._make_agent()
+        for idx in range(3):
+            action = agent._build_action(
+                "poc",
+                target=agent.target_url,
+                description=f"weak-creds-{idx}",
+                intent="auth weak creds",
+                expected_tool="python_poc",
+                params={"endpoint": "check.php", "login_params": ["username", "password"], "code": "print('blocked')"},
+                metadata={"tactic_family": "weak-creds"},
+            )
+            agent.last_action = dict(action)
+            agent.memory.add_step(
+                tool="python_poc",
+                target=agent.target_url,
+                params=dict(action["params"]),
+                result="blocked",
+                success=False,
+                action_meta=agent._build_memory_action_meta(action),
+            )
+
+        agent._build_graph_informed_action = lambda: None
+        action = agent._decide_next_action()
+        self.assertNotEqual(action["type"], "dir_scan")
+        self.assertEqual(action.get("tactic_family"), "endpoint-enum")
+
+    def test_auth_limited_diversity_does_not_trigger_after_endpoint_signal_progress(self):
+        agent = self._make_agent()
+        for idx in range(5):
+            action = agent._build_action(
+                "poc",
+                target=agent.target_url,
+                description=f"weak-creds-{idx}",
+                intent="auth weak creds",
+                expected_tool="python_poc",
+                params={"endpoint": "check.php", "login_params": ["username", "password"], "code": "print('blocked')"},
+                metadata={"tactic_family": "weak-creds"},
+            )
+            agent.last_action = dict(action)
+            agent.memory.add_step(
+                tool="python_poc",
+                target=agent.target_url,
+                params=dict(action["params"]),
+                result="Found login form endpoint: /check.php\nForm method: POST" if idx == 0 else "blocked",
+                success=(idx == 0),
+                key_findings=["Found login form endpoint: /check.php", "Form method: POST"] if idx == 0 else [],
+                action_meta=agent._build_memory_action_meta(action),
+            )
+        self.assertFalse(agent._build_replan_payload().get("reason_code") == "limited_diversity")
+        self.assertFalse(agent._should_ask_for_help())
+
     def test_help_gate_allows_help_after_rounds_coverage_and_resource_usage(self):
         agent = self._make_agent()
         agent.memory.note_attempted_family("weak-creds")
@@ -98,6 +296,33 @@ class HelpReadinessRegressionTest(unittest.TestCase):
         readiness = agent._help_readiness()
         self.assertTrue(readiness["ready"])
         self.assertTrue(agent._should_ask_for_help())
+
+
+    def test_auth_same_error_does_not_escalate_when_structured_progress_exists(self):
+        agent = self._make_agent()
+        agent.memory.set_context(round_new_findings_count=1, rag_attempted_in_current_window=True)
+        agent._sync_agent_context()
+        for idx in range(4):
+            action = agent._build_action(
+                "poc",
+                target=agent.target_url,
+                description=f"weak-creds-{idx}",
+                intent="auth weak creds",
+                expected_tool="python_poc",
+                params={"endpoint": "check.php", "login_params": ["username", "password"], "code": "print('blocked')"},
+                metadata={"tactic_family": "weak-creds"},
+            )
+            agent.last_action = dict(action)
+            agent.memory.add_step(
+                tool="python_poc",
+                target=agent.target_url,
+                params=dict(action["params"]),
+                result="Found login form endpoint: /check.php\nForm method: POST" if idx == 0 else "blocked",
+                success=(idx == 0),
+                key_findings=["Found login form endpoint: /check.php", "Form method: POST"] if idx == 0 else [],
+                action_meta=agent._build_memory_action_meta(action),
+            )
+        self.assertFalse(agent._should_ask_for_help())
 
 
 class RagBeforeHelpRegressionTest(unittest.TestCase):
@@ -223,6 +448,69 @@ class RagBeforeHelpRegressionTest(unittest.TestCase):
         self.assertFalse(context_after_resume.rag_attempted_in_current_window)
         self.assertEqual(context_after_resume.rag_query, "")
         self.assertEqual(context_after_resume.help_history[-1]["guidance"], "Check WAF bypass")
+
+
+class AdvisorContextNormalizationRegressionTest(unittest.TestCase):
+    def setUp(self):
+        reset_memory()
+
+    def tearDown(self):
+        reset_memory()
+
+    def test_build_advisor_context_exposes_normalized_resource_view(self):
+        agent = AutoAgent(max_failures=3, max_steps=5, verbose=False, min_steps_before_help=1)
+        agent.target_url = "http://target.test"
+        agent.target_type = "auth"
+        agent.init_result = {
+            "problem_type": "auth",
+            "classification_source": "llm",
+            "classification_confidence": 0.88,
+            "classification_evidence": ["login", "password field"],
+            "classification_reasoning": "login form and credential workflow detected",
+            "skill_content": "# auth skill\nuse weak creds",
+            "loaded_resources": {
+                "taxonomy_profile": {
+                    "canonical_problem_type": "auth",
+                    "type_aliases": ["auth", "auth-bypass", "login"],
+                    "taxonomy_tags": ["auth"],
+                    "framework_tags": [],
+                    "vulnerability_tags": ["auth"],
+                    "skill_names": ["auth-bypass"],
+                },
+                "resource_bundle": {
+                    "skills": ["auth-bypass"],
+                    "skill_content": "# auth skill",
+                    "experiences": [{"file": "demo.md"}],
+                    "pocs": [{"cve": "demo"}],
+                    "wooyun_seed_knowledge": [{"type": "technique", "content": "try weak creds"}],
+                },
+            },
+        }
+        agent.memory.set_context(
+            url=agent.target_url,
+            problem_type="auth",
+            classification_source="llm",
+            classification_confidence=0.88,
+            classification_evidence=["login", "password field"],
+            classification_reasoning="login form and credential workflow detected",
+            loaded_resources=agent.init_result["loaded_resources"],
+            skill_content=agent.init_result["skill_content"],
+        )
+        agent._refresh_graph_state = lambda: []
+        agent.graph_manager.summary = lambda: "graph-summary"
+        agent._sync_agent_context()
+
+        context = agent.build_advisor_context()
+
+        self.assertEqual(context["canonical_problem_type"], "auth")
+        self.assertEqual(context["classification_source"], "llm")
+        self.assertGreater(context["classification_confidence"], 0.8)
+        self.assertIn("login", context["classification_evidence"])
+        self.assertIn("type_aliases", context["taxonomy_signals"])
+        self.assertEqual(context["resource_summary"]["experience_count"], 1)
+        self.assertEqual(context["resource_summary"]["poc_count"], 1)
+        self.assertEqual(context["resource_summary"]["wooyun_seed_count"], 1)
+        self.assertTrue(context["resource_summary"]["has_skill_content"])
 
 
 class RunMainLoopFlagRegressionTest(unittest.TestCase):

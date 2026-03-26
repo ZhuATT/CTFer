@@ -15,6 +15,7 @@ CTF Agent 工具集 - v2.0 集成双记忆系统
     result = execute_command("...")
 """
 
+import os
 import re
 import json
 import subprocess
@@ -25,7 +26,7 @@ from pathlib import Path
 from urllib3.exceptions import InsecureRequestWarning
 
 from toolkit.base import get_venv_python, run_subprocess
-from taxonomy import build_taxonomy_profile, canonical_skill_names, canonicalize_problem_type, problem_type_aliases, taxonomy_findings_from_profile
+from taxonomy import KEYWORD_HINTS, build_taxonomy_profile, canonical_skill_names, canonicalize_problem_type, problem_type_aliases, taxonomy_findings_from_profile
 
 # 导入短期记忆
 from short_memory import get_short_memory, reset_short_memory, ShortMemory, AgentContext, extract_flag_candidates, classify_generic_findings
@@ -81,67 +82,238 @@ def reset_memory():
     _short_memory_instance = get_short_memory()
 
 
+def _load_llm_config() -> dict:
+    """从 config.json 加载 LLM 配置"""
+    from pathlib import Path
+    config_path = Path(__file__).parent / "config.json"
+    if config_path.exists():
+        try:
+            cfg = json.loads(config_path.read_text(encoding="utf-8"))
+            return cfg.get("llm", {})
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {}
+
+_LLM_CONFIG = _load_llm_config()
+
+
+def _classify_problem_with_llm(target_url: str, description: str = "", hint: str = "", initial_response: str = "") -> Dict[str, Any]:
+    """LLM-first classifier. If no model client/config is available, return unavailable and let heuristic fallback."""
+    cfg = _LLM_CONFIG
+
+    # api_key: 环境变量 > config.json
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip() or cfg.get("api_key", "").strip()
+    # api_base: 环境变量 > config.json
+    api_base = os.environ.get("ANTHROPIC_BASE_URL", "").strip() or cfg.get("api_base", "").strip()
+    # model: 环境变量 > config.json
+    model_name = os.environ.get("ANTHROPIC_MODEL", "").strip() or cfg.get("model", "").strip()
+
+    prompt_payload = {
+        "url": target_url,
+        "description": description[:1200],
+        "hint": hint[:1200],
+        "initial_response_excerpt": initial_response[:4000],
+        "allowed_problem_types": sorted({canonicalize_problem_type(name) for name in KEYWORD_HINTS.keys()} | {"unknown"}),
+    }
+
+    if not model_name and not api_base:
+        return {
+            "problem_type": "unknown",
+            "confidence": 0.0,
+            "source": "llm-unavailable",
+            "reasoning_summary": "未配置分类模型，退回 heuristic",
+            "evidence": [],
+        }
+
+    try:
+        if api_base:
+            response = requests.post(
+                api_base.rstrip("/") + "/classify",
+                json=prompt_payload,
+                headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
+                timeout=20,
+                verify=False,
+            )
+            response.raise_for_status()
+            payload = dict(response.json() or {})
+        else:
+            payload = {}
+            try:
+                from anthropic import Anthropic
+            except Exception:
+                return {
+                    "problem_type": "unknown",
+                    "confidence": 0.0,
+                    "source": "llm-unavailable",
+                    "reasoning_summary": "未安装可用模型客户端，退回 heuristic",
+                    "evidence": [],
+                }
+            if not api_key:
+                return {
+                    "problem_type": "unknown",
+                    "confidence": 0.0,
+                    "source": "llm-unavailable",
+                    "reasoning_summary": "缺少模型 API Key，退回 heuristic",
+                    "evidence": [],
+                }
+            client = Anthropic(api_key=api_key)
+            message = client.messages.create(
+                model=model_name or "claude-sonnet-4-6",
+                max_tokens=300,
+                temperature=0,
+                system="你是 CTF Web 题型分类器。只能输出 JSON。problem_type 必须来自 allowed_problem_types，confidence 范围 0-1。",
+                messages=[{
+                    "role": "user",
+                    "content": json.dumps(prompt_payload, ensure_ascii=False),
+                }],
+            )
+            text = "".join(block.text for block in message.content if getattr(block, "type", "") == "text")
+            payload = json.loads(text)
+
+        problem_type = canonicalize_problem_type(payload.get("problem_type") or "unknown")
+        confidence = max(0.0, min(1.0, float(payload.get("confidence") or 0.0)))
+        evidence = list(payload.get("evidence") or [])[:8]
+        reasoning = str(payload.get("reasoning_summary") or payload.get("reason") or "")
+        return {
+            "problem_type": problem_type,
+            "confidence": confidence,
+            "source": "llm",
+            "reasoning_summary": reasoning or "模型已给出分类结论",
+            "evidence": evidence,
+        }
+    except Exception as e:
+        return {
+            "problem_type": "unknown",
+            "confidence": 0.0,
+            "source": "llm-error",
+            "reasoning_summary": f"模型分类失败，退回 heuristic: {e}",
+            "evidence": [],
+        }
+
+
+    text = " ".join([target_url or "", description or "", hint or "", initial_response or ""]).lower()
+    direct_hint_signals = {
+        "phpinfo": any(token in text for token in ["phpinfo", "信息泄露", "配置泄露"]),
+        "git_exposure": any(token in text for token in [".git", "git 泄露", "git泄露", "源码泄露", "目录扫描", "扫目录"]),
+    }
+    if direct_hint_signals["phpinfo"] or direct_hint_signals["git_exposure"]:
+        return {
+            "problem_type": "unknown",
+            "confidence": 0.2,
+            "source": "heuristic",
+            "reasoning_summary": "高价值信息泄露信号优先，避免被通用漏洞关键词误判",
+            "evidence": [name for name, matched in direct_hint_signals.items() if matched],
+        }
+
+    scores: Dict[str, int] = {}
+    for ptype, keywords in KEYWORD_HINTS.items():
+        score = sum(1 for keyword in keywords if keyword.lower() in text)
+        if score > 0:
+            scores[canonicalize_problem_type(ptype)] = max(score, scores.get(canonicalize_problem_type(ptype), 0))
+
+    if not scores:
+        return {
+            "problem_type": "unknown",
+            "confidence": 0.0,
+            "source": "heuristic",
+            "reasoning_summary": "未命中可靠关键词，保持 unknown",
+            "evidence": [],
+        }
+
+    ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    problem_type, top_score = ranked[0]
+    evidence = [keyword for keyword in KEYWORD_HINTS.get(problem_type, []) if keyword.lower() in text][:6]
+    confidence = min(0.75, 0.25 + 0.1 * top_score)
+    return {
+        "problem_type": canonicalize_problem_type(problem_type),
+        "confidence": confidence,
+        "source": "heuristic",
+        "reasoning_summary": f"命中 {top_score} 个 {problem_type} 相关关键词",
+        "evidence": evidence,
+    }
+
+
+
+def _classify_problem_by_keywords(target_url: str, description: str = "", hint: str = "", initial_response: str = "") -> Dict[str, Any]:
+    text = " ".join([target_url or "", description or "", hint or "", initial_response or ""]).lower()
+    direct_hint_signals = {
+        "phpinfo": any(token in text for token in ["phpinfo", "信息泄露", "配置泄露"]),
+        "git_exposure": any(token in text for token in [".git", "git 泄露", "git泄露", "源码泄露", "目录扫描", "扫目录"]),
+    }
+    if direct_hint_signals["phpinfo"] or direct_hint_signals["git_exposure"]:
+        return {
+            "problem_type": "unknown",
+            "confidence": 0.2,
+            "source": "heuristic",
+            "reasoning_summary": "高价值信息泄露信号优先，避免被通用漏洞关键词误判",
+            "evidence": [name for name, matched in direct_hint_signals.items() if matched],
+        }
+
+    scores: Dict[str, int] = {}
+    for ptype, keywords in KEYWORD_HINTS.items():
+        score = sum(1 for keyword in keywords if keyword.lower() in text)
+        if score > 0:
+            canonical = canonicalize_problem_type(ptype)
+            scores[canonical] = max(score, scores.get(canonical, 0))
+
+    if not scores:
+        return {
+            "problem_type": "unknown",
+            "confidence": 0.0,
+            "source": "heuristic",
+            "reasoning_summary": "未命中可靠关键词，保持 unknown",
+            "evidence": [],
+        }
+
+    ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    problem_type, top_score = ranked[0]
+    evidence = [keyword for keyword in KEYWORD_HINTS.get(problem_type, []) if keyword.lower() in text][:6]
+    confidence = min(0.75, 0.25 + 0.1 * top_score)
+    return {
+        "problem_type": canonicalize_problem_type(problem_type),
+        "confidence": confidence,
+        "source": "heuristic",
+        "reasoning_summary": f"命中 {top_score} 个 {problem_type} 相关关键词",
+        "evidence": evidence,
+    }
+
+
 def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict[str, Any]:
     """
     初始化题目并自动识别类型、加载资源
     """
-    # 重置记忆
     reset_memory()
     memory = get_memory()
 
-    # 设置目标信息与基础上下文
     memory.update_target(url=target_url)
     memory.set_context(
         url=target_url,
         description=description,
-        hint=hint
+        hint=hint,
     )
 
-    # 基于URL和描述自动识别
-    url_lower = target_url.lower()
-    desc_lower = description.lower()
-    hint_lower = hint.lower()
+    initial_response_text = ""
+    llm_result = _classify_problem_with_llm(target_url, description, hint)
+    heuristic_result = _classify_problem_by_keywords(target_url, description, hint)
+    selected_result = llm_result if str(llm_result.get("source") or "").startswith("llm") and float(llm_result.get("confidence") or 0.0) >= 0.45 else heuristic_result
+    problem_type = canonicalize_problem_type(selected_result.get("problem_type") or "unknown")
+    classification_confidence = float(selected_result.get("confidence") or 0.0)
+    classification_source = str(selected_result.get("source") or "heuristic")
+    classification_evidence = list(selected_result.get("evidence") or [])
+    classification_reasoning = str(selected_result.get("reasoning_summary") or "")
 
-    # 扩展关键词列表，包含框架名称和更多变体
-    type_keywords = KEYWORD_HINTS = {
-        "sqli": ["sql", "injection", "inject", "select", "union", "database", "注入", "mysql", "mariadb", "sqlmap"],
-        "xss": ["xss", "script", "alert", "跨站", "javascript"],
-        "lfi": ["lfi", "local file", "文件包含", "读取", "file inclusion", "include", "path traversal"],
-        "rce": ["rce", "远程代码", "command", "exec", "命令执行", "eval", "system", "shell", "cmd"],
-        "ssrf": ["ssrf", "内网", "localhost", "gopher", "fetch"],
-        "upload": ["upload", "上传", "文件上传"],
-        "auth": ["登录", "login", "auth", "password", "认证", "bypass", "admin"],
-        "deserialization": ["serialize", "unserialize", "pickle", "yaml", "反序列化"],
-        "tornado": ["tornado", "tornado框架", "template"],
-        "flask": ["flask", "jinja", "session"],
-        "django": ["django", "django框架"],
-        "ssti": ["ssti", "template injection", "模板注入", "jinja2"],
-        "xxe": ["xxe", "xml", "entity", "dtd"],
-    }
-    problem_type = "unknown"
-
-    direct_hint_signals = {
-        "phpinfo": any(token in (desc_lower + " " + hint_lower) for token in ["phpinfo", "信息泄露", "配置泄露"]),
-        "git_exposure": any(token in (desc_lower + " " + hint_lower) for token in [".git", "git 泄露", "git泄露", "源码泄露", "目录扫描", "扫目录"]),
-    }
-
-    for ptype, keywords in type_keywords.items():
-        if any(k in url_lower or k in desc_lower or k in hint_lower for k in keywords):
-            problem_type = ptype
-            break
-
-    if direct_hint_signals["phpinfo"] or direct_hint_signals["git_exposure"]:
-        problem_type = "unknown"
-
-    problem_type = canonicalize_problem_type(problem_type)
-
-    if problem_type == "unknown" and target_url:
+    if target_url:
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", InsecureRequestWarning)
                 resp = requests.get(target_url, timeout=10, verify=False)
-            page_content = resp.text.lower()
-            if "phpinfo()" in page_content or "php version" in page_content and "php credits" in page_content:
+            initial_response_text = resp.text or ""
+            page_content = initial_response_text.lower()
+            page_heuristic = _classify_problem_by_keywords(target_url, description, hint, page_content[:4000])
+            page_type = canonicalize_problem_type(page_heuristic.get("problem_type") or "unknown")
+            page_confidence = float(page_heuristic.get("confidence") or 0.0)
+
+            if "phpinfo()" in page_content or ("php version" in page_content and "php credits" in page_content):
                 print("[Auto-detect] 页面特征命中 phpinfo，标记为信息泄露场景")
                 memory.add_step(
                     tool="init_probe",
@@ -152,79 +324,80 @@ def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict
                     key_findings=["phpinfo_exposed", "info_leak"],
                 )
                 problem_type = "unknown"
-            else:
-                for ptype, keywords in type_keywords.items():
-                    if any(k in page_content for k in keywords):
-                        problem_type = ptype
-                        print(f"[Auto-detect] 从页面内容识别出类型: {ptype}")
-                        break
+                classification_confidence = 0.2
+                classification_source = "heuristic"
+                classification_evidence = ["phpinfo", "info_leak"]
+                classification_reasoning = "页面命中 phpinfo / 信息泄露特征，抑制泛化关键词误判"
+            elif page_confidence > classification_confidence:
+                problem_type = page_type
+                classification_confidence = page_confidence
+                classification_source = str(page_heuristic.get("source") or "heuristic")
+                classification_evidence = list(page_heuristic.get("evidence") or [])
+                classification_reasoning = str(page_heuristic.get("reasoning_summary") or "")
+                if problem_type != "unknown":
+                    print(f"[Auto-detect] 从页面内容识别出类型: {problem_type}")
+
             server = resp.headers.get("Server", "").lower()
             if "tornado" in server:
                 problem_type = "tornado"
+                classification_confidence = max(classification_confidence, 0.8)
+                classification_source = "heuristic"
+                classification_evidence = list(dict.fromkeys(classification_evidence + ["server:tornado"]))
+                classification_reasoning = "Server header 明确暴露 tornado"
                 print("[Auto-detect] 从Server header识别出类型: tornado")
         except Exception as e:
             print(f"[Auto-detect] 访问目标失败: {e}")
+
     problem_type = canonicalize_problem_type(problem_type)
-    taxonomy_profile = build_taxonomy_profile(problem_type, target_url, description, hint)
-    skill_content = ""
-    if problem_type != "unknown":
-        for skill_name in canonical_skill_names(problem_type):
-            skill_path = Path(__file__).parent / "skills" / skill_name / "SKILL.md"
-            if not skill_path.exists():
-                continue
-            skill_content = skill_path.read_text(encoding="utf-8")
-            print(f"\n>>> Skills知识库 [{skill_name}]:")
-            print("-" * 40)
-            lines = skill_content.split('\n')[:50]
-            print('\n'.join(lines))
-            if len(skill_content) > 2000:
-                print(f"\n... [知识库内容过长，已截断，共{len(skill_content)}字符]")
-            break
+    taxonomy_profile = build_taxonomy_profile(problem_type, target_url, description, hint, initial_response_text[:4000])
+    resource_bundle = _assemble_resource_bundle(
+        taxonomy_profile,
+        target_url=target_url,
+        description=description,
+        hint=hint,
+        initial_response=initial_response_text[:4000],
+    )
+    skill_content = str(resource_bundle.get("skill_content") or "")
+    if skill_content:
+        primary_skill = (resource_bundle.get("skills") or ["unknown"])[0]
+        print(f"\n>>> Skills知识库 [{primary_skill}]:")
+        print("-" * 40)
+        lines = skill_content.split('\n')[:50]
+        print('\n'.join(lines))
+        if len(skill_content) > 2000:
+            print(f"\n... [知识库内容过长，已截断，共{len(skill_content)}字符]")
 
-    # 2. 加载长期记忆（经验/POC）
-    loaded_resources = {"taxonomy_profile": taxonomy_profile, "resource_bundle": {}, "source_breakdown": {}}
-    if LONG_MEMORY_AVAILABLE and auto_identify_and_load:
-        try:
-            loaded_resources = auto_identify_and_load(
-                url=target_url,
-                description=description,
-                hint=hint
-            )
-            loaded_resources.setdefault("taxonomy_profile", taxonomy_profile)
-            loaded_resources.setdefault("resource_bundle", _assemble_resource_bundle(taxonomy_profile, target_url=target_url))
-            loaded_resources.setdefault("source_breakdown", {})
-            # 打印加载的资源
-            if loaded_resources.get("probable_types"):
-                print(f"\n>>> 识别类型: {loaded_resources['probable_types']}")
+    loaded_resources = {
+        "taxonomy_profile": taxonomy_profile,
+        "resource_bundle": resource_bundle,
+        "source_breakdown": {
+            "skills": list(resource_bundle.get("skills") or []),
+            "long_memory_probable_types": list(resource_bundle.get("long_memory_probable_types") or []),
+            "wooyun_seed_count": len(resource_bundle.get("wooyun_seed_knowledge") or []),
+        },
+        "probable_types": list(resource_bundle.get("long_memory_probable_types") or []),
+        "resources": dict(resource_bundle.get("long_memory_resources") or {}),
+    }
 
-            for ptype, resources in loaded_resources.get("resources", {}).items():
-                if resources.get("experiences"):
-                    print(f"\n>>> 历史经验 [{ptype}]: {len(resources['experiences'])} 条")
-                    for exp in resources["experiences"][:2]:
-                        print(f"    - {exp.get('file', 'unknown')}")
+    if loaded_resources.get("probable_types"):
+        print(f"\n>>> 识别类型: {loaded_resources['probable_types']}")
+    for ptype, resources in loaded_resources.get("resources", {}).items():
+        if resources.get("experiences"):
+            print(f"\n>>> 历史经验 [{ptype}]: {len(resources['experiences'])} 条")
+            for exp in resources["experiences"][:2]:
+                print(f"    - {exp.get('file', 'unknown')}")
+        if resources.get("pocs"):
+            print(f"\n>>> CVE POC [{ptype}]: {len(resources['pocs'])} 个")
+            for poc in resources["pocs"][:3]:
+                print(f"    - {poc.get('cve', 'unknown')}: {poc.get('description', '')[:40]}")
+        if resources.get("tips"):
+            print(f"\n>>> 建议操作:")
+            print(resources["tips"])
 
-                if resources.get("pocs"):
-                    print(f"\n>>> CVE POC [{ptype}]: {len(resources['pocs'])} 个")
-                    for poc in resources["pocs"][:3]:
-                        print(f"    - {poc.get('cve', 'unknown')}: {poc.get('description', '')[:40]}")
-
-                if resources.get("tips"):
-                    print(f"\n>>> 建议操作:")
-                    print(resources["tips"])
-
-        except Exception as e:
-            print(f"[Memory] auto load failed: {e}")
-
-    # 3. 尝试检索WooYun知识
-    wooyun_ref = ""
-    if problem_type != "unknown":
-        try:
-            wooyun_ref = _retrieve_wooyun_knowledge(problem_type, description, hint, target_url)
-            if wooyun_ref:
-                print(f"\n>>> WooYun知识:")
-                print(wooyun_ref[:500])
-        except Exception as e:
-            pass
+    wooyun_ref = str(resource_bundle.get("wooyun_ref") or "")
+    if wooyun_ref:
+        print(f"\n>>> WooYun知识:")
+        print(wooyun_ref[:500])
 
     print(f"\n{'='*60}")
     print(f"[Problem Init Complete] Type: {problem_type}")
@@ -242,7 +415,11 @@ def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict
         problem_type=problem_type,
         skill_content=skill_content,
         loaded_resources=loaded_resources,
-        wooyun_ref=wooyun_ref
+        wooyun_ref=wooyun_ref,
+        classification_confidence=classification_confidence,
+        classification_source=classification_source,
+        classification_evidence=classification_evidence,
+        classification_reasoning=classification_reasoning,
     )
 
     return {
@@ -254,53 +431,115 @@ def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict
         "loaded_resources": loaded_resources,
         "wooyun_ref": wooyun_ref,
         "taxonomy_profile": taxonomy_profile,
+        "classification_confidence": classification_confidence,
+        "classification_source": classification_source,
+        "classification_evidence": classification_evidence,
+        "classification_reasoning": classification_reasoning,
     }
-def _assemble_resource_bundle(profile: Dict[str, Any], target_url: str = "") -> Dict[str, Any]:
+def _resolve_skill_resources(profile: Dict[str, Any]) -> Dict[str, Any]:
     canonical_type = canonicalize_problem_type(profile.get("canonical_problem_type") or "unknown")
-    aliases = list(profile.get("type_aliases") or problem_type_aliases(canonical_type))
-    bundle = {
-        "canonical_problem_type": canonical_type,
-        "type_aliases": aliases,
-        "skills": [],
-        "experiences": [],
-        "pocs": [],
-        "wooyun_seed_knowledge": [],
-        "taxonomy_tags": list(profile.get("taxonomy_tags") or []),
-        "resource_hints": dict(profile.get("resource_hints") or {}),
-    }
-
+    skill_names = []
+    skill_content = ""
     for skill_name in profile.get("skill_names") or canonical_skill_names(canonical_type):
         skill_path = Path(__file__).parent / "skills" / skill_name / "SKILL.md"
-        if skill_path.exists():
-            bundle["skills"].append(skill_name)
+        if not skill_path.exists():
+            continue
+        skill_names.append(skill_name)
+        if not skill_content:
+            skill_content = skill_path.read_text(encoding="utf-8")
+    return {
+        "skills": skill_names,
+        "skill_content": skill_content,
+    }
 
-    if LONG_MEMORY_AVAILABLE:
-        try:
-            from long_memory import auto_memory
-            memory_resources = auto_memory.load_resources_for_type(canonical_type)
-            bundle["experiences"] = list(memory_resources.get("experiences") or [])
-            bundle["pocs"] = list(memory_resources.get("pocs") or [])
-        except Exception:
-            pass
 
+def _resolve_long_memory_resources(profile: Dict[str, Any], target_url: str = "", description: str = "", hint: str = "", initial_response: str = "") -> Dict[str, Any]:
+    canonical_type = canonicalize_problem_type(profile.get("canonical_problem_type") or "unknown")
+    result = {
+        "probable_types": [canonical_type] if canonical_type != "unknown" else [],
+        "resources": {},
+        "experiences": [],
+        "pocs": [],
+        "tips": "",
+    }
+    if not LONG_MEMORY_AVAILABLE:
+        return result
+    try:
+        from long_memory import auto_memory
+        memory_resources = auto_memory.load_resources_for_type(canonical_type)
+        result["resources"][canonical_type] = memory_resources
+        result["experiences"] = list(memory_resources.get("experiences") or [])
+        result["pocs"] = list(memory_resources.get("pocs") or [])
+        result["tips"] = str(memory_resources.get("tips") or "")
+        if canonical_type == "unknown" and auto_identify_and_load:
+            auto_detected = auto_identify_and_load(url=target_url, description=description, hint=hint, initial_response=initial_response)
+            result["probable_types"] = list(auto_detected.get("probable_types") or [])
+            result["resources"].update(dict(auto_detected.get("resources") or {}))
+    except Exception:
+        pass
+    return result
+
+
+def _resolve_wooyun_resources(profile: Dict[str, Any], target_url: str = "", description: str = "", hint: str = "") -> Dict[str, Any]:
+    canonical_type = canonicalize_problem_type(profile.get("canonical_problem_type") or "unknown")
+    wooyun_ref = ""
+    seed_knowledge = []
+    if canonical_type == "unknown":
+        return {"wooyun_ref": wooyun_ref, "wooyun_seed_knowledge": seed_knowledge}
     try:
         from skills.wooyun.wooyun_rag import retrieve_knowledge
         wooyun_context = retrieve_knowledge(
-            query=f"{canonical_type} {' '.join(aliases[:3])}",
+            query=f"{description} {hint}".strip() or canonical_type,
             context={
                 "current_vuln_type": canonical_type,
                 "target_url": target_url,
                 "tech_stack": list(profile.get("framework_tags") or []),
                 "attempted_methods": [],
-                "problem_description": canonical_type,
+                "problem_description": description,
+                "taxonomy_aliases": list(profile.get("type_aliases") or []),
+                "taxonomy_tags": list(profile.get("taxonomy_tags") or []),
             },
             top_k=3,
         )
-        bundle["wooyun_seed_knowledge"] = list(wooyun_context.get("retrieved_knowledge") or [])
+        seed_knowledge = list(wooyun_context.get("retrieved_knowledge") or [])
+        wooyun_ref = _format_wooyun_ref(wooyun_context)
     except Exception:
         pass
+    return {"wooyun_ref": wooyun_ref, "wooyun_seed_knowledge": seed_knowledge}
 
-    return bundle
+
+def _assemble_resource_bundle(profile: Dict[str, Any], target_url: str = "", description: str = "", hint: str = "", initial_response: str = "") -> Dict[str, Any]:
+    canonical_type = canonicalize_problem_type(profile.get("canonical_problem_type") or "unknown")
+    aliases = list(profile.get("type_aliases") or problem_type_aliases(canonical_type))
+    skill_resources = _resolve_skill_resources(profile)
+    memory_resources = _resolve_long_memory_resources(
+        profile,
+        target_url=target_url,
+        description=description,
+        hint=hint,
+        initial_response=initial_response,
+    )
+    wooyun_resources = _resolve_wooyun_resources(
+        profile,
+        target_url=target_url,
+        description=description,
+        hint=hint,
+    )
+    return {
+        "canonical_problem_type": canonical_type,
+        "type_aliases": aliases,
+        "skills": list(skill_resources.get("skills") or []),
+        "skill_content": str(skill_resources.get("skill_content") or ""),
+        "experiences": list(memory_resources.get("experiences") or []),
+        "pocs": list(memory_resources.get("pocs") or []),
+        "wooyun_seed_knowledge": list(wooyun_resources.get("wooyun_seed_knowledge") or []),
+        "taxonomy_tags": list(profile.get("taxonomy_tags") or []),
+        "resource_hints": dict(profile.get("resource_hints") or {}),
+        "long_memory_probable_types": list(memory_resources.get("probable_types") or []),
+        "long_memory_resources": dict(memory_resources.get("resources") or {}),
+        "long_memory_tips": str(memory_resources.get("tips") or ""),
+        "wooyun_ref": str(wooyun_resources.get("wooyun_ref") or ""),
+    }
 
 
 def get_available_resources() -> Dict[str, Any]:
@@ -314,7 +553,12 @@ def get_available_resources() -> Dict[str, Any]:
     context = memory.get_context()
     loaded_resources = dict(getattr(context, "loaded_resources", {}) or {})
     taxonomy_profile = dict(loaded_resources.get("taxonomy_profile") or build_taxonomy_profile(prob_type, target_url, getattr(context, "description", ""), getattr(context, "hint", "")))
-    resource_bundle = _assemble_resource_bundle(taxonomy_profile, target_url=target_url)
+    resource_bundle = dict(loaded_resources.get("resource_bundle") or _assemble_resource_bundle(
+        taxonomy_profile,
+        target_url=target_url,
+        description=getattr(context, "description", ""),
+        hint=getattr(context, "hint", ""),
+    ))
 
     result = {
         "problem_type": prob_type,
@@ -325,34 +569,8 @@ def get_available_resources() -> Dict[str, Any]:
         "wooyun_knowledge": list(resource_bundle.get("wooyun_seed_knowledge") or []),
         "taxonomy_profile": taxonomy_profile,
         "resource_bundle": resource_bundle,
+        "source_breakdown": dict(loaded_resources.get("source_breakdown") or {}),
     }
-
-    # 加载长期记忆 POC
-    if LONG_MEMORY_AVAILABLE:
-        try:
-            from long_memory import auto_memory
-            result["pocs"] = auto_memory.find_pocs_by_type(prob_type)
-            result["experiences"] = auto_memory.load_experiences_by_type(prob_type)
-        except Exception as e:
-            result["error"] = str(e)
-
-    # 加载 WooYun 知识
-    try:
-        import sys
-        from pathlib import Path
-        rag_path = Path(__file__).parent / "skills" / "wooyun"
-        if str(rag_path) not in sys.path:
-            sys.path.insert(0, str(rag_path))
-
-        from wooyun_rag import retrieve_knowledge as wooyun_retrieve
-        rag_result = wooyun_retrieve(
-            query=f"{prob_type}漏洞利用",
-            context={"current_vuln_type": prob_type, "target_url": target_url},
-            top_k=3
-        )
-        result["wooyun_knowledge"] = rag_result.get("retrieved_knowledge", [])
-    except Exception as e:
-        result["wooyun_error"] = str(e)
 
     # 打印摘要
     print(f"\n{'='*60}")
@@ -2212,3 +2430,205 @@ def get_patch_summary() -> str:
     """获取修补点摘要"""
     memory = get_memory()
     return memory.get_patch_summary()
+
+
+# ============================================================
+# 交互模式 - 用户实时介入机制
+# ============================================================
+
+import threading
+import time
+from datetime import datetime
+from pathlib import Path
+
+# 全局交互管理器实例
+_interaction_manager: Optional["InteractionManager"] = None
+_interaction_lock = threading.Lock()
+
+
+class InteractionManager:
+    """
+    管理用户与 Agent 的实时交互。
+
+    通过文件系统进行通信：
+    - status.json: Agent 写入当前状态，用户可随时读取
+    - guidance.json: 用户写入 guidance，Agent 下步读取
+    - step.lock: Agent 执行中时存在，防止用户误读
+    """
+
+    def __init__(self, enabled: bool = False, state_dir: str = None):
+        self.enabled = enabled
+        if state_dir is None:
+            state_dir = Path.home() / ".ctf_agent"
+        else:
+            state_dir = Path(state_dir)
+        self.state_dir = state_dir
+        self.status_file = state_dir / "status.json"
+        self.guidance_file = state_dir / "guidance.json"
+        self.lock_file = state_dir / "step.lock"
+        self._ensure_dir()
+
+    def _ensure_dir(self):
+        """确保状态目录存在"""
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+
+    def _write_json(self, file: Path, data: dict):
+        """原子写入 JSON 文件"""
+        tmp = file.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.rename(file)
+
+    def _read_json(self, file: Path) -> Optional[dict]:
+        """读取 JSON 文件"""
+        if not file.exists():
+            return None
+        try:
+            return json.loads(file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, IOError):
+            return None
+
+    def _write_status(self, step_num: int, action: dict, result: Any,
+                      findings: List[str], problem_type: str,
+                      total_failures: int, message: str = ""):
+        """
+        写入当前状态到 status.json
+
+        用户可在任意时刻读取此文件查看进度。
+        """
+        if not self.enabled:
+            return
+
+        status = {
+            "step": step_num,
+            "action": action.get("type", "unknown") if action else "unknown",
+            "target": action.get("target", "") if action else "",
+            "description": action.get("description", "") if action else "",
+            "result": message or str(result)[:500] if result else "",
+            "findings": findings,
+            "problem_type": problem_type,
+            "total_failures": total_failures,
+            "timestamp": datetime.now().isoformat(),
+            "agent_state": "running",
+        }
+        self._write_json(self.status_file, status)
+
+    def _write_completed(self, flag: str = None, message: str = ""):
+        """写入完成状态"""
+        if not self.enabled:
+            return
+
+        status = {
+            "step": -1,
+            "agent_state": "completed",
+            "flag": flag,
+            "message": message,
+            "timestamp": datetime.now().isoformat(),
+        }
+        self._write_json(self.status_file, status)
+
+    def _write_aborted(self, message: str = ""):
+        """写入终止状态"""
+        if not self.enabled:
+            return
+
+        status = {
+            "step": -1,
+            "agent_state": "aborted",
+            "message": message,
+            "timestamp": datetime.now().isoformat(),
+        }
+        self._write_json(self.status_file, status)
+
+    def _acquire_lock(self):
+        """获取锁，表示 Agent 正在决策/执行"""
+        if not self.enabled:
+            return
+        self.lock_file.write_text(str(os.getpid()), encoding="utf-8")
+
+    def _release_lock(self):
+        """释放锁"""
+        if not self.enabled:
+            return
+        if self.lock_file.exists():
+            self.lock_file.unlink()
+
+    def check_guidance(self) -> Optional[dict]:
+        """
+        检查并读取用户注入的 guidance。
+
+        读取后立即删除文件，确保 guidance 只被使用一次。
+
+        Returns:
+            guidance dict 或 None
+            {
+                "type": "inject" | "abort" | "inspect",
+                "content": str,  # inject 的内容或 inspect 的命令
+                "timestamp": str
+            }
+        """
+        if not self.enabled:
+            return None
+        if not self.guidance_file.exists():
+            return None
+
+        guidance = self._read_json(self.guidance_file)
+        if guidance:
+            try:
+                self.guidance_file.unlink()
+            except OSError:
+                pass
+        return guidance
+
+    def get_current_status(self) -> Optional[dict]:
+        """获取当前状态（供 inspect 命令使用）"""
+        return self._read_json(self.status_file)
+
+    def clear_guidance(self):
+        """清除 pending guidance（用户在 agent 运行中途可用来取消）"""
+        if self.guidance_file.exists():
+            try:
+                self.guidance_file.unlink()
+            except OSError:
+                pass
+
+
+def get_interaction_manager() -> InteractionManager:
+    """获取全局交互管理器实例"""
+    global _interaction_manager
+    if _interaction_manager is None:
+        with _interaction_lock:
+            if _interaction_manager is None:
+                _interaction_manager = InteractionManager(enabled=False)
+    return _interaction_manager
+
+
+def init_interaction(enabled: bool = False, state_dir: str = None) -> InteractionManager:
+    """初始化交互管理器"""
+    global _interaction_manager
+    with _interaction_lock:
+        _interaction_manager = InteractionManager(enabled=enabled, state_dir=state_dir)
+    return _interaction_manager
+
+
+def check_user_guidance() -> Optional[dict]:
+    """快捷方法：检查用户 guidance"""
+    return get_interaction_manager().check_guidance()
+
+
+def write_agent_status(step_num: int, action: dict, result: Any,
+                       findings: List[str], problem_type: str,
+                       total_failures: int, message: str = ""):
+    """快捷方法：写入 agent 状态"""
+    get_interaction_manager()._write_status(
+        step_num, action, result, findings, problem_type, total_failures, message
+    )
+
+
+def write_agent_completed(flag: str = None, message: str = ""):
+    """快捷方法：写入完成状态"""
+    get_interaction_manager()._write_completed(flag, message)
+
+
+def write_agent_aborted(message: str = ""):
+    """快捷方法：写入终止状态"""
+    get_interaction_manager()._write_aborted(message)

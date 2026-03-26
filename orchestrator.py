@@ -196,6 +196,7 @@ class CTFOrchestrator:
         description: str = "",
         source_code: str = "",
         source_code_path: str = "",
+        interactive: bool = False,
     ) -> Dict[str, Any]:
         """统一初始化入口，接收 init_problem 返回值并同步 state。"""
         self.state.status = "initializing"
@@ -209,6 +210,7 @@ class CTFOrchestrator:
             hint=hint,
             description=description,
             source_code=source_code,
+            interactive=interactive,
         )
 
         self.state.target_url = init_result.get("target_url", url)
@@ -314,6 +316,7 @@ class CTFOrchestrator:
         description: str = "",
         source_code: str = "",
         source_code_path: str = "",
+        interactive: bool = False,
     ) -> Dict[str, Any]:
         """项目级统一求解入口。"""
         self.initialize_challenge(
@@ -322,6 +325,7 @@ class CTFOrchestrator:
             description=description,
             source_code=source_code,
             source_code_path=source_code_path,
+            interactive=interactive,
         )
         result = self.run()
         return {
@@ -340,6 +344,7 @@ def orchestrate_challenge(
     hint: str = "",
     description: str = "",
     source_code: str = "",
+    interactive: bool = False,
     **agent_kwargs: Any,
 ) -> Dict[str, Any]:
     """便捷函数：项目级统一入口。"""
@@ -349,6 +354,7 @@ def orchestrate_challenge(
         hint=hint,
         description=description,
         source_code=source_code,
+        interactive=interactive,
     )
 
 
@@ -386,6 +392,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-steps-before-help", type=int, default=None, help="最少尝试步数后才允许求助")
     parser.add_argument("--quiet", action="store_true", help="减少日志输出")
     parser.add_argument("--json", action="store_true", help="输出 JSON 结果")
+    parser.add_argument("--interactive", action="store_true", help="开启交互模式，允许用户实时介入")
     return parser
 
 
@@ -410,6 +417,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         max_failures=args.max_failures,
         min_steps_before_help=args.min_steps_before_help,
         verbose=not args.quiet,
+        interactive=args.interactive,
     )
 
     if args.json:
