@@ -227,7 +227,38 @@ class GraphReplanRankingRegressionTest(unittest.TestCase):
         self.assertTrue(any(item.get("kind") == "repo_exposure" for item in signals["priority_findings"]))
         self.assertTrue(any(item.get("kind") == "repo_exposure" for item in signals["verification_hints"]))
 
-    def test_priority_finding_builds_finding_backed_verification_candidate(self):
+    def test_repo_exposure_finding_prefers_repo_specific_follow_up(self):
+        agent = self._make_agent()
+        self._set_planner_signals(
+            agent,
+            priority_findings=[
+                {
+                    "kind": "repo_exposure",
+                    "value": "/.git/HEAD",
+                    "confidence": 1.0,
+                    "metadata": {},
+                    "source_action_id": "dir-1",
+                    "source_node_id": "action:dir-1",
+                }
+            ],
+            verification_hints=[
+                {
+                    "kind": "repo_exposure",
+                    "value": "/.git/HEAD",
+                    "confidence": 1.0,
+                    "metadata": {},
+                    "source_action_id": "dir-1",
+                    "source_node_id": "action:dir-1",
+                }
+            ],
+        )
+
+        candidates = agent._collect_graph_informed_actions()
+
+        self.assertTrue(any(item.get("tactic_family") == "repo_exposure" for item in candidates))
+        self.assertTrue(any((item.get("params") or {}).get("focus") == "repo-exposure" for item in candidates))
+        self.assertFalse(all(item.get("type") == "dir_scan" for item in candidates[:1]))
+
         agent = self._make_agent()
         self._set_planner_signals(
             agent,
@@ -310,34 +341,35 @@ class GraphReplanRankingRegressionTest(unittest.TestCase):
         self.assertTrue(any(item.get("target") == "http://target.test/.git/HEAD" for item in candidates))
         self.assertTrue(any(item.get("source_finding_kind") in {"repo_exposure", "sensitive_endpoint"} for item in candidates))
 
-    def test_build_replan_payload_detects_low_yield_probe_loop(self):
+    def test_decide_next_action_breaks_repeated_dir_scan_without_findings(self):
         agent = self._make_agent()
         failed_action = agent._build_action(
-            "recon",
+            "dir_scan",
             target=agent.target_url,
-            description="Retry recon",
-            intent="Collect headers",
-            expected_tool="recon",
-            params={"focus": "headers"},
+            description="Scan directories",
+            intent="Find paths",
+            expected_tool="dirsearch",
+            params={"extensions": ["php"]},
         )
         action_meta = agent._build_memory_action_meta(failed_action)
-        agent.last_action = dict(failed_action)
         for idx in range(3):
             agent.memory.add_step(
-                tool="recon",
+                tool="dirsearch",
                 target=agent.target_url,
-                params={"focus": "headers"},
-                result=f"header-only-{idx}",
+                params={"extensions": ["php"]},
+                result=f"dir-failure-{idx}",
                 success=False,
                 key_findings=[],
                 action_meta=action_meta,
             )
 
-        payload = agent._build_replan_payload()
+        agent._build_graph_informed_action = lambda: None
+        action = agent._decide_next_action()
 
-        self.assertIn(payload.get("reason_code"), {"low_yield_probe_loop", f"action_failures:{failed_action['id']}"})
+        self.assertEqual(action["type"], "recon")
+        self.assertEqual(action["params"]["focus"], "break-dir-scan-loop")
 
-    def test_decide_next_action_uses_dir_scan_for_low_yield_probe_loop(self):
+    def test_build_replan_payload_detects_low_yield_probe_loop(self):
         agent = self._make_agent()
         failed_action = agent._build_action(
             "recon",

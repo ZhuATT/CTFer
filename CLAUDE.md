@@ -37,11 +37,12 @@ python main.py --url "http://target.com" --hint "..." --description "..."
 
 ### 2. 强制执行顺序
 1. 先初始化题目：`init_problem(...)`
-2. 识别题型后，先消费知识资源：`get_available_resources()`、`skills/<type>/SKILL.md`、长期记忆、WooYun
-3. 再进入主循环：`Advisor -> Planner -> Executor -> ToolNode`
-4. 常规方法受阻后，先主动检索：`retrieve_rag_knowledge(...)`
-5. 仍无法继续时，再 `help`
-6. 获得人工提示后，必须沿同一 agent / memory / route trace 执行 `resume`
+2. 题型识别默认遵循：**LLM 优先、heuristic 兜底**；不要再把少量关键词匹配当作主判断器
+3. 识别题型后，先消费统一资源：`get_available_resources()` / `loaded_resources["resource_bundle"]`，再使用对应 `skills/<type>/SKILL.md`、长期记忆、WooYun / RAG
+4. 再进入主循环：`Advisor -> Planner -> Executor -> ToolNode`
+5. 常规方法受阻后，先主动检索：`retrieve_rag_knowledge(...)`
+6. 仍无法继续时，再 `help`
+7. 获得人工提示后，必须沿同一 agent / memory / route trace 执行 `resume`
 
 ### 3. Python 运行时唯一真值源
 全项目只允许一个 Python 解释器来源：
@@ -69,11 +70,28 @@ python main.py --url "http://target.com" --hint "..." --description "..."
 按当前状态：
 - P2-Beta：已完成
 - P2-Gamma：核心已完成
-- 下一重点：P3 `graph_manager.py` / PoG / `GraphOp` / `shared_findings`
+- 已新增：初始化分类漂移第一轮修复、可降级的 LLM-first 分类入口、统一 `resource_bundle`、标准化 advisor context
+- 下一重点：继续收敛 `long_memory.py` / `skills/skill_loader.py` 的独立识别逻辑，并让 planner 更深消费 `classification_*`、`resource_summary`、`shared_findings`
 
 ### 6. 联网默认规则
 - 需要联网抓网页或搜索时，默认走自定义 `/web-fetch`
 - 不使用内置 `WebFetch` / `WebSearch`
+
+## 当前架构要求（新增）
+- 初始化分类结果应优先信任 `init_problem()` 返回的结构化字段：
+  - `problem_type`
+  - `classification_confidence`
+  - `classification_source`
+  - `classification_evidence`
+  - `classification_reasoning`
+- `hint` 只能在**低置信初始化结果**下做兜底增强，不能默认降级覆盖初始化分类。
+- 资源消费统一通过 `loaded_resources["resource_bundle"]` / `get_available_resources()` 暴露的标准化视图；不要在新代码里再各自拼一套 skill / long memory / WooYun 结构。
+- `build_advisor_context()` 已暴露 `canonical_problem_type`、`taxonomy_signals`、`resource_summary`、`classification_*`；后续 planner / reflector / policy 优先消费这些标准化字段。
+- 后续优化默认优先做：
+  1. 主链稳定性与语义一致性
+  2. LLM 分类与资源链路收敛
+  3. graph / planner 对标准化上下文的深消费
+- 默认不要为了某个题目继续在 `agent_core.py` / `tools.py` 堆单题关键词或单题策略特判。
 
 ## 用户工作流偏好
 - 全自动解题，遇到困难再求助
