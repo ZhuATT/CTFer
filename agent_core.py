@@ -4178,16 +4178,6 @@ print(f"Content: {{resp.text}}")
                     graph_action.get("type") != "dir_scan" or not repeated_dir_scan_without_new_findings
                 ):
                     return graph_action
-                if self.target_type == "auth":
-                    return self._build_action(
-                        "recon",
-                        target=target,
-                        description="auth 分支受阻后继续认证入口确认",
-                        intent="避免 auth 场景退化到通用目录扫描，优先继续围绕认证入口改路",
-                        expected_tool="recon",
-                        params={"focus": "auth-recover"},
-                        metadata={"tactic_family": "endpoint-enum", "alternative": True, "reason": "auth-fallback-no-dirscan"},
-                    )
                 if dir_scan_stuck_loop:
                     return self._build_action(
                         "recon",
@@ -4199,17 +4189,6 @@ print(f"Content: {{resp.text}}")
                         metadata={"alternative": True, "reason": "dir_scan_stuck_loop"},
                     )
                 if not repeated_dir_scan_without_new_findings and not low_yield_probe_loop:
-                    # For auth targets, prefer recon to avoid falling back to generic dir_scan
-                    if self.target_type == "auth":
-                        return self._build_action(
-                            "recon",
-                            target=target,
-                            description="auth 目标避免退化到目录扫描",
-                            intent="继续围绕认证入口收集线索",
-                            expected_tool="recon",
-                            params={"focus": "auth-recover"},
-                            metadata={"tactic_family": "endpoint-enum", "alternative": True, "reason": "auth-no-dirscan"},
-                        )
                     return self._build_action(
                         "dir_scan",
                         target=target,
@@ -4238,17 +4217,6 @@ print(f"Content: {{resp.text}}")
             )
 
         if low_yield_probe_loop:
-            # For auth targets, prefer recon to avoid degenerating to generic dir_scan
-            if self.target_type == "auth":
-                return self._build_action(
-                    "recon",
-                    target=target,
-                    description="auth 场景轻量探测低收益，切换到认证入口相关侦察",
-                    intent="避免 auth 目标退化到通用目录扫描，继续围绕认证入口寻找线索",
-                    expected_tool="recon",
-                    params={"focus": "auth-recover"},
-                    metadata={"tactic_family": "endpoint-enum", "alternative": True, "reason": "auth-low-yield-recover"},
-                )
             return self._build_action(
                 "dir_scan",
                 target=target,
