@@ -107,6 +107,7 @@ class Step:
     parsed: Dict[str, Any] = field(default_factory=dict)
     artifacts: List[Dict[str, Any]] = field(default_factory=list)
     observations: List[Dict[str, Any]] = field(default_factory=list)
+    phase: str = "attack"  # 阶段标记: "recon" 信息收集 | "attack" 攻击解题
 
 
 @dataclass
@@ -190,6 +191,7 @@ class ShortMemory:
         parsed: Optional[Dict[str, Any]] = None,
         artifacts: Optional[List[Dict[str, Any]]] = None,
         observations: Optional[List[Dict[str, Any]]] = None,
+        phase: str = "attack",
     ) -> Step:
         """
         添加解题步骤
@@ -225,6 +227,7 @@ class ShortMemory:
             parsed=dict(parsed or {}),
             artifacts=list(artifacts or []),
             observations=list(observations or []),
+            phase=normalized_action.get("phase", "attack"),
         )
         self.steps.append(step)
 
@@ -580,12 +583,14 @@ class ShortMemory:
             or expected_tool
             or tool
         )
+        phase = str(action_meta.get("phase") or params.get("phase") or "attack")
 
         return {
             "action_id": action_id,
             "action_type": action_type,
             "expected_tool": expected_tool,
             "canonical_tool": canonical_tool,
+            "phase": phase,
         }
 
     def _extract_from_step(self, step: Step):
