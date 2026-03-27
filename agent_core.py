@@ -35,6 +35,7 @@ from tools import (
 )
 from long_memory import auto_save_experience
 from graph_manager import GraphManager
+from context_manager import CTFContextManager
 
 # 引入源码分析器
 try:
@@ -57,6 +58,62 @@ def _load_llm_config() -> dict:
     return {}
 
 _LLM_CONFIG = _load_llm_config()
+
+
+# === P0.7: Taxonomy-based resource priority mapping ===
+# 按题型优先级选取资源：skill > experiences > RAG query
+TAXONOMY_RESOURCE_PRIORITY = {
+    "rce": {
+        "skill": "rce",
+        "long_memory": "rce",
+        "rag_query": "rce command injection bypass",
+    },
+    "sqli": {
+        "skill": "sqli",
+        "long_memory": "sqli",
+        "rag_query": "sql injection bypass filter",
+    },
+    "xss": {
+        "skill": "xss",
+        "long_memory": "xss",
+        "rag_query": "xss bypass filter",
+    },
+    "auth": {
+        "skill": "auth",
+        "long_memory": "auth",
+        "rag_query": "auth bypass credential",
+    },
+    "lfi": {
+        "skill": "lfi",
+        "long_memory": "lfi",
+        "rag_query": "local file inclusion bypass",
+    },
+    "ssrf": {
+        "skill": "ssrf",
+        "long_memory": "ssrf",
+        "rag_query": "ssrf bypass filter",
+    },
+    "csrf": {
+        "skill": "csrf",
+        "long_memory": "csrf",
+        "rag_query": "csrf bypass token",
+    },
+    "idor": {
+        "skill": "idor",
+        "long_memory": "idor",
+        "rag_query": "idor bypass authorization",
+    },
+    "xxe": {
+        "skill": "xxe",
+        "long_memory": "xxe",
+        "rag_query": "xxe bypass external entity",
+    },
+    "反序列化": {
+        "skill": "deserialization",
+        "long_memory": "deserialization",
+        "rag_query": "php java deserialization漏洞",
+    },
+}
 
 
 class AttackStep:
@@ -372,6 +429,7 @@ class AutoAgent:
         self.help_cooldown_remaining = 0
         self.step_budget_limit = max_steps
         self.graph_manager = GraphManager()
+        self.context_manager = CTFContextManager()
         self.pending_replan: Dict[str, Any] = {}
         self.last_replan: Dict[str, Any] = {}
         self.replan_exhausted_reason: Optional[str] = None
@@ -710,30 +768,63 @@ class AutoAgent:
             ],
         }
 
-    def _build_decision_context(self) -> Dict[str, Any]:
+    def _build_decision_context(self, rag_knowledge: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         构建 AI 决策所需的上下文。
 
         整合 memory、graph、resources 到统一上下文，供 AI 决策使用。
         这是 P0 优先级的基础方法。
+
+        P0.6 新增：rag_knowledge 参数，每次决策前从 RAG 获取相似题目知识
         """
         shared_findings = self._refresh_graph_state()
         signals = self.graph_manager.planner_signals()
 
+        # DEBUG: 打印端点信息
+        if len(self.memory.steps) <= 3:
+            self.log(f"[DEBUG] After refresh_graph_state: known_endpoints={list(signals.get('known_endpoints', []))[:5]}", "INFO")
+
         # === 1. 目标信息 ===
         hint = getattr(self.agent_context, "hint", "") or "无"
+        # 从 init_result 获取 taxonomy_profile（由 tools.py init_problem 构建）
+        loaded_resources = self.init_result.get("loaded_resources", {})
+        taxonomy_profile = dict(loaded_resources.get("taxonomy_profile") or {})
         context = {
             "target_url": self.target_url,
             "problem_type": self.init_result.get("problem_type", self.target_type),
             "hint": hint,
             "hint_interpretation": self._interpret_hint(hint, self.init_result.get("problem_type", self.target_type)),
             "description": getattr(self.agent_context, "description", ""),
+            "taxonomy_tags": list(taxonomy_profile.get("taxonomy_tags") or []),
+            "taxonomy_signals": {
+                "type_aliases": list(taxonomy_profile.get("type_aliases") or []),
+                "framework_tags": list(taxonomy_profile.get("framework_tags") or []),
+                "vulnerability_tags": list(taxonomy_profile.get("vulnerability_tags") or []),
+            },
         }
+
+        # === P0.7: 按 taxonomy 优先级添加资源 ===
+        canonical = self._get_canonical_type()
+        context["canonical_type"] = canonical
+        context["skill"] = self._get_prioritized_skill()
+        context["experiences"] = self._get_prioritized_experiences()
+
+        # === P0.6: RAG 知识（每次决策前获取）===
+        if rag_knowledge:
+            context["rag_knowledge"] = rag_knowledge
+            rag_summary = self._summarize_rag_result(rag_knowledge)
+            context["rag_summary"] = rag_summary
 
         # === 2. 已发现线索（优先级排序）===
         priority_findings = signals.get("priority_findings", [])
         findings_summary = self._summarize_findings(priority_findings)
         context["findings_summary"] = findings_summary
+
+        # === 2.1 靶机已知信息（供 LLM 决策参考）===
+        known_endpoints_list = list(signals.get("known_endpoints") or [])
+        known_parameters_list = list(signals.get("known_parameters") or [])
+        context["known_endpoints"] = known_endpoints_list
+        context["known_parameters"] = known_parameters_list
 
         # === 3. 历史动作 ===
         action_history = self._summarize_action_history()
@@ -763,6 +854,19 @@ class AutoAgent:
             "max_failures": self.max_failures,
             "min_steps_before_help": self.min_steps_before_help,
         }
+
+        # === P0.8: 按题型注入结构化信号（供 LLM 决策参考）===
+        # Auth 信号
+        if self.target_type == "auth":
+            context["auth_signals"] = self._get_auth_signals()
+
+        # SQLi 信号
+        if self.target_type == "sqli":
+            context["sqli_signals"] = self._get_sqli_signals()
+
+        # UA bypass 信号
+        if self.target_type == "ua_bypass":
+            context["ua_bypass_signals"] = self._get_ua_bypass_signals()
 
         return context
 
@@ -1095,48 +1199,31 @@ class AutoAgent:
         # 构建 prompt
         prompt = self._build_decision_prompt(context)
 
-        try:
-            if api_base:
-                response = _requests.post(
-                    api_base.rstrip("/") + "/chat",
-                    json={
-                        "model": model_name,
-                        "messages": [{"role": "user", "content": prompt}],
-                        "max_tokens": max_tokens,
-                        "temperature": temperature,
-                    },
-                    headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
-                    timeout=30,
-                    verify=False,
-                )
-                response.raise_for_status()
-                content = response.json().get("content", "")
-            else:
-                from anthropic import Anthropic
-                if not api_key:
-                    return None
-                client = Anthropic(api_key=api_key)
-                message = client.messages.create(
-                    model=model_name,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    system="你是一个 CTF Web 解题助手的规划器。你需要根据当前上下文，决定下一步应该做什么。",
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                content = message.content[0].text if message.content else ""
+        # 通用 LLM 调用
+        from tools import _call_llm_chat
+        provider = cfg.get("provider", "openai")
+        extra_kwargs = {"provider": provider} if provider != "openai" else {}
+        content = _call_llm_chat(
+            prompt,
+            api_key=api_key,
+            api_base=api_base,
+            model=model_name,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            **extra_kwargs,
+        )
 
-            # 解析 AI 返回的决策
+        if content:
             return self._parse_ai_decision(content)
-
-        except Exception as e:
-            self.log(f"[AI Decision] LLM 调用失败: {e}", "WARN")
-            return None
+        return None
 
     def _build_decision_prompt(self, context: Dict[str, Any]) -> str:
         """构建 AI 决策 prompt。"""
         problem_type = context.get("problem_type", "unknown")
         target_url = context.get("target_url", "")
         hint = context.get("hint", "无")
+        taxonomy_tags = context.get("taxonomy_tags", [])
+        taxonomy_signals = context.get("taxonomy_signals", {})
         findings = context.get("findings_summary", "暂无")
         history = context.get("action_history_summary", "暂无")
         failures = context.get("failure_summary", "暂无")
@@ -1150,12 +1237,57 @@ class AutoAgent:
         for name, info in tools.items():
             tool_desc.append(f"- {name}: {info.get('适用', '')}")
 
+        # 题型标签高亮
+        tags_str = ", ".join(taxonomy_tags) if taxonomy_tags else "未识别"
+        vuln_tags = ", ".join(taxonomy_signals.get("vulnerability_tags", [])) if taxonomy_signals.get("vulnerability_tags") else "无"
+
+        # 已知端点和参数（供 LLM 决策参考）
+        known_endpoints = context.get("known_endpoints", [])
+        known_parameters = context.get("known_parameters", [])
+        endpoints_str = ", ".join(known_endpoints[:10]) if known_endpoints else "暂无"
+        params_str = ", ".join(known_parameters[:10]) if known_parameters else "暂无"
+
+        # === P0.6: RAG 知识（每次决策前获取的相似题目）===
+        rag_section = ""
+        if context.get("rag_summary"):
+            rag_section = f"""
+### 相似题目参考（RAG）
+{context['rag_summary']}
+"""
+
+        # === P0.7: 按优先级展示针对性资源 ===
+        canonical_type = context.get("canonical_type", "unknown")
+        skill_content = context.get("skill", "")
+        experiences = context.get("experiences", [])
+
+        skill_section = ""
+        if skill_content:
+            skill_section = f"""
+### 1. 针对性技能知识（最高优先级 - {canonical_type}）
+{skill_content[:500]}"""
+
+        experiences_section = ""
+        if experiences:
+            exp_lines = []
+            for exp in experiences[:5]:
+                title = exp.get("title", "")
+                method = exp.get("method", "")
+                if title or method:
+                    exp_lines.append(f"- {title}: {method}")
+            if exp_lines:
+                experiences_section = f"""
+### 2. 相关历史经验
+{chr(10).join(exp_lines)}"""
+
         prompt = f"""## 任务
 你是一个 CTF Web 解题助手。你的目标是通过分析当前情况，决定下一步应该做什么。
 
 ## 目标信息
 - URL: {target_url}
 - 题型: {problem_type}
+- 漏洞类型: {canonical_type}
+- 已识别标签: {tags_str}
+- 漏洞类型: {vuln_tags}
 - 提示: {hint}
 - 提示解读: {context.get('hint_interpretation', '无特殊提示')}
 
@@ -1164,17 +1296,55 @@ class AutoAgent:
 - 连续失败次数: {state.get('consecutive_failures', 0)}
 - 当前轮次: {state.get('round', 1)}
 
-## 上下文摘要
+## 靶机已探测到的信息
+- 已发现端点: {endpoints_str}
+- 已发现参数: {params_str}
 
-### 已发现的线索
+## 上下文摘要（按优先级排序）
+
+{skill_section}
+{experiences_section}
+{rag_section}
+### 3. 已发现的线索
 {findings}
 
-### 历史动作
+### 4. 历史动作
 {history}
 
-### 失败分析
-{failures}
+### 5. 失败分析
+{failures}"""
 
+        # === P0.8: 添加题型特定的上下文信号 ===
+        if context.get("auth_signals"):
+            auth = context["auth_signals"]
+            prompt += f"""
+### Auth 攻击状态（供参考）
+- 当前阶段: {auth['stage']}（weak-creds / endpoint-enum / auth-sqli）
+- 登录端点: {', '.join(auth['login_endpoints']) if auth['login_endpoints'] else '暂无'}
+- 登录参数: {', '.join(auth['login_params']) if auth['login_params'] else '暂无'}
+- 已成功 POC: {'是' if auth['has_successful_poc'] else '否'}
+- 建议工具: {auth['suggested_tool']} - {auth['suggested_reason']}"""
+
+        if context.get("sqli_signals"):
+            sqli = context["sqli_signals"]
+            prompt += f"""
+### SQL 注入状态（供参考）
+- sqlmap 已尝试: {'是' if sqli['sqlmap_attempted'] else '否'}
+- sqlmap 已成功: {'是' if sqli['sqlmap_success'] else '否'}
+- sqlmap 近期失败: {'是' if sqli['sqlmap_recently_failed'] else '否'}
+- 注入置信度: {sqli['sqli_confidence']:.1f}
+- 建议工具: {sqli['suggested_tool']} - {sqli['suggested_reason']}"""
+
+        if context.get("ua_bypass_signals"):
+            ua = context["ua_bypass_signals"]
+            prompt += f"""
+### UA 绕过状态（供参考）
+- UA 测试已尝试: {'是' if ua['ua_test_attempted'] else '否'}
+- Mobile UA 成功: {'是' if ua['ua_mobile_success'] else '否'}
+- 上次响应码: {ua['last_response_code'] or '未知'}
+- 建议工具: {ua['suggested_tool']} - {ua['suggested_reason']}"""
+
+        prompt += f"""
 ### 可用资源
 {resources}
 
@@ -1188,7 +1358,7 @@ class AutoAgent:
 
 ## 决策要求
 
-1. **分析当前情况**：基于上述上下文，理解目标的当前状态
+1. **优先利用针对性技能知识**（上面第1项）和**相似题目参考**（上面第2项）
 2. **选择下一步动作**：
    - 工具名称（如 recon, dirsearch, sqlmap, python_poc）
    - 目标（如具体 URL、参数）
@@ -1217,16 +1387,35 @@ class AutoAgent:
         import re
         import json
 
-        # 尝试提取 JSON
-        json_match = re.search(r'\{[^{}]*\}', content, re.DOTALL)
+        # 尝试提取 JSON（支持嵌套结构）
+        # 先尝试直接解析整个 content
+        try:
+            decision = json.loads(content)
+            if decision.get("tool") and decision.get("target"):
+                return decision
+        except (json.JSONDecodeError, Exception):
+            pass
+
+        # 尝试提取 markdown 代码块中的 JSON
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', content)
         if json_match:
             try:
-                decision = json.loads(json_match.group())
-                # 验证必要字段
+                decision = json.loads(json_match.group(1).strip())
                 if decision.get("tool") and decision.get("target"):
                     return decision
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, Exception):
                 pass
+
+        # 尝试找到所有 { ... } 块，取最长且能解析成功的
+        all_matches = list(re.finditer(r'\{[\s\S]*?\}', content))
+        for match in reversed(all_matches):  # 从后往前，最长的可能性更大
+            try:
+                candidate = match.group()
+                decision = json.loads(candidate)
+                if decision.get("tool") and decision.get("target"):
+                    return decision
+            except (json.JSONDecodeError, Exception):
+                continue
 
         # 如果解析失败，返回 None
         return None
@@ -1243,23 +1432,345 @@ class AutoAgent:
         if not api_key and not api_base:
             return None
 
-        # === 新增：自我反思检查 ===
-        # 如果触发反思条件，先进行反思
+        # === P0.6: 每次决策前运行 RAG（不仅在 help 时）===
+        rag_knowledge = self._get_rag_knowledge_for_decision()
+
+        # === P0.6: 自我反思检查 ===
         if self._should_self_reflect():
             reflection_result = self._do_self_reflect()
             if reflection_result:
                 self.log(f"[Self-Reflection] {reflection_result.get('summary', '')}", "AI")
-                # 将反思结果融入上下文
-                context = self._build_decision_context()
+                context = self._build_decision_context(rag_knowledge=rag_knowledge)
                 context["self_reflection"] = reflection_result
                 return self._ai_decide(context)
-        # === 反思检查结束 ===
 
         # 构建上下文
-        context = self._build_decision_context()
+        context = self._build_decision_context(rag_knowledge=rag_knowledge)
+
+        # === P0.6: 上下文压缩 ===
+        context = self.context_manager.compress_context(context)
 
         # 调用 AI 决策
         return self._ai_decide(context)
+
+    def _get_rag_knowledge_for_decision(self) -> Optional[Dict[str, Any]]:
+        """每次决策前从 RAG 获取相似题目知识"""
+        # 第一步没有足够上下文，不做 RAG
+        if not self.memory.steps:
+            return None
+
+        # 只有当问题类型已知时才做 RAG
+        if not self.target_type or self.target_type == "unknown":
+            return None
+
+        # 构建 RAG 查询
+        query = self._build_rag_query()
+        graph_signals = self.graph_manager.planner_signals()
+        attempted_methods = list(graph_signals.get("failed_tools") or [])
+
+        rag_result = retrieve_rag_knowledge(
+            query=query,
+            vuln_type=self.target_type,
+            target_url=self.target_url,
+            attempted_methods=attempted_methods,
+        )
+
+        if rag_result and (rag_result.get("retrieved_knowledge") or rag_result.get("suggested_approach")):
+            self.log(f"[RAG] Retrieved {len(rag_result.get('retrieved_knowledge', []))} knowledge items", "INFO")
+            return rag_result
+
+        return None
+
+    def _get_prioritized_skill(self) -> str:
+        """
+        P0.7: 按 taxonomy 获取针对性的 skill 内容。
+
+        根据当前题型从 resource_bundle 中加载对应的 skill，
+        而不是加载所有 skill。
+        """
+        loaded_resources = self.init_result.get("loaded_resources", {})
+        resource_bundle = loaded_resources.get("resource_bundle", {})
+
+        # 从 taxonomy 获取 canonical type
+        canonical = self._get_canonical_type()
+
+        # 查找对应的 skill 名称
+        priority_config = TAXONOMY_RESOURCE_PRIORITY.get(canonical, {})
+        skill_key = priority_config.get("skill", canonical)
+
+        # skill_content 已在 init_problem 时加载
+        skill_content = self.init_result.get("skill_content", "")
+        if not skill_content:
+            return ""
+
+        # 提取 skill 中的关键方法（简单关键词匹配）
+        skill_lines = skill_content.split("\n")
+        relevant_lines = []
+        skip_sections = ["# 背景", "## 概述", "## 工具", "## 注意事项"]
+
+        for line in skill_lines:
+            stripped = line.strip()
+            # 跳过空行和注释行
+            if not stripped or stripped.startswith("#"):
+                if any(s in stripped for s in skip_sections):
+                    continue
+                relevant_lines.append(line)
+                continue
+            # 保留内容行
+            relevant_lines.append(line)
+
+        return "\n".join(relevant_lines[:100])  # 限制长度
+
+    def _get_prioritized_experiences(self) -> List[Dict]:
+        """
+        P0.7: 按 taxonomy 从长期记忆筛选相关经验。
+
+        只返回与当前题型相关的经验，而不是所有经验。
+        """
+        loaded_resources = self.init_result.get("loaded_resources", {})
+        resource_bundle = loaded_resources.get("resource_bundle", {})
+        all_experiences = resource_bundle.get("experiences", [])
+
+        if not all_experiences:
+            return []
+
+        # 从 taxonomy 获取 canonical type
+        canonical = self._get_canonical_type()
+        priority_config = TAXONOMY_RESOURCE_PRIORITY.get(canonical, {})
+        exp_type = priority_config.get("long_memory", canonical)
+
+        # 简单关键词匹配筛选
+        filtered = []
+        for exp in all_experiences:
+            title = str(exp.get("title", "")).lower()
+            method = str(exp.get("method", "")).lower()
+            exp_type_lower = exp_type.lower()
+
+            if exp_type_lower in title or exp_type_lower in method:
+                filtered.append(exp)
+
+        # 最多返回5条
+        return filtered[:5]
+
+    def _get_canonical_type(self) -> str:
+        """
+        P0.7: 获取 canonical problem type。
+
+        优先使用 taxonomy_profile 中的 canonical type，
+        其次使用 self.target_type。
+        """
+        loaded_resources = self.init_result.get("loaded_resources", {})
+        taxonomy_profile = loaded_resources.get("taxonomy_profile", {})
+
+        # 尝试从 taxonomy_profile 获取 canonical type
+        if taxonomy_profile:
+            type_aliases = taxonomy_profile.get("type_aliases", [])
+            if type_aliases:
+                return type_aliases[0]
+
+        # 回退到 target_type
+        return self.target_type or "unknown"
+
+    def _get_auth_signals(self) -> Dict[str, Any]:
+        """
+        P0.8: 提取 auth 题型的结构化信号，供 LLM 决策参考。
+
+        将原本硬编码的 if/else 分支转为 LLM 可读的上下文信号，
+        由 LLM 基于这些信号自主决定下一步攻击动作。
+        """
+        signals = self.graph_manager.planner_signals()
+        known_endpoints = list(signals.get("known_endpoints") or [])
+        known_parameters = list(signals.get("known_parameters") or [])
+        steps = list(self.memory.steps or [])
+
+        # 登录相关端点
+        login_endpoints = [
+            ep for ep in known_endpoints
+            if any(token in ep.lower() for token in ["check", "login", "signin", "auth", "admin"])
+        ]
+
+        # 登录相关参数
+        login_params = [
+            p for p in known_parameters
+            if p.lower() in ["u", "p", "username", "password", "user", "pass", "email"]
+        ]
+
+        # weak_creds_attempted: POC 类型尝试过弱口令
+        weak_creds_attempted = any(
+            step.action_type == "poc" and (step.canonical_tool or step.tool) == "python_poc"
+            for step in steps
+        )
+
+        # endpoint_enum_attempted: 尝试过登录端点相关 recon 或 POC
+        endpoint_enum_attempted = any(
+            step.action_type in ("recon", "poc") and
+            (step.canonical_tool or step.tool) in ("recon", "python_poc") and
+            any(token in str(getattr(step, "result", "") or "").lower() for token in ["login", "form", "auth", "check"])
+            for step in steps
+        )
+
+        # endpoint_enum_confirmed: 确认找到登录表单端点
+        endpoint_enum_confirmed = any(
+            any(token in str(getattr(step, "result", "") or "").lower() for token in ["found login form endpoint", "form method:", "form field:"])
+            or any("login form endpoint" in str(item).lower() or "form method" in str(item).lower() or "form field" in str(item).lower() for item in list(getattr(step, "key_findings", []) or []))
+            for step in steps
+        )
+
+        # structured_auth_signal: 需要有确认的 endpoint 或多个参数
+        structured_auth_signal = bool(endpoint_enum_confirmed) or (bool(known_endpoints) and len(known_parameters) >= 2)
+
+        # 计算当前阶段
+        if not weak_creds_attempted:
+            stage = "weak-creds"
+        elif not endpoint_enum_attempted or not structured_auth_signal:
+            stage = "endpoint-enum"
+        elif structured_auth_signal:
+            stage = "auth-sqli"
+        else:
+            stage = "endpoint-enum"
+
+        # POC 是否成功过
+        poc_steps = [s for s in steps if s.action_type == "poc" or (s.expected_tool == "python_poc" and s.action_type in {"poc", "recon"})]
+        has_successful_poc = any(step.success for step in poc_steps)
+
+        # 生成建议
+        if stage == "weak-creds" and not has_successful_poc:
+            suggested_tool = "python_poc"
+            suggested_reason = "检测到登录入口，可尝试弱口令暴力破解"
+        elif stage == "endpoint-enum":
+            suggested_tool = "recon"
+            suggested_reason = "需要继续枚举认证端点和参数"
+        elif stage == "auth-sqli":
+            suggested_tool = "sqlmap"
+            suggested_reason = "已确认认证入口，可尝试参数注入"
+        else:
+            suggested_tool = "recon"
+            suggested_reason = "继续收集信息"
+
+        return {
+            "stage": stage,
+            "weak_creds_attempted": weak_creds_attempted,
+            "endpoint_enum_attempted": endpoint_enum_attempted,
+            "endpoint_enum_confirmed": endpoint_enum_confirmed,
+            "structured_auth_signal": structured_auth_signal,
+            "has_successful_poc": has_successful_poc,
+            "login_endpoints": login_endpoints,
+            "login_params": login_params,
+            "known_endpoints": known_endpoints,
+            "known_parameters": known_parameters,
+            "suggested_tool": suggested_tool,
+            "suggested_reason": suggested_reason,
+        }
+
+    def _get_sqli_signals(self) -> Dict[str, Any]:
+        """
+        P0.8: 提取 SQLi 题型的结构化信号，供 LLM 决策参考。
+        """
+        steps = list(self.memory.steps or [])
+
+        # sqlmap 是否尝试过
+        sqlmap_attempted = any(s.tool == "sqlmap" for s in steps)
+        sqlmap_success = any(s.tool == "sqlmap" and s.success for s in steps)
+        sqlmap_recently_failed = any(s.tool == "sqlmap" and not s.success for s in steps[-2:]) if steps else False
+
+        # 估计 SQLi 置信度
+        sqlmap_fail_count = sum(1 for s in steps if s.tool == "sqlmap" and not s.success)
+        if sqlmap_success:
+            sqli_confidence = 1.0
+        elif sqlmap_attempted and sqlmap_recently_failed:
+            sqli_confidence = 0.3
+        elif sqlmap_attempted:
+            sqli_confidence = 0.7
+        else:
+            sqli_confidence = 0.5  # 初始化时已有一定置信
+
+        # 建议下一步工具
+        if not sqlmap_attempted:
+            suggested_tool = "sqlmap"
+            suggested_reason = "未尝试 sqlmap，建议先用 sqlmap 检测注入点"
+        elif sqlmap_success:
+            suggested_tool = "sqlmap"
+            suggested_reason = "sqlmap 已成功，可继续深入利用"
+        elif sqlmap_recently_failed:
+            suggested_tool = "dirsearch"
+            suggested_reason = "sqlmap 失败，建议收集更多端点后再尝试"
+        else:
+            suggested_tool = "sqlmap"
+            suggested_reason = "sqlmap 进行中，继续等待结果"
+
+        return {
+            "sqlmap_attempted": sqlmap_attempted,
+            "sqlmap_success": sqlmap_success,
+            "sqlmap_recently_failed": sqlmap_recently_failed,
+            "sqli_confidence": sqli_confidence,
+            "suggested_tool": suggested_tool,
+            "suggested_reason": suggested_reason,
+        }
+
+    def _get_ua_bypass_signals(self) -> Dict[str, Any]:
+        """
+        P0.8: 提取 UA bypass 题型的结构化信号，供 LLM 决策参考。
+        """
+        steps = list(self.memory.steps or [])
+
+        # UA test 是否尝试过
+        ua_test_attempted = any(s.tool in {"ua_test", "python_poc"} for s in steps)
+        ua_mobile_success = any(s.tool in {"ua_test", "python_poc"} and "Mobile" in str(s.result) for s in steps)
+
+        # 上一步结果
+        last_result = steps[-1].result if steps else None
+        last_response_code = ""
+        if last_result:
+            if "301" in str(last_result) or "302" in str(last_result):
+                last_response_code = "redirect"
+            elif "200" in str(last_result):
+                last_response_code = "200"
+            elif "403" in str(last_result) or "401" in str(last_result):
+                last_response_code = "forbidden"
+
+        # 提取重定向目标
+        redirect_target = self._extract_redirect(last_result) if last_result else None
+
+        # 建议
+        if not ua_test_attempted:
+            suggested_tool = "ua_test"
+            suggested_reason = "未尝试 UA 绕过，建议先测试 Mobile UA"
+        elif ua_mobile_success:
+            suggested_tool = "follow_redirect"
+            suggested_reason = "Mobile UA 成功获取新响应，建议跟随重定向"
+        elif last_response_code == "redirect":
+            suggested_tool = "follow_redirect"
+            suggested_reason = "检测到重定向，建议跟随访问"
+        else:
+            suggested_tool = "recon"
+            suggested_reason = "UA 测试未成功，继续收集信息"
+
+        return {
+            "ua_test_attempted": ua_test_attempted,
+            "ua_mobile_success": ua_mobile_success,
+            "last_response_code": last_response_code,
+            "redirect_target": redirect_target,
+            "suggested_tool": suggested_tool,
+            "suggested_reason": suggested_reason,
+        }
+
+    def _extract_redirect(self, result: Any) -> Optional[str]:
+        """从结果中提取重定向 URL"""
+        if not result:
+            return None
+        result_str = str(result)
+        # 匹配常见的重定向模式
+        patterns = [
+            r'redirect(?:ing)? to[:\s]+(https?://[^\s<>"]+)',
+            r'location[:\s]+(https?://[^\s<>"]+)',
+            r'window\.location\s*=\s*["\'](https?://[^"\']+)["\']',
+            r'href\s*=\s*["\'](https?://[^"\']+)["\']',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, result_str, re.IGNORECASE)
+            if match:
+                return match.group(1)
+        return None
 
     def _should_self_reflect(self) -> bool:
         """检查是否应该触发自我反思。"""
@@ -1340,44 +1851,26 @@ class AutoAgent:
         temperature = cfg.get("temperature", 0.3)
         max_tokens = cfg.get("max_tokens", 500)
 
-        try:
-            if api_base:
-                response = _requests.post(
-                    api_base.rstrip("/") + "/chat",
-                    json={
-                        "model": model_name,
-                        "messages": [{"role": "user", "content": prompt}],
-                        "max_tokens": max_tokens * 2,  # 反思需要更多 tokens
-                        "temperature": temperature,
-                    },
-                    headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
-                    timeout=30,
-                    verify=False,
-                )
-                response.raise_for_status()
-                content = response.json().get("content", "")
-            else:
-                from anthropic import Anthropic
-                client = Anthropic(api_key=api_key)
-                message = client.messages.create(
-                    model=model_name,
-                    max_tokens=max_tokens * 2,
-                    temperature=temperature,
-                    system="你是一个 CTF Web 解题助手的反思模块。",
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                content = message.content[0].text if message.content else ""
+        # 通用 LLM 调用
+        from tools import _call_llm_chat
+        provider = cfg.get("provider", "openai")
+        extra_kwargs = {"provider": provider} if provider != "openai" else {}
+        content = _call_llm_chat(
+            prompt,
+            api_key=api_key,
+            api_base=api_base,
+            model=model_name,
+            temperature=temperature,
+            max_tokens=max_tokens * 2,
+            **extra_kwargs,
+        )
 
+        if content:
             # 解析 JSON
             json_match = re.search(r'\{[^{}]*\}', content, re.DOTALL)
             if json_match:
                 result = json.loads(json_match.group())
                 return result
-
-        except Exception as e:
-            self.log(f"[Self-Reflection] 调用失败: {e}", "WARN")
-
-        return None
 
     def _build_action_from_ai_decision(self, decision: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """将 AI 决策转换为 action。"""
@@ -1455,6 +1948,7 @@ class AutoAgent:
         expected_tool: str = "",
         params: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        phase: str = "attack",
     ) -> Dict[str, Any]:
         normalized_params = dict(params or {})
         action = {
@@ -1465,6 +1959,7 @@ class AutoAgent:
             "intent": intent or description,
             "expected_tool": expected_tool or action_type,
             "params": normalized_params,
+            "phase": phase,
         }
         if metadata:
             action.update(metadata)
@@ -1524,6 +2019,7 @@ class AutoAgent:
             "action_type": action_type,
             "expected_tool": expected_tool,
             "canonical_tool": self._canonical_tool_name(action),
+            "phase": str(action.get("phase", "attack")),
         }
 
     def _count_recent_failures_by_tool(self, tool: str, window: int = 5) -> int:
@@ -2734,29 +3230,33 @@ print("No valid password found")
         return action
 
     def _execute_recon_action(self, action: Dict[str, Any]) -> str:
+        import urllib.parse
+        import requests
+        import urllib3
+        import re
+        import json
+
         target = action.get("target", self.target_url)
-        code = f'''
-import requests
-import urllib3
-import re
-import json
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-url = "{target}"
-resp = requests.get(url, timeout=10, verify=False)
-print(f"Status: {{resp.status_code}}")
-print(f"Headers: {{dict(resp.headers)}}")
-if 'Location' in resp.headers:
-    print(f"Redirect: {{resp.headers['Location']}}")
-flags = re.findall(r'ctfshow{{[^}}]+}}|flag{{[^}}]+}}', resp.text)
-if flags:
-    print(f"FLAG_FOUND: {{flags[0]}}")
-print("BODY_START")
-print(resp.text[:4000])
-print("BODY_END")
-'''
-        result = execute_python_poc(code, timeout=30, memory_meta=self._build_memory_action_meta(action))
+        # 直接使用 requests 获取，不经过 execute_python_poc 的去重逻辑
+        # 参考框架（CHYing-agent, H-Pentest）也是直接 requests.get()
+        resp = requests.get(target, timeout=10, verify=False)
 
+        result = f"Status: {resp.status_code}\n"
+        result += f"Headers: {dict(resp.headers)}\n"
+        if 'Location' in resp.headers:
+            result += f"Redirect: {resp.headers['Location']}\n"
+
+        flags = re.findall(r'ctfshow{{[^}}]+}}|flag{{[^}}]+}}', resp.text)
+        if flags:
+            result += f"FLAG_FOUND: {flags[0]}\n"
+
+        result += f"BODY_START\n{resp.text[:4000]}\nBODY_END"
+
+        self.log(f"[DEBUG _execute_recon] result (first 200): {result[:200]}", "INFO")
+
+        # 解析响应体
         body_match = re.search(r'BODY_START\n([\s\S]*?)\nBODY_END', result)
         body = body_match.group(1) if body_match else ""
         headers_match = re.search(r"Headers:\s*(\{.*\})", result)
@@ -2772,6 +3272,15 @@ print("BODY_END")
         recon_summary = summarize_auth_recon_response(target, status_code, headers, body)
         generic_summary = summarize_generic_recon_findings(target, status_code, headers, body)
         findings = list(recon_summary.get("findings") or []) + list(generic_summary.get("findings") or [])
+
+        # === P0.8 FIX: 将 typed_findings 也写入 key_findings ===
+        typed_findings = list(generic_summary.get("typed_findings") or [])
+        for tf in typed_findings:
+            kind = tf.get("kind", "")
+            value = tf.get("value", "")
+            if kind and value:
+                findings.append(f"{kind}:{value}")
+
         lower_body = body.lower()
         if "phpinfo()" in lower_body or ("php version" in lower_body and "php credits" in lower_body):
             findings.extend(["phpinfo_exposed", "info_leak"])
@@ -2779,10 +3288,75 @@ print("BODY_END")
             if token.lower() in lower_body:
                 findings.append(token)
 
-        latest_step = self._latest_memory_step_for_action(action)
-        if latest_step is not None:
-            latest_step.key_findings = list(dict.fromkeys(list(latest_step.key_findings or []) + findings))
-            latest_step.result = result[:500] if len(result) > 500 else result
+        # 注册靶机信息到 memory.target，供后续 AI 决策使用
+        endpoints_from_recon = list(recon_summary.get("endpoints") or [])
+        params_from_recon = list(recon_summary.get("parameters") or [])
+        self.log(f"[DEBUG _execute_recon] Before adding: endpoints_from_recon={endpoints_from_recon}, params_from_recon={params_from_recon}", "INFO")
+        if endpoints_from_recon:
+            for ep in endpoints_from_recon:
+                self.memory.add_endpoint(ep)
+        if params_from_recon:
+            for p in params_from_recon:
+                self.memory.add_parameter(p)
+        # 提取页面中的链接作为潜在端点
+        url_pattern = re.compile(r'href=["\']([^"\']+)["\']', re.IGNORECASE)
+        hrefs_found = []
+        for url_match in url_pattern.finditer(body):
+            path = url_match.group(1).strip()
+            if path and not path.startswith(('http://', 'https://', 'mailto:', 'javascript:')):
+                parsed = urllib.parse.urlparse(target)
+                if path.startswith('/'):
+                    discovered = f"{parsed.scheme}://{parsed.netloc}{path}"
+                else:
+                    discovered = f"{parsed.scheme}://{parsed.netloc}/{path}"
+                hrefs_found.append(discovered)
+                self.memory.add_endpoint(discovered)
+
+        # 提取 JavaScript 中的路由端点 (e.g., app.get('/flag', ...))
+        route_pattern = re.compile(r"app\.(get|post|put|delete|patch)\(['\"]([^'\"]+)['\"]", re.IGNORECASE)
+        for route_match in route_pattern.finditer(body):
+            route_path = route_match.group(2).strip()
+            if route_path and route_path.startswith('/'):
+                discovered = f"{urllib.parse.urlparse(target).scheme}://{urllib.parse.urlparse(target).netloc}{route_path}"
+                hrefs_found.append(discovered)
+                self.memory.add_endpoint(discovered)
+
+        # 提取 URL 参数
+        param_pattern = re.compile(r'[?&]([a-zA-Z_][a-zA-Z0-9_]*)=', re.UNICODE)
+        for pm in param_pattern.finditer(target):
+            self.memory.add_parameter(pm.group(1))
+
+        # 注册 step 到 memory
+        self.memory.add_step(
+            tool="recon",
+            target=target,
+            params={},
+            result=result[:500] if len(result) > 500 else result,
+            success=True,  # recon 总是成功的（即使返回 404）
+            key_findings=findings,
+            action_meta=self._build_memory_action_meta(action),
+        )
+
+        # P0.9 FIX: 主动通知 memory 已尝试的 finding family
+        # 这样 _help_readiness 在下一轮决策时能正确判断
+        finding_kinds = set()
+        for f in findings:
+            if isinstance(f, str) and ":" in f:
+                kind = f.split(":", 1)[0].strip()
+                finding_kinds.add(kind)
+            elif isinstance(f, dict):
+                kind = str(f.get("kind", "")).strip()
+                if kind:
+                    finding_kinds.add(kind)
+        for kind in finding_kinds:
+            self.memory.note_attempted_family(kind)
+
+        # P0.9 FIX: 标记 skill 资源已被使用
+        # skill 在 init_problem 时已加载，recon 后应标记为已使用
+        # 这样 _resource_operationalization_status 能正确报告 resource_candidates_generated=True
+        if self.init_result.get("skill_content") or getattr(self.agent_context, "skill_content", ""):
+            self.memory.note_resource_source_used("skill")
+
         return result
 
     def _execute_ua_test_action(self, action: Dict[str, Any]) -> str:
@@ -3532,20 +4106,18 @@ print(f"Content: {{resp.text}}")
         """
         决策下一步行动
 
-        核心：优先执行攻击计划（如果有），否则尝试 AI 决策，最后基于启发式决策
+        核心：LLM 决策优先，框架只负责执行和提供结构化上下文
         """
         steps = self.memory.steps
         target = self.target_url
 
-        # === 新增：AI 决策尝试 ===
-        # 优先尝试 AI 决策
+        # === LLM 决策（基于完整上下文）===
         ai_decision = self._try_ai_decision()
         if ai_decision is not None:
             self.log(f"[AI Decision] tool={ai_decision.get('tool')}, target={ai_decision.get('target')}, reason={ai_decision.get('reason', '')}", "AI")
             action = self._build_action_from_ai_decision(ai_decision)
             if action is not None:
                 return action
-        # === AI 决策结束 ===
 
         if self.attack_plan:
             next_step = self.attack_plan.get_next_step()
@@ -3576,163 +4148,12 @@ print(f"Content: {{resp.text}}")
                 metadata={"code": self.source_code},
             )
 
-        if not steps:
-            return self._build_action(
-                "recon",
-                target=target,
-                description="初始信息收集",
-                intent="收集首页响应、头和可能的跳转信息",
-                expected_tool="recon",
-            )
-
-        if self.target_type == "auth":
-            auth_state = self._auth_progress_state()
-            login_endpoints = [ep for ep in self.memory.target.endpoints if any(token in ep.lower() for token in ["check", "login", "signin", "auth"])]
-            login_params = [p for p in self.memory.target.parameters if p.lower() in ["u", "p", "username", "password", "user", "pass", "email"]]
-            endpoint = login_endpoints[0] if login_endpoints else "check.php"
-            param_u = login_params[0] if login_params else "u"
-            param_p = login_params[1] if len(login_params) > 1 else "p"
-            poc_steps = [s for s in steps if s.action_type == "poc" or (s.expected_tool == "python_poc" and s.action_type in {"poc", "recon"})]
-            has_successful_poc = any(step.success for step in poc_steps)
-            recent_auth_recon = [s for s in steps[-3:] if s.action_type == "recon" and (s.canonical_tool or s.tool) == "python_poc"]
-            auth_stage = auth_state.get("stage") or "weak-creds"
-
-            if auth_stage == "weak-creds" and not has_successful_poc:
-                brute_code = f'''\
-import requests
-import sys
-
-target = "{target.rstrip('/')}/{endpoint}"
-passwords = ["admin888", "admin", "password", "123456", "12345678", "1234", "admin123", "root", "toor", "ctfshow", "flag"]
-
-for pwd in passwords:
-    try:
-        resp = requests.post(target, data={{"{param_u}": "admin", "{param_p}": pwd}}, verify=False, timeout=10)
-        if "error" not in resp.text.lower() and resp.text.strip():
-            print(f"[SUCCESS] Found password: {{pwd}}")
-            print(f"Response: {{resp.text[:500]}}")
-            sys.exit(0)
-        else:
-            print(f"[FAIL] {{pwd}}")
-    except Exception as e:
-        print(f"[ERROR] {{pwd}}: {{e}}")
-
-print("No valid password found")
-'''
-                return self._build_action(
-                    "poc",
-                    target=target,
-                    description="针对登录端点尝试暴力破解",
-                    intent="使用常见弱口令尝试登录绕过",
-                    expected_tool="python_poc",
-                    params={"code": brute_code, "endpoint": endpoint, "login_params": [param_u, param_p]},
-                    metadata={
-                        "attack_type": "auth_bypass",
-                        "auth_endpoints": login_endpoints,
-                        "auth_login_params": login_params,
-                        "tactic_family": "weak-creds",
-                    },
-                )
-
-            graph_action = self._build_graph_informed_action()
-            if graph_action is not None and graph_action.get("type") != "dir_scan":
-                return graph_action
-
-            if auth_stage == "endpoint-enum":
-                return self._build_action(
-                    "recon",
-                    target=target,
-                    description="围绕认证入口继续枚举与分支确认",
-                    intent="补齐 auth family: endpoint-enum",
-                    expected_tool="recon",
-                    params={"focus": "auth-endpoints", "known_endpoints": login_endpoints},
-                    metadata={"tactic_family": "endpoint-enum"},
-                )
-
-            if auth_stage == "auth-sqli":
-                return self._build_action(
-                    "sqlmap_scan",
-                    target=target,
-                    description="基于已确认认证入口尝试参数注入验证",
-                    intent="auth family 已完成入口确认，切到 auth-sqli 验证",
-                    expected_tool="sqlmap",
-                    params={"batch": True},
-                    metadata={"tactic_family": "auth-sqli"},
-                )
-
-            if not recent_auth_recon:
-                return self._build_action(
-                    "recon",
-                    target=target,
-                    description="围绕认证入口继续枚举与分支确认",
-                    intent="补齐 auth family: endpoint-enum",
-                    expected_tool="recon",
-                    params={"focus": "auth-endpoints", "known_endpoints": login_endpoints},
-                    metadata={"tactic_family": "endpoint-enum"},
-                )
-
-            return self._build_action(
-                "recon",
-                target=target,
-                description="auth 攻击未成功，继续信息收集",
-                intent="重新采样响应并寻找其他 auth 突破口",
-                expected_tool="recon",
-                params={"focus": "auth-followup", "known_endpoints": login_endpoints},
-                metadata={"tactic_family": "endpoint-enum"},
-            )
-
+        # === P0.8: 移除硬编码分支，改为 graph-informed 兜底 ===
+        # LLM 决策已作为第一优先级（上面 _try_ai_decision 返回则直接返回）
+        # graph_informed_action 作为 LLM 失败时的兜底选项
         graph_action = self._build_graph_informed_action()
-        if graph_action is not None:
+        if graph_action is not None and graph_action.get("type") != "dir_scan":
             return graph_action
-
-        if self.target_type == "ua_bypass":
-            if not any(s.tool in {"ua_test", "python_poc"} and "Mobile" in str(s.result) for s in steps):
-                return self._build_action(
-                    "ua_test",
-                    target=target,
-                    description="测试Mobile UA",
-                    intent="验证目标是否依赖 User-Agent 分支",
-                    expected_tool="ua_test",
-                    params={"ua": "Mobile"},
-                    metadata={"ua": "Mobile"},
-                )
-            last_step = steps[-1]
-            if "301" in str(last_step.result) or "302" in str(last_step.result):
-                redirect_url = self._extract_redirect(last_step.result)
-                if redirect_url:
-                    redirect_target = f"{target.rstrip('/')}/{redirect_url.lstrip('/')}"
-                    return self._build_action(
-                        "follow_redirect",
-                        target=redirect_target,
-                        description="跟随重定向",
-                        intent="访问重定向位置继续验证 UA 绕过",
-                        expected_tool="follow_redirect",
-                        params={"ua": "Mobile"},
-                        metadata={"ua": "Mobile"},
-                    )
-
-        if self.target_type == "sqli":
-            if not any(s.tool == "sqlmap" for s in steps):
-                return self._build_action(
-                    "sqlmap_scan",
-                    target=target,
-                    description="检测SQL注入点",
-                    intent="先用 sqlmap 做基础注入检测",
-                    expected_tool="sqlmap",
-                    params={"batch": True},
-                )
-            if any(s.tool == "sqlmap" and not s.success for s in steps[-2:]):
-                graph_action = self._build_graph_informed_action()
-                if graph_action is not None and graph_action.get("type") != "dir_scan":
-                    return graph_action
-                return self._build_action(
-                    "dir_scan",
-                    target=target,
-                    description="补充目录扫描",
-                    intent="收集更多端点后再决定注入路径",
-                    expected_tool="dirsearch",
-                    params={"extensions": ["php", "txt", "bak"]},
-                )
 
         recent_dir_scans = [s for s in steps[-4:] if (s.canonical_tool or s.tool) == "dirsearch"]
         repeated_dir_scan_without_new_findings = (
