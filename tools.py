@@ -15,6 +15,7 @@ CTF Agent 工具集 - v2.0 集成双记忆系统
     result = execute_command("...")
 """
 
+import logging
 import os
 import re
 import json
@@ -97,16 +98,84 @@ def _load_llm_config() -> dict:
 _LLM_CONFIG = _load_llm_config()
 
 
+def _call_llm_chat(prompt: str, **kwargs) -> Optional[str]:
+    """
+    通用 LLM 聊天接口，支持 OpenAI / Anthropic 兼容 API。
+    根据 config.json 中 provider 字段选择对应格式。
+
+    Args:
+        prompt: 用户 prompt
+        **kwargs: 可选参数 override（api_key, api_base, model, temperature, max_tokens）
+
+    Returns:
+        LLM 响应的文本内容，失败返回 None
+    """
+    cfg = _LLM_CONFIG
+
+    # 配置优先级：kwargs > 环境变量 > config.json
+    provider = kwargs.get("provider") or os.environ.get("LLM_PROVIDER", "").strip() or cfg.get("provider", "openai")
+    api_key = kwargs.get("api_key") or os.environ.get("ANTHROPIC_API_KEY", "").strip() or cfg.get("api_key", "").strip()
+    api_base = kwargs.get("api_base") or os.environ.get("ANTHROPIC_BASE_URL", "").strip() or cfg.get("api_base", "").strip()
+    model_name = kwargs.get("model") or os.environ.get("ANTHROPIC_MODEL", "").strip() or cfg.get("model", "").strip()
+    temperature = kwargs.get("temperature", cfg.get("temperature", 0.3))
+    max_tokens = kwargs.get("max_tokens", cfg.get("max_tokens", 500))
+
+    if not api_key and not api_base:
+        return None
+
+    try:
+        if provider == "anthropic":
+            # Anthropic 专用格式
+            if not api_key:
+                return None
+            try:
+                from anthropic import Anthropic
+            except ImportError:
+                return None
+            client = Anthropic(api_key=api_key)
+            message = client.messages.create(
+                model=model_name or "claude-sonnet-4-6",
+                max_tokens=max_tokens,
+                temperature=temperature,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return "".join(block.text for block in message.content if getattr(block, "type", "") == "text")
+        else:
+            # OpenAI 兼容格式（默认）
+            import requests as _requests
+            if not api_base:
+                return None
+
+            # api_base 可能已包含 /v1，拼接时避免重复
+            base = api_base.rstrip("/")
+            if not base.endswith("/v1"):
+                endpoint = base + "/v1/chat/completions"
+            else:
+                endpoint = base + "/chat/completions"
+            response = _requests.post(
+                endpoint,
+                json={
+                    "model": model_name or "gpt-4o",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                },
+                headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
+                timeout=30,
+                verify=False,
+            )
+            response.raise_for_status()
+            resp_json = response.json()
+            # 通用 OpenAI 兼容格式
+            return resp_json.get("choices", [{}])[0].get("message", {}).get("content", "")
+    except Exception as e:
+        logging.warning(f"[_call_llm_chat] OpenAI compatible API call failed: {type(e).__name__}: {e}")
+        return None
+
+
 def _classify_problem_with_llm(target_url: str, description: str = "", hint: str = "", initial_response: str = "") -> Dict[str, Any]:
     """LLM-first classifier. If no model client/config is available, return unavailable and let heuristic fallback."""
     cfg = _LLM_CONFIG
-
-    # api_key: 环境变量 > config.json
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip() or cfg.get("api_key", "").strip()
-    # api_base: 环境变量 > config.json
-    api_base = os.environ.get("ANTHROPIC_BASE_URL", "").strip() or cfg.get("api_base", "").strip()
-    # model: 环境变量 > config.json
-    model_name = os.environ.get("ANTHROPIC_MODEL", "").strip() or cfg.get("model", "").strip()
 
     prompt_payload = {
         "url": target_url,
@@ -116,7 +185,13 @@ def _classify_problem_with_llm(target_url: str, description: str = "", hint: str
         "allowed_problem_types": sorted({canonicalize_problem_type(name) for name in KEYWORD_HINTS.keys()} | {"unknown"}),
     }
 
-    if not model_name and not api_base:
+    # 检查是否有任何 LLM 配置
+    provider = cfg.get("provider", "openai")
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip() or cfg.get("api_key", "").strip()
+    api_base = os.environ.get("ANTHROPIC_BASE_URL", "").strip() or cfg.get("api_base", "").strip()
+    model_name = os.environ.get("ANTHROPIC_MODEL", "").strip() or cfg.get("model", "").strip()
+
+    if not model_name and not api_base and not api_key:
         return {
             "problem_type": "unknown",
             "confidence": 0.0,
@@ -125,29 +200,12 @@ def _classify_problem_with_llm(target_url: str, description: str = "", hint: str
             "evidence": [],
         }
 
+    # 构造 system prompt（Anthropic 需要）
+    system_prompt = "你是 CTF Web 题型分类器。只能输出 JSON。problem_type 必须来自 allowed_problem_types，confidence 范围 0-1。"
+
     try:
-        if api_base:
-            response = requests.post(
-                api_base.rstrip("/") + "/classify",
-                json=prompt_payload,
-                headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
-                timeout=20,
-                verify=False,
-            )
-            response.raise_for_status()
-            payload = dict(response.json() or {})
-        else:
-            payload = {}
-            try:
-                from anthropic import Anthropic
-            except Exception:
-                return {
-                    "problem_type": "unknown",
-                    "confidence": 0.0,
-                    "source": "llm-unavailable",
-                    "reasoning_summary": "未安装可用模型客户端，退回 heuristic",
-                    "evidence": [],
-                }
+        if provider == "anthropic":
+            # Anthropic 原生格式
             if not api_key:
                 return {
                     "problem_type": "unknown",
@@ -156,12 +214,22 @@ def _classify_problem_with_llm(target_url: str, description: str = "", hint: str
                     "reasoning_summary": "缺少模型 API Key，退回 heuristic",
                     "evidence": [],
                 }
+            try:
+                from anthropic import Anthropic
+            except Exception:
+                return {
+                    "problem_type": "unknown",
+                    "confidence": 0.0,
+                    "source": "llm-error",
+                    "reasoning_summary": "未安装可用模型客户端，退回 heuristic",
+                    "evidence": [],
+                }
             client = Anthropic(api_key=api_key)
             message = client.messages.create(
                 model=model_name or "claude-sonnet-4-6",
                 max_tokens=300,
                 temperature=0,
-                system="你是 CTF Web 题型分类器。只能输出 JSON。problem_type 必须来自 allowed_problem_types，confidence 范围 0-1。",
+                system=system_prompt,
                 messages=[{
                     "role": "user",
                     "content": json.dumps(prompt_payload, ensure_ascii=False),
@@ -169,6 +237,37 @@ def _classify_problem_with_llm(target_url: str, description: str = "", hint: str
             )
             text = "".join(block.text for block in message.content if getattr(block, "type", "") == "text")
             payload = json.loads(text)
+        else:
+            # OpenAI 兼容格式
+            if not api_base:
+                return {
+                    "problem_type": "unknown",
+                    "confidence": 0.0,
+                    "source": "llm-unavailable",
+                    "reasoning_summary": "未配置 API Base URL，退回 heuristic",
+                    "evidence": [],
+                }
+            import requests as _requests
+            endpoint = api_base.rstrip("/") + "/v1/chat/completions"
+            response = _requests.post(
+                endpoint,
+                json={
+                    "model": model_name or "gpt-4o",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": json.dumps(prompt_payload, ensure_ascii=False)},
+                    ],
+                    "max_tokens": 300,
+                    "temperature": 0,
+                },
+                headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
+                timeout=20,
+                verify=False,
+            )
+            response.raise_for_status()
+            resp_json = response.json()
+            text = resp_json.get("choices", [{}])[0].get("message", {}).get("content", "")
+            payload = json.loads(text) if text else {}
 
         problem_type = canonicalize_problem_type(payload.get("problem_type") or "unknown")
         confidence = max(0.0, min(1.0, float(payload.get("confidence") or 0.0)))
@@ -350,6 +449,19 @@ def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict
 
     problem_type = canonicalize_problem_type(problem_type)
     taxonomy_profile = build_taxonomy_profile(problem_type, target_url, description, hint, initial_response_text[:4000])
+    # 如果 taxonomy_profile 检测到了高置信标签（如 rce、auth），但 problem_type 仍是 unknown，
+    # 则用 taxonomy_tags 中最高置信的标签更新 problem_type（优先使用非 unknown 的标签）
+    if problem_type == "unknown" and taxonomy_profile.get("taxonomy_tags"):
+        # taxonomy_tags 已按优先级排序（line 94-100），取第一个非 unknown 的标签
+        for tag in taxonomy_profile["taxonomy_tags"]:
+            if tag != "unknown":
+                problem_type = tag
+                classification_source = "taxonomy"
+                classification_reasoning = f"taxonomy 标签检测到 {tag}，更新 problem_type"
+                taxonomy_profile["canonical_problem_type"] = tag
+                taxonomy_profile["skill_names"] = canonical_skill_names(tag)
+                print(f"[Auto-detect] taxonomy 标签检测到类型: {tag}")
+                break
     resource_bundle = _assemble_resource_bundle(
         taxonomy_profile,
         target_url=target_url,
@@ -1081,8 +1193,9 @@ def execute_python_poc(code: str, timeout: int = 120,
     import sys
     from datetime import datetime
 
-    # 使用 workspace 目录
-    workspace = Path(__file__).parent / "workspace"
+    # 使用 workspace 目录（确保使用绝对路径）
+    _tools_file = Path(__file__).resolve()
+    workspace = _tools_file.parent / "workspace"
     workspace.mkdir(exist_ok=True)
 
     # 生成唯一文件名（时间戳+随机数）
