@@ -6,6 +6,7 @@
   "activate_cmd": "workon CTFagent"
  },
  "llm": {
+  "provider": "openai",
   "api_key": "sk-qNKzzEypdM8lIBlSSkpotmKCZykCjJpj0WyVqmX7951R4rhE",
   "api_base": "http://model.imfan.top",
   "model": "MiniMax-M2.5",
