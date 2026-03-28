@@ -74,17 +74,19 @@
 
 ### P1：修初始化识别偏航问题
 
-- [ ] 修正 `phpinfo()` 页面被误识别为 `sqli`
+- [x] 修正 `phpinfo()` 页面被误识别为 `sqli`
   - 问题：`init_problem()` 当前基于页面关键字做题型识别，`phpinfo()` 页面中包含大量 `mysql/sql` 文本，容易被误判为 `sqli`。
   - 暴露现象：本轮联调一开始就加载了 SQLi 技能并执行 `sqlmap`，偏离真实利用链。
   - 修复目标：为 `phpinfo()` / 信息泄露 / 配置泄露建立高优先级 heuristic，避免被泛化 SQL 关键字抢先命中。
-  - 相关位置：`tools.py:82-143`
+  - 当前结果：`tools.py:415-429` 已检测 phpinfo 并设置 `problem_type=unknown`；但 taxonomy override (lines 454-464) 会用 phpinfo 页面的 SQL 关键字重新覆盖；已增加 phpinfo 证据检查，跳过 taxonomy 覆盖。
+  - 相关位置：`tools.py:454-478`
 
-- [ ] 修正 hint 辅助分类对初始化结果的降级覆盖
-  - 问题：`AutoAgent.initialize_challenge()` 中 `_classify_problem(hint)` 会对 `init_problem()` 的结果进行二次覆盖，缺少“只增强不降级”的保护。
-  - 暴露现象：当 hint 提到“扫目录”“phpinfo”时，主链仍可能被拉回错误题型或泛化侦察路径。
+- [x] 修正 hint 辅助分类对初始化结果的降级覆盖
+  - 问题：`AutoAgent.initialize_challenge()` 中 `_classify_problem(hint)` 会对 `init_problem()` 的结果进行二次覆盖，缺少”只增强不降级”的保护。
+  - 暴露现象：当 hint 提到”扫目录””phpinfo”时，主链仍可能被拉回错误题型或泛化侦察路径。
   - 修复目标：限制 hint 分类只在高置信时覆盖，并保护初始化阶段已识别出的高价值泄露类信号。
-  - 相关位置：`agent_core.py:370-407`，`agent_core.py:_classify_problem()`
+  - 当前结果：`agent_core.py:466-477` 已在覆盖判定中增加 `classification_evidence` 高价值信号检查，当 evidence 包含 phpinfo/info_leak 时跳过 hint 覆盖，保证高价值泄露类信号不被降级。
+  - 相关位置：`agent_core.py:466-477`，`agent_core.py:_classify_problem()`
 
 ### P2：修 planner 空转与高价值发现消费不足
 
@@ -104,14 +106,17 @@
 
 ### P3：补回归覆盖
 
-- [ ] 为本轮暴露的框架问题补最小回归测试
-  - 目标：避免后续再次出现“phpinfo 误判”“工具崩溃记成功”“重复 dir_scan 空转”“高价值 `.git` finding 不进 planner”。
-  - 建议至少覆盖：
-    - `init_problem()` 遇到 `phpinfo()` 页面时不应直接判为 `sqli`
-    - dirsearch 非零退出时 memory step / ToolNode 必须是失败
-    - 最近已重复 `dir_scan` 且无新发现时，planner 不应继续选择 `dir_scan`
-    - 出现 `.git/HEAD` finding 时，graph-informed actions 能生成非目录扫描候选
-  - 相关位置：`tests/` 下新增或扩展现有回归测试文件
+- [x] 为本轮暴露的框架问题补最小回归测试
+  - 目标：避免后续再次出现”phpinfo 误判””工具崩溃记成功””重复 dir_scan 空转””高价值 `.git` finding 不进 planner”。
+  - 当前已覆盖：
+    - `init_problem()` 遇到 `phpinfo()` 页面时不应直接判为 `sqli` - `test_init_problem_phpinfo_page_is_not_misclassified_as_sqli` ✅
+    - dirsearch 非零退出时 memory step / ToolNode 必须是失败 - `test_dirsearch_nonzero_exit_is_recorded_as_failure` ✅
+    - 最近已重复 `dir_scan` 且无新发现时，planner 不应继续选择 `dir_scan` - `test_decide_next_action_breaks_repeated_dir_scan_without_findings` ✅
+    - 出现 `.git/HEAD` finding 时，graph-informed actions 能生成非目录扫描候选 - `test_repo_exposure_finding_prefers_repo_specific_follow_up` ✅
+    - auth 目标在 low_yield_probe_loop 时不返回 dir_scan - `test_auth_target_does_not_fallback_to_dir_scan_in_low_yield_probe_loop` ✅
+    - auth 目标有多次 POC 失败时不降级到 dir_scan - `test_auth_sqli_is_suppressed_before_endpoint_enum_signal` ✅
+    - auth 目标有已知端点/参数时优先 POC 而非 graph_action - `test_decide_next_action_prefers_auth_poc_before_graph_action` ✅
+  - 相关位置：`tests/test_rag_before_help.py`，`tests/test_graph_replan_ranking.py`，`tests/test_auth_replan_degradation.py`
 
 ### 联调样例（2026-03-25）
 

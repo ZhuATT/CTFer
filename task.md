@@ -1013,3 +1013,36 @@ if self.init_result.get("skill_content") or getattr(self.agent_context, "skill_c
 | 第3节 "P3: planner 深度消费" | P0.5 硬编码规则重构 | ✅ 已完成 |
 | 第4节 "Skills/Memory/RAG 协调" | P0.6 Skills/Memory/RAG 重构 | ✅ 已完成 |
 | 第5节 "P0.9: skill_names 未更新" | P0.9 taxonomy + recon findings 修复 | ✅ 已完成 |
+| P1.1-C "LLM 生成式记忆压缩" | P1.1-C 压缩字段 + 触发 + LLM 调用 | ✅ 已完成 |
+| P1.2 "工具 parsed/artifacts 接入规划闭环" | P1.2 parsed 提取敏感命中 + artifacts 结构化数据 | ✅ 已完成 |
+| P1.3 "phpinfo 页面误识别为 sqli" | P1.3 taxonomy override 增加 phpinfo 证据检查，跳过覆盖 | ✅ 已完成 |
+| P1.4 "hint 辅助分类降级覆盖保护" | P1.4 hint override 增加 classification_evidence 高价值信号检查 | ✅ 已完成 |
+| P3 "本轮暴露框架问题回归覆盖" | P3 回归测试覆盖 phpinfo/dirsearch/dir_scan/.git/auth fallback | ✅ 已完成 |
+| Phase 2-C "知识与记忆断链修复" | Phase 2-C 统一 taxonomy.KEYWORD_HINTS + identify_problem_type | ✅ 已完成 |
+
+---
+
+## 待完成项目（未启动）
+
+> 以下为仍可继续推进的优化方向，非阻塞性问题。框架当前已达到稳定可用状态。
+
+### 长期优化项
+
+| 项目 | 描述 | 优先级 |
+|------|-------|--------|
+| README 驱动适配器化 | `tools_source/<tool>/README.md` 驱动封装 + 逐工具迁移到 `toolkit/` | 中 |
+| 完整 PoG / Reflector | 图驱动深度重规划：因果边消费、完整 PoG、Reflector | 低 |
+| 硬编码 if/else 收敛 | 继续把 `agent_core.py` 剩余硬编码规则转为 LLM 可见上下文信号 | 低 |
+| wooyun 模块清理 | `wooyun/__init__.py`、`wooyun_rag.py` 整理或废弃 | 低 |
+
+### 技术债
+
+| 项目 | 描述 |
+|------|-------|
+| 临时测试文件 | `test_phase1_phase2.py` 遗留，应清理或迁入 `tests/` |
+| 编码问题 | Windows GBK 终端 Unicode 输出（已在 `orchestrator.py` 部分修复） |
+
+### 不做约束（禁止碰）
+
+- ❌ 不做针对 `Ez_bypass` 这类题目的定向题型识别增强
+- ❌ 不做针对 PHP 比较绕过的专门 planner/payload 策略增强

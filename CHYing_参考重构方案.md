@@ -57,7 +57,7 @@
 2. [x] **动作语义第一版已收敛**：Planner 现通过统一动作字典输出，Executor 通过 `action_handlers` / canonical tool 映射统一执行；`_should_ask_for_help()` 与异常路径记录也已改用实际工具名。
 3. [x] **help 后中断重开**：这一缺口已补齐。`needs_help` 不再是终态，而是可恢复暂停态；恢复后保持同一 agent、同一 memory、同一条 route trace 继续运行。
 4. [x] **RAG-before-help 最小硬门已补齐**：`maybe_request_help()` 命中 help 阈值后，现会先执行一次 `retrieve_rag_knowledge(...)`，把结果写回 `AgentContext` / `ShortMemory.context` 并暴露到 `build_advisor_context()`；同一失败窗口再次命中时才真正求助，`resume` 后会重置当前窗口的 RAG gate。
-5. [ ] **知识与记忆断链**：skills、`long_memory/experiences`、`auto_experiences`、WooYun 皆存在，但没有共享分类或统一加载/保存回路。
+5. [x] **知识与记忆断链**：skills、`long_memory/experiences`、`auto_experiences`、WooYun 皆存在，但已通过统一 `taxonomy.identify_problem_type()` 作为单一识别入口、`taxonomy.KEYWORD_HINTS` 作为统一关键词库，消除 `long_memory.py` 维护独立 `TYPE_KEYWORDS` 的重复建设。
 6. [x] **工具执行不可预测（核心）**：shared runtime / `ToolResult` / success 语义已完成核心收敛，但 README 驱动适配器化与逐工具迁移仍可继续完善。
 7. [x] **短期记忆精度不足（核心）**：失败统计、skip 与重试判定已优先升级到 `action_id` 粒度。
 - [~] **图结构能力已具备最小读写闭环**：`graph_manager.py`、`GraphOp`、checkpoint、`shared_findings`、`planner_signals()` 与 graph-driven replanning 已接入主链；最近已新增 finding-lineage 摘要、blocked lineage / avoid lineage、以及低收益 probe loop suppression，但完整 PoG、Reflector、因果边消费与图驱动深度重规划还未完成。
@@ -146,7 +146,7 @@
 - [~] **补 `recon -> exploit-family` 的通用阶段切换**：`_build_verification_action_from_finding()`、`_collect_graph_informed_actions()` 与 lineage-aware ranking 已接入第一版 finding-family 驱动，且 guidance 已开始走统一 family 入口；但仍有剩余 challenge-specific 分支需要继续压缩，尚未形成更完整的 PoG/Reflector policy。
 - [~] **增强定向验证动作生成，而不是增强单题 payload**：当前已能围绕 `priority_findings` / `verification_hints` / `blocked_findings` 生成 finding-backed candidate，并把 `verification_family` / `source_finding_kind/value` 带入 replan 与排序；但更系统的相邻路径验证、lineage 切换与 family 级 alternative policy 仍可继续增强。
 - [~] **继续抑制低收益循环动作**：已不再只抑制最小 `dir_scan` 熔断；finding-lineage suppression、blocked lineage、avoid lineage 与 `low_yield_probe_loop` 已落地到 replan payload / candidate ranking / `_decide_next_action()`，但对更多轻量 fallback 形态的统一判定仍可继续推广。**本轮已增强 auth 目标的低收益循环抑制**：auth 目标在 `low_yield_probe_loop` 与通用失败分支中不再退化到 `dir_scan`，而是优先返回 `recon` + `auth-recover`。
-- [ ] **把工具结构化输出真正接入规划闭环**：P2-Gamma 已修正 success 契约，但下一步重点仍应是让工具 `parsed/artifacts` 成为 Planner 的一等输入，使”工具发现 -> memory -> graph -> planner -> 下一步动作”形成稳定闭环，而不是只修日志或记账语义。
+- [x] **把工具结构化输出真正接入规划闭环**：P2-Gamma 已修正 success 契约，但下一步重点仍应是让工具 `parsed/artifacts` 成为 Planner 的一等输入，使”工具发现 -> memory -> graph -> planner -> 下一步动作”形成稳定闭环，而不是只修日志或记账语义。**本轮已落实**：`ShortMemory._extract_from_step()` 新增对 `step.parsed.sensitive_hits`、`parsed.entries` 与 `step.artifacts` 的直接提取，`sensitive_hits` 中的路径与状态标记已可正确写入 `endpoints` 与 `key_findings`，使工具结构化输出成为 finding 系统的直接输入。
 - [x] **优先优化框架流程，不优先优化单题利用链**：本轮新增工作已持续按 graph-driven replanning、finding taxonomy、finding-family candidate 与低收益 suppression 推进，没有再回退到单题特判路线。本轮 auth drift 修复也是框架级改进，不针对单题。
 
 - [x] `main.py` / `orchestrator.py` / `agent_core.py` 已形成项目级唯一主链。
