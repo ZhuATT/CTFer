@@ -1,0 +1,67 @@
+{
+  // ============ LLM 配置 ============
+  // 支持的 provider: "openai" (兼容 OpenAI API 的模型，如 MiniMax-M2.5)
+  // 配置 api_key 和 api_base 指向你的 LLM API 服务
+  "llm": {
+    "provider": "openai",
+    "api_key": "sk-your-api-key-here",
+    "api_base": "https://your-api-endpoint.com",
+    "model": "MiniMax-M2.5",  // 或其他支持 function calling 的模型
+    "temperature": 0.3,       // 创造性参数，0.0-1.0，越低越确定性
+    "max_tokens": 2000         // 单次响应最大 token 数
+  },
+
+  // ============ Python 环境 ============
+  "venv": {
+    "name": "CTFagent",
+    "path": "C:\\Users\\Administrator\\Envs\\CTFagent",
+    "python_path": "C:\\Users\\Administrator\\Envs\\CTFagent\\Scripts\\python.exe",
+    "activate_cmd": "workon CTFagent"
+  },
+
+  // ============ 工具源码目录 ============
+  "tools_source": "./tools_source",
+
+  // ============ 工具配置 ============
+  // external tools: sqlmap, dirsearch 等外部工具
+  // internal tools: decoder 等内嵌工具
+  "tools": {
+    "sqlmap": {
+     "enabled": true,
+     "path": "sqlmap/sqlmap.py",
+     "timeout": 300,
+     "description": "自动 SQL 注入检测与利用工具"
+    },
+    "dirsearch": {
+     "enabled": true,
+     "path": "dirsearch/dirsearch.py",
+     "timeout": 180,
+     "description": "目录扫描工具"
+    },
+    "fengjing": {
+     "enabled": false,
+     "path": "fengjing/main.py",
+     "timeout": 60,
+     "description": "指纹识别工具"
+    },
+    "decoder": {
+     "enabled": true,
+     "path": "decoder/__init__.py",
+     "timeout": 10,
+     "description": "编码/解码工具（Base64/URL/Hex/Unicode/HTML/Ascii85/Base32）",
+     "internal": true
+    }
+  },
+
+  // ============ 记忆配置 ============
+  "memory": {
+    "max_history": 20,           // 最大历史记录数
+    "compression_threshold": 10   // 触发压缩的历史条数
+  },
+
+  // ============ 检查点配置 ============
+  "checkpoints": {
+    "enabled": true,
+    "directory": "./checkpoints"
+  }
+}
