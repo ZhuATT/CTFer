@@ -178,6 +178,11 @@ class ShortMemory:
         self._attempted: Set[str] = set()  # 已尝试的签名
         self._failures: Dict[str, int] = {}  # 签名级失败计数
         self._action_failures: Dict[str, int] = {}  # action_id 级失败计数
+        # P1.1-C: LLM 生成式记忆压缩
+        self.compressed_blocks: List[Dict] = []  # 压缩后的记忆块
+        self.key_facts: Dict[str, str] = {}  # 关键事实追踪
+        self.compression_threshold: int = 7  # 每 N 步压缩一次
+        self._compression_pending: bool = False  # 待压缩标志
 
     def add_step(
         self,
@@ -248,7 +253,129 @@ class ShortMemory:
         if after_findings > before_findings:
             self.context.round_new_findings_count += after_findings - before_findings
 
+        # P1.1-C: 压缩触发检查
+        if len(self.steps) > 0 and len(self.steps) % self.compression_threshold == 0:
+            self._mark_compression_needed()
+
         return step
+
+    def _mark_compression_needed(self) -> None:
+        """标记需要压缩，在下一轮决策时触发 LLM 压缩"""
+        self._compression_pending = True
+
+    def should_compress(self) -> bool:
+        """检查是否需要压缩"""
+        return getattr(self, "_compression_pending", False)
+
+    def get_compression_context(self) -> Dict[str, Any]:
+        """获取压缩所需的上下文，供 LLM 生成压缩摘要"""
+        recent_steps = self.steps[-self.compression_threshold:] if len(self.steps) > self.compression_threshold else self.steps
+        history_lines = []
+        for step in recent_steps:
+            status = "[OK]" if step.success else "[FAIL]"
+            findings = ", ".join(step.key_findings[:3]) if step.key_findings else ""
+            history_lines.append(f"{status} [{step.num}] {step.tool} -> {step.target[:40]} {findings}")
+
+        key_facts = {
+            "endpoints": self.target.endpoints[-10:],
+            "parameters": self.target.parameters[-10:],
+            "vulnerabilities": [v['type'] for v in self.target.vulnerabilities[-5:]],
+            "flags": self.target.flags,
+            "problem_type": self.target.problem_type,
+        }
+
+        failed_actions = [
+            {"action_id": aid, "count": cnt}
+            for aid, cnt in self._action_failures.items()
+            if cnt >= 2
+        ]
+
+        return {
+            "history_lines": history_lines,
+            "key_facts": key_facts,
+            "failed_actions": failed_actions,
+            "total_steps": len(self.steps),
+            "compression_block_count": len(self.compressed_blocks),
+        }
+
+    def get_compression_prompt(self) -> str:
+        """生成压缩提示词，供 LLM 生成结构化压缩摘要"""
+        ctx = self.get_compression_context()
+
+        prompt = f"""## 压缩指令
+你是一个专业的CTF解题助手，需要压缩以下解题历史。
+
+### 关键事实
+- 端点: {', '.join(ctx['key_facts']['endpoints']) or '暂无'}
+- 参数: {', '.join(ctx['key_facts']['parameters']) or '暂无'}
+- 漏洞: {', '.join(ctx['key_facts']['vulnerabilities']) or '暂无'}
+- 已获 Flag: {', '.join(ctx['key_facts']['flags']) or '暂无'}
+- 题型: {ctx['key_facts']['problem_type'] or '未知'}
+
+### 近期历史 (共{ctx['total_steps']}步)
+"""
+        prompt += "\n".join(ctx["history_lines"])
+
+        if ctx["failed_actions"]:
+            prompt += "\n\n### 重复失败动作"
+            for item in ctx["failed_actions"]:
+                prompt += f"\n- {item['action_id']}: 失败 {item['count']} 次"
+
+        prompt += """
+
+### 输出要求
+请生成结构化JSON摘要:
+```json
+{
+  "key_findings": ["发现的关键漏洞和端点"],
+  "failed_attempts": ["失败的尝试及原因"],
+  "current_status": "当前解题状态和进展",
+  "next_steps": ["建议的下一步行动"]
+}
+```
+
+只输出JSON，不要其他内容。
+"""
+        return prompt
+
+    def apply_compressed_result(self, compressed_json: Dict[str, Any]) -> None:
+        """应用 LLM 生成的压缩结果"""
+        if not isinstance(compressed_json, dict):
+            return
+
+        self.compressed_blocks.append({
+            "type": "compressed",
+            "data": compressed_json,
+            "step_count": len(self.steps),
+            "timestamp": datetime.now().isoformat(),
+        })
+
+        if len(self.compressed_blocks) > 2:
+            self.compressed_blocks = self.compressed_blocks[-2:]
+
+        if "key_findings" in compressed_json:
+            self.key_facts["last_findings"] = ", ".join(compressed_json["key_findings"][:5])
+
+        self._compression_pending = False
+
+    def get_compressed_summary(self) -> str:
+        """获取压缩后的摘要（供决策上下文使用）"""
+        if not self.compressed_blocks:
+            return ""
+
+        lines = ["## 压缩记忆摘要"]
+        for block in self.compressed_blocks[-1:]:
+            data = block.get("data", {})
+            if "key_findings" in data and data["key_findings"]:
+                lines.append(f"关键发现: {', '.join(data['key_findings'][:3])}")
+            if "current_status" in data and data["current_status"]:
+                lines.append(f"当前状态: {data['current_status']}")
+            if "failed_attempts" in data and data["failed_attempts"]:
+                lines.append(f"失败记录: {', '.join(data['failed_attempts'][:2])}")
+            if "next_steps" in data and data["next_steps"]:
+                lines.append(f"建议行动: {', '.join(data['next_steps'][:2])}")
+
+        return "\n".join(lines)
 
     def has_tried(self, tool: str, target: str, params: Dict = None) -> bool:
         """检查是否已经尝试过"""
@@ -555,6 +682,9 @@ class ShortMemory:
         self._attempted.clear()
         self._failures.clear()
         self._action_failures.clear()
+        self.compressed_blocks.clear()
+        self.key_facts.clear()
+        self._compression_pending = False
         self.target = TargetInfo()
         self.context = AgentContext()
 
@@ -613,6 +743,43 @@ class ShortMemory:
                 self.add_parameter(value)
             elif kind == "vulnerability":
                 self.add_vulnerability(value)
+
+        # === P1.2: 从 parsed 中提取结构化发现 ===
+        # 让 parsed/artifacts 成为 Planner 的一等输入
+        parsed = getattr(step, "parsed", None) or {}
+        if isinstance(parsed, dict):
+            # 提取 dirsearch_summary 中的敏感命中
+            for hit in list(parsed.get("sensitive_hits") or []):
+                path = str(hit.get("path") or "").strip()
+                if path:
+                    self.add_endpoint(path)
+                    marker = f"sensitive_file:{path}"
+                    if marker not in step.key_findings:
+                        step.key_findings.append(marker)
+                    status = hit.get("status")
+                    if status:
+                        step.key_findings.append(f"status:{status}")
+
+            # 提取 entries（目录条目）
+            for entry in list(parsed.get("entries") or []):
+                path = str(entry.get("path") or "").strip()
+                if path:
+                    self.add_endpoint(path)
+
+        # 提取 artifacts 中的敏感文件信息
+        artifacts = list(getattr(step, "artifacts", []) or [])
+        for artifact in artifacts:
+            if not isinstance(artifact, dict):
+                continue
+            path = str(artifact.get("path") or "").strip()
+            if not path:
+                continue
+            sensitive = artifact.get("sensitive", False)
+            if sensitive:
+                self.add_endpoint(path)
+                marker = f"sensitive_file:{path}"
+                if marker not in step.key_findings:
+                    step.key_findings.append(marker)
 
         # 提取URL
         url_match = re.search(r'https?://[^\s<>"\']+', result)
