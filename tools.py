@@ -451,17 +451,23 @@ def init_problem(target_url: str, description: str = "", hint: str = "") -> Dict
     taxonomy_profile = build_taxonomy_profile(problem_type, target_url, description, hint, initial_response_text[:4000])
     # 如果 taxonomy_profile 检测到了高置信标签（如 rce、auth），但 problem_type 仍是 unknown，
     # 则用 taxonomy_tags 中最高置信的标签更新 problem_type（优先使用非 unknown 的标签）
+    # 注意：如果 phpinfo 已被检测到（classification_evidence 包含 phpinfo/info_leak），
+    # 说明页面内容是信息泄露而非原生病题型，禁止用页面关键字覆盖
     if problem_type == "unknown" and taxonomy_profile.get("taxonomy_tags"):
-        # taxonomy_tags 已按优先级排序（line 94-100），取第一个非 unknown 的标签
-        for tag in taxonomy_profile["taxonomy_tags"]:
-            if tag != "unknown":
-                problem_type = tag
-                classification_source = "taxonomy"
-                classification_reasoning = f"taxonomy 标签检测到 {tag}，更新 problem_type"
-                taxonomy_profile["canonical_problem_type"] = tag
-                taxonomy_profile["skill_names"] = canonical_skill_names(tag)
-                print(f"[Auto-detect] taxonomy 标签检测到类型: {tag}")
-                break
+        # 跳过 phpinfo 页面的 taxonomy 覆盖 - 页面中的 sql/mysql 关键字来自 phpinfo 而非原生病型
+        if "phpinfo" in classification_evidence or "info_leak" in classification_evidence:
+            print("[Auto-detect] 跳过 taxonomy 覆盖 - phpinfo 页面被错误关键字命中")
+        else:
+            # taxonomy_tags 已按优先级排序（line 94-100），取第一个非 unknown 的标签
+            for tag in taxonomy_profile["taxonomy_tags"]:
+                if tag != "unknown":
+                    problem_type = tag
+                    classification_source = "taxonomy"
+                    classification_reasoning = f"taxonomy 标签检测到 {tag}，更新 problem_type"
+                    taxonomy_profile["canonical_problem_type"] = tag
+                    taxonomy_profile["skill_names"] = canonical_skill_names(tag)
+                    print(f"[Auto-detect] taxonomy 标签检测到类型: {tag}")
+                    break
     resource_bundle = _assemble_resource_bundle(
         taxonomy_profile,
         target_url=target_url,
