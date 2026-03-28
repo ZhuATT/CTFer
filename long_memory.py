@@ -33,29 +33,13 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-from taxonomy import canonicalize_problem_type, problem_type_aliases
+from taxonomy import canonicalize_problem_type, problem_type_aliases, identify_problem_type as taxonomy_identify
 
 
 class LongMemory:
     """长期记忆管理器 - Agent内部自动使用"""
 
     BASE_PATH = Path(__file__).parent / "long_memory"
-
-    # 题目类型识别关键词（用于Agent自动识别）
-    TYPE_KEYWORDS = {
-        canonicalize_problem_type(problem_type): keywords
-        for problem_type, keywords in {
-            "sqli": ["sql", "sqlmap", "mysql", "postgresql", "database", "注入", "查询", "union", "select"],
-            "lfi": ["lfi", "file inclusion", "文件包含", "../../../", "path traversal", "文件读取", "secret file", "include(", "file=", "php://filter"],
-            "rce": ["rce", "command", "执行", "eval", "assert", "system", "exec", "命令执行"],
-            "ssrf": ["ssrf", "gopher://", "内网访问", "url=", "fetch=", "远程请求"],
-            "xss": ["xss", "script", "javascript", "alert", "反射型", "跨站"],
-            "xxe": ["xml", "xxe", "entity", "dtd", "DOCTYPE"],
-            "upload": ["upload", "文件上传", ".php", "上传文件"],
-            "auth": ["bypass", "认证绕过", "admin", "login", "登录"],
-            "crypto": ["crypto", "cipher", "加密", "des", "aes", "rsa", "解密"],
-        }.items()
-    }
 
     def __init__(self):
         self.cve_index = None
@@ -83,7 +67,7 @@ class LongMemory:
     def identify_problem_type(self, url: str = "", description: str = "",
                                hint: str = "", initial_response: str = "") -> List[str]:
         """
-        自动识别题目类型
+        自动识别题目类型（委托给 taxonomy.identify_problem_type 统一入口）
 
         Args:
             url: 目标URL
@@ -94,19 +78,7 @@ class LongMemory:
         Returns:
             可能的类型列表（按置信度排序）
         """
-        text = f"{url} {description} {hint} {initial_response}".lower()
-        scores = {}
-
-        for prob_type, keywords in self.TYPE_KEYWORDS.items():
-            score = 0
-            for keyword in keywords:
-                if keyword.lower() in text:
-                    score += 1
-            if score > 0:
-                scores[prob_type] = score
-
-        # 按置信度排序
-        return sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+        return taxonomy_identify(url, description, hint, initial_response)
 
     def load_resources_for_type(self, problem_type: str) -> Dict[str, Any]:
         """

@@ -23,18 +23,19 @@ CANONICAL_TYPE_ALIASES: Dict[str, List[str]] = {
 KEYWORD_HINTS: Dict[str, List[str]] = {
     "sqli": ["sql", "sqlmap", "mysql", "postgresql", "database", "注入", "union", "select"],
     "xss": ["xss", "script", "alert", "跨站", "javascript"],
-    "lfi": ["lfi", "file inclusion", "文件包含", "读取", "include", "path traversal", "php://filter"],
+    "lfi": ["lfi", "file inclusion", "文件包含", "读取", "include", "path traversal", "php://filter", "../../../", "secret file", "file="],
     "rce": ["rce", "远程代码", "command", "exec", "命令执行", "eval", "system", "shell", "cmd"],
-    "ssrf": ["ssrf", "内网", "localhost", "gopher", "fetch"],
-    "upload": ["upload", "上传", "文件上传"],
+    "ssrf": ["ssrf", "内网", "localhost", "gopher", "fetch", "url=", "远程请求"],
+    "upload": ["upload", "上传", "文件上传", ".php", "上传文件"],
     "auth": ["登录", "login", "auth", "password", "认证", "bypass", "admin"],
     "deserialization": ["serialize", "unserialize", "pickle", "yaml", "反序列化"],
     "tornado": ["tornado", "tornado框架", "template"],
     "flask": ["flask", "jinja", "session"],
     "django": ["django", "django框架"],
     "ssti": ["ssti", "template injection", "模板注入", "jinja2"],
-    "xxe": ["xxe", "xml", "entity", "dtd"],
+    "xxe": ["xxe", "xml", "entity", "dtd", "DOCTYPE"],
     "recon": ["recon", "scan", "枚举", "指纹", "信息收集"],
+    "crypto": ["crypto", "cipher", "加密", "des", "aes", "rsa", "解密", "密码"],
 }
 
 
@@ -128,3 +129,30 @@ def taxonomy_findings_from_profile(profile: Dict[str, Any]) -> List[Dict[str, An
     for tag in profile.get("framework_tags") or []:
         findings.append({"kind": "tech_stack", "value": tag, "metadata": {"source": "taxonomy"}})
     return findings
+
+
+def identify_problem_type(
+    url: str = "",
+    description: str = "",
+    hint: str = "",
+    initial_response: str = "",
+) -> List[str]:
+    """
+    基于关键词hint识别题目类型（统一入口，使用 taxonomy.KEYWORD_HINTS）。
+
+    Args:
+        url: 目标URL
+        description: 题目描述
+        hint: 提示信息
+        initial_response: 初始页面响应
+
+    Returns:
+        可能的类型列表（按置信度排序）
+    """
+    text = f"{url} {description} {hint} {initial_response}".lower()
+    scores: Dict[str, int] = {}
+    for prob_type, keywords in KEYWORD_HINTS.items():
+        score = sum(1 for keyword in keywords if keyword.lower() in text)
+        if score > 0:
+            scores[prob_type] = score
+    return sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
