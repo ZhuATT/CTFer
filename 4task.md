@@ -166,9 +166,8 @@ def auto_scan_on_404(response_text: str, url: str) -> bool:
 
 **检索优先级**：
 1. `memories/experiences/<type>.md` - 历史成功经验（最高）
-2. `memories/auto_experiences/` - 自动积累的经验
-3. `wooyun/knowledge/` - WooYun 真实漏洞库
-4. `skills/<type>/SKILL.md` - 题型技能知识
+2. `wooyun/knowledge/` - WooYun 真实漏洞库
+3. `skills/<type>/SKILL.md` - 题型技能知识
 
 **新增 API**：
 ```python

@@ -6,34 +6,38 @@
 
 ## 解题流程（强制执行）
 
-用户给出 URL 后，**立即**按顺序执行每一步：
+用户给出 URL 后，**立即自动执行**：
 
 ```
 1. curl 访问目标 → 观察页面结构
 2. 识别题型（rce/sqli/auth/lfi/xss/upload）
-3. 【必须】加载技能知识：Read skills/<type>/SKILL.md
-4. 【必须】RAG 检索wooyun知识库
-5. 【必须】参考历史经验：Read memories/experiences/<type>.md
-6. 使用辅助工具（dirsearch/sqlmap）
-7. 构造 payload，执行攻击
-8. 识别 flag → 输出 FLAG{...}
-9. 【必须】保存经验：from core.state_manager import save_experience_auto; save_experience_auto('成功方法')
+3. 【自动获取知识】立即执行：
+   python -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('题型'))"
+   - 自动检索：skills/ + memories/ + wooyun/knowledge/ + wooyun_cases/
+   - 返回格式化知识，直接作为解题上下文
+4. 【基于知识制定攻击计划】根据返回的知识确定攻击方法
+5. 使用辅助工具（dirsearch/sqlmap）
+6. 构造 payload，执行攻击
+7. 识别 flag → 输出 FLAG{...}
+8. 【自动保存经验】set_flag('FLAG{...}', '成功方法', '关键payload')
 ```
 
-**关键**：不要盲试！每次构造 payload 前，必须先完成 3-5 步知识准备。
+**强制规则**：
+- 步骤 3 必须立即执行，不得跳过
+- 步骤 4 必须基于步骤 3 的知识制定计划，不得盲试
+- 失败 3 次后重新执行步骤 3 获取新知识
 
 ---
 
 ## 攻击前检查清单
 
-每次尝试攻击前，确认已完成：
+解题前必须完成：
 
-- [ ] **skills/<type>/SKILL.md** - 阅读题型技能知识
-- [ ] **RAG 检索** - 查询类似题目的解法
-- [ ] **memories/experiences/** - 查看历史经验
-- [ ] **失败记录** - 检查该方法是否已失败过
-
-没完成检查清单就盲目尝试是**无效的**。
+- [x] curl 目标页面，观察结构
+- [x] 识别题型
+- [x] 执行 `get_all_type_knowledge('题型')` 获取知识
+- [x] 基于知识制定攻击计划
+- [ ] 执行攻击
 
 ---
 
@@ -44,7 +48,7 @@
 当你尝试 3 次都失败时：
 ```
 1. 查看当前状态：python -c "from core.state_manager import get_context_summary; print(get_context_summary())"
-2. RAG 检索：python -c "from core.rag_knowledge import search_knowledge; print(search_knowledge('失败关键词', category='题型', top_k=5))"
+2. 重新获取知识：python -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('题型'))"
 3. 分析 suggested_bypass 建议
 4. 基于新知识制定新攻击计划
 5. 继续尝试
@@ -54,23 +58,56 @@
 
 ---
 
+## 题型识别
+
+根据挑战描述和文件类型识别 web 漏洞类型：
+
+**关键词识别：**
+- "XSS", "SQL", "injection", "cookie", "JWT" → XSS/SQLi
+- "upload", "file inclusion", "LFI", "RFI" → 文件上传/包含
+- "SSTI", "template" → SSTI
+- "auth", "bypass", "login", "password" → 认证绕过
+- "RCE", "command", "exec", "code execution" → RCE
+- "SSRF", "curl", "file_get_contents" → SSRF
+
+**文件类型识别：**
+- Web URL 或 HTML/JS/PHP 源码 → web
+- URL 路径包含 `/admin`, `/login`, `/api` → 认证相关
+
+---
+
+## 失败转向（Pivot When Stuck）
+
+**失败 3 次后必须执行以下步骤：**
+
+1. **重新审视假设** - 这个漏洞类型真的正确吗？
+2. **尝试不同技术** - 很多挑战混合多种漏洞
+3. **检查遗漏** - 隐藏文件、响应头、源码注释
+4. **检查边界情况** - 编码问题、竞争条件
+
+**常见多类型组合：**
+- Web + Auth: JWT 伪造、session 利用
+- Web + File: 文件上传 + 代码执行
+
+---
+
 ## 快速检索命令
 
 ```bash
-# RAG 统一检索（搜索所有知识库）
-python -c "from core.rag_knowledge import search_knowledge; print(search_knowledge('rce', top_k=5))"
+# 获取指定题型全部知识（自动检索以下4个来源）
+python -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('rce'))"
 
-# 读取技能知识
-Read skills/rce/SKILL.md
+# 知识来源：
+# 1. skills/rce/SKILL.md - 技能知识
+# 2. memories/experiences/rce.md - 成功经验
+# 3. wooyun/knowledge/command-execution.md - WooYun 技术手册
+# 4. wooyun/plugins/wooyun-legacy/categories/ - WooYun 精简案例库
 
-# 读取历史经验
-Read memories/experiences/rce.md
+# RAG 关键词检索
+python -c "from core.rag_knowledge import search_knowledge; print(search_knowledge('phpinfo', top_k=5))"
 
 # 检查失败方法
-python -c "from core.failure_tracker import is_method_failed; print(is_method_failed('http://target.com', 'copy'))"
-
-# 标记知识已查询
-python mark_knowledge_checked.py
+python -c "from core.failure_tracker import is_method_failed; print(is_method_failed('http://target.com', 'system'))"
 ```
 
 ---
@@ -177,7 +214,7 @@ from tools.output_parser import parse_curl, parse_sqlmap, parse_dirsearch
 
 ```python
 # 初始化并记录状态
-from core.state_manager import init_state, add_finding, add_method, add_reasoning, add_failed_pattern, add_suggested_bypass, set_flag, get_context_summary
+from core.state_manager import init_state, add_finding, add_method, add_reasoning, add_failed_pattern, add_suggested_bypass, set_flag, record_failed, get_context_summary
 init_state('http://target.com', 'rce')
 
 # 记录每个动作和发现
@@ -194,14 +231,17 @@ add_method('system')
 add_method('exec')
 
 # 设置 flag（自动保存经验）
-set_flag('FLAG{...}', 'ctfshow_1024')  # 第二个参数为成功方法，会自动保存经验
+# 第二个参数为成功方法，第三个参数为关键 payload（会保存到经验中）
+set_flag('FLAG{...}', 'path_traversal_bypass', 'mmm/../../../../../../../../flag.txt')
 
 # 获取完整状态摘要（重要！）
 print(get_context_summary())
 
+# 记录失败尝试（自动写入 failures.json）
+record_failed('system', 'disabled by disable_functions', 'system("id")')
+record_failed('copy', 'file not found', 'copy("/tmp/a","/var/www/html/b.php")')
+
 # 检查失败
-from core.failure_tracker import is_method_failed, record_failure
-record_failure('http://target.com', 'system', 'disabled', 'rce')
 is_method_failed('http://target.com', 'system')  # True
 
 # 保存成功经验（自动用当前状态，已被 set_flag 替代）
@@ -216,7 +256,7 @@ save_experience_auto('copy')  # 传入成功的方法名
 ## 约束
 
 - 联网请求用 `curl`，不用 WebFetch/WebSearch
-- 发现 flag 后调用 `set_flag('FLAG{...}', 'method')` 自动保存经验
+- 发现 flag 后调用 `set_flag('FLAG{...}', 'method', 'payload')` 自动保存经验（payload 会写入经验文件）
 - **先查知识再动手**，不要盲试
 - 每次尝试前检查失败记录
 - 执行完每个步骤后主动推进，不要等待用户指令

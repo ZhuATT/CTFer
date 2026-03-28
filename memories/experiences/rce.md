@@ -75,6 +75,42 @@ head /flag
 - disable_functions=no value
 
 ### 成功方法
+- **日志文件包含: nginx access.log + User-Agent注入**
+
+### 已尝试方法（失败）
+- call_user_func
+- ctfshow_1024
+
+### Flag
+`CTF{php_access_l0g_lf1_is_fun}`
+
+---
+
+## 2026-03-28 | https:
+### 靶机环境
+- call_user_func($_GET[f]) RCE
+- phpinfo 泄露自定义函数 ctfshow_1024
+- disable_functions=no value
+
+### 成功方法
+- **管道符绕过过滤: |cat flag.php**
+
+### 已尝试方法（失败）
+- call_user_func
+- ctfshow_1024
+
+### Flag
+`CTF{no_space_to_execute_shell_commands}`
+
+---
+
+## 2026-03-28 | https:
+### 靶机环境
+- call_user_func($_GET[f]) RCE
+- phpinfo 泄露自定义函数 ctfshow_1024
+- disable_functions=no value
+
+### 成功方法
 - **ctfshow_1024**
 
 ### 已尝试方法（失败）

@@ -102,7 +102,7 @@ class ExperienceManager:
         methods_tried: List[str],
         method_succeeded: str,
         flag: str,
-        extra: Optional[Dict[str, Any]] = None,
+        payload_context: str = "",
     ) -> str:
         """构建经验内容"""
         date_str = datetime.now().strftime("%Y-%m-%d")
@@ -126,7 +126,13 @@ class ExperienceManager:
 ### 成功方法
 - **{method_succeeded}**
 
-### 已尝试方法（失败）
+"""
+
+        # 添加关键 Payload（如果有）
+        if payload_context:
+            content += f"### 关键 Payload\n```\n{payload_context}\n```\n\n"
+
+        content += """### 已尝试方法（失败）
 """
         for method in methods_tried:
             if method != method_succeeded:
@@ -137,16 +143,6 @@ class ExperienceManager:
 `{flag}`
 
 """
-        # 添加额外信息
-        if extra:
-            if "payload" in extra:
-                content += f"### 关键 Payload\n```\n{extra['payload']}\n```\n\n"
-            if "stack" in extra:
-                content += f"### 技术栈\n"
-                for tech in extra.get("stack", {}).keys():
-                    content += f"- {tech}\n"
-                content += "\n"
-
         content += "---\n\n"
 
         return content
@@ -207,7 +203,7 @@ class ExperienceManager:
         methods_tried: List[str],
         method_succeeded: str,
         flag: str,
-        extra: Optional[Dict[str, Any]] = None,
+        payload_context: str = "",
     ) -> str:
         """
         保存解题经验
@@ -219,7 +215,7 @@ class ExperienceManager:
             methods_tried: 已尝试的方法列表
             method_succeeded: 成功的方法
             flag: 找到的 flag
-            extra: 额外信息（如 payload, stack 等）
+            payload_context: 关键 payload 或技术细节
 
         Returns:
             保存的文件路径
@@ -260,7 +256,7 @@ class ExperienceManager:
             methods_tried=methods_tried,
             method_succeeded=method_succeeded,
             flag=flag,
-            extra=extra,
+            payload_context=payload_context,
         )
 
         # 在 "---" 分隔符之后插入，或在文件末尾插入
@@ -323,7 +319,7 @@ def save_experience(
     methods_tried: List[str],
     method_succeeded: str,
     flag: str,
-    extra: Optional[Dict[str, Any]] = None,
+    payload_context: str = "",
 ) -> str:
     """保存解题经验"""
     return get_experience_manager().save_experience(
@@ -333,7 +329,7 @@ def save_experience(
         methods_tried=methods_tried,
         method_succeeded=method_succeeded,
         flag=flag,
-        extra=extra,
+        payload_context=payload_context,
     )
 
 

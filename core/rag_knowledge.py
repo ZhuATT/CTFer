@@ -24,11 +24,11 @@ class RAGKnowledge:
     检索流程：
     1. 同义词扩展 → 2. 中文分词 (jieba) → 3. TF-IDF 句子相似度 → 4. 返回 top_k 结果
 
-    搜索目录（按优先级）：
+   搜索目录（按优先级）：
     1. memories/experiences/<type>.md - 历史成功经验（最高）
-    2. memories/auto_experiences/ - 自动积累经验
-    3. skills/<type>/SKILL.md - 题型技能知识
-    4. wooyun/knowledge/<category>.md - WooYun 漏洞库
+    2. skills/<type>/SKILL.md - 题型技能知识
+    3. wooyun/knowledge/<category>.md - WooYun 技术手册
+    4. wooyun/plugins/wooyun-legacy/categories/ - WooYun 精简案例库
     """
 
     # CTF 相关同义词映射
@@ -73,13 +73,14 @@ class RAGKnowledge:
             project_root = Path(__file__).parent.parent
             self.knowledge_dir = str(project_root / "wooyun" / "knowledge")
             self.experiences_dir = str(project_root / "memories" / "experiences")
-            self.auto_exp_dir = str(project_root / "memories" / "auto_experiences")
             self.skills_dir = str(project_root / "skills")
+            # WooYun 精简案例库（轻量安装版本）
+            self.wooyun_categories_dir = str(project_root / "wooyun" / "plugins" / "wooyun-legacy" / "categories")
         else:
             self.knowledge_dir = knowledge_dir
             self.experiences_dir = None
-            self.auto_exp_dir = None
             self.skills_dir = None
+            self.wooyun_categories_dir = None
 
         self.cache: Dict[Path, str] = {}
         self._jieba_available = self._check_jieba()
@@ -200,7 +201,7 @@ class RAGKnowledge:
 
         Returns:
             [{"title": ..., "method": ..., "content": ..., "relevance": float, "source": ...}]
-            source 取值: "experiences" | "auto_experiences" | "skills" | "wooyun"
+            source 取值: "experiences" | "skills" | "wooyun" | "wooyun_cases"
         """
         results = []
 
@@ -216,25 +217,25 @@ class RAGKnowledge:
                 "experiences", top_k
             ))
 
-        # 3. 搜索 memories/auto_experiences/
-        if self.auto_exp_dir:
-            results.extend(self._search_dir(
-                self.auto_exp_dir, query_segmented, category,
-                "auto_experiences", top_k
-            ))
-
-        # 4. 搜索 skills/
+        # 3. 搜索 skills/
         if self.skills_dir:
             results.extend(self._search_dir(
                 self.skills_dir, query_segmented, category,
                 "skills", top_k
             ))
 
-        # 5. 搜索 wooyun/knowledge/
+        # 4. 搜索 wooyun/knowledge/
         if self.knowledge_dir:
             results.extend(self._search_dir(
                 self.knowledge_dir, query_segmented, category,
                 "wooyun", top_k
+            ))
+
+        # 5. 搜索 wooyun 精简案例库（wooyun-legacy）
+        if self.wooyun_categories_dir:
+            results.extend(self._search_dir(
+                self.wooyun_categories_dir, query_segmented, category,
+                "wooyun_cases", top_k
             ))
 
         # 排序并返回 top_k
@@ -372,3 +373,185 @@ def search_knowledge(
             pass  # 静默失败，不影响正常流程
 
     return results
+
+
+def get_knowledge_for_llm(query: str, category: str = "", top_k: int = 10) -> str:
+    """
+    获取格式化好的知识文本，直接供 LLM 使用
+
+    检索所有相关知识，格式化为易读的文本段落
+
+    Args:
+        query: 查询字符串（如题型、关键词）
+        category: 可选，限定类别
+        top_k: 返回前 k 条结果
+
+    Returns:
+        格式化好的知识文本，可直接作为 LLM 上下文
+    """
+    from skills.encoding_fix import encode_for_terminal
+
+    def to_str(val):
+        """将 encode_for_terminal 的返回值转为 str"""
+        result = encode_for_terminal(val)
+        if isinstance(result, bytes):
+            return result.decode('utf-8')
+        return result
+
+    results = search_knowledge(query, category, top_k)
+
+    if not results:
+        return ""
+
+    # 按来源分组
+    sources = {}
+    for r in results:
+        src = r.get("source", "unknown")
+        if src not in sources:
+            sources[src] = []
+        sources[src].append(r)
+
+    # 构建格式化文本
+    lines = ["=== 知识检索结果 ===\n"]
+
+    source_names = {
+        "experiences": "【成功经验】",
+        "skills": "【技能知识】",
+        "wooyun": "【漏洞库】",
+    }
+
+    for source_name, items in sources.items():
+        name = source_names.get(source_name, f"【{source_name}】")
+        lines.append(f"\n{name}\n")
+        lines.append("-" * 40)
+
+        for i, item in enumerate(items, 1):
+            title = to_str(item.get("title", ""))
+            method = to_str(item.get("method", ""))
+            content = to_str(item.get("content", ""))
+            relevance = item.get("relevance", 0)
+
+            lines.append(f"\n[{i}] {title}")
+            if method:
+                lines.append(f"    方法: {method}")
+            lines.append(f"    相关度: {relevance:.2f}")
+            lines.append(f"    内容: {content[:300]}..." if len(content) > 300 else f"    内容: {content}")
+
+    lines.append("\n=== 知识检索结束 ===")
+    return "\n".join(lines)
+
+
+def get_all_type_knowledge(challenge_type: str) -> str:
+    """
+    获取指定题型的全部知识（供 LLM 使用）
+
+    同时检索：
+    1. skills/<type>/SKILL.md - 技能知识
+    2. memories/experiences/<type>.md - 成功经验
+    3. wooyun/knowledge/<category>.md - 类似题目
+
+    Args:
+        challenge_type: 题型（如 "rce", "sqli"）
+
+    Returns:
+        格式化好的知识文本
+    """
+    # 记录知识调用日志（供 Hook 验证）
+    try:
+        from pathlib import Path
+        import time
+        log_file = Path(__file__).parent.parent / "workspace" / ".knowledge_log"
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(f"{time.time()}|get_all_type_knowledge|{challenge_type}\n")
+    except Exception:
+        pass  # 静默失败
+
+    # 题型到 wooyun 类别的映射
+    type_to_category = {
+        "rce": "command-execution",
+        "sqli": "sql-injection",
+        "lfi": "file-traversal",
+        "upload": "file-upload",
+        "xss": "xss",
+        "auth": "unauthorized-access",
+        "ssrf": "ssrf",
+        "ssti": "ssti",
+    }
+
+    category = type_to_category.get(challenge_type.lower(), challenge_type.lower())
+
+    # 并行检索多个来源
+    skill_knowledge = search_knowledge(challenge_type, category="", top_k=5)
+    exp_knowledge = search_knowledge(category, category=category, top_k=5)
+    all_knowledge = search_knowledge(challenge_type, category=category, top_k=10)
+
+    # 去重合并
+    seen = set()
+    merged = []
+    for item in skill_knowledge + exp_knowledge + all_knowledge:
+        key = item.get("title", "") + item.get("source", "")
+        if key not in seen:
+            seen.add(key)
+            merged.append(item)
+
+    # 按相关度排序
+    merged.sort(key=lambda x: x.get("relevance", 0), reverse=True)
+
+    return format_knowledge_results(merged[:15])
+
+
+def format_knowledge_results(results: List[Dict[str, Any]]) -> str:
+    """将检索结果格式化为易读文本
+
+    Returns:
+        str: 格式化后的知识文本
+    """
+    from skills.encoding_fix import encode_for_terminal, safe_print
+    import sys
+
+    def encode_val(val):
+        """将 encode_for_terminal 的返回值转为可输出的形式"""
+        result = encode_for_terminal(val)
+        if isinstance(result, bytes):
+            return result.decode('utf-8', errors='replace')
+        return result
+
+    if not results:
+        return ""
+
+    lines = ["=== 相关知识 ===\n"]
+
+    for i, item in enumerate(results, 1):
+        title = encode_val(item.get("title", ""))
+        method = encode_val(item.get("method", ""))
+        content = encode_val(item.get("content", ""))
+        source = item.get("source", "")
+        file_path = item.get("file", "")
+
+        lines.append(f"\n【{i}】{title}")
+        if method:
+            lines.append(f"    方法: {method}")
+        lines.append(f"    来源: {source} -> {file_path}")
+        # 限制内容长度
+        if len(content) > 400:
+            content = content[:400] + "..."
+        lines.append(f"    {content}")
+
+    lines.append("\n=== 知识结束 ===")
+
+    # 检测是否需要使用 safe_print 输出
+    stdout_enc = sys.stdout.encoding or ''
+    msys2_utf8 = (
+        stdout_enc.lower() in ('gbk', 'gb2312', 'gb18030', 'cp1252', 'cp936')
+        and hasattr(sys.stdout, 'buffer')
+    )
+
+    if msys2_utf8:
+        # 使用 safe_print 输出，避免编码问题
+        # safe_print 已经输出了内容，直接返回空字符串避免 print 重复输出
+        output = "\n".join(lines)
+        safe_print(output)
+        return ""  # 返回空字符串，因为内容已通过 safe_print 输出
+    else:
+        return "\n".join(lines)

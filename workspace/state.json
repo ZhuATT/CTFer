@@ -1,20 +1,13 @@
 {
-  "target": "https://84c8499c-c760-47bd-bf43-dc83098ff1f1.challenge.ctf.show/",
+  "target": "http://test.com",
   "type": "rce",
   "step": 0,
-  "findings": [
-    "call_user_func($_GET[f]) RCE",
-    "phpinfo 泄露自定义函数 ctfshow_1024",
-    "disable_functions=no value"
-  ],
-  "methods_tried": [
-    "call_user_func",
-    "ctfshow_1024"
-  ],
+  "findings": [],
+  "methods_tried": [],
   "failed_patterns": [],
   "suggested_bypass": [],
   "reasoning_chain": [],
-  "flag": "FLAG{welcome_2_ctfshow_1024_cup}",
-  "created_at": "2026-03-28T16:25:51.143729",
-  "updated_at": "2026-03-28T16:25:51.145720"
+  "flag": "",
+  "created_at": "2026-03-28T20:48:14.705595",
+  "updated_at": "2026-03-28T20:48:14.705595"
 }

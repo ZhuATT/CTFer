@@ -60,9 +60,6 @@ Thumbs.db
 desktop.ini
 
 # Sensitive/Local Data
-# Keep structure but ignore content in auto_experiences
-long_memory/auto_experiences/*.md
-long_memory/auto_experiences/exp_index.json
 
 # Large index files (optional - uncomment if needed)
 # .cache/wooyun_index.json

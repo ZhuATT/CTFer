@@ -1,29 +1,11 @@
 [
   {
     "target": "http://test.com",
-    "method": "method1",
-    "reason": "reason1",
-    "payload": "",
-    "category": "",
-    "created_at": "2026-03-28T15:22:23.409500",
-    "updated_at": "2026-03-28T15:22:23.409500"
-  },
-  {
-    "target": "http://test.com",
-    "method": "method2",
-    "reason": "reason2",
-    "payload": "",
-    "category": "",
-    "created_at": "2026-03-28T15:22:23.410494",
-    "updated_at": "2026-03-28T15:22:23.410494"
-  },
-  {
-    "target": "http://test.com",
-    "method": "method3",
-    "reason": "reason3",
-    "payload": "",
-    "category": "",
-    "created_at": "2026-03-28T15:22:23.410494",
-    "updated_at": "2026-03-28T15:22:23.410494"
+    "method": "system",
+    "reason": "disabled by disable_functions",
+    "payload": "system(\"id\")",
+    "category": "rce",
+    "created_at": "2026-03-28T20:48:14.706655",
+    "updated_at": "2026-03-28T20:48:14.706655"
   }
 ]

