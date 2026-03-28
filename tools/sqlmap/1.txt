@@ -1,0 +1,11 @@
+GET /sysManage/index.do?menuId=1&_=1 HTTP/1.1
+Host: 202.98.215.146:9000
+Accept: */*
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36
+X-Requested-With: XMLHttpRequest
+Referer: http://202.98.215.146:9000/
+Accept-Encoding: gzip, deflate
+Accept-Language: zh-CN,zh;q=0.9
+Cookie: JSESSIONID=C959529B85738C95A0FE0BD9C6DBC0A2
+Connection: close
+
