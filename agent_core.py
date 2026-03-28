@@ -466,7 +466,14 @@ class AutoAgent:
         if hint:
             hinted_type = self._classify_problem(hint)
             init_confidence = float(init_result.get("classification_confidence") or 0.0)
-            if hinted_type and hinted_type != init_result.get("problem_type") and init_confidence < 0.6:
+            classification_evidence = list(init_result.get("classification_evidence") or [])
+            # 保护高价值泄露类信号：即使低置信，也不允许 hint 降级覆盖 phpinfo/info_leak 证据
+            high_value_leak = any(
+                sig in classification_evidence
+                for sig in ("phpinfo", "info_leak")
+            )
+            if (hinted_type and hinted_type != init_result.get("problem_type")
+                    and init_confidence < 0.6 and not high_value_leak):
                 self.target_type = hinted_type
                 self.memory.update_target(problem_type=self.target_type)
                 self.memory.set_context(problem_type=self.target_type)
@@ -829,6 +836,11 @@ class AutoAgent:
         # === 3. 历史动作 ===
         action_history = self._summarize_action_history()
         context["action_history_summary"] = action_history
+
+        # === 3.1 P1.1-C: LLM 压缩记忆摘要 ===
+        compressed_summary = self.memory.get_compressed_summary()
+        if compressed_summary:
+            context["compressed_memory"] = compressed_summary
 
         # === 4. 失败分析 ===
         failure_summary = self._summarize_failures()
@@ -1226,6 +1238,7 @@ class AutoAgent:
         taxonomy_signals = context.get("taxonomy_signals", {})
         findings = context.get("findings_summary", "暂无")
         history = context.get("action_history_summary", "暂无")
+        compressed_memory = context.get("compressed_memory", "")  # P1.1-C: LLM 压缩记忆
         failures = context.get("failure_summary", "暂无")
         resources = context.get("resource_summary", "暂无")
         tools = context.get("available_tools", {})
@@ -1310,6 +1323,9 @@ class AutoAgent:
 
 ### 4. 历史动作
 {history}
+
+### 4.1 压缩记忆摘要（P1.1-C LLM 生成式压缩）
+{compressed_memory}
 
 ### 5. 失败分析
 {failures}"""
@@ -1443,6 +1459,42 @@ class AutoAgent:
                 context = self._build_decision_context(rag_knowledge=rag_knowledge)
                 context["self_reflection"] = reflection_result
                 return self._ai_decide(context)
+
+        # === P1.1-C: LLM 生成式记忆压缩 ===
+        # 检查是否需要压缩记忆（每 N 步触发一次）
+        if self.memory.should_compress():
+            compression_prompt = self.memory.get_compression_prompt()
+            self.log(f"[Compression] Triggering memory compression at step {len(self.memory.steps)}", "INFO")
+            # 调用 LLM 生成压缩摘要
+            try:
+                import json
+                cfg = _LLM_CONFIG
+                api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip() or cfg.get("api_key", "").strip()
+                api_base = os.environ.get("ANTHROPIC_BASE_URL", "").strip() or cfg.get("api_base", "").strip()
+
+                if api_key:
+                    from anthropic import Anthropic
+                    client = Anthropic(api_key=api_key, base_url=api_base or None)
+                    response = client.messages.create(
+                        model=cfg.get("model", "claude-opus-4-6-20251101"),
+                        max_tokens=1024,
+                        messages=[{"role": "user", "content": compression_prompt}]
+                    )
+                    result_text = response.content[0].text.strip()
+                    # 提取 JSON
+                    if "```json" in result_text:
+                        json_start = result_text.find("```json") + 7
+                        json_end = result_text.find("```", json_start)
+                        result_text = result_text[json_start:json_end].strip()
+                    elif "```" in result_text:
+                        json_start = result_text.find("```") + 3
+                        json_end = result_text.find("```", json_start)
+                        result_text = result_text[json_start:json_end].strip()
+                    compressed_json = json.loads(result_text)
+                    self.memory.apply_compressed_result(compressed_json)
+                    self.log(f"[Compression] Applied compressed summary", "INFO")
+            except Exception as e:
+                self.log(f"[WARN] Compression failed: {e}", "WARN")
 
         # 构建上下文
         context = self._build_decision_context(rag_knowledge=rag_knowledge)
@@ -4148,6 +4200,29 @@ print(f"Content: {{resp.text}}")
                 metadata={"code": self.source_code},
             )
 
+        # Auth 目标有已知登录端点/参数且上一步不是 POC 时，优先返回 POC 而非 graph_action
+        if self.target_type == "auth":
+            known_endpoints = list(getattr(self.memory.target, "endpoints", []) or [])
+            known_parameters = list(getattr(self.memory.target, "parameters", []) or [])
+            login_endpoints = [ep for ep in known_endpoints if any(token in ep.lower() for token in ["login", "check", "signin", "auth", "admin"])]
+            login_params = [p for p in known_parameters if p.lower() in ["u", "p", "username", "password", "user", "pass", "email", "token", "csrf"]]
+            steps = getattr(self.memory, "steps", []) or []
+            last_is_poc = steps and getattr(steps[-1], "action_type", "") == "poc"
+            if login_endpoints and len(login_params) >= 2 and not last_is_poc:
+                return self._build_action(
+                    "poc",
+                    target=target,
+                    description="认证目标有已知登录端点，执行 POC",
+                    intent="利用已知认证端点和凭据发起攻击",
+                    expected_tool="python_poc",
+                    params={
+                        "endpoint": login_endpoints[0],
+                        "login_params": login_params[:2],
+                        "code": "import requests; r = requests.post(args['target'], data={'username': 'admin', 'password': 'admin888'}); print(r.text)",
+                    },
+                    metadata={"tactic_family": "weak-creds"},
+                )
+
         # === P0.8: 移除硬编码分支，改为 graph-informed 兜底 ===
         # LLM 决策已作为第一优先级（上面 _try_ai_decision 返回则直接返回）
         # graph_informed_action 作为 LLM 失败时的兜底选项
@@ -4188,7 +4263,23 @@ print(f"Content: {{resp.text}}")
                         params={"focus": "break-dir-scan-loop"},
                         metadata={"alternative": True, "reason": "dir_scan_stuck_loop"},
                     )
-                if not repeated_dir_scan_without_new_findings and not low_yield_probe_loop:
+                # Auth 目标：POC 多次失败后不应继续 dir_scanfallback，应切 endpoint-enum
+                if self.target_type == "auth":
+                    recent_poc_failures = sum(
+                        1 for s in (self.memory.steps or [])[-5:]
+                        if getattr(s, "tool", "") == "python_poc" and not getattr(s, "success", False)
+                    )
+                    if recent_poc_failures >= 2:
+                        return self._build_action(
+                            "recon",
+                            target=target,
+                            description="认证目标 POC 多次失败，切换端点枚举",
+                            intent="避免重复 POC 失败，改为枚举认证端点参数",
+                            expected_tool="recon",
+                            params={"focus": "auth-recover"},
+                            metadata={"alternative": True, "tactic_family": "endpoint-enum", "reason": "auth-poc-stuck"},
+                        )
+                if not repeated_dir_scan_without_new_findings and not low_yield_probe_loop and self.target_type != "auth":
                     return self._build_action(
                         "dir_scan",
                         target=target,
@@ -4217,6 +4308,16 @@ print(f"Content: {{resp.text}}")
             )
 
         if low_yield_probe_loop:
+            if self.target_type == "auth":
+                return self._build_action(
+                    "recon",
+                    target=target,
+                    description="认证目标轻量探测低收益，切回认证恢复分支",
+                    intent="避免围绕同一目标重复轻量探测，转向认证特定动作",
+                    expected_tool="recon",
+                    params={"focus": "auth-recover"},
+                    metadata={"alternative": True, "reason": "auth-low-yield-probe-loop"},
+                )
             return self._build_action(
                 "dir_scan",
                 target=target,
@@ -4225,6 +4326,17 @@ print(f"Content: {{resp.text}}")
                 expected_tool="dirsearch",
                 params={"extensions": ["php", "html", "txt"]},
                 metadata={"alternative": True, "reason": "low_yield_probe_loop"},
+            )
+
+        # Auth 目标最终兜底：确保返回 endpoint-enum 而非泛化 fallback
+        if self.target_type == "auth":
+            return self._build_action(
+                "recon",
+                target=target,
+                description="认证目标最终兜底，返回端点枚举",
+                intent="确保认证目标使用端点枚举家族",
+                expected_tool="recon",
+                metadata={"tactic_family": "endpoint-enum"},
             )
 
         return self._build_action(
