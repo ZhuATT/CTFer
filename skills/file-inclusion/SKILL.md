@@ -8,6 +8,26 @@ allowed-tools: Bash, Read, Write
 
 通过操纵文件路径参数，读取服务器敏感文件或执行恶意代码。
 
+## 决策策略
+
+### 三层推理
+- **fact**: 直接观察到的行为（文件内容、报错信息）
+- **hypothesis**: 猜测（未经证实）
+- **decision**: 下一步行动
+
+### 最短探针原则
+先确认假设，再深入攻击。LFI 最短探针顺序：
+1. `/etc/passwd` → 确认文件包含存在
+2. 读取源码（index.php） → 了解应用逻辑
+3. 再尝试日志文件包含或 session 文件
+
+### 切换规则
+包含无输出时：
+- 尝试不同路径遍历（../、....//、url编码）
+- 尝试绝对路径
+- 尝试日志文件（/var/log/nginx/access.log）
+- 尝试 session 文件（/tmp/sess_PHPSESSID）
+
 ## 常见指示器
 
 - 文件参数（file=, page=, path=, template=, lang=, include=）

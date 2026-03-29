@@ -15,37 +15,40 @@ class ExperienceManager:
 
     经验文件格式：
     ```markdown
-    # RCE 经验积累
+    ---
+    doc_kind: experience
+    type: lfi
+    created: 2026-03-28
+    tags: [php-filter, base64-encode, source-read]
+    ---
 
-    ## 2026-03-28 | http://target.com
-    ### 靶机环境
-    - PHP 7.4.1
-    - Apache/2.4.41
-    - disable_functions=exec,system,shell_exec
+    ## php://filter/base64编码 读取源码
 
-    ### 成功方法
-    - copy() 文件写入 webshell
-    - assert() 代码执行
+    ### 核心 bypass
+    **php://filter/base64编码 读取 PHP 源码**
 
-    ### 关键 Payload
-    ```php
-    <?php eval($_POST['cmd']); ?>
+    ### 原理
+    - 参数 page=xxx 存在文件包含
+    - 使用 php://filter 将文件内容 base64 编码输出
+    - 绕过字符串拼接过滤
+
+    ### 关键 payload
+    ```bash
+    ?page=php://filter/convert.base64-encode/resource=index.php
     ```
 
-    ### Flag 位置
-    /flag
+    ### 失败记录
+    - `../` 路径遍历 — 被过滤
+    - `file://` 协议 — 被禁用
 
     ---
     ```
 
-    ### 经验分类索引（自动维护）
-    ```markdown
-    ## 经验索引
-
-    | 日期 | 靶机 | 关键方法 | 行号 |
-    |------|------|----------|------|
-    | 2026-03-28 | target.com | copy+assert | [#2026-03-28] |
-    ```
+    设计原则：
+    - 不保存 Flag 值（无复用价值）
+    - 不保存靶机 URL（不可复用）
+    - 保存技术原理和 payload 形状（可复用）
+    - frontmatter 方便 RAG 检索
     """
 
     EXPERIENCES_DIR = "memories/experiences"
@@ -61,6 +64,35 @@ class ExperienceManager:
     def _ensure_dir(self) -> None:
         """确保目录存在"""
         self.experiences_dir.mkdir(parents=True, exist_ok=True)
+
+    def _get_experience_file(self, safe_type: str) -> Path:
+        """获取经验文件路径"""
+        return self.experiences_dir / f"{safe_type}.md"
+
+    def _check_duplicate(self, existing_content: str, method_succeeded: str, findings: List[str]) -> str:
+        """
+        检查是否重复保存
+
+        Returns:
+            空字符串表示不重复，否则返回重复提示
+        """
+        if not existing_content or not method_succeeded:
+            return ""
+
+        # 提取所有已保存的经验标题（## 之后的行）
+        import re
+        # 匹配 ## 标题 格式
+        existing_titles = re.findall(r'^##\s+(.+)$', existing_content, re.MULTILINE)
+
+        # 标准化标题：去除所有空白字符后比较
+        normalized_new = re.sub(r'\s+', '', method_succeeded)
+
+        for title in existing_titles:
+            normalized_existing = re.sub(r'\s+', '', title)
+            if normalized_existing == normalized_new:
+                return f"[去重] 相同经验已存在: {title.strip()}"
+
+        return ""
 
     def _sanitize_filename(self, challenge_type: str) -> str:
         """生成安全的文件名"""
@@ -104,48 +136,131 @@ class ExperienceManager:
         flag: str,
         payload_context: str = "",
     ) -> str:
-        """构建经验内容"""
+        """
+        构建经验内容
+
+        新格式（检索友好）：
+        ```markdown
+        ---
+        doc_kind: experience
+        type: lfi
+        created: 2026-03-28
+        tags: [php-filter, base64-encode, source-read]
+        ---
+
+        ## 文件包含读取源码
+
+        ### 核心 bypass
+        **php://filter/base64编码 绕过路径过滤读取 PHP 源码**
+
+        ### 原理
+        - 使用 php://filter 将文件内容 base64 编码输出
+        - 绕过字符串拼接过滤
+
+        ### 关键 payload
+        ```bash
+        ?page=php://filter/convert.base64-encode/resource=index.php
+        ```
+
+        ### 失败记录
+        - `../` 路径遍历 — 被过滤
+        - `file://` 协议 — 被禁用
+
+        ### 泛化经验
+        LFI 先读源码，了解应用结构再找漏洞
+        ```
+        """
         date_str = datetime.now().strftime("%Y-%m-%d")
-        time_str = datetime.now().strftime("%H:%M:%S")
+        safe_type = self._sanitize_filename(challenge_type)
 
-        # 提取域名作为标题
-        domain = re.sub(r"https?://", "", target.split("/")[0])
+        # 构建 frontmatter
+        # 从 findings 和 method_succeeded 提取 tags
+        tags = self._extract_tags(findings, method_succeeded, challenge_type)
 
-        content = f"""## {date_str} | {domain}
-### 靶机环境
+        content = f"""---
+doc_kind: experience
+type: {safe_type}
+created: {date_str}
+tags: [{', '.join(tags)}]
+---
+
+## {method_succeeded}
+
+### 核心 bypass
+**{method_succeeded}**
+
 """
 
-        # 添加发现的信息
+        # 添加发现作为"原理"（去敏感信息）
         if findings:
+            content += "### 原理\n"
             for finding in findings:
-                content += f"- {finding}\n"
-        else:
-            content += "- (无详细记录)\n"
+                # 过滤掉敏感信息（flag值、密码等）
+                if not self._is_sensitive(finding):
+                    content += f"- {finding}\n"
+            content += "\n"
 
-        content += f"""
-### 成功方法
-- **{method_succeeded}**
-
-"""
-
-        # 添加关键 Payload（如果有）
+        # 添加关键 Payload
         if payload_context:
-            content += f"### 关键 Payload\n```\n{payload_context}\n```\n\n"
+            content += "### 关键 payload\n"
+            content += "```bash\n"
+            content += f"{payload_context}\n"
+            content += "```\n\n"
 
-        content += """### 已尝试方法（失败）
-"""
-        for method in methods_tried:
-            if method != method_succeeded:
+        # 添加失败记录
+        failed_methods = [m for m in methods_tried if m != method_succeeded]
+        if failed_methods:
+            content += "### 失败记录\n"
+            for method in failed_methods:
                 content += f"- {method}\n"
+            content += "\n"
 
-        content += f"""
-### Flag
-`{flag}`
-
-"""
         content += "---\n\n"
 
         return content
+
+    def _extract_tags(self, findings: List[str], method_succeeded: str, challenge_type: str) -> List[str]:
+        """从发现和方法中提取 tags"""
+        tags = [challenge_type]
+
+        # 从 method_succeeded 提取技术标签
+        method_lower = method_succeeded.lower()
+        tech_keywords = [
+            "php://filter", "base64", "file inclusion", "lfi", "rfi",
+            "sqlmap", "union", "blind", "boolean", "报错注入",
+            "assert", "eval", "system", "exec", "shell_exec",
+            "template", "ssti", "jinja", "twig",
+            "反序列化", "unserialize", "pickle", "phar",
+            "ssrf", "file://", "gopher",
+            "xss", "script", "alert", "onerror",
+            "upload", "webshell", ".htaccess",
+            "jwt", "cookie", "session",
+            "命令注入", "command injection",
+        ]
+        for keyword in tech_keywords:
+            if keyword in method_lower:
+                tags.append(keyword)
+
+        # 从 findings 提取
+        for finding in findings:
+            finding_lower = finding.lower()
+            for keyword in tech_keywords:
+                if keyword in finding_lower and keyword not in tags:
+                    tags.append(keyword)
+
+        return tags[:5]  # 最多5个tag
+
+    def _is_sensitive(self, text: str) -> bool:
+        """判断内容是否敏感（flag值、密码等）"""
+        if not text:
+            return False
+        # 过滤 flag 格式的内容
+        if re.search(r'CTF\{[^}]+\}', text, re.IGNORECASE):
+            return True
+        # 过滤密码类内容
+        if re.search(r'(password|passwd|pwd)[=:]\s*\S+', text, re.IGNORECASE):
+            return True
+        return False
 
     def _update_index(self, challenge_type: str, target: str, method_succeeded: str) -> None:
         """更新经验索引"""
@@ -218,20 +333,25 @@ class ExperienceManager:
             payload_context: 关键 payload 或技术细节
 
         Returns:
-            保存的文件路径
+            保存的文件路径，如果重复则返回空字符串
         """
         self._ensure_dir()
 
         # 确定文件名
         safe_type = self._sanitize_filename(challenge_type)
-        experience_file = self.experiences_dir / f"{safe_type}.md"
+        experience_file = self._get_experience_file(safe_type)
 
-        # 读取现有内容，检查是否需要添加标题
+        # 读取现有内容
         existing_content = ""
         if experience_file.exists():
             existing_content = experience_file.read_text(encoding="utf-8")
 
-        # 如果文件为空或没有标题，添加标题
+        # 去重检查：是否已存在相同的 method_succeeded
+        duplicate_result = self._check_duplicate(existing_content, method_succeeded, findings)
+        if duplicate_result:
+            return duplicate_result
+
+        # 读取现有内容，检查是否需要添加标题
         if not existing_content.strip():
             title_mapping = {
                 "rce": "RCE 远程命令执行",

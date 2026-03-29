@@ -69,7 +69,8 @@ CTFagent/
 │   ├── rag_knowledge.py         ← RAG 知识检索
 │   ├── skill_loader.py          ← Skill 加载器
 │   ├── experience_manager.py    ← 经验保存管理
-│   └── failure_tracker.py       ← 失败追踪
+│   ├── failure_tracker.py       ← 失败追踪
+│   └── loop_detector.py         ← 循环检测（签名级）
 │
 ├── skills/                      ← 技能知识（人工维护）
 │   ├── rce/SKILL.md
@@ -116,6 +117,7 @@ CTFagent/
 └── workspace/                   ← 工作目录（解题状态）
     ├── state.json               ← 当前状态
     ├── failures.json            ← 失败记录
+    ├── .loop_state.json        ← 循环检测状态（跨进程）
     ├── .knowledge_checked       ← 知识已检查标记
     ├── .knowledge_log           ← 知识调用日志
     └── traces/                  ← （可选）操作轨迹
@@ -334,6 +336,47 @@ safe_print(text)            # 安全输出，自动处理编码
 
 ---
 
+### 3.8 循环检测（loop_detector.py）
+
+**文件**: `core/loop_detector.py`
+
+**问题**: 简单的"失败3次就提示"无法区分真正的循环和合理的重试。例如：
+- `curl /?page=1` 失败 → `curl /?page=2` 失败 → `curl /?page=1` 再执行 → 前两次参数不同，第三次的签名和第一次相同
+- 用"失败次数"判断会把第三次的重试当成正常（因为是第2次失败），但实际上签名完全相同，是真正的循环
+
+**解决方案**: 签名级循环检测
+
+**签名格式**: `tool_name:args_json[:500]`
+
+**检测逻辑**:
+```
+滑动窗口（12次）→ 统计相同签名出现次数
+- ≥3次 → warn 警告
+- ≥5次 → break 中断
+```
+
+**核心 API**:
+```python
+from core.loop_detector import check_loop, LOOP_WARNING_MESSAGE, LOOP_BREAK_MESSAGE
+
+# 检查命令是否循环
+result = check_loop('curl', '-s http://target.com')
+# 返回: None / "warn" / "break"
+```
+
+**与 Hook 集成**: `check_knowledge_hook.py` 在每次 Bash 命令前调用 `check_loop()`，并将警告信息注入 `additionalContext`
+
+**持久化**: 状态保存到 `workspace/.loop_state.json`，支持跨进程检测
+
+**优势对比**:
+| 机制 | 防止什么 |
+|------|---------|
+| 失败次数判断 | 同一方法失败N次后提示 |
+| Hook: check_command_for_failed_methods | 命令包含已失败方法名 |
+| **LoopDetector** | **完全相同命令（签名级）重复执行** |
+
+---
+
 ## 四、解题完整流程
 
 ```
@@ -420,7 +463,7 @@ safe_print(text)            # 安全输出，自动处理编码
         ▼
 ┌───────────────────────────────────────────┐
 │ PreToolUse Hook 触发                       │
-│ python check_knowledge_hook.py            │
+│ C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe check_knowledge_hook.py            │
 └───────────────────────────────────────────┘
         │
         ▼
@@ -557,34 +600,72 @@ else:
     sys.stdout.write(safe_text)  # 正常输出
 ```
 
----
 
-## 十、与参考项目（ctf-agent-main）的架构对比
-
-| 维度 | 本项目 (直接模式) | 参考项目 (ctf-agent-main) |
-|------|-----------------|------------------------|
-| 交互方式 | 用户手动输入 URL，LLM 直接解题 | Coordinator 管理 + 多模型并行赛马 |
-| 执行环境 | 本地 Git Bash | Docker Sandbox（隔离容器） |
-| 知识系统 | 本地 RAG + 人工维护 skills | 内置漏洞库 + CTFd 拉取 |
-| 状态管理 | JSON 文件持久化 | asyncio + 内存状态 |
-| 经验积累 | 成功后自动保存到 memories/ | 不持久化，重跑即失 |
-| Hook 机制 | PreToolUse 检查知识上下文 | PreToolUse 重写命令到 Docker exec |
-| 循环检测 | 无（基于失败次数判断） | 签名级 LoopDetector |
-| 多模型协作 | 无 | Swarm 多模型赛马 + MessageBus |
-| Flag 提交 | 人工确认 | 自动提交（冷却机制） |
-
-**本项目优势**: 轻量、单一LLM直接解题、经验持久化
-**参考项目优势**: 并行效率、隔离安全、Coordinator 协调
 
 ---
 
-## 十一、后续演进方向
+## 十、已升级功能
 
-参考 `ctf-agent-main` 可引入：
+### 1. LoopDetector 签名级循环检测
 
-1. **Loop Detection 签名化** — 基于命令签名检测循环
-2. **多模型赛马** — 同一题目多模型并行求解
-3. **Docker Sandbox** — 隔离执行环境，容器内工具预装
-4. **Message Bus** — 多 solver 之间共享发现
-5. **Bump + Insights** — coordinator 主动注入其他模型发现指导重试
-6. **Tracer JSONL** — 流式追踪文件，实时查看求解过程
+**文件**: `core/loop_detector.py`
+
+通过追踪工具调用签名（tool_name + args），检测重复执行：
+- 签名格式：`tool_name:args_json[:500]`
+- warn_threshold=3，break_threshold=5
+- 状态持久化到 `workspace/.loop_state.json`
+
+**Hook 集成**: `check_knowledge_hook.py` 在每次 Bash 命令前调用，警告信息注入 `additionalContext`
+
+### 2. Skills 决策策略
+
+每个 SKILL.md 顶部添加三层推理框架：
+
+```markdown
+## 决策策略
+
+### 三层推理
+- **fact**: 直接观察到的行为
+- **hypothesis**: 猜测（未经证实）
+- **decision**: 下一步行动
+
+### 最短探针原则
+先确认假设，再深入攻击
+
+### 切换规则
+探针无效果时，换方向重新分析
+```
+
+### 3. 经验保存优化
+
+**文件**: `core/experience_manager.py`
+
+| 改进 | 说明 |
+|------|------|
+| frontmatter | 添加 `doc_kind`、`type`、`tags`，方便 RAG 检索 |
+| 去除敏感信息 | 不保存 Flag 值、靶机 URL、密码 |
+| 去重检查 | 相同 method_succeeded 不重复保存 |
+| 质量校验 | `set_flag()` 前检查 findings 是否足够 |
+
+**新格式**:
+```markdown
+---
+doc_kind: experience
+type: lfi
+created: 2026-03-29
+tags: [php-filter, base64-encode]
+---
+
+## php://filter/base64编码读取源码
+
+### 核心 bypass
+**php://filter/base64编码读取源码**
+
+### 原理
+- 使用 php://filter 将文件内容 base64 编码输出
+
+### 关键 payload
+```bash
+?page=php://filter/convert.base64-encode/resource=index.php
+```
+

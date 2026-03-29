@@ -68,6 +68,29 @@ head /flag
 
 ---
 
+---
+doc_kind: experience
+type: rce
+created: 2026-03-29
+tags: [rce, 命令注入, system, exec]
+---
+
+## 命令注入绕过
+
+### 核心 bypass
+**命令注入绕过**
+
+### 原理
+- 发现命令执行参数 cmd=
+- disable_functions=system,exec
+
+### 关键 payload
+```bash
+curl http://test.com/?cmd=whoami
+```
+
+---
+
 ## 2026-03-28 | https:
 ### 靶机环境
 - call_user_func($_GET[f]) RCE

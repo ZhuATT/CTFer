@@ -8,6 +8,26 @@ allowed-tools: Bash, Read, Write
 
 通过在用户输入中注入 SQL 代码，操纵数据库查询，实现数据泄露、认证绕过或命令执行。
 
+## 决策策略
+
+### 三层推理
+- **fact**: 直接观察到的行为（响应内容、错误信息、SQL报错）
+- **hypothesis**: 猜测（未经证实）
+- **decision**: 下一步行动
+
+### 最短探针原则
+先确认假设，再深入攻击。SQLi 最短探针顺序：
+1. `id=1'` → 确认是否有SQL报错
+2. `id=1 AND 1=1` vs `id=1 AND 1=2` → 确认逻辑差异
+3. 再尝试 UNION 或盲注
+
+### 切换规则
+探针无差异时：
+- 尝试不同报错方式（单引号、双引号、注释）
+- 尝试时间盲注（sleep/BENCHMARK）
+- 尝试不同参数（POST/JSON/Cookie）
+- 换用 sqlmap 自动检测
+
 ## 常见指示器
 
 - URL 参数（id=, page=, search=, sort=, order=）

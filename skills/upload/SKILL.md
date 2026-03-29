@@ -6,6 +6,26 @@ File upload vulnerability occurs when developers fail to strictly validate and f
 
 **Impact**: Attackers can control the entire website or even the server through uploaded malicious files (webshells).
 
+## 决策策略
+
+### 三层推理
+- **fact**: 直接观察到的行为（上传是否成功、文件路径返回）
+- **hypothesis**: 猜测（未经证实）
+- **decision**: 下一步行动
+
+### 最短探针原则
+先确认假设，再深入攻击。文件上传最短探针顺序：
+1. 上传普通图片 → 确认上传功能存在
+2. 上传 .php → 确认是否执行
+3. 再尝试 .htaccess、phar 等绕过方式
+
+### 切换规则
+上传失败时：
+- 检查 MIME 类型验证（Content-Type）
+- 检查文件内容验证（getimagesize）
+- 尝试绕过扩展名（.php5, .phtml, .phar）
+- 尝试上传到不同目录
+
 ---
 
 ## File Upload Process

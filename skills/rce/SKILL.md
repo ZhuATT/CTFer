@@ -8,6 +8,26 @@ allowed-tools: Bash, Read, Write
 
 在目标服务器上执行任意代码或命令，获取系统控制权。
 
+## 决策策略
+
+### 三层推理
+- **fact**: 直接观察到的行为（响应头、源码、错误信息、phpinfo）
+- **hypothesis**: 猜测（未经证实）
+- **decision**: 下一步行动
+
+### 最短探针原则
+先确认假设，再深入攻击。RCE 最短探针顺序：
+1. `echo TEST` → 确认输出回显
+2. `id`, `whoami` → 确认命令执行
+3. 再尝试复杂 payload
+
+### 切换规则
+探针无输出时：
+- 检查是否是 disable_functions
+- 检查是否是 escapeshellcmd 过滤
+- 尝试其他命令执行函数（exec/shell_exec/popen）
+- 换用文件写入代替命令执行
+
 ## 常见指示器
 
 - 命令执行参数（cmd=, exec=, command=, run=）

@@ -1,4 +1,22 @@
 # Windows 终端编码处理实用技能
+
+## 决策策略
+
+### 使用场景
+当遇到 `'gbk' codec can't encode character` 错误时，使用本工具。
+
+### 最短探针原则
+先检测编码，再安全输出。编码修复最短探针顺序：
+1. `detect_terminal_encoding()` → 确认终端类型
+2. `safe_print(text)` → 安全输出
+3. 避免直接 `print()` 字符串
+
+### 切换规则
+安全输出仍失败时：
+- 使用 `encode_for_terminal()` 手动编码
+- 尝试设置 `PYTHONIOENCODING=utf-8`
+- 使用 `sys.stdout.buffer.write()` 绕过
+
 ## Overview
 
 Windows下Python终端经常遇到GBK编码错误（如`'gbk' codec can't encode character`）。

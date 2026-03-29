@@ -164,13 +164,16 @@ class StateManager:
             self._state["suggested_bypass"].append(entry)
         self._save()
 
-    def set_flag(self, flag: str, method_succeeded: str = None, payload_context: str = None) -> None:
+    def set_flag(self, flag: str, method_succeeded: str = None, payload_context: str = None) -> str:
         """设置找到的 flag，并自动保存经验
 
         Args:
             flag: 找到的 flag
             method_succeeded: 成功的方法名称
             payload_context: 关键 payload 或技术细节（会被保存到经验中）
+
+        Returns:
+            成功保存时返回空字符串，需要补充上下文时返回提示信息
         """
         self._state["flag"] = flag
         # 保存 payload 上下文到状态中，供经验保存使用
@@ -180,7 +183,61 @@ class StateManager:
 
         # 自动保存经验（如果状态已初始化且有成功方法）
         if method_succeeded:
+            # 校验上下文是否足够
+            check_result = self._check_experience_quality(method_succeeded, payload_context)
+            if check_result:
+                return check_result  # 返回提示信息，不保存
+
             self._auto_save_experience(method_succeeded)
+
+        return ""
+
+    def _check_experience_quality(self, method_succeeded: str, payload_context: str = None) -> str:
+        """
+        检查经验保存质量，返回提示或空字符串
+
+        Returns:
+            空字符串表示通过检查，需要补充时返回提示信息
+        """
+        findings = self._state.get("findings", [])
+        methods_tried = self._state.get("methods_tried", [])
+
+        warnings = []
+
+        # 检查1: method_succeeded 是否太模糊
+        vague_methods = ["成功", "成功方法", "找到了", "flag", "得到了", "完成"]
+        if method_succeeded in vague_methods or len(method_succeeded) < 5:
+            warnings.append("method_succeeded 太模糊，请提供具体技术名称（如 'php://filter读取源码'）")
+
+        # 检查2: findings 是否太少
+        if len(findings) < 1:
+            warnings.append("findings 为空，请先调用 add_finding() 记录关键发现")
+
+        # 检查3: method_succeeded 是否未记录到 methods_tried
+        if method_succeeded not in methods_tried and method_succeeded not in vague_methods:
+            # 自动补充
+            if method_succeeded:
+                if "methods_tried" not in self._state:
+                    self._state["methods_tried"] = []
+                if method_succeeded not in self._state["methods_tried"]:
+                    self._state["methods_tried"].append(method_succeeded)
+
+        # 检查4: payload_context 是否缺失
+        if not self._state.get("payload_context") and not payload_context:
+            warnings.append("payload_context 为空，建议提供关键 payload 以便复用")
+
+        if warnings:
+            return "\n".join([
+                "【经验保存提示】",
+                *warnings,
+                "",
+                "请补充后重新调用 set_flag()。示例:",
+                "add_finding('使用 php://filter 读取 base64 编码内容')",
+                "add_method('php://filter/base64 读取源码')",
+                "set_flag('CTF{...}', 'php://filter读取源码', '?page=php://filter/convert.base64-encode/resource=index.php')",
+            ])
+
+        return ""
 
     def _auto_save_experience(self, method_succeeded: str) -> None:
         """自动保存经验"""
@@ -390,15 +447,18 @@ def add_suggested_bypass(method: str, reason: str = "") -> None:
     get_state_manager().add_suggested_bypass(method, reason)
 
 
-def set_flag(flag: str, method_succeeded: str = None, payload_context: str = None) -> None:
+def set_flag(flag: str, method_succeeded: str = None, payload_context: str = None) -> str:
     """设置 flag（自动保存经验）
 
     Args:
         flag: 找到的 flag
         method_succeeded: 成功的方法名称
         payload_context: 关键 payload 或技术细节
+
+    Returns:
+        空字符串表示保存成功，否则返回需要补充的提示信息
     """
-    get_state_manager().set_flag(flag, method_succeeded, payload_context)
+    return get_state_manager().set_flag(flag, method_succeeded, payload_context)
 
 
 def save_experience_auto(method_succeeded: str, payload_context: str = "") -> str:

@@ -8,6 +8,26 @@ allowed-tools: Bash, Read, Write
 
 利用服务器发起请求，访问内网资源、读取本地文件或攻击其他服务。
 
+## 决策策略
+
+### 三层推理
+- **fact**: 直接观察到的行为（是否返回了外部内容、是否报错）
+- **hypothesis**: 猜测（未经证实）
+- **decision**: 下一步行动
+
+### 最短探针原则
+先确认假设，再深入攻击。SSRF 最短探针顺序：
+1. `url=http://example.com` → 确认是否服务器端请求
+2. `url=file:///etc/passwd` → 测试本地文件读取
+3. `url=http://127.0.0.1/` → 测试内网访问
+
+### 切换规则
+探针无效果时：
+- 尝试不同协议（file://, dict://, gopher://）
+- 尝试读取内网服务（redis, mysql, webmin）
+- 尝试端口扫描（通过响应时间/大小判断）
+- 尝试写入 cron/webshell 到内网服务
+
 ## 常见指示器
 
 - URL 参数（url=, link=, src=, target=, fetch=, uri=）

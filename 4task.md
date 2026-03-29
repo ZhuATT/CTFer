@@ -33,7 +33,7 @@ get_context_summary()                 # 获取供 LLM 使用的完整状态摘�
 
 **测试验证**：
 ```bash
-python -c "from core.state_manager import init_state, add_finding, add_reasoning, add_suggested_bypass, get_context_summary; init_state('http://test.com', 'auth'); add_finding('Cookie: ro1e=guest'); add_reasoning('curl homepage', '发现 Admin Login'); add_suggested_bypass('修改 Cookie', '需要登录后修改'); print(get_context_summary())"
+C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.state_manager import init_state, add_finding, add_reasoning, add_suggested_bypass, get_context_summary; init_state('http://test.com', 'auth'); add_finding('Cookie: ro1e=guest'); add_reasoning('curl homepage', '发现 Admin Login'); add_suggested_bypass('修改 Cookie', '需要登录后修改'); print(get_context_summary())"
 ```
 ✅ 通过
 
@@ -84,7 +84,7 @@ get_failure_count('http://target.com')    # 返回失败数量
 
 **测试验证**：
 ```bash
-python -c "from core.failure_tracker import record_failure, should_trigger_rag; \
+C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.failure_tracker import record_failure, should_trigger_rag; \
   record_failure('http://test.com', 'm1', 'r'); \
   record_failure('http://test.com', 'm2', 'r'); \
   print(should_trigger_rag('http://test.com'))"  # False
@@ -119,15 +119,15 @@ PreToolUse Hook 触发
 **测试验证**：
 ```bash
 # 无 marker 时执行 curl → 返回提醒 JSON
-echo '{"tool_input": {"command": "curl -s https://example.com"}}' | python .claude/hooks/check_knowledge_hook.py
+echo '{"tool_input": {"command": "curl -s https://example.com"}}' | C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe .claude/hooks/check_knowledge_hook.py
 # → {"continue": true, "hookSpecificOutput": {...}, "systemMessage": "请先查询知识！"}
 
 # 标记后执行 curl → 返回 {} 放行
-python mark_knowledge_checked.py && echo '{"tool_input": {"command": "curl -s https://example.com"}}' | python .claude/hooks/check_knowledge_hook.py
+C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe mark_knowledge_checked.py && echo '{"tool_input": {"command": "curl -s https://example.com"}}' | C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe .claude/hooks/check_knowledge_hook.py
 # → {}
 
 # 非工具命令 → 返回 {} 放行
-echo '{"tool_input": {"command": "ls -la"}}' | python .claude/hooks/check_knowledge_hook.py
+echo '{"tool_input": {"command": "ls -la"}}' | C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe .claude/hooks/check_knowledge_hook.py
 # → {}
 ```
 ✅ 通过
