@@ -252,26 +252,63 @@ format_knowledge_results(results)      # 格式化输出
 
 **保存位置**: `memories/experiences/<type>.md`
 
+**智能保存**: 使用 LLM 自动生成高质量经验
+- 自动判断是否与已有经验重复
+- 自动生成标准化 Markdown 格式
+- 自动提取相关标签
+
 **经验格式**:
 ```markdown
-## 2026-03-28 | challenge.ctf.show
-### 靶机环境
-- 日志文件: /var/log/nginx/access.log
-- flag位置: /var/www/html/flag.php
+## [LFI 通过 php://filter 读取敏感文件]
 
-### 成功方法
-- **日志文件包含: nginx access.log + User-Agent注入PHP代码**
+### 核心 bypass
+**[利用 php://filter 协议配合 base64 编码绕过文件包含限制读取源码]**
 
-### 已尝试方法（失败）
-- 直接包含 /var/www/html/flag.php 失败
+### 原理分析
+- PHP 的 `php://filter` 协议允许在文件包含前对内容进行过滤处理
+- `convert.base64-encode` 过滤器会对文件内容进行 Base64 编码
+- 由于文件被包含时会执行 PHP 代码，直接访问会得到执行结果而非源码
+- 使用 Base64 编码后，源码被编码成字符串，从而绕过执行直接获取原始内容
+- db.php 等配置文件通常包含数据库凭证等敏感信息
 
-### Flag
-`CTF{php_access_l0g_lf1_is_fun}`
+### 关键 Payload
+```php
+php://filter/read=convert.base64-encode/resource=db.php
+```
 
+### 失败记录
+- 直接包含 db.php：返回空或执行结果，无法获取源码
+
+### 适用场景
+- LFI 题型中需要读取 PHP 源码
+- 文件包含点无法直接 RCE 时获取配置文件
+- 目标存在 db.php、config.php、conn.php 等数据库配置文件的场景
+
+---
+doc_kind: experience
+type: lfi
+created: 2026-03-29
+tags: [lfi, php://filter, base64-encode]
 ---
 ```
 
-**索引维护**: `_index.md` 自动记录所有经验条目，支持快速查找
+**LLM 配置**: 通过 `config.json` 配置
+```json
+{
+  "llm": {
+    "api_url": "https://mydamoxing.cn",
+    "api_key": "sk-xxx",
+    "model": "MiniMax-M2.7-highspeed",
+    "provider": "claude"
+  }
+}
+```
+
+**核心 API**:
+```python
+save_experience_with_llm(...)  # LLM 智能保存
+save_experience(...)           # 普通保存（兼容）
+```
 
 ---
 
@@ -636,36 +673,44 @@ else:
 探针无效果时，换方向重新分析
 ```
 
-### 3. 经验保存优化
+### 3. LLM 智能经验保存
 
-**文件**: `core/experience_manager.py`
+**文件**: `core/llm_client.py`, `core/experience_manager.py`
 
-| 改进 | 说明 |
-|------|------|
-| frontmatter | 添加 `doc_kind`、`type`、`tags`，方便 RAG 检索 |
-| 去除敏感信息 | 不保存 Flag 值、靶机 URL、密码 |
-| 去重检查 | 相同 method_succeeded 不重复保存 |
-| 质量校验 | `set_flag()` 前检查 findings 是否足够 |
+使用 LLM 自动生成高质量经验：
 
-**新格式**:
-```markdown
----
-doc_kind: experience
-type: lfi
-created: 2026-03-29
-tags: [php-filter, base64-encode]
----
+**特性**:
+- **智能去重**: 判断新技术/相同技术/相同 flag
+- **高质量格式**: 自动生成标准 Markdown，包含原理分析、Payload、适用场景
+- **自动标签**: 根据解题信息提取相关标签
 
-## php://filter/base64编码读取源码
+**配置** (`config.json`):
+```json
+{
+  "llm": {
+    "api_url": "https://mydamoxing.cn",
+    "api_key": "sk-xxx",
+    "model": "MiniMax-M2.7-highspeed",
+    "provider": "claude"
+  }
+}
+```
 
-### 核心 bypass
-**php://filter/base64编码读取源码**
+**API**:
+```python
+from core.llm_client import configure, call_llm, is_configured
+from core.experience_manager import save_experience_with_llm
 
-### 原理
-- 使用 php://filter 将文件内容 base64 编码输出
+# 初始化
+configure(api_url, api_key, model)
 
-### 关键 payload
-```bash
-?page=php://filter/convert.base64-encode/resource=index.php
+# 保存经验
+result = save_experience_with_llm(
+    target="https://example.com",
+    challenge_type="lfi",
+    flag="CTF{...}",
+    method_succeeded="php://filter读取db.php",
+    payload_context="..."
+)
 ```
 

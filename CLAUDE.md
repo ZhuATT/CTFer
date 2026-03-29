@@ -41,17 +41,40 @@
 
 ---
 
+## 【强制】失败记录指令
+
+**目标**：确保每次失败的尝试都被记录到 `failures.json`，供 Hook 检测阈值。
+
+### 手动记录（LLM 自觉）
+当 curl/sqlmap 等工具**命令成功但攻击无效**时（如 SQL 注入无效果、LFI payload 无回显），LLM 必须：
+
+```python
+record_failed('方法名', '失败原因', '使用的 payload')
+```
+
+### 检查方法是否已失败
+```python
+is_method_failed('http://target.com', 'sqlmap')  # 返回 True/False
+```
+
+### 强制重查触发
+当 `failures.json` 中同一目标的方法数 ≥3 时，Hook 会注入**强制重查消息**，要求你：
+1. 调用 `get_all_type_knowledge('题型')` 重新获取知识
+2. 查看 `memories/experiences/` 中的历史经验
+3. **禁止重复已失败的方法**
+
+---
+
 ## 失败触发知识查询
 
-**【重要】失败 3 次后，必须重新查询知识**
+**【重要】失败 3 次后，Hook 会强制提示重新查询知识**
 
 当你尝试 3 次都失败时：
 ```
 1. 查看当前状态：C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.state_manager import get_context_summary; print(get_context_summary())"
 2. 重新获取知识：C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('题型'))"
-3. 分析 suggested_bypass 建议
-4. 基于新知识制定新攻击计划
-5. 继续尝试
+3. 基于新知识制定新攻击计划
+4. 继续尝试
 ```
 
 **不要重复尝试同样的方法**——失败后换思路。
@@ -260,7 +283,7 @@ save_experience_auto('copy')  # 传入成功的方法名
   C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe
   ```
   禁止使用裸 `python`、`python3` 命令，所有 Python 调用必须带完整路径
-- 联网请求用 `curl`，不用 WebFetch/WebSearch
+- 解题时联网请求用 `curl`（需要精确控制），其他场景可用 WebFetch/WebSearch
 - 发现 flag 后调用 `set_flag('FLAG{...}', 'method', 'payload')` 自动保存经验（payload 会写入经验文件）
 - **先查知识再动手**，不要盲试
 - 每次尝试前检查失败记录
