@@ -60,6 +60,10 @@ Thumbs.db
 desktop.ini
 
 # Sensitive/Local Data
+config.json
+credentials.json
+*.pem
+*.key
 
 # Large index files (optional - uncomment if needed)
 # .cache/wooyun_index.json
