@@ -1,0 +1,7 @@
+{
+  "llm": {
+    "api_url": "",
+    "api_key": "",
+    "model": "gpt-4o-mini"
+  }
+}
