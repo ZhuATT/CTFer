@@ -12,7 +12,7 @@
 1. curl 访问目标 → 观察页面结构
 2. 识别题型（rce/sqli/auth/lfi/xss/upload）
 3. 【自动获取知识】立即执行：
-   python -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('题型'))"
+   C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('题型'))"
    - 自动检索：skills/ + memories/ + wooyun/knowledge/ + wooyun_cases/
    - 返回格式化知识，直接作为解题上下文
 4. 【基于知识制定攻击计划】根据返回的知识确定攻击方法
@@ -47,8 +47,8 @@
 
 当你尝试 3 次都失败时：
 ```
-1. 查看当前状态：python -c "from core.state_manager import get_context_summary; print(get_context_summary())"
-2. 重新获取知识：python -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('题型'))"
+1. 查看当前状态：C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.state_manager import get_context_summary; print(get_context_summary())"
+2. 重新获取知识：C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('题型'))"
 3. 分析 suggested_bypass 建议
 4. 基于新知识制定新攻击计划
 5. 继续尝试
@@ -95,7 +95,7 @@
 
 ```bash
 # 获取指定题型全部知识（自动检索以下4个来源）
-python -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('rce'))"
+C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('rce'))"
 
 # 知识来源：
 # 1. skills/rce/SKILL.md - 技能知识
@@ -104,10 +104,10 @@ python -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_
 # 4. wooyun/plugins/wooyun-legacy/categories/ - WooYun 精简案例库
 
 # RAG 关键词检索
-python -c "from core.rag_knowledge import search_knowledge; print(search_knowledge('phpinfo', top_k=5))"
+C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import search_knowledge; print(search_knowledge('phpinfo', top_k=5))"
 
 # 检查失败方法
-python -c "from core.failure_tracker import is_method_failed; print(is_method_failed('http://target.com', 'system'))"
+C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.failure_tracker import is_method_failed; print(is_method_failed('http://target.com', 'system'))"
 ```
 
 ---
@@ -126,9 +126,9 @@ python -c "from core.failure_tracker import is_method_failed; print(is_method_fa
 1. curl 目标页面
 2. 识别题型
 3. Read skills/<type>/SKILL.md
-4. RAG 检索：python -c "from core.rag_knowledge import search_knowledge..."
+4. RAG 检索：C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import search_knowledge..."
 5. Read memories/experiences/<type>.md
-6. 【标记】python mark_knowledge_checked.py  ← 必须！
+6. 【标记】C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe mark_knowledge_checked.py  ← 必须！
 7. 执行攻击工具（curl/sqlmap/dirsearch）
 ```
 
@@ -255,6 +255,11 @@ save_experience_auto('copy')  # 传入成功的方法名
 
 ## 约束
 
+- **【强制】所有 Python 命令必须使用虚拟环境**：
+  ```
+  C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe
+  ```
+  禁止使用裸 `python`、`python3` 命令，所有 Python 调用必须带完整路径
 - 联网请求用 `curl`，不用 WebFetch/WebSearch
 - 发现 flag 后调用 `set_flag('FLAG{...}', 'method', 'payload')` 自动保存经验（payload 会写入经验文件）
 - **先查知识再动手**，不要盲试
