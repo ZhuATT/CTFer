@@ -31,6 +31,19 @@ class RAGKnowledge:
     4. wooyun/plugins/wooyun-legacy/categories/ - WooYun 精简案例库
     """
 
+    # 题型相似性映射
+    SIMILAR_TYPES: Dict[str, List[str]] = {
+        "lfi": ["file-inclusion", "rfi", "file-traversal"],
+        "rce": ["command-injection", "exec", "command-execution"],
+        "sqli": ["sql-injection", "injection", "sql"],
+        "auth": ["bypass", "unauthorized-access", "authentication"],
+        "upload": ["file-upload", "upload"],
+        "xss": ["xss", "cross-site"],
+        "ssrf": ["ssrf", "server-side-request-forgery"],
+        "ssti": ["ssti", "template-injection", "template"],
+        "反序列化": ["deserialization", "unserialize", "serialize"],
+    }
+
     # CTF 相关同义词映射
     SYNONYMS: Dict[str, Set[str]] = {
         # 命令执行类
@@ -190,18 +203,20 @@ class RAGKnowledge:
         query: str,
         category: str = "",
         top_k: int = 5,
+        challenge_type: str = "",
     ) -> List[Dict[str, Any]]:
         """
         检索所有知识库
 
         Args:
             query: 查询字符串
-            category: 可选，限定类别（如 "command-execution"）
+            category: 映射后的类别（如 "file-traversal"，用于 wooyun）
             top_k: 返回前 k 条
+            challenge_type: 原始题型（如 "lfi"，用于 experiences 文件名匹配）
 
         Returns:
             [{"title": ..., "method": ..., "content": ..., "relevance": float, "source": ...}]
-            source 取值: "experiences" | "skills" | "wooyun" | "wooyun_cases"
+            source 取值: "experiences" | "skills"
         """
         results = []
 
@@ -214,7 +229,7 @@ class RAGKnowledge:
         if self.experiences_dir:
             results.extend(self._search_dir(
                 self.experiences_dir, query_segmented, category,
-                "experiences", top_k
+                "experiences", top_k, challenge_type
             ))
 
         # 3. 搜索 skills/
@@ -224,23 +239,10 @@ class RAGKnowledge:
                 "skills", top_k
             ))
 
-        # 4. 搜索 wooyun/knowledge/
-        if self.knowledge_dir:
-            results.extend(self._search_dir(
-                self.knowledge_dir, query_segmented, category,
-                "wooyun", top_k
-            ))
-
-        # 5. 搜索 wooyun 精简案例库（wooyun-legacy）
-        if self.wooyun_categories_dir:
-            results.extend(self._search_dir(
-                self.wooyun_categories_dir, query_segmented, category,
-                "wooyun_cases", top_k
-            ))
-
         # 排序并返回 top_k
-        results.sort(key=lambda x: x["relevance"], reverse=True)
-        return results[:top_k]
+        # 使用 sort_by_type_priority 确保同题型 experiences/skills 优先
+        sorted_results = sort_by_type_priority(results, challenge_type)
+        return sorted_results[:top_k]
 
     def _search_dir(
         self,
@@ -249,6 +251,7 @@ class RAGKnowledge:
         category: str,
         source: str,
         top_k: int,
+        challenge_type: str = "",
     ) -> List[Dict[str, Any]]:
         """搜索指定目录"""
         results = []
@@ -258,12 +261,12 @@ class RAGKnowledge:
             return results
 
         # 确定要搜索的文件
-        if category and source in ["experiences", "wooyun"]:
-            # 按类别过滤
-            if source == "experiences":
-                files = [dir_path / f"{category}.md"]
-            else:
-                files = [dir_path / f"{category}.md"]
+        if category and source == "wooyun":
+            # wooyun 使用 category 映射
+            files = [dir_path / f"{category}.md"]
+        elif source == "experiences" and challenge_type:
+            # experiences 使用原始 challenge_type 作为文件名
+            files = [dir_path / f"{challenge_type}.md"]
         else:
             files = list(dir_path.glob("**/*.md"))[:50]  # 限制数量
 
@@ -275,23 +278,44 @@ class RAGKnowledge:
             sections = self._split_sections(content)
 
             for section in sections:
-                sentences = self._split_sentences(section["content"])
-                best_score = 0.0
+                # 对主内容和代码块分别计算分数
+                main_text = section["content"]
+                main_sentences = self._split_sentences(main_text)
+                best_main_score = 0.0
 
-                for sent in sentences:
+                for sent in main_sentences:
                     sent_words = self._segment_chinese(sent)
                     score = self._calculate_tf_idf(query_segmented, sent_words)
-                    best_score = max(best_score, score)
+                    best_main_score = max(best_main_score, score)
 
+                # 代码块分数（payload 通常在代码块中，权重更高）
+                code_blocks = section.get("code_blocks", [])
+                best_code_score = 0.0
+                for cb in code_blocks:
+                    cb_words = self._segment_chinese(cb)
+                    cb_score = self._calculate_tf_idf(query_segmented, cb_words)
+                    best_code_score = max(best_code_score, cb_score)
+
+                # 综合分数：内容分数 + 代码块分数（1.5倍权重）
+                content_score = max(best_main_score, best_code_score * 0.7)
+
+                # 标题分数
                 title_words = self._segment_chinese(section["title"])
                 title_score = self._calculate_tf_idf(query_segmented, title_words)
-                final_score = best_score * 0.7 + title_score * 0.3
 
-                if final_score > 0.03:
+                # 最终分数：内容 70% + 标题 30%
+                final_score = content_score * 0.7 + title_score * 0.3
+
+                # 代码块存在时提升分数（payload 相关性高）
+                if code_blocks:
+                    final_score *= 1.2
+
+                if final_score > 0.02:
                     results.append({
                         "title": section["title"] or file_path.stem,
                         "method": section.get("method", ""),
-                        "content": section["content"][:500],
+                        # 保留完整内容，不截断，但限制最大长度防止过大
+                        "content": main_text[:2000] if len(main_text) > 2000 else main_text,
                         "relevance": round(final_score, 4),
                         "source": source,
                         "file": str(file_path.relative_to(dir_path.parent)),
@@ -316,30 +340,261 @@ class RAGKnowledge:
         return self.cache[path]
 
     def _split_sections(self, content: str) -> List[Dict[str, str]]:
-        """将 markdown 内容分割为段落"""
-        sections = []
-        # 按 ## 标题 分割
-        parts = re.split(r"\n(?=##\s)", content)
+        """多级细粒度分割 markdown 内容
 
-        current_title = ""
-        for part in parts:
-            part = part.strip()
-            if not part:
+        分割层级：
+        1. 按 ## 分割大块（顶级标题）
+        2. 大块内按 ### 分割子块
+        3. 代码块（```...```）独立保留
+
+        每个单元包含：
+        - title: 完整标题路径
+        - content: 原始内容（不截断）
+        - code_blocks: 提取的代码块列表
+        """
+        sections = []
+
+        # 移除 frontmatter
+        content = re.sub(r'^---\n.*?\n---\n', '', content, flags=re.DOTALL)
+
+        # 按 ## 分割大块
+        major_parts = re.split(r"\n(?=##\s)", content)
+
+        for major in major_parts:
+            major = major.strip()
+            if not major:
                 continue
 
-            # 提取标题
-            title_match = re.match(r"##\s+(.+)", part)
-            if title_match:
-                current_title = title_match.group(1).strip()
-                part = re.sub(r"##\s+.+\n", "", part).strip()
+            # 提取主标题
+            major_match = re.match(r"##\s+(.+)", major)
+            if major_match:
+                major_title = major_match.group(1).strip()
+                major = re.sub(r"##\s+.+\n", "", major).strip()
+            else:
+                major_title = ""
 
-            if part:
+            # 按 ### 分割子块
+            sub_parts = re.split(r"\n(?=###\s)", major)
+
+            for sub in sub_parts:
+                sub = sub.strip()
+                if not sub:
+                    continue
+
+                # 提取子标题
+                sub_match = re.match(r"###\s+(.+)", sub)
+                if sub_match:
+                    sub_title = sub_match.group(1).strip()
+                    sub = re.sub(r"###\s+.+\n", "", sub).strip()
+                else:
+                    sub_title = ""
+
+                # 构建完整标题
+                if sub_title:
+                    full_title = f"{major_title} - {sub_title}" if major_title else sub_title
+                else:
+                    full_title = major_title
+
+                if not full_title:
+                    full_title = "未分类"
+
+                # 提取代码块（保留完整，不截断）
+                code_blocks = re.findall(r'```[\s\S]*?```', sub)
+
                 sections.append({
-                    "title": current_title,
-                    "content": part,
+                    "title": full_title,
+                    "content": sub,  # 保留完整内容
+                    "code_blocks": code_blocks,
                 })
 
         return sections
+
+
+def extract_type_from_path(file_path: str) -> str:
+    """从文件路径中提取题型
+
+    Examples:
+        memories/experiences/lfi.md -> lfi
+        experiences/lfi.md -> lfi
+        skills/rce/SKILL.md -> rce
+        rce/SKILL.md -> rce
+        wooyun/knowledge/command-execution.md -> command-execution
+    """
+    import re
+
+    # 统一反斜杠为正斜杠（兼容 Windows 路径）
+    file_path = file_path.replace('\\', '/')
+
+    # 尝试多种路径格式
+    patterns = [
+        # 完整路径
+        r'memories/experiences/([\w-]+)\.md$',
+        r'skills/([\w-]+)/SKILL\.md$',
+        r'knowledge/([\w-]+)\.md$',
+        r'categories/([\w-]+)\.md$',
+        # 相对路径（无前缀）
+        r'experiences/([\w-]+)\.md$',
+        r'([\w-]+)/SKILL\.md$',
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, file_path)
+        if match:
+            return match.group(1).lower()
+
+    return ""
+
+
+def is_similar_type(t1: str, t2: str) -> bool:
+    """判断两个题型是否相似
+
+    Args:
+        t1: 题型1（如 "lfi"）
+        t2: 题型2（如 "file-inclusion"）
+
+    Returns:
+        True 如果两个题型相似或相同
+    """
+    t1_lower = t1.lower()
+    t2_lower = t2.lower()
+
+    # 完全相同
+    if t1_lower == t2_lower:
+        return True
+
+    # 在 SIMILAR_TYPES 中查找
+    for base, aliases in RAGKnowledge.SIMILAR_TYPES.items():
+        all_types = [base] + aliases
+        if t1_lower in all_types and t2_lower in all_types:
+            return True
+
+    return False
+
+
+def sort_by_type_priority(results: List[Dict], challenge_type: str) -> List[Dict]:
+    """按题型优先级排序
+
+    优先级顺序：
+    1. experiences 同题型
+    2. skills 同题型
+    3. wooyun 同题型
+    4. experiences 跨题型
+    5. skills 跨题型
+    6. wooyun 跨题型
+
+    Args:
+        results: 检索结果列表
+        challenge_type: 当前挑战题型
+
+    Returns:
+        排序后的结果列表
+    """
+
+    def get_priority(item: Dict) -> tuple:
+        source = item.get("source", "")
+        file_path = item.get("file", "")
+        item_type = extract_type_from_path(file_path)
+
+        is_same = is_similar_type(item_type, challenge_type)
+
+        # 来源优先级: experiences=0, skills=1, wooyun/wooyun_cases=2
+        source_priority_map = {"experiences": 0, "skills": 1, "wooyun": 2, "wooyun_cases": 2}
+        source_priority = source_priority_map.get(source, 3)
+
+        # 题型优先级: 同题型=0, 跨题型=1
+        type_priority = 0 if is_same else 1
+
+        return (type_priority, source_priority)
+
+    return sorted(results, key=get_priority)
+
+
+def format_structured_output(results: List[Dict], challenge_type: str) -> str:
+    """生成结构化输出，直接喂给 LLM
+
+    Args:
+        results: 排序后的检索结果
+        challenge_type: 当前挑战题型
+
+    Returns:
+        结构化的 markdown 格式文本
+    """
+    from skills.encoding_fix import encode_for_terminal
+
+    def to_str(val):
+        """将 encode_for_terminal 的返回值转为 str"""
+        result = encode_for_terminal(val)
+        if isinstance(result, bytes):
+            return result.decode('utf-8', errors='replace')
+        return result
+
+    # 按题型和来源分组
+    groups = {
+        "experiences_same": [],
+        "skills_same": [],
+        "wooyun_same": [],
+        "cross_type": [],
+    }
+
+    for item in results:
+        source = item.get("source", "")
+        file_path = item.get("file", "")
+        item_type = extract_type_from_path(file_path)
+        is_same = is_similar_type(item_type, challenge_type)
+
+        key = None
+        if is_same:
+            if source == "experiences":
+                key = "experiences_same"
+            elif source == "skills":
+                key = "skills_same"
+            elif source in ("wooyun", "wooyun_cases"):
+                key = "wooyun_same"
+
+        if key:
+            groups[key].append(item)
+        else:
+            groups["cross_type"].append(item)
+
+    lines = [f"## 【{challenge_type.upper()} 题型知识】\n"]
+
+    # 同题型经验
+    if groups["experiences_same"]:
+        lines.append("## 【SUCCESSFUL EXPERIENCES - 同题型】")
+        for i, item in enumerate(groups["experiences_same"], 1):
+            lines.append(f"\n### [{i}] {to_str(item['title'])}")
+            lines.append(f"**来源**: {to_str(item['file'])}")
+            lines.append(f"**内容**:\n{to_str(item['content'])}")
+            lines.append("---")
+
+    # 同题型技能
+    if groups["skills_same"]:
+        lines.append("\n## 【SKILLS - 同题型】")
+        for i, item in enumerate(groups["skills_same"], 1):
+            lines.append(f"\n### [{i}] {to_str(item['title'])}")
+            lines.append(f"**来源**: {to_str(item['file'])}")
+            lines.append(f"**内容**:\n{to_str(item['content'])}")
+            lines.append("---")
+
+    # 同题型案例
+    if groups["wooyun_same"]:
+        lines.append("\n## 【WOOYUN CASES - 同题型】")
+        for i, item in enumerate(groups["wooyun_same"], 1):
+            lines.append(f"\n### [{i}] {to_str(item['title'])}")
+            lines.append(f"**来源**: {to_str(item['file'])}")
+            lines.append(f"**内容**:\n{to_str(item['content'])}")
+            lines.append("---")
+
+    # 跨题型参考
+    if groups["cross_type"]:
+        lines.append("\n## 【CROSS-TYPE - 参考】")
+        for i, item in enumerate(groups["cross_type"], 1):
+            lines.append(f"\n### [{i}] {to_str(item['title'])} ({item['source']})")
+            lines.append(f"**来源**: {to_str(item['file'])}")
+            lines.append(f"**内容**:\n{to_str(item['content'])}")
+            lines.append("---")
+
+    return "\n".join(lines)
 
 
 # 全局实例（延迟初始化）
@@ -358,9 +613,10 @@ def search_knowledge(
     query: str,
     category: str = "",
     top_k: int = 5,
+    challenge_type: str = "",
 ) -> List[Dict[str, Any]]:
     """快捷函数：搜索知识"""
-    results = get_rag().search(query, category, top_k)
+    results = get_rag().search(query, category, top_k, challenge_type)
 
     # 自动标记知识已查询（触发Hook放行后续攻击命令）
     if results:
@@ -467,38 +723,28 @@ def get_all_type_knowledge(challenge_type: str) -> str:
     except Exception:
         pass  # 静默失败
 
-    # 题型到 wooyun 类别的映射
-    type_to_category = {
-        "rce": "command-execution",
-        "sqli": "sql-injection",
-        "lfi": "file-traversal",
-        "upload": "file-upload",
-        "xss": "xss",
-        "auth": "unauthorized-access",
-        "ssrf": "ssrf",
-        "ssti": "ssti",
-    }
+    # 【调整】只检索 experiences + skills，wooyun 不参与 RAG
 
-    category = type_to_category.get(challenge_type.lower(), challenge_type.lower())
+    # 1. 主要来源：experiences（成功经验，最重要）
+    exp_knowledge = search_knowledge(challenge_type, category="", top_k=5, challenge_type=challenge_type)
 
-    # 并行检索多个来源
-    skill_knowledge = search_knowledge(challenge_type, category="", top_k=5)
-    exp_knowledge = search_knowledge(category, category=category, top_k=5)
-    all_knowledge = search_knowledge(challenge_type, category=category, top_k=10)
+    # 2. 主要来源：skills（技能知识）
+    skill_knowledge = search_knowledge(challenge_type, category="", top_k=8, challenge_type=challenge_type)
 
     # 去重合并
     seen = set()
     merged = []
-    for item in skill_knowledge + exp_knowledge + all_knowledge:
+    for item in exp_knowledge + skill_knowledge:
         key = item.get("title", "") + item.get("source", "")
         if key not in seen:
             seen.add(key)
             merged.append(item)
 
-    # 按相关度排序
-    merged.sort(key=lambda x: x.get("relevance", 0), reverse=True)
+    # 同题型优先排序
+    sorted_results = sort_by_type_priority(merged, challenge_type)
 
-    return format_knowledge_results(merged[:15])
+    # 结构化输出（最多 15 条）
+    return format_structured_output(sorted_results[:15], challenge_type)
 
 
 def format_knowledge_results(results: List[Dict[str, Any]]) -> str:
