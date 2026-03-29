@@ -3,28 +3,37 @@
 check_knowledge_hook.py - 解题状态上下文提供者
 
 当执行 Bash 工具时，提供当前解题状态和可用知识摘要，
-帮助 LLM 做出明智的决策，而不是强制执行特定流程。
+帮助 LLM 做出明智的决策。
 
 Hook 返回的 additionalContext 包含：
 - 当前题目和已尝试的方法
-- 失败记录和建议 bypass
+- 失败记录和建议
 - 可用的解题知识位置
 - 循环检测警告
+- 失败阈值触发时的强制重查消息
 """
 import json
 import sys
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
+from datetime import datetime
 
 # 工作目录
 WORKSPACE = Path(__file__).parent.parent.parent / "workspace"
 STATE_FILE = WORKSPACE / "state.json"
 FAILURES_FILE = WORKSPACE / "failures.json"
+LAST_COMMAND_FILE = WORKSPACE / ".last_command"
 KNOWLEDGE_LOG = WORKSPACE / ".knowledge_log"
 
-# 添加工具模块路径
+# 导入核心模块
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from core.loop_detector import check_loop, LOOP_WARNING_MESSAGE, LOOP_BREAK_MESSAGE
+from core.loop_detector import (
+    check_loop, LOOP_WARNING_MESSAGE, LOOP_BREAK_FORCE_MESSAGE
+)
+from core.failure_tracker import (
+    should_trigger_rag, get_failure_count, get_failures_list,
+    record_failure, get_tracker
+)
 
 
 def load_json(path: Path) -> Optional[Dict]:
@@ -166,36 +175,62 @@ def parse_command_signature(command: str) -> Tuple[Optional[str], Optional[str]]
     return None, None
 
 
-def check_loop_detection(command: str) -> Tuple[Optional[str], str]:
+def check_loop_detection(command: str) -> Optional[Tuple[str, str]]:
     """
-    检测命令是否陷入循环
-
-    Args:
-        command: 完整命令字符串
+    检测循环并返回状态和消息
 
     Returns:
-        (status, message)
-        - status 为 None 时无循环
-        - status 为 "warn" 时接近阈值
-        - status 为 "break" 时超过阈值
+        (status, message) 或 None
     """
     if not command:
-        return None, ""
+        return None
 
     tool_name, args_str = parse_command_signature(command)
     if not tool_name:
-        return None, ""
+        return None
 
-    # 使用 LoopDetector 检查
     result = check_loop(tool_name, args_str if args_str else None)
 
     if result == "break":
-        return "break", LOOP_BREAK_MESSAGE
+        return "break", LOOP_BREAK_FORCE_MESSAGE
     elif result == "warn":
         return "warn", LOOP_WARNING_MESSAGE
 
-    return None, ""
+    return None
 
+
+def get_current_target() -> str:
+    """获取当前靶机 URL"""
+    state = load_json(STATE_FILE)
+    return state.get("target", "") if state else ""
+
+
+# ==================== 新增：上一次命令结果读写 ====================
+
+def save_last_command(command: str, output: str, return_code: int = 0):
+    """保存上一次命令结果，供下次 Hook 调用时分析"""
+    LAST_COMMAND_FILE.write_text(
+        json.dumps({
+            "command": command,
+            "output": output[:2000],  # 截断避免过大
+            "return_code": return_code,
+            "timestamp": datetime.now().isoformat()
+        }, ensure_ascii=False),
+        encoding="utf-8"
+    )
+
+
+def get_last_command_result() -> Optional[Dict[str, Any]]:
+    """获取上一次命令结果"""
+    if not LAST_COMMAND_FILE.exists():
+        return None
+    try:
+        return json.loads(LAST_COMMAND_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, IOError):
+        return None
+
+
+# ==================== 新增：检查命令是否包含已失败的方法 ====================
 
 def check_command_for_failed_methods(command: str, failures: list) -> List[str]:
     """
@@ -253,74 +288,95 @@ def check_command_for_failed_methods(command: str, failures: list) -> List[str]:
     return warnings
 
 
+# ==================== 重写：Hook 主函数 ====================
+
 def get_context_for_llm(command: str) -> Dict[str, Any]:
     """
-    为 LLM 生成上下文信息
+    生成 Hook 上下文（核心逻辑）
 
-    根据当前状态，返回 LLM 需要知道的信息，
-    帮助它自主决策下一步应该做什么。
+    流程：
+    1. 注入上一次命令结果到上下文
+    2. 检查循环（check_loop）
+    3. 检查失败阈值（should_trigger_rag）
+    4. 注入所有警告和建议到 additionalContext
     """
     context_parts = []
+    target = get_current_target()
 
-    # 1. 状态摘要
+    # ========== 1. 注入上一次命令结果到上下文 ==========
+    last_result = get_last_command_result()
+    if last_result:
+        # 将上一次命令的输出片段注入 additionalContext，供 LLM 参考
+        last_output = last_result.get("output", "")[:500]
+        if last_output:
+            context_parts.append(f"【上次命令输出】\n{last_output}")
+
+    # ========== 2. 检查失败阈值 ==========
+    if target:
+        rerag_triggered, rerag_msg, count = should_trigger_rag(target)
+        if rerag_triggered:
+            context_parts.append(rerag_msg)
+
+    # ========== 3. 检查循环 ==========
+    loop_result = check_loop_detection(command)
+    if loop_result:
+        loop_status, loop_msg = loop_result
+        context_parts.append(loop_msg)
+
+        # break 级别尝试阻止
+        if loop_status == "break":
+            return {
+                "continue": False,
+                "hookSpecificOutput": {
+                    "additionalContext": "\n".join(context_parts)
+                }
+            }
+
+    # ========== 4. 状态摘要 ==========
     state_summary = get_state_summary()
     if state_summary:
-        context_parts.append(state_summary)
+        context_parts.insert(0, state_summary)
 
-    # 2. 失败记录
-    failures_summary = get_failures_summary()
-    if failures_summary:
-        context_parts.append(failures_summary)
+    # ========== 5. 失败记录摘要（未达阈值时） ==========
+    if target and not rerag_triggered:
+        failures = get_failures_list(target, max_rows=5)
+        if failures and "（暂无" not in failures:
+            context_parts.append(f"\n【已有失败记录】\n{failures}")
 
-    # 3. 知识库信息
-    knowledge_info = get_knowledge_info()
-    if knowledge_info:
-        context_parts.append(knowledge_info)
-
-    # 4. 根据状态给出建议
-    state = load_json(STATE_FILE)
-    suggestions = []
-
-    if not state:
-        suggestions.append("【建议】这是新的解题任务，请先用 curl 访问目标页面识别题型。")
-    elif not state.get("flag"):
-        suggestions.append("【建议】Flag 尚未找到，继续尝试其他方法。")
-        if state.get("methods_tried"):
-            suggestions.append("【建议】可以查看 memories/experiences/ 目录下的成功经验作为参考。")
-    else:
-        suggestions.append("【建议】Flag 已找到，任务完成！")
-
-    if suggestions:
-        context_parts.append("\n".join(suggestions))
-
-    # 5. 检查命令是否包含已失败的方法
-    target = state.get("target", "") if state else ""
-    failures = get_failures_for_target(target)
-    if failures and command:
-        failed_warnings = check_command_for_failed_methods(command, failures)
+    # ========== 6. 检查命令是否包含已失败的方法 ==========
+    failures_list = get_failures_for_target(target)
+    if failures_list and command:
+        failed_warnings = check_command_for_failed_methods(command, failures_list)
         if failed_warnings:
             context_parts.append("\n【Hook 警告 - 方法已失败】")
             for w in failed_warnings:
                 context_parts.append(f"  ⚠️ {w}")
             context_parts.append("建议：换用其他方法，或基于失败原因调整 bypass 策略")
 
-    # 6. 循环检测
-    if command:
-        loop_status, loop_message = check_loop_detection(command)
-        if loop_status:
-            context_parts.append(f"\n【Hook 警告 - {loop_status.upper()}】")
-            context_parts.append(loop_message)
+    # ========== 7. 知识库提示 ==========
+    if not target:
+        context_parts.append("\n📋 提示：这是新的解题任务，请先用 curl 访问目标识别题型。")
 
     return {
-        "continue": True,  # 不阻止执行，让 LLM 自己决定
+        "continue": True,
         "hookSpecificOutput": {
-            "additionalContext": "\n".join(context_parts) if context_parts else ""
+            "additionalContext": "\n".join(context_parts)
         }
     }
 
 
+# ==================== 重写：main 函数 ====================
+
 def main():
-    """Hook 入口"""
+    """
+    Hook 入口
+
+    流程：
+    1. 读取当前命令
+    2. 检查循环和失败阈值
+    3. 将上一次命令结果注入额外上下文
+    4. 返回给 LLM
+    """
     try:
         input_data = json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError):
@@ -336,8 +392,18 @@ def main():
         elif isinstance(tool_input, str):
             command = tool_input
 
-    # 提供上下文（不阻止执行）
+    # 获取上下文（包含上一次命令失败分析）
     result = get_context_for_llm(command)
+
+    # 将上一次命令结果注入 additionalContext（让 LLM 知道上一次的输出）
+    last_result = get_last_command_result()
+    if last_result:
+        output_snippet = last_result.get("output", "")[:500]
+        if output_snippet:
+            result["hookSpecificOutput"]["additionalContext"] += (
+                f"\n\n【上次命令输出】\n{output_snippet}"
+            )
+
     print(json.dumps(result), flush=True)
 
 

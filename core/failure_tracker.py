@@ -5,7 +5,7 @@
 import json
 import time
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 
 
@@ -144,24 +144,81 @@ def get_failed_methods(target: str) -> List[str]:
     return [r["method"] for r in get_tracker().get_failures(target)]
 
 
+def get_failures_list(target: str, max_rows: int = 10) -> str:
+    """
+    格式化失败记录为易读字符串，供 Hook 注入上下文
+
+    Returns:
+        多行字符串，每行: "- method: reason"
+    """
+    failures = get_tracker().get_failures(target)
+    if not failures:
+        return "  （暂无失败记录）"
+
+    lines = []
+    for f in failures[-max_rows:]:
+        method = f.get("method", "未知")
+        reason = f.get("reason", "")
+        payload = f.get("payload", "")
+        snippet = f"  - {method}: {reason}"
+        if payload:
+            snippet += f" (payload: {payload[:50]})"
+        lines.append(snippet)
+    return "\n".join(lines)
+
+
 # 失败阈值常量
 FAILURE_THRESHOLD = 3
 
 
-def should_trigger_rag(target: str) -> bool:
+def _get_target_category(target: str) -> str:
+    """从 failures.json 推断目标题型"""
+    failures = get_tracker().get_failures(target)
+    if not failures:
+        return "unknown"
+    return failures[-1].get("category", "unknown")
+
+
+def _build_forced_rerag_message(target: str, count: int) -> str:
+    """构建强制重查知识的指令消息"""
+    failures_list = get_failures_list(target)
+    category = _get_target_category(target)
+
+    return f"""
+╔══════════════════════════════════════════════════════════════════════╗
+║  ⚠️  强制重查知识 — 失败次数已达到 {count} 次                              ║
+║                                                                      ║
+║  你必须立即执行以下操作：                                               ║
+║                                                                      ║
+║  1. 停止当前攻击方向（不要再尝试类似的方法）                              ║
+║  2. 调用以下命令重新获取知识：                                          ║
+║     get_all_type_knowledge('{category}')                                ║
+║  3. 基于新知识制定全新的攻击计划                                        ║
+║  4. 查看 memories/experiences/ 中的历史成功经验                        ║
+║                                                                      ║
+║  失败记录（来自 failures.json）：                                        ║
+{failures_list}                                                            ║
+║                                                                      ║
+║  ⚠️  禁止重复已失败的方法！继续相同方向将浪费时间！                     ║
+╚══════════════════════════════════════════════════════════════════════╝
+"""
+
+
+def should_trigger_rag(target: str) -> Tuple[bool, str, int]:
     """
-    判断是否应该触发 RAG 检索
-
-    当失败方法数量达到阈值时返回 True
-
-    Args:
-        target: 目标 URL
+    判断是否应该触发 RAG 检索，并返回格式化消息
 
     Returns:
-        True 如果应该触发 RAG
+        (should_trigger, message, failure_count)
     """
     failures = get_failed_methods(target)
-    return len(failures) >= FAILURE_THRESHOLD
+    count = len(failures)
+
+    if count >= FAILURE_THRESHOLD:
+        msg = _build_forced_rerag_message(target, count)
+        return True, msg, count
+
+    return False, "", count
 
 
 def get_failure_count(target: str) -> int:
