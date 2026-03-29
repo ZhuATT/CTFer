@@ -71,7 +71,7 @@ class ExperienceManager:
 
     def _check_duplicate(self, existing_content: str, method_succeeded: str, findings: List[str]) -> str:
         """
-        检查是否重复保存
+        用 LLM 判断是否重复保存
 
         Returns:
             空字符串表示不重复，否则返回重复提示
@@ -79,20 +79,36 @@ class ExperienceManager:
         if not existing_content or not method_succeeded:
             return ""
 
-        # 提取所有已保存的经验标题（## 之后的行）
-        import re
-        # 匹配 ## 标题 格式
-        existing_titles = re.findall(r'^##\s+(.+)$', existing_content, re.MULTILINE)
+        # 构造 LLM 判断 prompt
+        prompt = f"""判断以下新经验是否与已有经验重复：
 
-        # 标准化标题：去除所有空白字符后比较
-        normalized_new = re.sub(r'\s+', '', method_succeeded)
+新经验的 method：{method_succeeded}
+新经验的发现：{findings}
 
-        for title in existing_titles:
-            normalized_existing = re.sub(r'\s+', '', title)
-            if normalized_existing == normalized_new:
-                return f"[去重] 相同经验已存在: {title.strip()}"
+已有经验内容：
+{existing_content[:3000]}
 
-        return ""
+判断标准：
+1. 如果新经验的 method 与已有经验相同（如都是 "php://filter读取源码"），判断为重复
+2. 如果 method 不同但技术本质相同（如 "php://filter读db.php" vs "php://filter读config.php"），也判断为重复
+3. 只有 method 完全不同时才判断为不重复
+
+请回复：
+- 如果重复：回复 "重复原因：xxx"（简洁说明为什么重复）
+- 如果不重复：回复 "不重复"
+"""
+
+        try:
+            from core.llm_client import call_llm
+            result = call_llm(prompt).strip()
+
+            if result.startswith("重复原因："):
+                return f"[去重] {result}"
+            return ""
+        except Exception as e:
+            # LLM 调用失败时，降级为不重复（允许保存）
+            print(f"[去重检查 LLM 调用失败] {e}，降级为不重复")
+            return ""
 
     def _sanitize_filename(self, challenge_type: str) -> str:
         """生成安全的文件名"""
@@ -461,3 +477,218 @@ def get_experiences(challenge_type: str) -> str:
 def list_experience_types() -> List[str]:
     """列出所有经验类型"""
     return get_experience_manager().list_experience_types()
+
+
+# ============ LLM 智能保存经验 ============
+
+def save_experience_with_llm(
+    target: str,
+    challenge_type: str,
+    flag: str,
+    method_succeeded: str,
+    payload_context: str = "",
+    findings: List[str] = None,
+    methods_tried: List[str] = None,
+) -> str:
+    """
+    使用 LLM 智能保存经验
+
+    Args:
+        target: 目标 URL
+        challenge_type: 题型（为空时由 LLM 自动判断）
+        flag: 找到的 flag
+        method_succeeded: 成功的方法
+        payload_context: 关键 payload
+        findings: 发现列表
+        methods_tried: 已尝试的方法
+
+    Returns:
+        保存结果信息
+    """
+    try:
+        from core.llm_client import call_llm, is_configured
+
+        if not is_configured():
+            return "[LLM 未配置] 请先调用 llm_client.configure() 或设置环境变量 LLM_API_URL, LLM_API_KEY"
+
+        em = get_experience_manager()
+
+        # 如果未指定题型，先让 LLM 判断
+        if not challenge_type:
+            type_prompt = f"""分析以下 CTF 解题信息，判断题型并返回。
+
+解题信息：
+- 成功方法: {method_succeeded}
+- Payload: {payload_context}
+- Flag: {flag}
+- 发现: {findings if findings else []}
+
+题型选项：sqli, rce, lfi, upload, xss, auth, ssrf, ssti
+
+直接返回一个词作为题型，如：sqli
+不要其他解释。"""
+            type_response = call_llm(type_prompt, system="你是 CTF 题型分类专家。")
+            challenge_type = type_response.strip().lower()
+            # 验证返回的是有效题型
+            valid_types = {"sqli", "rce", "lfi", "upload", "xss", "auth", "ssrf", "ssti"}
+            if challenge_type not in valid_types:
+                challenge_type = "sqli"  # 默认值
+
+        # 获取现有经验
+        existing_content = em.get_experiences(challenge_type)
+
+        # 去重检查：是否已存在相同的 method_succeeded
+        if existing_content:
+            dup_result = em._check_duplicate(existing_content, method_succeeded, findings or [])
+            if dup_result:
+                return dup_result
+
+        # 构建高质量经验保存提示
+        prompt = f"""你是 CTF 高质量经验整理专家。
+
+你的任务是分析解题结果，生成高质量、可复用的 CTF 经验。
+
+## 现有经验库（判断是否重复）
+{existing_content if existing_content else "(空，无现有经验)"}
+
+## 新解题结果
+- 靶机: {target}
+- 题型: {challenge_type}
+- Flag: {flag}
+- 成功方法: {method_succeeded}
+- Payload: {payload_context}
+- 发现: {findings if findings else []}
+- 已尝试方法（失败）: {methods_tried if methods_tried else []}
+
+## 输出要求（检索友好格式）
+
+**【重要】LLM 检索时需要能快速提取关键信息，格式规则如下：**
+
+1. payload **必须裸写**，不放代码块（便于字符串匹配）：
+   ```
+   php://filter/read=convert.base64-encode/resource=db.php
+   ```
+
+2. 失败方法单独列出：
+   ### 失败方法
+   - file=/flag → WAF拦截
+   - ../../flag → 路径验证失败
+
+3. 适用场景列举关键文件：
+   ### 适用场景
+   - LFI 读 PHP 配置文件
+   - db.php, config.php, .env
+
+4. 如果有成功案例，用表格记录：
+   ### 案例
+   | 日期 | 靶机 | 成功方法 | Flag |
+   |------|------|---------|------|
+   | 2026-03-29 | xxx.challenge.ctf.show | php://filter读取 | CTF{...} |
+
+**完整输出格式：**
+
+## [技术名称]
+
+### 核心 bypass
+**一句话描述核心绕过技术**
+
+### payload
+[裸写的 payload，不放代码块]
+
+### 原理分析
+- [为什么有效]
+- [关键防御绕过点]
+
+### 失败方法
+- [方法1] → [失败原因]
+- [方法2] → [失败原因]
+
+### 适用场景
+- [场景1]
+- [场景2]
+
+### 案例
+| 日期 | 靶机 | 成功方法 | Flag |
+|------|------|---------|------|
+
+---
+doc_kind: experience
+type: {challenge_type}
+created: {datetime.now().strftime('%Y-%m-%d')}
+tags: [{', '.join(_extract_tags(challenge_type, method_succeeded, payload_context))}]
+---
+
+请直接输出，不要其他说明。"""
+
+        response = call_llm(prompt, system="你是一个专业的 CTF 经验整理专家，擅长提炼高质量的解题经验。")
+
+        # 检查是否去重
+        if response.startswith("[去重]"):
+            return response
+
+        # 保存经验
+        if response.strip():
+            # 直接写入文件
+            em._ensure_dir()
+            exp_file = em._get_experience_file(challenge_type)
+
+            # 读取现有内容
+            content = ""
+            if exp_file.exists():
+                content = exp_file.read_text(encoding="utf-8")
+
+            # 在 "---" 分隔符之后插入
+            separator_idx = content.find("---\n\n")
+            if separator_idx != -1:
+                insert_pos = separator_idx + 5
+                content = content[:insert_pos] + response + "\n" + content[insert_pos:]
+            else:
+                content += "\n" + response
+
+            exp_file.write_text(content, encoding="utf-8")
+            return f"[保存成功] 经验已保存到 {exp_file.name}"
+
+        return "[保存失败] LLM 返回为空"
+
+    except Exception as e:
+        return f"[LLM 保存失败] {type(e).__name__}: {e}"
+
+
+def _extract_tags(challenge_type: str, method_succeeded: str, payload_context: str) -> List[str]:
+    """根据解题信息提取相关标签"""
+    tags = [challenge_type]
+    method_lower = method_succeeded.lower()
+    payload_lower = payload_context.lower()
+
+    # 技术标签
+    tech_keywords = {
+        "php://filter": "php://filter",
+        "base64": "base64-encode",
+        "lfi": "lfi",
+        "rfi": "rfi",
+        "upload": "file-upload",
+        "sql": "sql-injection",
+        "xss": "xss",
+        "ssti": "ssti",
+        "rce": "rce",
+        "command": "command-injection",
+        "auth": "auth-bypass",
+        "bypass": "bypass",
+        "serialize": "deserialization",
+        "session": "session-hijack",
+        "log": "log-injection",
+        "wrapper": "wrapper",
+    }
+
+    for keyword, tag in tech_keywords.items():
+        if keyword in method_lower or keyword in payload_lower:
+            if tag not in tags:
+                tags.append(tag)
+
+    return tags[:5]  # 最多5个标签
+
+
+def configure_llm(api_url: str, api_key: str, model: str = "gpt-4o-mini") -> None:
+    """配置 LLM（便捷函数）"""
+    from core import llm_client
+    llm_client.configure(api_url, api_key, model)

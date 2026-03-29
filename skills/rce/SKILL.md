@@ -743,3 +743,44 @@ scandir('/');              // 列出目录
 glob('/flag*');           // glob 模式匹配
 file_get_contents('/flag.txt');  // 读取文件
 ```
+
+---
+
+## 来自 CTF 经验积累
+
+### intval_strrev_diff bypass
+**靶机环境**: intval vs strrev bypass
+
+**成功方法**: intval_strrev_diff
+
+### call_user_func RCE (ctfshow_1024)
+**靶机环境**:
+- PHP `call_user_func($_GET['f'])` RCE
+- `phpinfo()` 泄露自定义函数 `ctfshow_1024`
+
+**成功方法**: `?f=ctfshow_1024` 直接调用泄露的自定义函数获取 flag
+
+**关键发现**:
+- `call_user_func($_GET['f'])` 只接受一个参数 `f`，额外参数不会被使用
+- phpinfo 中可能包含 `FLAG` 环境变量（值为 `not_flag`）或自定义函数
+- 自定义函数 `ctfshow_xxx` 可能直接返回 flag
+
+**已尝试方法（失败）**:
+- `?f=system&cmd=id` - cmd 参数被忽略
+- `?f=exec&cmd=id` - 命令无回显
+- `?f=file_get_contents&fn=/flag` - 文件读取但无内容
+
+### 日志文件包含 + User-Agent 注入
+**靶机环境**:
+- call_user_func($_GET[f]) RCE
+- phpinfo 泄露自定义函数 ctfshow_1024
+- disable_functions=no value
+
+**成功方法**: 日志文件包含 - nginx access.log + User-Agent 注入
+
+### 管道符绕过过滤
+**靶机环境**:
+- call_user_func($_GET[f]) RCE
+- disable_functions=no value
+
+**成功方法**: `|cat flag.php` 管道符绕过过滤

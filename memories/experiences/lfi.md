@@ -1,115 +1,28 @@
-# 文件包含 经验积累
 
-## 2026-03-28 | 4114e2db-03df-4bae-aec7-a506fd06bf33.challenge.ctf.show
-### 靶机环境
-- WAF 检查: preg_match("/^(\.|\/)/", $path) - 禁止以.或/开头的路径
-- WAF 还检查敏感字符: data|log|access|pear|tmp|zlib|filter|:
-- flag 目标位置: /flag.txt
-
-### 成功方法
-- **fake_prefix_directory_traversal_bypass**
-
-### 关键 Payload
-```
-mmm/../../../../../../../../flag.txt
-```
-
-### 绕过原理
-- WAF 只检查路径是否以 `.` 或 `/` 开头
-- 前缀 `mmm` 不存在，路径穿越时自动忽略
-- 后续的 `../../../../../../../../` 导航回根目录
-- 最终访问 `/flag.txt` 成功
-
-### 已尝试方法（失败）
-- 路径遍历尝试 - 多次失败
-
-### Flag
-`CTF{file_path_bypass_is_fun}`
-
----
-
----
-doc_kind: experience
-type: lfi
-created: 2026-03-29
-tags: [lfi, php://filter, base64]
----
-
-## php://filter/base64编码读取源码
+## LFI - php://filter 读取源码
 
 ### 核心 bypass
-**php://filter/base64编码读取源码**
+通过 php://filter 协议配合 base64 编码绕过文件包含限制，读取任意 PHP 文件源码
 
-### 原理
-- 参数 page=xxx 存在文件包含
+### payload
+php://filter/read=convert.base64-encode/resource=db.php
 
-### 关键 payload
-```bash
-?page=php://filter/convert.base64-encode/resource=index.php
-```
+### 原理分析
+- php://filter 是 PHP 内置的流包装器，可对文件进行编码/解码处理
+- convert.base64-encode 过滤器将文件内容转为 base64 编码输出
+- 直接读取 PHP 文件会被服务器解析执行，无法看到源码
+- base64 编码后输出原始源码内容
 
-### 失败记录
-- php://filter 读取 base64 编码内容
+### 失败方法
+- file=/flag → WAF拦截
+- ../../flag → 路径验证失败
 
----
+### 适用场景
+- LFI 漏洞读取 PHP 配置文件
+- db.php, config.php, .env 等包含凭据的文件
+- 读取源码寻找 hardcoded 密码或密钥
 
----
-doc_kind: experience
-type: lfi
-created: 2026-03-29
-tags: [lfi, php://filter, base64]
----
-
-## php://filter/base64编码 读取源码
-
-### 核心 bypass
-**php://filter/base64编码 读取源码**
-
-### 原理
-- 参数 page=xxx 存在文件包含
-- 使用 php://filter 将文件内容 base64 编码输出
-
-### 关键 payload
-```bash
-?page=php://filter/convert.base64-encode/resource=index.php
-```
-
-### 失败记录
-- ../ 路径遍历
-- file:// 协议
-
----
-
-## 2026-03-28 | https:
-### 靶机环境
-- db.php 包含数据库配置信息
-- 密码字段值: CTF{3ecret_passw0rd_here}
-
-### 成功方法
-- **php://filter_base64_读取db.php**
-
-### 已尝试方法（失败）
-- php://filter + base64 编码读取源码
-
-### Flag
-`CTF{3ecret_passw0rd_here}`
-
----
-
-## 2026-03-28 | https:
-### 靶机环境
-- 日志文件: /var/log/nginx/access.log
-- flag位置: /var/www/html/flag.php
-
-### 成功方法
-- **日志文件包含: nginx access.log + User-Agent注入PHP代码**
-
-### 已尝试方法（失败）
-- 日志文件包含 + User-Agent注入PHP代码
-- 直接包含 /var/www/html/flag.php 失败
-
-### Flag
-`CTF{php_access_l0g_lf1_is_fun}`
-
----
-
+### 案例
+| 日期 | 靶机 | 成功方法 | Flag |
+|------|------|---------|------|
+| 2026-03-29 | 8d68c862-97c6-44e8-98ea-6f185060b705.challenge.ctf.show | php://filter读取源码 | CTF{3secret_passw0rd_here} |
