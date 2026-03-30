@@ -1,6 +1,11 @@
 """
 失败模式记录 - 直接模式组件
 在 workspace/ 中记录已失败的尝试，避免重复劳动
+
+Phase 2 增强：LLM 失败分析
+- 失败原因归类（防御类型/过滤类型/路径类型）
+- bypass 建议
+- 替代方法推荐
 """
 import json
 import time
@@ -80,6 +85,39 @@ class FailureTracker:
             "updated_at": datetime.now().isoformat(),
         })
         self._save(records)
+
+        # LLM 失败分析（异步，不阻塞主流程）
+        self._async_analyze_failure(target, method, reason, payload, category)
+
+    def _async_analyze_failure(
+        self,
+        target: str,
+        method: str,
+        reason: str,
+        payload: str,
+        category: str,
+    ) -> None:
+        """
+        异步调用 LLM 分析失败原因（不阻塞主流程）
+
+        将分析结果更新到记录中
+        """
+        try:
+            analysis = analyze_failure_with_llm(method, reason, payload, category, target)
+            if not analysis:
+                return
+
+            # 更新记录，添加分析结果
+            records = self._load()
+            for record in records:
+                if record["target"] == target and record["method"] == method:
+                    record["analysis"] = analysis
+                    record["updated_at"] = datetime.now().isoformat()
+                    self._save(records)
+                    break
+        except Exception as e:
+            # 分析失败不影响主流程
+            print(f"[失败分析 LLM 调用失败] {e}")
 
     def is_failed(self, target: str, method: str) -> bool:
         """检查某个方法是否已失败过"""
@@ -163,6 +201,17 @@ def get_failures_list(target: str, max_rows: int = 10) -> str:
         snippet = f"  - {method}: {reason}"
         if payload:
             snippet += f" (payload: {payload[:50]})"
+
+        # 添加 LLM 分析结果
+        analysis = f.get("analysis")
+        if analysis:
+            bypass = analysis.get("bypass_suggestion", "")
+            if bypass:
+                snippet += f"\n    → 建议: {bypass}"
+            alts = analysis.get("alternative_methods", [])
+            if alts:
+                snippet += f"\n    → 替代: {', '.join(alts[:3])}"
+
         lines.append(snippet)
     return "\n".join(lines)
 
@@ -224,3 +273,135 @@ def should_trigger_rag(target: str) -> Tuple[bool, str, int]:
 def get_failure_count(target: str) -> int:
     """获取失败方法数量"""
     return len(get_failed_methods(target))
+
+
+# ============ LLM 失败分析 ============
+
+
+def _format_failures_for_llm(failures: List[Dict[str, Any]], limit: int = 10) -> str:
+    """格式化失败记录供 LLM 分析"""
+    if not failures:
+        return "  （暂无失败记录）"
+
+    lines = []
+    for i, f in enumerate(failures[-limit:], 1):
+        method = f.get("method", "未知")
+        reason = f.get("reason", "")
+        payload = f.get("payload", "")
+        lines.append(f"{i}. 方法: {method}")
+        if reason:
+            lines.append(f"   原因: {reason}")
+        if payload:
+            # 截断过长的 payload
+            display_payload = payload[:100] + "..." if len(payload) > 100 else payload
+            lines.append(f"   Payload: {display_payload}")
+
+    return "\n".join(lines)
+
+
+def analyze_failure_with_llm(
+    method: str,
+    reason: str,
+    payload: str = "",
+    category: str = "",
+    target: str = "",
+) -> Optional[Dict[str, Any]]:
+    """
+    使用 LLM 分析失败原因，给出 bypass 建议和换方向建议
+
+    Args:
+        method: 失败的方法名（如 "system", "copy"）
+        reason: 失败原因（如 "disabled by disable_functions"）
+        payload: 使用的 payload
+        category: 题型（rce/sqli/lfi 等）
+        target: 目标 URL（用于获取同目标全部失败记录）
+
+    Returns:
+        分析结果字典，包含：
+        - reason_type: 失败类型（defense/filter/path/waf/auth）
+        - reason_type_detail: 详细分类
+        - bypass_suggestion: 建议的 bypass 方法
+        - alternative_methods: 替代方法列表
+        - should_pivot: 是否应该换方向
+        - pivot_reason: 换方向或不换方向的原因
+        - next_method: 建议尝试的下一个方法
+        - alternative_vector: 完全不同的攻击向量（如果不建议继续）
+        - analysis_text: 简短分析说明
+        如果 LLM 未配置或调用失败，返回 None
+    """
+    try:
+        from core.llm_client import call_llm, is_configured
+
+        if not is_configured():
+            return None
+
+        # 获取同目标的全部失败记录（扩大输入上下文）
+        all_failures = []
+        if target:
+            all_failures = get_tracker().get_failures(target)
+
+        # 构建输入上下文
+        failures_context = _format_failures_for_llm(all_failures)
+
+        prompt = f"""分析以下 CTF 失败案例，判断是否应该换方向，并给出下一步建议。
+
+## 当前失败
+- 方法: {method}
+- 失败原因: {reason}
+- Payload: {payload}
+- 题型: {category}
+
+## 同目标历史失败（共 {len(all_failures)} 条）
+{failures_context}
+
+## 输出格式（JSON）
+{{
+    "reason_type": "defense|filter|path|waf|auth|unknown",
+    "reason_type_detail": "具体分类描述",
+    "bypass_suggestion": "如果继续当前方向，如何绕过当前障碍（一句话）",
+    "alternative_methods": ["替代方法1", "替代方法2", "..."],
+    "should_pivot": true/false,
+    "pivot_reason": "换方向或不换方向的原因（1-2句）",
+    "next_method": "建议尝试的下一个方法（如果继续当前方向）",
+    "alternative_vector": "完全不同的攻击向量（如果不建议继续当前方向）",
+    "analysis_text": "简短分析说明（1-2句）"
+}}
+
+判断逻辑：
+- should_pivot=true 当：同类方法已失败≥3次、失败原因是防御性机制且无法绕过、存在更直接的攻击向量
+- should_pivot=false 当：失败原因可绕过、尚未尝试所有替代方法、当前方向仍有可行变体
+
+reason_type 分类标准：
+- defense: 防御机制禁用（disable_functions, open_basedir 等）
+- filter: 输入过滤/消毒（WAF, 关键词过滤, 正则匹配）
+- path: 路径问题（文件不存在, 权限, 目录遍历被阻止）
+- waf: Web 应用防火墙拦截
+- auth: 认证/授权问题
+- unknown: 无法确定
+
+alternative_methods 根据不同题型推荐：
+- rce/command: system, exec, shell_exec, passthru, popen, proc_open, `反引号`, python/nodejs等
+- sqli: union, boolean, time-based, error-based, stacked
+- lfi: php://filter, /proc/*, session 文件, 日志文件, /etc/passwd
+- upload: move_uploaded_file, rename, copy, .htaccess, 图片马
+- xss: alert, prompt, console.log, svg, onerror
+- auth: sql 注入, cookie 伪造, JWT 伪造, session 利用
+
+请直接输出 JSON，不要其他说明。"""
+
+        response = call_llm(prompt, system="你是 CTF 失败分析专家，擅长归类失败原因并给出替代方案。")
+
+        # 解析 JSON
+        import re
+        json_match = re.search(r'\{[^{}]*"[^{}]*\}', response, re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group())
+            # 验证必要字段
+            if "reason_type" in result and "bypass_suggestion" in result:
+                return result
+
+        return None
+
+    except Exception as e:
+        print(f"[LLM 失败分析调用失败] {type(e).__name__}: {e}")
+        return None

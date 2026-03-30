@@ -2,12 +2,29 @@
 解题状态持久化 - P3 组件
 用于保存和恢复解题进度，支持长对话中断后继续
 
-Phase 1 增强：推理历史、失败模式、建议 bypass
+Phase 1 增强：推理历史、失败模式、建议 bypass、阶段管理
 """
 import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+
+# 阶段定义
+class Phase:
+    RECON = "recon"       # 信息收集
+    IDENTIFY = "identify" # 确定漏洞类型和攻击向量
+    EXPLOIT = "exploit"   # 执行攻击获取 flag
+    FLAG = "flag"         # 保存经验
+
+
+# 阶段配置
+PHASE_CONFIG = {
+    Phase.RECON: {"budget": 10, "allowed_tools": ["curl", "dirsearch"]},
+    Phase.IDENTIFY: {"budget": 8, "allowed_tools": ["curl", "sqlmap"]},
+    Phase.EXPLOIT: {"budget": 15, "allowed_tools": ["curl", "python"]},
+    Phase.FLAG: {"budget": 1, "allowed_tools": []},
+}
 
 
 class StateManager:
@@ -54,6 +71,10 @@ class StateManager:
 
     def _save(self) -> None:
         """保存状态到文件"""
+        # 检查必要字段，避免错误信息被持久化
+        if not self._state.get("target"):
+            return  # 没有 target 不保存
+
         self._state["updated_at"] = datetime.now().isoformat()
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.state_file, "w", encoding="utf-8") as f:
@@ -71,6 +92,11 @@ class StateManager:
             "target": target,
             "type": challenge_type,
             "step": 0,
+            "phase": Phase.RECON,
+            "step_count": 0,
+            "budget": PHASE_CONFIG[Phase.RECON]["budget"],
+            "current_hypothesis": "",
+            "hypothesis_status": "unverified",
             "findings": [],
             "methods_tried": [],
             "failed_patterns": [],
@@ -240,20 +266,26 @@ class StateManager:
         return ""
 
     def _auto_save_experience(self, method_succeeded: str) -> None:
-        """自动保存经验"""
+        """自动保存经验（使用 LLM 智能处理）
+
+        LLM 会根据 method_succeeded、payload_context 等信息自动判断题型，
+        无需预先指定 challenge_type。
+        """
         try:
-            from core.experience_manager import save_experience
-            save_experience(
+            from core.experience_manager import save_experience_with_llm
+            result = save_experience_with_llm(
                 target=self._state.get("target", ""),
-                challenge_type=self._state.get("type", ""),
+                challenge_type="",  # LLM 自动判断
+                flag=self._state.get("flag", ""),
+                method_succeeded=method_succeeded,
+                payload_context=self._state.get("payload_context", ""),
                 findings=self._state.get("findings", []),
                 methods_tried=self._state.get("methods_tried", []),
-                method_succeeded=method_succeeded,
-                flag=self._state.get("flag", ""),
-                payload_context=self._state.get("payload_context", ""),
             )
-        except Exception:
-            pass  # 静默失败，不影响主流程
+            # 打印结果供调试
+            print(f"[经验保存] {result}")
+        except Exception as e:
+            print(f"[经验保存失败] {type(e).__name__}: {e}")
 
     def get_target(self) -> str:
         """获取当前目标"""
@@ -301,6 +333,104 @@ class StateManager:
         if self.state_file.exists():
             self.state_file.unlink()
 
+    # ========== Phase 1 扩展：阶段和假设管理 ==========
+
+    def set_phase(self, phase: str) -> bool:
+        """
+        设置当前阶段
+
+        Args:
+            phase: 阶段名称 (recon/identify/exploit/flag)
+
+        Returns:
+            是否成功切换阶段
+        """
+        if phase not in PHASE_CONFIG:
+            return False
+
+        old_phase = self._state.get("phase", Phase.RECON)
+        self._state["phase"] = phase
+        self._state["budget"] = PHASE_CONFIG[phase]["budget"]
+        self._state["step_count"] = 0  # 重置步数计数器
+        self._save()
+
+        if old_phase != phase:
+            self.add_reasoning(f"阶段切换: {old_phase} → {phase}", f"进入 {phase} 阶段")
+        return True
+
+    def get_phase(self) -> str:
+        """获取当前阶段"""
+        return self._state.get("phase", Phase.RECON)
+
+    def set_hypothesis(self, hypothesis: str) -> None:
+        """
+        设置当前假设
+
+        Args:
+            hypothesis: 假设描述（如 "通过日志文件包含执行代码"）
+        """
+        self._state["current_hypothesis"] = hypothesis
+        self._state["hypothesis_status"] = "unverified"
+        self._save()
+
+    def get_hypothesis(self) -> str:
+        """获取当前假设"""
+        return self._state.get("current_hypothesis", "")
+
+    def verify_hypothesis(self) -> None:
+        """标记假设已验证成功"""
+        self._state["hypothesis_status"] = "verified"
+        self._save()
+
+    def fail_hypothesis(self) -> None:
+        """标记假设失败"""
+        self._state["hypothesis_status"] = "failed"
+        self._save()
+
+    def get_hypothesis_status(self) -> str:
+        """获取假设状态"""
+        return self._state.get("hypothesis_status", "unverified")
+
+    def get_budget(self) -> int:
+        """获取当前阶段预算"""
+        return self._state.get("budget", 8)
+
+    def get_step_count(self) -> int:
+        """获取当前阶段已执行步数"""
+        return self._state.get("step_count", 0)
+
+    def increment_step(self) -> int:
+        """
+        增加步数并检查预算
+
+        Returns:
+            新的步数
+        """
+        self._state["step_count"] = self.get_step_count() + 1
+        self._save()
+        return self._state["step_count"]
+
+    def check_budget(self) -> bool:
+        """
+        检查预算是否耗尽
+
+        Returns:
+            True 表示预算已耗尽，False 表示还有预算
+        """
+        return self.get_step_count() >= self.get_budget()
+
+    def get_allowed_tools(self) -> List[str]:
+        """获取当前阶段允许的工具列表"""
+        phase = self.get_phase()
+        return PHASE_CONFIG.get(phase, {}).get("allowed_tools", [])
+
+    def is_tool_allowed(self, tool: str) -> bool:
+        """检查工具是否在当前阶段白名单中"""
+        allowed = self.get_allowed_tools()
+        if not allowed:  # flag 阶段没有工具限制
+            return True
+        return tool in allowed
+
     def get_state(self) -> Dict[str, Any]:
         """获取完整状态"""
         return self._state.copy()
@@ -320,7 +450,7 @@ class StateManager:
         return (
             f"Target: {self.get_target()}\n"
             f"Type: {self.get_type()}\n"
-            f"Step: {self.get_step()}\n"
+            f"Phase: {self.get_phase()} (step {self.get_step_count()}/{self.get_budget()})\n"
             f"Findings: {len(self.get_findings())}\n"
             f"Methods tried: {len(self.get_methods_tried())}\n"
             f"Flag: {self.get_flag() or 'Not found'}"
@@ -340,7 +470,8 @@ class StateManager:
             "=== 解题状态摘要 ===",
             f"目标: {self.get_target()}",
             f"题型: {self.get_type()}",
-            f"进度: Step {self.get_step()}",
+            f"阶段: {self.get_phase()} ({self.get_step_count()}/{self.get_budget()} 步)",
+            f"假设: {self.get_hypothesis() or '未声明'} [{self.get_hypothesis_status()}]",
             "",
         ]
 
@@ -395,6 +526,132 @@ class StateManager:
             lines.append(f"【FLAG】: {flag}")
         else:
             lines.append("【FLAG】: 未找到")
+
+        return "\n".join(lines)
+
+    def get_context_summary_intelligent(self, trigger: str = "general") -> str:
+        """
+        智能状态摘要 - 在关键节点调用 LLM 生成针对性摘要
+
+        Args:
+            trigger: 触发场景
+                - "general": 常规摘要
+                - "stuck": 主 Agent 卡住了
+                - "phase_transition": 阶段转换
+                - "post_failure": 失败后重整
+
+        Returns:
+            LLM 生成的针对性摘要
+        """
+        try:
+            from core.llm_client import call_llm, is_configured
+
+            if not is_configured():
+                return self.get_context_summary()
+
+            state = self._state
+            target = state.get("target", "")
+            challenge_type = state.get("type", "")
+            phase = state.get("phase", "unknown")
+            step_count = state.get("step_count", 0)
+            budget = state.get("budget", 8)
+            hypothesis = state.get("current_hypothesis", "未声明")
+            hypothesis_status = state.get("hypothesis_status", "unverified")
+            findings = state.get("findings", [])
+            methods_tried = state.get("methods_tried", [])
+            failed_patterns = state.get("failed_patterns", [])
+            reasoning_chain = state.get("reasoning_chain", [])
+            flag = state.get("flag", "")
+
+            # 获取失败记录
+            from core.failure_tracker import get_tracker
+            failures = get_tracker().get_failures(target)
+            failures_context = self._format_failures_for_llm(failures)
+
+            # 根据触发场景选择 prompt 模板
+            prompts = {
+                "stuck": """主 Agent 在当前挑战卡住了，需要分析失败模式并给出下一个可能成功的攻击方向。
+
+请分析当前状态，判断是否应该换方向，给出具体的下一个攻击建议。""",
+
+                "phase_transition": """即将进入新阶段，请评估当前状态是否满足阶段转换条件，并给出阶段切换建议。
+
+评估标准：
+- Recon: 是否收集了足够信息（目标、端口、路径、关键技术点）
+- Identify: 是否确定了漏洞类型和攻击向量
+- Exploit: 是否已有可行的攻击方案
+- Flag: 是否已获取 flag
+
+请给出是否满足转换条件的判断和建议。""",
+
+                "post_failure": """最近一次尝试失败，请分析是否应该换方向还是继续深挖当前方向。
+
+需要判断：
+1. 失败原因是防御性机制还是战术性错误？
+2. 是否还有同类方法没尝试过？
+3. 是否存在更直接的攻击向量？""",
+
+                "general": """请为这个 CTF 挑战生成一个简洁的状态摘要，包括：
+1. 当前进度评估
+2. 关键发现
+3. 下一步建议（1-3个具体动作）"""
+            }
+
+            trigger_prompt = prompts.get(trigger, prompts["general"])
+
+            prompt = f"""{trigger_prompt}
+
+## 当前状态
+- 目标: {target}
+- 题型: {challenge_type}
+- 阶段: {phase} ({step_count}/{budget} 步)
+- 假设: {hypothesis} [{hypothesis_status}]
+- FLAG: {flag or '未找到'}
+
+## 发现 ({len(findings)}条)
+{chr(10).join(f"- {f}" for f in findings) if findings else "  （暂无）"}
+
+## 已尝试方法 ({len(methods_tried)}个)
+{chr(10).join(f"- {m}" for m in methods_tried) if methods_tried else "  （暂无）"}
+
+## 失败记录 ({len(failures)}条)
+{failures_context if failures_context.strip() else "  （暂无失败记录）"}
+
+## 失败特征
+{chr(10).join(f"- {p}" for p in failed_patterns) if failed_patterns else "  （暂无）"}
+
+## 推理链（最近5条）
+{chr(10).join(f"Step{r['step']}: {r['action']} → {r['finding']}" for r in reasoning_chain[-5:]) if reasoning_chain else "  （暂无）"}
+
+请直接输出摘要内容，使用中文，突出重点。"""
+
+            response = call_llm(
+                prompt,
+                system="你是 CTF 辅助专家，负责分析解题状态并给出建议。输出要简洁具体。"
+            )
+            return response
+
+        except Exception as e:
+            # 如果 LLM 调用失败，回退到普通摘要
+            print(f"[智能摘要 LLM 调用失败] {type(e).__name__}: {e}")
+            return self.get_context_summary()
+
+    def _format_failures_for_llm(self, failures: list) -> str:
+        """格式化失败记录供 LLM 分析"""
+        if not failures:
+            return "（暂无失败记录）"
+
+        lines = []
+        for i, f in enumerate(failures[-10:], 1):
+            method = f.get("method", "未知")
+            reason = f.get("reason", "")
+            payload = f.get("payload", "")
+            lines.append(f"{i}. 方法: {method}")
+            if reason:
+                lines.append(f"   原因: {reason}")
+            if payload:
+                display_payload = payload[:80] + "..." if len(payload) > 80 else payload
+                lines.append(f"   Payload: {display_payload}")
 
         return "\n".join(lines)
 
@@ -511,6 +768,48 @@ def record_failed(method: str, reason: str, payload: str = "") -> None:
     record_failure(target, method, reason, payload, ctype)
 
 
+# ========== Phase 1 扩展：阶段和假设管理快捷函数 ==========
+
+def set_phase(phase: str) -> bool:
+    """设置当前阶段"""
+    return get_state_manager().set_phase(phase)
+
+
+def get_phase() -> str:
+    """获取当前阶段"""
+    return get_state_manager().get_phase()
+
+
+def set_hypothesis(hypothesis: str) -> None:
+    """设置当前假设"""
+    get_state_manager().set_hypothesis(hypothesis)
+
+
+def get_hypothesis() -> str:
+    """获取当前假设"""
+    return get_state_manager().get_hypothesis()
+
+
+def verify_hypothesis() -> None:
+    """标记假设已验证成功"""
+    get_state_manager().verify_hypothesis()
+
+
+def fail_hypothesis() -> None:
+    """标记假设失败"""
+    get_state_manager().fail_hypothesis()
+
+
+def check_budget() -> bool:
+    """检查预算是否耗尽"""
+    return get_state_manager().check_budget()
+
+
+def is_tool_allowed(tool: str) -> bool:
+    """检查工具是否在当前阶段白名单中"""
+    return get_state_manager().is_tool_allowed(tool)
+
+
 def clear_state() -> None:
     """清除状态"""
     get_state_manager().clear()
@@ -524,3 +823,20 @@ def state_summary() -> str:
 def get_context_summary() -> str:
     """获取供 LLM 使用的完整状态摘要"""
     return get_state_manager().get_context_summary()
+
+
+def get_context_summary_intelligent(trigger: str = "general") -> str:
+    """
+    智能状态摘要 - 在关键节点调用 LLM 生成针对性摘要
+
+    Args:
+        trigger: 触发场景
+            - "general": 常规摘要
+            - "stuck": 主 Agent 卡住了
+            - "phase_transition": 阶段转换
+            - "post_failure": 失败后重整
+
+    Returns:
+        LLM 生成的针对性摘要
+    """
+    return get_state_manager().get_context_summary_intelligent(trigger)
