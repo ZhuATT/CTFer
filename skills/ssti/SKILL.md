@@ -1,9 +1,3 @@
----
-name: ssti
-description: 服务器端模板注入漏洞检测与利用。当目标存在模板渲染功能时使用，包括 Jinja2、Twig、FreeMarker、ERB 等模板引擎。
-allowed-tools: Bash, Read, Write
----
-
 # 服务器端模板注入 (SSTI)
 
 通过在模板中注入恶意表达式，执行任意代码。

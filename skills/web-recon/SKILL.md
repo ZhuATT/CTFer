@@ -1,9 +1,3 @@
----
-name: web-recon
-description: Web 应用信息收集与侦察。当开始渗透测试、需要了解目标架构、发现攻击面时使用。包括目录扫描、端口扫描、指纹识别。
-allowed-tools: Bash, Read, Write
----
-
 # Web 应用侦察 (Web Reconnaissance)
 
 系统性地收集目标信息，发现攻击面和潜在漏洞点。
