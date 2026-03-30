@@ -522,11 +522,12 @@ def format_structured_output(results: List[Dict], challenge_type: str) -> str:
     from skills.encoding_fix import encode_for_terminal
 
     def to_str(val):
-        """将 encode_for_terminal 的返回值转为 str"""
-        result = encode_for_terminal(val)
-        if isinstance(result, bytes):
-            return result.decode('utf-8', errors='replace')
-        return result
+        """将值转为字符串（供 LLM 使用，保持 Unicode 原文）"""
+        if val is None:
+            return ""
+        if isinstance(val, bytes):
+            return val.decode('utf-8', errors='replace')
+        return str(val)
 
     # 按题型和来源分组
     groups = {
