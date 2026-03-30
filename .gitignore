@@ -90,3 +90,8 @@ htmlcov/
 /References/
 /架构审计报告.md
 memory/
+
+# CTF Agent internal plans (not for remote)
+/1.md
+/Introduce.md
+/learn.md

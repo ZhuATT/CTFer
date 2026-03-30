@@ -69,12 +69,12 @@ is_method_failed('http://target.com', 'sqlmap')  # 返回 True/False
 
 **【重要】失败 3 次后，Hook 会强制提示重新查询知识**
 
-当你尝试 3 次都失败时：
+当你尝试 3 次都失败时，**必须自动执行以下步骤**：
 ```
-1. 查看当前状态：C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.state_manager import get_context_summary; print(get_context_summary())"
-2. 重新获取知识：C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('题型'))"
-3. 基于新知识制定新攻击计划
-4. 继续尝试
+1. 调用外部 LLM 智能分析（自动执行）：
+   C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.state_manager import get_context_summary_intelligent; print(get_context_summary_intelligent('stuck'))"
+2. 基于 LLM 建议制定新攻击计划
+3. 继续尝试
 ```
 
 **不要重复尝试同样的方法**——失败后换思路。
@@ -137,12 +137,17 @@ C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.failure_tr
 
 ## 强制知识检查 Hook
 
-**【系统机制】PreToolUse Hook 自动检查**
+**【系统机制】PreToolUse Hook 自动检查（详见下方 Hook 自动检查章节）**
 
 当你执行 `curl`、`sqlmap`、`dirsearch` 等攻击工具时，系统会自动检查：
 
 1. **是否有未过期的知识查询标记**（`workspace/.knowledge_checked`）
-2. 如果没有，会注入提醒让你先查询知识
+2. **假设声明** - Identify/Exploit 阶段必须声明当前假设
+3. **方法失败检查** - 方法在 failures.json 中已记录失败
+4. **预算检查** - 阶段步数已达预算
+5. **阶段工具白名单** - 工具不在允许列表中
+6. **语义级循环** - 同一动作家族失败 ≥3 次
+7. **失败阈值** - 同一目标失败 ≥3 次
 
 **正确的解题流程**：
 ```
@@ -151,16 +156,8 @@ C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.failure_tr
 3. Read skills/<type>/SKILL.md
 4. RAG 检索：C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import search_knowledge..."
 5. Read memories/experiences/<type>.md
-6. 【标记】C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe mark_knowledge_checked.py  ← 必须！
-7. 执行攻击工具（curl/sqlmap/dirsearch）
+6. 执行攻击工具（curl/sqlmap/dirsearch）
 ```
-
-**为什么需要手动标记？**
-- Hook 在攻击工具执行前检查，无法自动知道知识查询何时完成
-- 标记脚本创建 `workspace/.knowledge_checked` 文件
-- 文件超过 30 分钟自动过期，需要重新标记
-
----
 
 ---
 
@@ -272,6 +269,57 @@ is_method_failed('http://target.com', 'system')  # True
 # 但 save_experience_auto 仍可用于手动保存
 from core.state_manager import save_experience_auto
 save_experience_auto('copy')  # 传入成功的方法名
+```
+
+---
+
+## Hook 自动检查（无需手动调用）
+
+**PreToolUse Hook 已自动实现以下检查，执行攻击工具时会自动触发：**
+
+1. **假设声明检查** - Identify/Exploit 阶段必须声明 `current_hypothesis`，否则拦截
+2. **方法失败检查** - 方法在 `failures.json` 中已记录失败时，注入警告并显示替代建议
+3. **预算检查** - 阶段步数达到预算时，注入警告
+4. **阶段工具白名单检查** - 不在白名单的工具会被拦截
+5. **语义级循环检测** - 同一动作家族（php_protocol/log_poison/path_traversal 等）失败 ≥3 次时，强制换方向
+6. **失败阈值检测** - 同一目标失败 ≥3 次时，注入强制重查消息
+7. **PostToolUse 自动记录** - 自动记录方法到 `methods_tried`，失败时自动写入 `failures.json`
+
+**以下功能已 Hook 自动处理，不需要 LLM 手动调用：**
+- `add_method()` - 攻击后自动记录
+- `record_failure()` - 失败后自动记录
+- 步数更新 - 自动递增
+
+---
+
+## 外部 LLM 增强
+
+**Phase 1.5 新增功能：**
+
+```python
+# 智能状态摘要 - 在关键节点获取 LLM 生成的针对性摘要
+from core.state_manager import get_context_summary_intelligent
+
+# 四种触发场景
+print(get_context_summary_intelligent('general'))     # 常规摘要
+print(get_context_summary_intelligent('stuck'))      # 卡住时：分析失败模式，给出下一步建议
+print(get_context_summary_intelligent('phase_transition'))  # 阶段转换时：评估是否满足转换条件
+print(get_context_summary_intelligent('post_failure'))      # 失败后：判断是否应该换方向
+
+# 增强版失败分析 - LLM 分析同目标全部失败记录，给出 should_pivot 判断
+from core.failure_tracker import analyze_failure_with_llm
+
+result = analyze_failure_with_llm(
+    method='proc_open',
+    reason='all disabled',
+    payload='proc_open("id")',
+    category='rce',
+    target='http://target.com'  # 新增参数：获取同目标全部失败记录
+)
+if result:
+    print(f"should_pivot: {result['should_pivot']}")      # 是否应换方向
+    print(f"next_method: {result['next_method']}")        # 下一步建议
+    print(f"alternative_vector: {result['alternative_vector']}")  # 完全不同的攻击向量
 ```
 
 ---
