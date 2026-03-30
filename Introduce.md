@@ -20,17 +20,15 @@
       ▼
 ┌─────────────────────────────────────────────────────────┐
 │  2. 知识系统 (RAG)                                       │
-│     skills/<type>/SKILL.md     ← 技能知识（人工编写）      │
+│     skills/<type>/SKILL.md     ← 技能知识（优化精简）       │
 │     memories/experiences/<>.md  ← 成功经验（自动积累）     │
-│     wooyun/knowledge/         ← WooYun 漏洞库            │
-│     wooyun/plugins/.../       ← 精简案例库               │
+│     wooyun/                  ← 原材料库（不参与 RAG）     │
 └─────────────────────────────────────────────────────────┘
       │
       ▼
 ┌─────────────────────────────────────────────────────────┐
 │  3. 攻击执行                                            │
 │     - curl / sqlmap / dirsearch                         │
-│     - Hook 检查知识标记                                  │
 │     - FailureTracker 记录失败                            │
 └─────────────────────────────────────────────────────────┘
       │
@@ -40,7 +38,6 @@
 │     workspace/state.json      ← 当前解题状态               │
 │     workspace/failures.json   ← 失败记录                 │
 │     workspace/.knowledge_log  ← 知识调用日志              │
-│     workspace/.knowledge_checked ← 知识检查标记           │
 └─────────────────────────────────────────────────────────┘
       │
       ▼
@@ -60,19 +57,18 @@ CTFagent/
 ├── Introduce.md                  ← 本文档
 │
 ├── .claude/
-│   ├── settings.json            ← Claude Code 配置（Hook/权限）
-│   └── hooks/
-│       └── check_knowledge_hook.py  ← PreToolUse Hook
-│
+│   └── settings.json            ← Claude Code 配置（Hook/权限）
+
 ├── core/                        ← 核心模块
 │   ├── state_manager.py         ← 解题状态管理
-│   ├── rag_knowledge.py         ← RAG 知识检索
+│   ├── rag_knowledge.py       ← RAG 知识检索（experiences + skills）
 │   ├── skill_loader.py          ← Skill 加载器
 │   ├── experience_manager.py    ← 经验保存管理
 │   ├── failure_tracker.py       ← 失败追踪
-│   └── loop_detector.py         ← 循环检测（签名级）
-│
-├── skills/                      ← 技能知识（人工维护）
+│   ├── loop_detector.py         ← 循环检测（签名级）
+│   └── llm_client.py           ← LLM 客户端（经验智能保存）
+
+├── skills/                      ← 技能知识（优化精简）
 │   ├── rce/SKILL.md
 │   ├── sqli/SKILL.md
 │   ├── lfi/SKILL.md
@@ -97,14 +93,12 @@ CTFagent/
 │       ├── lfi.md
 │       └── ...
 │
-├── wooyun/                      ← WooYun 漏洞库
+├── wooyun/                      ← 原材料库（不参与 RAG）
 │   ├── knowledge/               ← 技术手册
 │   ├── categories/             ← 案例分类
-│   ├── examples/               ← 渗透示例
+│   ├── examples/              ← 渗透示例
 │   └── plugins/
-│       └── wooyun-legacy/      ← 精简版
-│           ├── categories/     ← 精简案例库
-│           └── skills/
+│       └── wooyun-legacy/     ← 精简版（原材料）
 │
 ├── tools/                       ← 工具封装
 │   ├── curl_tool.py
@@ -127,46 +121,11 @@ CTFagent/
 
 ## 三、核心组件详解
 
-### 3.1 Hook 机制（check_knowledge_hook.py）
+### 3.1 Hook 机制（已移除）
 
-**位置**: `.claude/hooks/check_knowledge_hook.py`
+**状态**: check_knowledge_hook.py 已删除
 
-**触发时机**: 每次执行 Bash 工具之前（PreToolUse）
-
-**配置来源**: `.claude/settings.json`
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [{
-      "matcher": "Bash",
-      "hooks": [{
-        "type": "command",
-        "command": "python.exe .claude/hooks/check_knowledge_hook.py",
-        "timeout": 10
-      }]
-    }]
-  }
-}
-```
-
-**检查逻辑**:
-1. 读取 `workspace/state.json` → 获取当前靶机、题型、已尝试方法
-2. 读取 `workspace/failures.json` → 获取失败记录
-3. 扫描 `skills/`、`memories/experiences/` → 获取可用知识文件列表
-4. 根据状态生成建议（新手引导/继续攻击/任务完成）
-
-**返回结构**:
-```python
-{
-    "continue": True,  # 不阻止执行，提供上下文
-    "hookSpecificOutput": {
-        "additionalContext": "【当前状态】\n- 靶机: ...\n- 题型: ..."
-    }
-}
-```
-
-**关键设计原则**: Hook 只提供上下文，不强制阻断。LLM 根据上下文自主决策下一步。
+**替代机制**:
 
 ---
 
@@ -212,22 +171,32 @@ get_context_summary()                  # 获取完整状态摘要
 
 ---
 
-### 3.3 RAG 知识检索（rag_knowledge.py）
+### 3.2 RAG 知识检索（rag_knowledge.py）
 
-**搜索来源（按优先级）**:
+**检索来源（按优先级）**:
 1. `memories/experiences/<type>.md` — 历史成功经验（最高）
 2. `skills/<type>/SKILL.md` — 题型技能知识
-3. `wooyun/knowledge/<category>.md` — WooYun 技术手册
-4. `wooyun/plugins/wooyun-legacy/categories/` — WooYun 精简案例库
+3. ~~wooyun/knowledge/<category>.md~~ — **已移除，不参与 RAG**
+4. ~~wooyun/plugins/wooyun-legacy/categories/~~ — **已移除，不参与 RAG**
+
+**wooyun 新定位**: 作为"原材料库"，按需提炼到 experiences/skills，不直接参与 RAG 检索
 
 **检索流程**:
 ```
-用户查询 → 同义词扩展 → 中文分词 (jieba) → TF-IDF 余弦相似度 → 返回 top_k 结果
+用户查询 → 同义词扩展 → 中文分词 (jieba) → TF-IDF 余弦相似度 → sort_by_type_priority() → 返回 top_k 结果
+```
+
+**sort_by_type_priority() 排序逻辑**:
+```
+1. experiences 同题型（最高）
+2. skills 同题型
+3. experiences 跨题型
+4. skills 跨题型
 ```
 
 **题型 → 类别映射**:
-| 题型 | WooYun 类别 |
-|------|------------|
+| 题型 | 映射类别 |
+|------|---------|
 | rce | command-execution |
 | sqli | sql-injection |
 | lfi | file-traversal |
@@ -441,9 +410,9 @@ result = check_loop('curl', '-s http://target.com')
 ┌──────────────────────────────────────────────────────────────┐
 │  Step 3: 获取知识（强制）                                      │
 │  get_all_type_knowledge('lfi')                                 │
-│  → RAG 检索 4 个来源                                          │
+│  → RAG 检索 experiences + skills（wooyun 已移出）            │
 │  → 格式化输出作为解题上下文                                    │
-│  → 写入 .knowledge_log 供 Hook 验证                           │
+│  → 写入 .knowledge_log                                       │
 └──────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -452,7 +421,6 @@ result = check_loop('curl', '-s http://target.com')
 │  根据返回的知识：                                              │
 │  - skills/file-inclusion/SKILL.md → 日志文件包含方法          │
 │  - memories/experiences/lfi.md → 历史成功经验                 │
-│  - wooyun/knowledge/file-traversal.md → 类似题目              │
 │  → 确定攻击向量：nginx access.log + User-Agent 注入           │
 └──────────────────────────────────────────────────────────────┘
                               │
@@ -460,9 +428,8 @@ result = check_loop('curl', '-s http://target.com')
 ┌──────────────────────────────────────────────────────────────┐
 │  Step 5: 执行攻击                                             │
 │  a) curl 目标页面，尝试 LFI                                   │
-│  b) Hook 检查：.knowledge_checked 存在，放行                   │
-│  c) 失败 → record_failure()                                   │
-│  d) 失败 3 次 → should_trigger_rag() → 重新获取知识           │
+│  b) 失败 → record_failure()                                   │
+│  c) 失败 3 次 → 重新获取知识                                 │
 └──────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -492,61 +459,7 @@ result = check_loop('curl', '-s http://target.com')
 
 ---
 
-## 五、Hook 检查流程（细节）
-
-```
-用户执行 Bash 命令
-        │
-        ▼
-┌───────────────────────────────────────────┐
-│ PreToolUse Hook 触发                       │
-│ C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe check_knowledge_hook.py            │
-└───────────────────────────────────────────┘
-        │
-        ▼
-┌───────────────────────────────────────────┐
-│ 读取 workspace/state.json                  │
-│ - 有状态 → 提取 target/type/flag          │
-│ - 无状态 → 返回空上下文（不阻断）           │
-└───────────────────────────────────────────┘
-        │
-        ▼
-┌───────────────────────────────────────────┐
-│ 读取 workspace/failures.json               │
-│ - 提取最近 5 条失败记录                    │
-└───────────────────────────────────────────┘
-        │
-        ▼
-┌───────────────────────────────────────────┐
-│ 扫描可用知识文件                           │
-│ - skills/*/SKILL.md                       │
-│ - memories/experiences/*.md               │
-└───────────────────────────────────────────┘
-        │
-        ▼
-┌───────────────────────────────────────────┐
-│ 生成上下文建议                             │
-│ - 无状态 → "请先用 curl 访问目标"          │
-│ - 有状态无 flag → "Flag 未找到，继续尝试"  │
-│ - 已找到 flag → "任务完成"                 │
-└───────────────────────────────────────────┘
-        │
-        ▼
-┌───────────────────────────────────────────┐
-│ 返回 additionalContext                    │
-│ {                                          │
-│   "continue": True,                       │
-│   "additionalContext": "【当前状态】..."    │
-│ }                                          │
-└───────────────────────────────────────────┘
-        │
-        ▼
-    LLM 自主决策下一步
-```
-
----
-
-## 六、知识流转示意
+## 五、知识流转示意
 
 ```
                     ┌─────────────────┐
@@ -558,30 +471,34 @@ result = check_loop('curl', '-s http://target.com')
               │ get_all_type_knowledge('lfi')│
               └──────────────┬───────────────┘
                              │
-        ┌────────────────────┼────────────────────┐
-        │                    │                    │
-        ▼                    ▼                    ▼
-┌───────────────┐  ┌─────────────────┐  ┌──────────────────┐
-│ skills/lfi/   │  │ memories/       │  │ wooyun/knowledge/│
-│ SKILL.md      │  │ experiences/    │  │ file-traversal.md│
-│               │  │ lfi.md          │  │                  │
-│ - LFI 方法    │  │ - 历史成功经验  │  │ - 类似题目案例   │
-│ - Payload     │  │ - 成功方法      │  │ - WooYun 漏洞库  │
-│ - bypass 技巧 │  │ - Flag 位置    │  │                  │
-└───────────────┘  └─────────────────┘  └──────────────────┘
-        │                    │                    │
-        └────────────────────┼────────────────────┘
-                             │ RAG 检索结果
+        ┌────────────────────┴────────────────────┐
+        │                                         │
+        ▼                                         ▼
+┌───────────────┐                       ┌─────────────────┐
+│ skills/lfi/   │                       │ memories/       │
+│ SKILL.md      │                       │ experiences/    │
+│               │                       │ lfi.md          │
+│ - LFI 方法    │                       │ - 历史成功经验  │
+│ - Payload     │                       │ - 成功方法      │
+│ - bypass 技巧 │                       │ - Flag 位置    │
+└───────────────┘                       └─────────────────┘
+        │                                         │
+        └────────────────────┬────────────────────┘
+                             │ sort_by_type_priority()
                              ▼
               ┌──────────────────────────────┐
-              │ format_knowledge_results()   │
-              │ 格式化输出 → LLM 上下文        │
+              │ format_structured_output()    │
+              │ 格式化输出 → LLM 上下文       │
               └──────────────────────────────┘
                              │
                              ▼
               ┌──────────────────────────────┐
               │ LLM 基于知识制定攻击计划       │
               └──────────────────────────────┘
+
+【wooyun 定位调整】
+wooyun/ 现作为"原材料库"，不参与 RAG 检索
+按需提炼 → experiences/ 或 skills/
 ```
 
 ---
@@ -589,31 +506,30 @@ result = check_loop('curl', '-s http://target.com')
 ## 七、文件用途速查表
 
 | 文件/目录 | 用途 | 生命周期 |
-|-----------|------|---------|
+|-----------|------|----------|
 | `workspace/state.json` | 当前解题状态 | 题目开始时创建，flag 找到后保留 |
 | `workspace/failures.json` | 失败方法记录 | 题目开始时创建/覆写 |
 | `workspace/.knowledge_checked` | 知识已检查标记 | 标记后 30 分钟过期 |
 | `workspace/.knowledge_log` | 知识调用日志 | 每次调用追加 |
 | `memories/experiences/<type>.md` | 成功经验（按题型） | 永久积累 |
-| `skills/<type>/SKILL.md` | 技能知识（人工维护） | 手动更新 |
-| `wooyun/knowledge/` | WooYun 技术手册 | 外部导入 |
-| `wooyun/plugins/wooyun-legacy/` | 精简案例库 | 外部导入 |
+| `skills/<type>/SKILL.md` | 技能知识（优化精简） | 手动更新 |
+| `wooyun/` | 原材料库（不参与 RAG） | 按需提炼 |
 
 ---
 
 ## 八、题型支持矩阵
 
-| 题型 | Skill | Experience | WooYun 类别 | 典型攻击方法 |
-|------|-------|------------|-------------|-------------|
-| RCE | rce | rce | command-execution | 命令注入、代码执行、模板注入 |
-| SQLi | sqli | sqli | sql-injection | Union、盲注、报错注入 |
-| LFI | file-inclusion | lfi | file-traversal | 日志包含、session 包含 |
-| Upload | upload | file_upload | file-upload | 图片马、双扩展名、.htaccess |
-| XSS | xss | - | xss | 弹窗、cookie 窃取、钓鱼 |
-| Auth | auth-bypass | php-bypass | unauthorized-access | JWT 伪造、session 劫持 |
-| SSRF | ssrf | - | ssrf | URL 读取、端口扫描 |
-| SSTI | ssti | - | - | Jinja2/Twig 模板注入 |
-| Deserialize | deserialization | - | - | 反序列化 payload |
+| 题型 | Skill | Experience | 典型攻击方法 |
+|------|-------|------------|--------------|
+| RCE | rce | rce | 命令注入、代码执行、模板注入 |
+| SQLi | sqli | sqli | Union、盲注、报错注入 |
+| LFI | file-inclusion | lfi | 日志包含、session 包含 |
+| Upload | upload | file_upload | 图片马、双扩展名、.htaccess |
+| XSS | xss | - | 弹窗、cookie 窃取、钓鱼 |
+| Auth | auth-bypass | php-bypass | JWT 伪造、session 劫持 |
+| SSRF | ssrf | - | URL 读取、端口扫描 |
+| SSTI | ssti | - | Jinja2/Twig 模板注入 |
+| Deserialize | deserialization | - | 反序列化 payload |
 
 ---
 
@@ -643,7 +559,28 @@ else:
 
 ## 十、已升级功能
 
-### 1. LoopDetector 签名级循环检测
+### 1. RAG 知识检索优化
+
+**wooyun 移出 RAG**: 作为"原材料库"，不参与日常 RAG 检索
+
+**检索来源调整**:
+- `memories/experiences/<type>.md` — 历史成功经验（最高）
+- `skills/<type>/SKILL.md` — 题型技能知识
+
+**sort_by_type_priority()**: 确保同题型 experiences/skills 优先排序
+
+### 2. Skills 格式优化
+
+**优化内容**:
+- 移除 frontmatter (`---name/description/allowed-tools---`)
+- 移除 `来自外部导入内容` 标记和章节
+- 保留核心方法论结构
+- 保留代码块/payloads
+- 保留绕过技术
+
+**已优化文件**: rce, sqli, file-inclusion, upload, auth-bypass, ssrf, xss, ssti, deserialization, recon, web-recon
+
+### 3. LoopDetector 签名级循环检测
 
 **文件**: `core/loop_detector.py`
 
@@ -652,28 +589,7 @@ else:
 - warn_threshold=3，break_threshold=5
 - 状态持久化到 `workspace/.loop_state.json`
 
-**Hook 集成**: `check_knowledge_hook.py` 在每次 Bash 命令前调用，警告信息注入 `additionalContext`
-
-### 2. Skills 决策策略
-
-每个 SKILL.md 顶部添加三层推理框架：
-
-```markdown
-## 决策策略
-
-### 三层推理
-- **fact**: 直接观察到的行为
-- **hypothesis**: 猜测（未经证实）
-- **decision**: 下一步行动
-
-### 最短探针原则
-先确认假设，再深入攻击
-
-### 切换规则
-探针无效果时，换方向重新分析
-```
-
-### 3. LLM 智能经验保存
+### 4. LLM 智能经验保存
 
 **文件**: `core/llm_client.py`, `core/experience_manager.py`
 
@@ -683,18 +599,6 @@ else:
 - **智能去重**: 判断新技术/相同技术/相同 flag
 - **高质量格式**: 自动生成标准 Markdown，包含原理分析、Payload、适用场景
 - **自动标签**: 根据解题信息提取相关标签
-
-**配置** (`config.json`):
-```json
-{
-  "llm": {
-    "api_url": "https://mydamoxing.cn",
-    "api_key": "sk-xxx",
-    "model": "MiniMax-M2.7-highspeed",
-    "provider": "claude"
-  }
-}
-```
 
 **API**:
 ```python
