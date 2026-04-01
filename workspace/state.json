@@ -1,53 +1,32 @@
 {
-  "target": "https://b304df13-1c3f-495a-9414-59f8b0100201.challenge.ctf.show",
-  "type": "upload",
+  "target": "https://4f6556bf-8eb6-4b27-8b1b-d50576aceea8.challenge.ctf.show/",
+  "type": "auth",
   "step": 0,
-  "phase": "recon",
-  "step_count": 0,
-  "budget": 10,
-  "current_hypothesis": "通过 Content-Type 或扩展名绕过上传 PHP webshell",
+  "phase": "exploit",
+  "step_count": 1,
+  "budget": 8,
+  "current_hypothesis": "Cookie伪造绕过认证，构造admin权限的Cookie值绕过登录",
   "hypothesis_status": "unverified",
   "findings": [
-    "前端 accept=images, exts=jpg (JS 校验)",
-    "上传接口: /upload/",
-    "提示: 后端校验要严密",
-    ".phtml 和 .php5 扩展名被接受但作为静态文件处理",
-    ".htaccess AddType application/x-httpd-php .jpg 使 jpg 作为 PHP 执行"
+    "Admin Login 页面，username 默认值 guest",
+    "hint: Cookie 伪造"
   ],
   "methods_tried": [
-    ".htaccess 绕过",
-    "Content-Type: image/jpeg 绕过扩展名检查"
+    "rm"
   ],
   "failed_patterns": [],
   "suggested_bypass": [],
   "reasoning_chain": [
     {
       "step": 1,
-      "action": "上传 .htaccess",
-      "finding": ".htaccess 上传成功，使 jpg 作为 PHP 处理",
-      "timestamp": "2026-03-30T12:34:53.490514"
-    },
-    {
-      "step": 2,
-      "action": "上传 webshell.jpg",
-      "finding": "webshell 通过 .htaccess 配置被当作 PHP 执行",
-      "timestamp": "2026-03-30T12:34:53.490881"
-    },
-    {
-      "step": 3,
-      "action": "执行命令 find / -name flag*",
-      "finding": "发现 /var/www/html/flag.php",
-      "timestamp": "2026-03-30T12:34:53.491282"
-    },
-    {
-      "step": 4,
-      "action": "cat flag.php",
-      "finding": "获取到 flag",
-      "timestamp": "2026-03-30T12:34:53.491685"
+      "action": "阶段切换: recon → identify",
+      "finding": "进入 identify 阶段",
+      "timestamp": "2026-03-31T23:53:40.526461"
     }
   ],
-  "flag": "ctfshow{b0cfcc89-0eae-4eb5-bb1e-88a9c2332b6d}",
-  "created_at": "2026-03-30T12:32:51.654869",
-  "updated_at": "2026-03-30T12:34:53.492067",
-  "payload_context": "AddType application/x-httpd-php .jpg + webshell.jpg"
+  "flag": "CTF{cookie_injection_is_fun}",
+  "created_at": "2026-03-31T23:51:59.700237",
+  "updated_at": "2026-04-01T00:01:54.701249",
+  "last_advisor_read": "2026-04-01T09:30:01.737318",
+  "payload_context": "Cookie: role=admin 伪造管理员权限"
 }
