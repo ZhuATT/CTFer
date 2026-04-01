@@ -1,0 +1,2167 @@
+{
+  "version": "2.0",
+  "last_updated": "2026-03-31T18:58:16.769860",
+  "sources": {
+    "experiences": {
+      "path": "memories/experiences/",
+      "file_count": 6,
+      "total_chunks": 15
+    },
+    "skills": {
+      "path": "skills/",
+      "file_count": 14,
+      "total_chunks": 130
+    },
+    "wooyun": {
+      "path": "knowledge_base/wooyun/",
+      "file_count": 23,
+      "total_chunks": 193
+    },
+    "h-pentest": {
+      "path": "knowledge_base/h-pentest/",
+      "file_count": 47,
+      "total_chunks": 432
+    },
+    "patt": {
+      "path": "knowledge_base/PayloadsAllTheThings/",
+      "file_count": 64,
+      "total_chunks": 440
+    }
+  },
+  "documents": {
+    "memories\\experiences\\auth.md": {
+      "hash": "sha256:97cd6684844f2060",
+      "mtime": 1774954582,
+      "chunks": [
+        "memories\\experiences\\auth.md::chunk::0",
+        "memories\\experiences\\auth.md::chunk::1"
+      ]
+    },
+    "memories\\experiences\\deserialization.md": {
+      "hash": "sha256:5d26af52f5aa242e",
+      "mtime": 1774954582,
+      "chunks": [
+        "memories\\experiences\\deserialization.md::chunk::0",
+        "memories\\experiences\\deserialization.md::chunk::1",
+        "memories\\experiences\\deserialization.md::chunk::2"
+      ]
+    },
+    "memories\\experiences\\lfi.md": {
+      "hash": "sha256:34e2651ba4581678",
+      "mtime": 1774954582,
+      "chunks": [
+        "memories\\experiences\\lfi.md::chunk::0",
+        "memories\\experiences\\lfi.md::chunk::1"
+      ]
+    },
+    "memories\\experiences\\rce.md": {
+      "hash": "sha256:9b9dc313345be07f",
+      "mtime": 1774954588,
+      "chunks": [
+        "memories\\experiences\\rce.md::chunk::0",
+        "memories\\experiences\\rce.md::chunk::1",
+        "memories\\experiences\\rce.md::chunk::2"
+      ]
+    },
+    "memories\\experiences\\sqli.md": {
+      "hash": "sha256:0e3e71e4fd69015f",
+      "mtime": 1774954582,
+      "chunks": [
+        "memories\\experiences\\sqli.md::chunk::0",
+        "memories\\experiences\\sqli.md::chunk::1"
+      ]
+    },
+    "memories\\experiences\\upload.md": {
+      "hash": "sha256:e1c27736de4cfa0e",
+      "mtime": 1774954582,
+      "chunks": [
+        "memories\\experiences\\upload.md::chunk::0",
+        "memories\\experiences\\upload.md::chunk::1",
+        "memories\\experiences\\upload.md::chunk::2"
+      ]
+    },
+    "skills\\auth-bypass\\SKILL.md": {
+      "hash": "sha256:8dcfdf9a90ace6f0",
+      "mtime": 1774786728,
+      "chunks": [
+        "skills\\auth-bypass\\SKILL.md::chunk::0",
+        "skills\\auth-bypass\\SKILL.md::chunk::1",
+        "skills\\auth-bypass\\SKILL.md::chunk::2",
+        "skills\\auth-bypass\\SKILL.md::chunk::3",
+        "skills\\auth-bypass\\SKILL.md::chunk::4",
+        "skills\\auth-bypass\\SKILL.md::chunk::5",
+        "skills\\auth-bypass\\SKILL.md::chunk::6",
+        "skills\\auth-bypass\\SKILL.md::chunk::7"
+      ]
+    },
+    "skills\\awdp\\SKILL.md": {
+      "hash": "sha256:1e5f3b00d69b68a4",
+      "mtime": 1774768619,
+      "chunks": [
+        "skills\\awdp\\SKILL.md::chunk::0",
+        "skills\\awdp\\SKILL.md::chunk::1",
+        "skills\\awdp\\SKILL.md::chunk::2",
+        "skills\\awdp\\SKILL.md::chunk::3",
+        "skills\\awdp\\SKILL.md::chunk::4",
+        "skills\\awdp\\SKILL.md::chunk::5",
+        "skills\\awdp\\SKILL.md::chunk::6",
+        "skills\\awdp\\SKILL.md::chunk::7",
+        "skills\\awdp\\SKILL.md::chunk::8",
+        "skills\\awdp\\SKILL.md::chunk::9",
+        "skills\\awdp\\SKILL.md::chunk::10",
+        "skills\\awdp\\SKILL.md::chunk::11"
+      ]
+    },
+    "skills\\decoder\\SKILL.md": {
+      "hash": "sha256:ccdb710bb120934c",
+      "mtime": 1774768619,
+      "chunks": [
+        "skills\\decoder\\SKILL.md::chunk::0",
+        "skills\\decoder\\SKILL.md::chunk::1",
+        "skills\\decoder\\SKILL.md::chunk::2",
+        "skills\\decoder\\SKILL.md::chunk::3",
+        "skills\\decoder\\SKILL.md::chunk::4",
+        "skills\\decoder\\SKILL.md::chunk::5",
+        "skills\\decoder\\SKILL.md::chunk::6",
+        "skills\\decoder\\SKILL.md::chunk::7",
+        "skills\\decoder\\SKILL.md::chunk::8",
+        "skills\\decoder\\SKILL.md::chunk::9"
+      ]
+    },
+    "skills\\deserialization\\SKILL.md": {
+      "hash": "sha256:081000978de22601",
+      "mtime": 1774786859,
+      "chunks": [
+        "skills\\deserialization\\SKILL.md::chunk::0",
+        "skills\\deserialization\\SKILL.md::chunk::1",
+        "skills\\deserialization\\SKILL.md::chunk::2",
+        "skills\\deserialization\\SKILL.md::chunk::3",
+        "skills\\deserialization\\SKILL.md::chunk::4",
+        "skills\\deserialization\\SKILL.md::chunk::5",
+        "skills\\deserialization\\SKILL.md::chunk::6",
+        "skills\\deserialization\\SKILL.md::chunk::7",
+        "skills\\deserialization\\SKILL.md::chunk::8",
+        "skills\\deserialization\\SKILL.md::chunk::9"
+      ]
+    },
+    "skills\\encoding_fix\\SKILL.md": {
+      "hash": "sha256:0c7fe93a03a8e21d",
+      "mtime": 1774768619,
+      "chunks": [
+        "skills\\encoding_fix\\SKILL.md::chunk::0",
+        "skills\\encoding_fix\\SKILL.md::chunk::1",
+        "skills\\encoding_fix\\SKILL.md::chunk::2",
+        "skills\\encoding_fix\\SKILL.md::chunk::3",
+        "skills\\encoding_fix\\SKILL.md::chunk::4",
+        "skills\\encoding_fix\\SKILL.md::chunk::5",
+        "skills\\encoding_fix\\SKILL.md::chunk::6"
+      ]
+    },
+    "skills\\file-inclusion\\SKILL.md": {
+      "hash": "sha256:000cf3fcc91d0561",
+      "mtime": 1774786607,
+      "chunks": [
+        "skills\\file-inclusion\\SKILL.md::chunk::0",
+        "skills\\file-inclusion\\SKILL.md::chunk::1",
+        "skills\\file-inclusion\\SKILL.md::chunk::2",
+        "skills\\file-inclusion\\SKILL.md::chunk::3",
+        "skills\\file-inclusion\\SKILL.md::chunk::4",
+        "skills\\file-inclusion\\SKILL.md::chunk::5",
+        "skills\\file-inclusion\\SKILL.md::chunk::6",
+        "skills\\file-inclusion\\SKILL.md::chunk::7"
+      ]
+    },
+    "skills\\rce\\SKILL.md": {
+      "hash": "sha256:9e5e131d5e85a9b1",
+      "mtime": 1774786500,
+      "chunks": [
+        "skills\\rce\\SKILL.md::chunk::0",
+        "skills\\rce\\SKILL.md::chunk::1",
+        "skills\\rce\\SKILL.md::chunk::2",
+        "skills\\rce\\SKILL.md::chunk::3",
+        "skills\\rce\\SKILL.md::chunk::4",
+        "skills\\rce\\SKILL.md::chunk::5",
+        "skills\\rce\\SKILL.md::chunk::6",
+        "skills\\rce\\SKILL.md::chunk::7"
+      ]
+    },
+    "skills\\recon\\SKILL.md": {
+      "hash": "sha256:4a2ff8e5aec964cb",
+      "mtime": 1774786898,
+      "chunks": [
+        "skills\\recon\\SKILL.md::chunk::0",
+        "skills\\recon\\SKILL.md::chunk::1",
+        "skills\\recon\\SKILL.md::chunk::2",
+        "skills\\recon\\SKILL.md::chunk::3",
+        "skills\\recon\\SKILL.md::chunk::4",
+        "skills\\recon\\SKILL.md::chunk::5",
+        "skills\\recon\\SKILL.md::chunk::6",
+        "skills\\recon\\SKILL.md::chunk::7",
+        "skills\\recon\\SKILL.md::chunk::8",
+        "skills\\recon\\SKILL.md::chunk::9",
+        "skills\\recon\\SKILL.md::chunk::10",
+        "skills\\recon\\SKILL.md::chunk::11",
+        "skills\\recon\\SKILL.md::chunk::12"
+      ]
+    },
+    "skills\\sqli\\SKILL.md": {
+      "hash": "sha256:e73d38d7adc5538d",
+      "mtime": 1774786566,
+      "chunks": [
+        "skills\\sqli\\SKILL.md::chunk::0",
+        "skills\\sqli\\SKILL.md::chunk::1",
+        "skills\\sqli\\SKILL.md::chunk::2",
+        "skills\\sqli\\SKILL.md::chunk::3",
+        "skills\\sqli\\SKILL.md::chunk::4",
+        "skills\\sqli\\SKILL.md::chunk::5",
+        "skills\\sqli\\SKILL.md::chunk::6",
+        "skills\\sqli\\SKILL.md::chunk::7"
+      ]
+    },
+    "skills\\ssrf\\SKILL.md": {
+      "hash": "sha256:9ba5f91195c9421b",
+      "mtime": 1774786774,
+      "chunks": [
+        "skills\\ssrf\\SKILL.md::chunk::0",
+        "skills\\ssrf\\SKILL.md::chunk::1",
+        "skills\\ssrf\\SKILL.md::chunk::2",
+        "skills\\ssrf\\SKILL.md::chunk::3",
+        "skills\\ssrf\\SKILL.md::chunk::4",
+        "skills\\ssrf\\SKILL.md::chunk::5",
+        "skills\\ssrf\\SKILL.md::chunk::6",
+        "skills\\ssrf\\SKILL.md::chunk::7"
+      ]
+    },
+    "skills\\ssti\\SKILL.md": {
+      "hash": "sha256:9d1ceb2b9e8e0719",
+      "mtime": 1774786832,
+      "chunks": [
+        "skills\\ssti\\SKILL.md::chunk::0",
+        "skills\\ssti\\SKILL.md::chunk::1",
+        "skills\\ssti\\SKILL.md::chunk::2",
+        "skills\\ssti\\SKILL.md::chunk::3",
+        "skills\\ssti\\SKILL.md::chunk::4",
+        "skills\\ssti\\SKILL.md::chunk::5",
+        "skills\\ssti\\SKILL.md::chunk::6"
+      ]
+    },
+    "skills\\upload\\SKILL.md": {
+      "hash": "sha256:c255c89e39e1a607",
+      "mtime": 1774786648,
+      "chunks": [
+        "skills\\upload\\SKILL.md::chunk::0",
+        "skills\\upload\\SKILL.md::chunk::1",
+        "skills\\upload\\SKILL.md::chunk::2",
+        "skills\\upload\\SKILL.md::chunk::3",
+        "skills\\upload\\SKILL.md::chunk::4",
+        "skills\\upload\\SKILL.md::chunk::5",
+        "skills\\upload\\SKILL.md::chunk::6",
+        "skills\\upload\\SKILL.md::chunk::7",
+        "skills\\upload\\SKILL.md::chunk::8",
+        "skills\\upload\\SKILL.md::chunk::9",
+        "skills\\upload\\SKILL.md::chunk::10",
+        "skills\\upload\\SKILL.md::chunk::11",
+        "skills\\upload\\SKILL.md::chunk::12",
+        "skills\\upload\\SKILL.md::chunk::13"
+      ]
+    },
+    "skills\\web-recon\\SKILL.md": {
+      "hash": "sha256:7092e3e6df677677",
+      "mtime": 1774786939,
+      "chunks": [
+        "skills\\web-recon\\SKILL.md::chunk::0",
+        "skills\\web-recon\\SKILL.md::chunk::1",
+        "skills\\web-recon\\SKILL.md::chunk::2",
+        "skills\\web-recon\\SKILL.md::chunk::3",
+        "skills\\web-recon\\SKILL.md::chunk::4",
+        "skills\\web-recon\\SKILL.md::chunk::5",
+        "skills\\web-recon\\SKILL.md::chunk::6"
+      ]
+    },
+    "skills\\xss\\SKILL.md": {
+      "hash": "sha256:823fffdd9a0a7082",
+      "mtime": 1774786816,
+      "chunks": [
+        "skills\\xss\\SKILL.md::chunk::0",
+        "skills\\xss\\SKILL.md::chunk::1",
+        "skills\\xss\\SKILL.md::chunk::2",
+        "skills\\xss\\SKILL.md::chunk::3",
+        "skills\\xss\\SKILL.md::chunk::4",
+        "skills\\xss\\SKILL.md::chunk::5",
+        "skills\\xss\\SKILL.md::chunk::6",
+        "skills\\xss\\SKILL.md::chunk::7",
+        "skills\\xss\\SKILL.md::chunk::8",
+        "skills\\xss\\SKILL.md::chunk::9"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\command-execution.md": {
+      "hash": "sha256:e988fdbc9b14c021",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\command-execution.md::chunk::0",
+        "knowledge_base\\wooyun\\categories\\command-execution.md::chunk::1",
+        "knowledge_base\\wooyun\\categories\\command-execution.md::chunk::2",
+        "knowledge_base\\wooyun\\categories\\command-execution.md::chunk::3",
+        "knowledge_base\\wooyun\\categories\\command-execution.md::chunk::4",
+        "knowledge_base\\wooyun\\categories\\command-execution.md::chunk::5",
+        "knowledge_base\\wooyun\\categories\\command-execution.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\csrf.md": {
+      "hash": "sha256:9aae661573f98fd4",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\csrf.md::chunk::0",
+        "knowledge_base\\wooyun\\categories\\csrf.md::chunk::1",
+        "knowledge_base\\wooyun\\categories\\csrf.md::chunk::2",
+        "knowledge_base\\wooyun\\categories\\csrf.md::chunk::3",
+        "knowledge_base\\wooyun\\categories\\csrf.md::chunk::4",
+        "knowledge_base\\wooyun\\categories\\csrf.md::chunk::5",
+        "knowledge_base\\wooyun\\categories\\csrf.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\file-traversal.md": {
+      "hash": "sha256:1c08d17d0c173e7c",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\file-traversal.md::chunk::0",
+        "knowledge_base\\wooyun\\categories\\file-traversal.md::chunk::1",
+        "knowledge_base\\wooyun\\categories\\file-traversal.md::chunk::2",
+        "knowledge_base\\wooyun\\categories\\file-traversal.md::chunk::3",
+        "knowledge_base\\wooyun\\categories\\file-traversal.md::chunk::4",
+        "knowledge_base\\wooyun\\categories\\file-traversal.md::chunk::5",
+        "knowledge_base\\wooyun\\categories\\file-traversal.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\file-upload.md": {
+      "hash": "sha256:2a79384fcbcb43ae",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\file-upload.md::chunk::0",
+        "knowledge_base\\wooyun\\categories\\file-upload.md::chunk::1",
+        "knowledge_base\\wooyun\\categories\\file-upload.md::chunk::2",
+        "knowledge_base\\wooyun\\categories\\file-upload.md::chunk::3",
+        "knowledge_base\\wooyun\\categories\\file-upload.md::chunk::4",
+        "knowledge_base\\wooyun\\categories\\file-upload.md::chunk::5",
+        "knowledge_base\\wooyun\\categories\\file-upload.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\info-disclosure.md": {
+      "hash": "sha256:aea680cda13b3ec8",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\info-disclosure.md::chunk::0",
+        "knowledge_base\\wooyun\\categories\\info-disclosure.md::chunk::1",
+        "knowledge_base\\wooyun\\categories\\info-disclosure.md::chunk::2",
+        "knowledge_base\\wooyun\\categories\\info-disclosure.md::chunk::3",
+        "knowledge_base\\wooyun\\categories\\info-disclosure.md::chunk::4",
+        "knowledge_base\\wooyun\\categories\\info-disclosure.md::chunk::5",
+        "knowledge_base\\wooyun\\categories\\info-disclosure.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\logic-flaws.md": {
+      "hash": "sha256:830dd422599e49bd",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\logic-flaws.md::chunk::0",
+        "knowledge_base\\wooyun\\categories\\logic-flaws.md::chunk::1",
+        "knowledge_base\\wooyun\\categories\\logic-flaws.md::chunk::2",
+        "knowledge_base\\wooyun\\categories\\logic-flaws.md::chunk::3",
+        "knowledge_base\\wooyun\\categories\\logic-flaws.md::chunk::4",
+        "knowledge_base\\wooyun\\categories\\logic-flaws.md::chunk::5",
+        "knowledge_base\\wooyun\\categories\\logic-flaws.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\misconfig.md": {
+      "hash": "sha256:d555ac829e5d17a7",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\misconfig.md::chunk::0",
+        "knowledge_base\\wooyun\\categories\\misconfig.md::chunk::1",
+        "knowledge_base\\wooyun\\categories\\misconfig.md::chunk::2",
+        "knowledge_base\\wooyun\\categories\\misconfig.md::chunk::3",
+        "knowledge_base\\wooyun\\categories\\misconfig.md::chunk::4",
+        "knowledge_base\\wooyun\\categories\\misconfig.md::chunk::5",
+        "knowledge_base\\wooyun\\categories\\misconfig.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\other.md": {
+      "hash": "sha256:722ecbf5db5c938c",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\other.md::chunk::0",
+        "knowledge_base\\wooyun\\categories\\other.md::chunk::1",
+        "knowledge_base\\wooyun\\categories\\other.md::chunk::2",
+        "knowledge_base\\wooyun\\categories\\other.md::chunk::3",
+        "knowledge_base\\wooyun\\categories\\other.md::chunk::4",
+        "knowledge_base\\wooyun\\categories\\other.md::chunk::5",
+        "knowledge_base\\wooyun\\categories\\other.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\rce.md": {
+      "hash": "sha256:05760a929cb1f2f0",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\rce.md::chunk::0",
+        "knowledge_base\\wooyun\\categories\\rce.md::chunk::1",
+        "knowledge_base\\wooyun\\categories\\rce.md::chunk::2",
+        "knowledge_base\\wooyun\\categories\\rce.md::chunk::3",
+        "knowledge_base\\wooyun\\categories\\rce.md::chunk::4",
+        "knowledge_base\\wooyun\\categories\\rce.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\sql-injection.md": {
+      "hash": "sha256:29347b23d79eca84",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\sql-injection.md::chunk::0",
+        "knowledge_base\\wooyun\\categories\\sql-injection.md::chunk::1",
+        "knowledge_base\\wooyun\\categories\\sql-injection.md::chunk::2",
+        "knowledge_base\\wooyun\\categories\\sql-injection.md::chunk::3",
+        "knowledge_base\\wooyun\\categories\\sql-injection.md::chunk::4",
+        "knowledge_base\\wooyun\\categories\\sql-injection.md::chunk::5",
+        "knowledge_base\\wooyun\\categories\\sql-injection.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\ssrf.md": {
+      "hash": "sha256:642d5297a4fa1e0d",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\ssrf.md::chunk::0"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\unauthorized-access.md": {
+      "hash": "sha256:392de616dda96d07",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\unauthorized-access.md::chunk::0",
+        "knowledge_base\\wooyun\\categories\\unauthorized-access.md::chunk::1",
+        "knowledge_base\\wooyun\\categories\\unauthorized-access.md::chunk::2",
+        "knowledge_base\\wooyun\\categories\\unauthorized-access.md::chunk::3",
+        "knowledge_base\\wooyun\\categories\\unauthorized-access.md::chunk::4",
+        "knowledge_base\\wooyun\\categories\\unauthorized-access.md::chunk::5",
+        "knowledge_base\\wooyun\\categories\\unauthorized-access.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\weak-password.md": {
+      "hash": "sha256:c7891ac4f0058876",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\weak-password.md::chunk::0",
+        "knowledge_base\\wooyun\\categories\\weak-password.md::chunk::1",
+        "knowledge_base\\wooyun\\categories\\weak-password.md::chunk::2",
+        "knowledge_base\\wooyun\\categories\\weak-password.md::chunk::3",
+        "knowledge_base\\wooyun\\categories\\weak-password.md::chunk::4",
+        "knowledge_base\\wooyun\\categories\\weak-password.md::chunk::5",
+        "knowledge_base\\wooyun\\categories\\weak-password.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\xss.md": {
+      "hash": "sha256:0db59105bf7877c0",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\xss.md::chunk::0",
+        "knowledge_base\\wooyun\\categories\\xss.md::chunk::1",
+        "knowledge_base\\wooyun\\categories\\xss.md::chunk::2",
+        "knowledge_base\\wooyun\\categories\\xss.md::chunk::3",
+        "knowledge_base\\wooyun\\categories\\xss.md::chunk::4",
+        "knowledge_base\\wooyun\\categories\\xss.md::chunk::5",
+        "knowledge_base\\wooyun\\categories\\xss.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\wooyun\\categories\\xxe.md": {
+      "hash": "sha256:94f98473aae82d14",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\categories\\xxe.md::chunk::0"
+      ]
+    },
+    "knowledge_base\\wooyun\\knowledge\\command-execution.md": {
+      "hash": "sha256:9aad5aae161a489a",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\knowledge\\command-execution.md::chunk::0",
+        "knowledge_base\\wooyun\\knowledge\\command-execution.md::chunk::1",
+        "knowledge_base\\wooyun\\knowledge\\command-execution.md::chunk::2",
+        "knowledge_base\\wooyun\\knowledge\\command-execution.md::chunk::3",
+        "knowledge_base\\wooyun\\knowledge\\command-execution.md::chunk::4",
+        "knowledge_base\\wooyun\\knowledge\\command-execution.md::chunk::5",
+        "knowledge_base\\wooyun\\knowledge\\command-execution.md::chunk::6",
+        "knowledge_base\\wooyun\\knowledge\\command-execution.md::chunk::7",
+        "knowledge_base\\wooyun\\knowledge\\command-execution.md::chunk::8",
+        "knowledge_base\\wooyun\\knowledge\\command-execution.md::chunk::9",
+        "knowledge_base\\wooyun\\knowledge\\command-execution.md::chunk::10",
+        "knowledge_base\\wooyun\\knowledge\\command-execution.md::chunk::11"
+      ]
+    },
+    "knowledge_base\\wooyun\\knowledge\\file-traversal.md": {
+      "hash": "sha256:f3f8f15d44e0a4da",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\knowledge\\file-traversal.md::chunk::0",
+        "knowledge_base\\wooyun\\knowledge\\file-traversal.md::chunk::1",
+        "knowledge_base\\wooyun\\knowledge\\file-traversal.md::chunk::2",
+        "knowledge_base\\wooyun\\knowledge\\file-traversal.md::chunk::3",
+        "knowledge_base\\wooyun\\knowledge\\file-traversal.md::chunk::4",
+        "knowledge_base\\wooyun\\knowledge\\file-traversal.md::chunk::5",
+        "knowledge_base\\wooyun\\knowledge\\file-traversal.md::chunk::6",
+        "knowledge_base\\wooyun\\knowledge\\file-traversal.md::chunk::7",
+        "knowledge_base\\wooyun\\knowledge\\file-traversal.md::chunk::8",
+        "knowledge_base\\wooyun\\knowledge\\file-traversal.md::chunk::9",
+        "knowledge_base\\wooyun\\knowledge\\file-traversal.md::chunk::10",
+        "knowledge_base\\wooyun\\knowledge\\file-traversal.md::chunk::11",
+        "knowledge_base\\wooyun\\knowledge\\file-traversal.md::chunk::12"
+      ]
+    },
+    "knowledge_base\\wooyun\\knowledge\\file-upload.md": {
+      "hash": "sha256:14b477a663b744d5",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::0",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::1",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::2",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::3",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::4",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::5",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::6",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::7",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::8",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::9",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::10",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::11",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::12",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::13",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::14",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::15",
+        "knowledge_base\\wooyun\\knowledge\\file-upload.md::chunk::16"
+      ]
+    },
+    "knowledge_base\\wooyun\\knowledge\\info-disclosure.md": {
+      "hash": "sha256:5d3c6d930aef8221",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\knowledge\\info-disclosure.md::chunk::0",
+        "knowledge_base\\wooyun\\knowledge\\info-disclosure.md::chunk::1",
+        "knowledge_base\\wooyun\\knowledge\\info-disclosure.md::chunk::2",
+        "knowledge_base\\wooyun\\knowledge\\info-disclosure.md::chunk::3",
+        "knowledge_base\\wooyun\\knowledge\\info-disclosure.md::chunk::4",
+        "knowledge_base\\wooyun\\knowledge\\info-disclosure.md::chunk::5",
+        "knowledge_base\\wooyun\\knowledge\\info-disclosure.md::chunk::6",
+        "knowledge_base\\wooyun\\knowledge\\info-disclosure.md::chunk::7",
+        "knowledge_base\\wooyun\\knowledge\\info-disclosure.md::chunk::8",
+        "knowledge_base\\wooyun\\knowledge\\info-disclosure.md::chunk::9",
+        "knowledge_base\\wooyun\\knowledge\\info-disclosure.md::chunk::10"
+      ]
+    },
+    "knowledge_base\\wooyun\\knowledge\\logic-flaws.md": {
+      "hash": "sha256:cc83f5f1f56e380a",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\knowledge\\logic-flaws.md::chunk::0",
+        "knowledge_base\\wooyun\\knowledge\\logic-flaws.md::chunk::1",
+        "knowledge_base\\wooyun\\knowledge\\logic-flaws.md::chunk::2",
+        "knowledge_base\\wooyun\\knowledge\\logic-flaws.md::chunk::3",
+        "knowledge_base\\wooyun\\knowledge\\logic-flaws.md::chunk::4",
+        "knowledge_base\\wooyun\\knowledge\\logic-flaws.md::chunk::5",
+        "knowledge_base\\wooyun\\knowledge\\logic-flaws.md::chunk::6",
+        "knowledge_base\\wooyun\\knowledge\\logic-flaws.md::chunk::7",
+        "knowledge_base\\wooyun\\knowledge\\logic-flaws.md::chunk::8",
+        "knowledge_base\\wooyun\\knowledge\\logic-flaws.md::chunk::9",
+        "knowledge_base\\wooyun\\knowledge\\logic-flaws.md::chunk::10"
+      ]
+    },
+    "knowledge_base\\wooyun\\knowledge\\sql-injection.md": {
+      "hash": "sha256:c3d649505e7db380",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::0",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::1",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::2",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::3",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::4",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::5",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::6",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::7",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::8",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::9",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::10",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::11",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::12",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::13",
+        "knowledge_base\\wooyun\\knowledge\\sql-injection.md::chunk::14"
+      ]
+    },
+    "knowledge_base\\wooyun\\knowledge\\unauthorized-access.md": {
+      "hash": "sha256:c39d2e55c9647721",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\knowledge\\unauthorized-access.md::chunk::0",
+        "knowledge_base\\wooyun\\knowledge\\unauthorized-access.md::chunk::1",
+        "knowledge_base\\wooyun\\knowledge\\unauthorized-access.md::chunk::2",
+        "knowledge_base\\wooyun\\knowledge\\unauthorized-access.md::chunk::3",
+        "knowledge_base\\wooyun\\knowledge\\unauthorized-access.md::chunk::4",
+        "knowledge_base\\wooyun\\knowledge\\unauthorized-access.md::chunk::5",
+        "knowledge_base\\wooyun\\knowledge\\unauthorized-access.md::chunk::6",
+        "knowledge_base\\wooyun\\knowledge\\unauthorized-access.md::chunk::7",
+        "knowledge_base\\wooyun\\knowledge\\unauthorized-access.md::chunk::8",
+        "knowledge_base\\wooyun\\knowledge\\unauthorized-access.md::chunk::9"
+      ]
+    },
+    "knowledge_base\\wooyun\\knowledge\\xss.md": {
+      "hash": "sha256:49b767ef4d3e776a",
+      "mtime": 1773927222,
+      "chunks": [
+        "knowledge_base\\wooyun\\knowledge\\xss.md::chunk::0",
+        "knowledge_base\\wooyun\\knowledge\\xss.md::chunk::1",
+        "knowledge_base\\wooyun\\knowledge\\xss.md::chunk::2",
+        "knowledge_base\\wooyun\\knowledge\\xss.md::chunk::3",
+        "knowledge_base\\wooyun\\knowledge\\xss.md::chunk::4",
+        "knowledge_base\\wooyun\\knowledge\\xss.md::chunk::5",
+        "knowledge_base\\wooyun\\knowledge\\xss.md::chunk::6",
+        "knowledge_base\\wooyun\\knowledge\\xss.md::chunk::7",
+        "knowledge_base\\wooyun\\knowledge\\xss.md::chunk::8",
+        "knowledge_base\\wooyun\\knowledge\\xss.md::chunk::9",
+        "knowledge_base\\wooyun\\knowledge\\xss.md::chunk::10",
+        "knowledge_base\\wooyun\\knowledge\\xss.md::chunk::11"
+      ]
+    },
+    "knowledge_base\\h-pentest\\API-Gateway-SSRF-Redis-攻击库.md": {
+      "hash": "sha256:c66b9e6a914b33a8",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\API-Gateway-SSRF-Redis-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\API-Gateway-SSRF-Redis-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\API-Gateway-SSRF-Redis-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\API-Gateway-SSRF-Redis-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\API-Gateway-SSRF-Redis-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\API-Gateway-SSRF-Redis-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\API-Gateway-SSRF-Redis-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\API-Gateway-SSRF-Redis-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\API-Gateway-SSRF-Redis-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\API-Gateway-SSRF-Redis-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\API-Gateway-SSRF-Redis-攻击库.md::chunk::10"
+      ]
+    },
+    "knowledge_base\\h-pentest\\API安全测试-攻击库.md": {
+      "hash": "sha256:5e32db3ca7d27821",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\API安全测试-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\API安全测试-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\API安全测试-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\API安全测试-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\API安全测试-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\API安全测试-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\API安全测试-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\API安全测试-攻击库.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\h-pentest\\CVE-Apache路径遍历-攻击库.md": {
+      "hash": "sha256:653aa28fc7238e01",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\CVE-Apache路径遍历-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\CVE-Apache路径遍历-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\CVE-Apache路径遍历-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\CVE-Apache路径遍历-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\CVE-Apache路径遍历-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\CVE-Apache路径遍历-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\CVE-Apache路径遍历-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\CVE-Apache路径遍历-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\CVE-Apache路径遍历-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\CVE-Apache路径遍历-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\CVE-Apache路径遍历-攻击库.md::chunk::10"
+      ]
+    },
+    "knowledge_base\\h-pentest\\CVE-WordPress插件漏洞-攻击库.md": {
+      "hash": "sha256:e544cd890549b68c",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\CVE-WordPress插件漏洞-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\CVE-WordPress插件漏洞-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\CVE-WordPress插件漏洞-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\CVE-WordPress插件漏洞-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\CVE-WordPress插件漏洞-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\CVE-WordPress插件漏洞-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\CVE-WordPress插件漏洞-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\CVE-WordPress插件漏洞-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\CVE-WordPress插件漏洞-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\CVE-WordPress插件漏洞-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\CVE-WordPress插件漏洞-攻击库.md::chunk::10",
+        "knowledge_base\\h-pentest\\CVE-WordPress插件漏洞-攻击库.md::chunk::11"
+      ]
+    },
+    "knowledge_base\\h-pentest\\CVE-攻击库.md": {
+      "hash": "sha256:f203b4ce41eebdba",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\CVE-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\CVE-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\CVE-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\CVE-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\CVE-攻击库.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\h-pentest\\GraphQL-攻击库.md": {
+      "hash": "sha256:ddd21d3520ddf7e3",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\GraphQL-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\GraphQL-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\GraphQL-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\GraphQL-攻击库.md::chunk::3"
+      ]
+    },
+    "knowledge_base\\h-pentest\\HTTP请求走私-攻击库.md": {
+      "hash": "sha256:c87b4b26b6ea84a6",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\HTTP请求走私-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\HTTP请求走私-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\HTTP请求走私-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\HTTP请求走私-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\HTTP请求走私-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\HTTP请求走私-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\HTTP请求走私-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\HTTP请求走私-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\HTTP请求走私-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\HTTP请求走私-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\HTTP请求走私-攻击库.md::chunk::10",
+        "knowledge_base\\h-pentest\\HTTP请求走私-攻击库.md::chunk::11"
+      ]
+    },
+    "knowledge_base\\h-pentest\\IDOR-HTTP头部注入-攻击库.md": {
+      "hash": "sha256:45a6137a2cb383d1",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\IDOR-HTTP头部注入-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\IDOR-HTTP头部注入-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\IDOR-HTTP头部注入-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\IDOR-HTTP头部注入-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\IDOR-HTTP头部注入-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\IDOR-HTTP头部注入-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\IDOR-HTTP头部注入-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\IDOR-HTTP头部注入-攻击库.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\h-pentest\\IDOR-攻击库.md": {
+      "hash": "sha256:377ee6dbfdca7068",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::10",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::11",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::12",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::13",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::14",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::15",
+        "knowledge_base\\h-pentest\\IDOR-攻击库.md::chunk::16"
+      ]
+    },
+    "knowledge_base\\h-pentest\\IDOR-权限验证缺失-攻击库.md": {
+      "hash": "sha256:2e709764755ec6cd",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\IDOR-权限验证缺失-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\IDOR-权限验证缺失-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\IDOR-权限验证缺失-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\IDOR-权限验证缺失-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\IDOR-权限验证缺失-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\IDOR-权限验证缺失-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\IDOR-权限验证缺失-攻击库.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\h-pentest\\IDOR-订单操作-攻击库.md": {
+      "hash": "sha256:a4e1c3f362e3661c",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\IDOR-订单操作-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\IDOR-订单操作-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\IDOR-订单操作-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\IDOR-订单操作-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\IDOR-订单操作-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\IDOR-订单操作-攻击库.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\h-pentest\\IDOR-间接对象引用-攻击库.md": {
+      "hash": "sha256:da51bbd13f52abc7",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\IDOR-间接对象引用-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\IDOR-间接对象引用-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\IDOR-间接对象引用-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\IDOR-间接对象引用-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\IDOR-间接对象引用-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\IDOR-间接对象引用-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\IDOR-间接对象引用-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\IDOR-间接对象引用-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\IDOR-间接对象引用-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\IDOR-间接对象引用-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\IDOR-间接对象引用-攻击库.md::chunk::10"
+      ]
+    },
+    "knowledge_base\\h-pentest\\JWT令牌攻击-攻击库.md": {
+      "hash": "sha256:5235ccbcea8ae621",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\JWT令牌攻击-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\JWT令牌攻击-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\JWT令牌攻击-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\JWT令牌攻击-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\JWT令牌攻击-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\JWT令牌攻击-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\JWT令牌攻击-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\JWT令牌攻击-攻击库.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\h-pentest\\LFI-路径遍历-攻击库.md": {
+      "hash": "sha256:495f52f920f7745c",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\LFI-路径遍历-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\LFI-路径遍历-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\LFI-路径遍历-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\LFI-路径遍历-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\LFI-路径遍历-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\LFI-路径遍历-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\LFI-路径遍历-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\LFI-路径遍历-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\LFI-路径遍历-攻击库.md::chunk::8"
+      ]
+    },
+    "knowledge_base\\h-pentest\\NoSQL注入-攻击库.md": {
+      "hash": "sha256:09f56cec6eff8a05",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\NoSQL注入-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\NoSQL注入-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\NoSQL注入-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\NoSQL注入-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\NoSQL注入-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\NoSQL注入-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\NoSQL注入-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\NoSQL注入-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\NoSQL注入-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\NoSQL注入-攻击库.md::chunk::9"
+      ]
+    },
+    "knowledge_base\\h-pentest\\OAuth认证绕过-攻击库.md": {
+      "hash": "sha256:9ce311cde33c7420",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\OAuth认证绕过-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\OAuth认证绕过-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\OAuth认证绕过-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\OAuth认证绕过-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\OAuth认证绕过-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\OAuth认证绕过-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\OAuth认证绕过-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\OAuth认证绕过-攻击库.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\h-pentest\\PHP-strcmp绕过-攻击库.md": {
+      "hash": "sha256:797be89393595801",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\PHP-strcmp绕过-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\PHP-strcmp绕过-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\PHP-strcmp绕过-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\PHP-strcmp绕过-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\PHP-strcmp绕过-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\PHP-strcmp绕过-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\PHP-strcmp绕过-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\PHP-strcmp绕过-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\PHP-strcmp绕过-攻击库.md::chunk::8"
+      ]
+    },
+    "knowledge_base\\h-pentest\\PHP类型比较漏洞-攻击库.md": {
+      "hash": "sha256:71ca3dc220b2c707",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\PHP类型比较漏洞-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\PHP类型比较漏洞-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\PHP类型比较漏洞-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\PHP类型比较漏洞-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\PHP类型比较漏洞-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\PHP类型比较漏洞-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\PHP类型比较漏洞-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\PHP类型比较漏洞-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\PHP类型比较漏洞-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\PHP类型比较漏洞-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\PHP类型比较漏洞-攻击库.md::chunk::10",
+        "knowledge_base\\h-pentest\\PHP类型比较漏洞-攻击库.md::chunk::11"
+      ]
+    },
+    "knowledge_base\\h-pentest\\SQL注入-WAF绕过技术-攻击库.md": {
+      "hash": "sha256:3d63c4f2fc91a393",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\SQL注入-WAF绕过技术-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\SQL注入-WAF绕过技术-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\SQL注入-WAF绕过技术-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\SQL注入-WAF绕过技术-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\SQL注入-WAF绕过技术-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\SQL注入-WAF绕过技术-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\SQL注入-WAF绕过技术-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\SQL注入-WAF绕过技术-攻击库.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\h-pentest\\SQL注入-布尔盲注技术-攻击库.md": {
+      "hash": "sha256:ea45fa74e891439e",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\SQL注入-布尔盲注技术-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\SQL注入-布尔盲注技术-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\SQL注入-布尔盲注技术-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\SQL注入-布尔盲注技术-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\SQL注入-布尔盲注技术-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\SQL注入-布尔盲注技术-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\SQL注入-布尔盲注技术-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\SQL注入-布尔盲注技术-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\SQL注入-布尔盲注技术-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\SQL注入-布尔盲注技术-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\SQL注入-布尔盲注技术-攻击库.md::chunk::10",
+        "knowledge_base\\h-pentest\\SQL注入-布尔盲注技术-攻击库.md::chunk::11"
+      ]
+    },
+    "knowledge_base\\h-pentest\\SQL注入-攻击库.md": {
+      "hash": "sha256:4d5ea21b75e4061d",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\SQL注入-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\SQL注入-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\SQL注入-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\SQL注入-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\SQL注入-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\SQL注入-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\SQL注入-攻击库.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\h-pentest\\SQL注入-简单过滤绕过-攻击库.md": {
+      "hash": "sha256:d6e80516b731f3cb",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\SQL注入-简单过滤绕过-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\SQL注入-简单过滤绕过-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\SQL注入-简单过滤绕过-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\SQL注入-简单过滤绕过-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\SQL注入-简单过滤绕过-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\SQL注入-简单过滤绕过-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\SQL注入-简单过滤绕过-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\SQL注入-简单过滤绕过-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\SQL注入-简单过滤绕过-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\SQL注入-简单过滤绕过-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\SQL注入-简单过滤绕过-攻击库.md::chunk::10"
+      ]
+    },
+    "knowledge_base\\h-pentest\\SSRF-攻击库.md": {
+      "hash": "sha256:22dc5a3ed1c55fc7",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\SSRF-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\SSRF-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\SSRF-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\SSRF-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\SSRF-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\SSRF-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\SSRF-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\SSRF-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\SSRF-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\SSRF-攻击库.md::chunk::9"
+      ]
+    },
+    "knowledge_base\\h-pentest\\SSRF-本地服务访问-攻击库.md": {
+      "hash": "sha256:f8b292b9e552ca50",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\SSRF-本地服务访问-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\SSRF-本地服务访问-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\SSRF-本地服务访问-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\SSRF-本地服务访问-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\SSRF-本地服务访问-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\SSRF-本地服务访问-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\SSRF-本地服务访问-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\SSRF-本地服务访问-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\SSRF-本地服务访问-攻击库.md::chunk::8"
+      ]
+    },
+    "knowledge_base\\h-pentest\\SSTI-Django模板注入-攻击库.md": {
+      "hash": "sha256:03725eb05de88a0a",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\SSTI-Django模板注入-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\SSTI-Django模板注入-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\SSTI-Django模板注入-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\SSTI-Django模板注入-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\SSTI-Django模板注入-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\SSTI-Django模板注入-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\SSTI-Django模板注入-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\SSTI-Django模板注入-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\SSTI-Django模板注入-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\SSTI-Django模板注入-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\SSTI-Django模板注入-攻击库.md::chunk::10"
+      ]
+    },
+    "knowledge_base\\h-pentest\\SSTI-Include文件包含-攻击库.md": {
+      "hash": "sha256:d0e8eab75755f210",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\SSTI-Include文件包含-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\SSTI-Include文件包含-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\SSTI-Include文件包含-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\SSTI-Include文件包含-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\SSTI-Include文件包含-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\SSTI-Include文件包含-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\SSTI-Include文件包含-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\SSTI-Include文件包含-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\SSTI-Include文件包含-攻击库.md::chunk::8"
+      ]
+    },
+    "knowledge_base\\h-pentest\\SSTI-Jinja2模板注入-攻击库.md": {
+      "hash": "sha256:c095fa13c137c35c",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\SSTI-Jinja2模板注入-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\SSTI-Jinja2模板注入-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\SSTI-Jinja2模板注入-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\SSTI-Jinja2模板注入-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\SSTI-Jinja2模板注入-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\SSTI-Jinja2模板注入-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\SSTI-Jinja2模板注入-攻击库.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\h-pentest\\SSTI-模板注入-攻击库.md": {
+      "hash": "sha256:9ff72080dafadb73",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\SSTI-模板注入-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\SSTI-模板注入-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\SSTI-模板注入-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\SSTI-模板注入-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\SSTI-模板注入-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\SSTI-模板注入-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\SSTI-模板注入-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\SSTI-模板注入-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\SSTI-模板注入-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\SSTI-模板注入-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\SSTI-模板注入-攻击库.md::chunk::10"
+      ]
+    },
+    "knowledge_base\\h-pentest\\SSTI-盲注时间延迟-攻击库.md": {
+      "hash": "sha256:bd092e551e7f594f",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\SSTI-盲注时间延迟-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\SSTI-盲注时间延迟-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\SSTI-盲注时间延迟-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\SSTI-盲注时间延迟-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\SSTI-盲注时间延迟-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\SSTI-盲注时间延迟-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\SSTI-盲注时间延迟-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\SSTI-盲注时间延迟-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\SSTI-盲注时间延迟-攻击库.md::chunk::8"
+      ]
+    },
+    "knowledge_base\\h-pentest\\XML注入攻击-攻击库.md": {
+      "hash": "sha256:4278564fecb6d067",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\XML注入攻击-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\XML注入攻击-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\XML注入攻击-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\XML注入攻击-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\XML注入攻击-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\XML注入攻击-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\XML注入攻击-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\XML注入攻击-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\XML注入攻击-攻击库.md::chunk::8"
+      ]
+    },
+    "knowledge_base\\h-pentest\\XSS-HTML标签属性注入-攻击库.md": {
+      "hash": "sha256:d0b624383e143c7e",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\XSS-HTML标签属性注入-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\XSS-HTML标签属性注入-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\XSS-HTML标签属性注入-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\XSS-HTML标签属性注入-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\XSS-HTML标签属性注入-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\XSS-HTML标签属性注入-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\XSS-HTML标签属性注入-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\XSS-HTML标签属性注入-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\XSS-HTML标签属性注入-攻击库.md::chunk::8"
+      ]
+    },
+    "knowledge_base\\h-pentest\\XSS-JavaScript上下文注入-攻击库.md": {
+      "hash": "sha256:adf4d3146dafd827",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\XSS-JavaScript上下文注入-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\XSS-JavaScript上下文注入-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\XSS-JavaScript上下文注入-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\XSS-JavaScript上下文注入-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\XSS-JavaScript上下文注入-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\XSS-JavaScript上下文注入-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\XSS-JavaScript上下文注入-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\XSS-JavaScript上下文注入-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\XSS-JavaScript上下文注入-攻击库.md::chunk::8"
+      ]
+    },
+    "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md": {
+      "hash": "sha256:003a16de2afaf1e3",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md::chunk::10",
+        "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md::chunk::11",
+        "knowledge_base\\h-pentest\\XSS-JSFuck编码绕过-攻击库.md::chunk::12"
+      ]
+    },
+    "knowledge_base\\h-pentest\\XSS-攻击库.md": {
+      "hash": "sha256:d2292271bf2e47fc",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\XSS-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\XSS-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\XSS-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\XSS-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\XSS-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\XSS-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\XSS-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\XSS-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\XSS-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\XSS-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\XSS-攻击库.md::chunk::10",
+        "knowledge_base\\h-pentest\\XSS-攻击库.md::chunk::11",
+        "knowledge_base\\h-pentest\\XSS-攻击库.md::chunk::12"
+      ]
+    },
+    "knowledge_base\\h-pentest\\XSS-过滤绕过技术-攻击库.md": {
+      "hash": "sha256:4ec73dd80c8f6146",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\XSS-过滤绕过技术-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\XSS-过滤绕过技术-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\XSS-过滤绕过技术-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\XSS-过滤绕过技术-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\XSS-过滤绕过技术-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\XSS-过滤绕过技术-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\XSS-过滤绕过技术-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\XSS-过滤绕过技术-攻击库.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\h-pentest\\XXE-攻击库.md": {
+      "hash": "sha256:5e40d68cede373b6",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\XXE-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\XXE-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\XXE-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\XXE-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\XXE-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\XXE-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\XXE-攻击库.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\h-pentest\\反序列化-攻击库.md": {
+      "hash": "sha256:caac3949f6eb359e",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\反序列化-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\反序列化-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\反序列化-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\反序列化-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\反序列化-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\反序列化-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\反序列化-攻击库.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\h-pentest\\反序列化漏洞利用-攻击库.md": {
+      "hash": "sha256:87b10801c381a145",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\反序列化漏洞利用-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\反序列化漏洞利用-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\反序列化漏洞利用-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\反序列化漏洞利用-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\反序列化漏洞利用-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\反序列化漏洞利用-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\反序列化漏洞利用-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\反序列化漏洞利用-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\反序列化漏洞利用-攻击库.md::chunk::8"
+      ]
+    },
+    "knowledge_base\\h-pentest\\命令注入-攻击库.md": {
+      "hash": "sha256:39eb7e4ea6c7e02f",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\命令注入-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\命令注入-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\命令注入-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\命令注入-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\命令注入-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\命令注入-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\命令注入-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\命令注入-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\命令注入-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\命令注入-攻击库.md::chunk::9",
+        "knowledge_base\\h-pentest\\命令注入-攻击库.md::chunk::10",
+        "knowledge_base\\h-pentest\\命令注入-攻击库.md::chunk::11"
+      ]
+    },
+    "knowledge_base\\h-pentest\\命令注入-过滤绕过-攻击库.md": {
+      "hash": "sha256:1d541dbf42e3007d",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\命令注入-过滤绕过-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\命令注入-过滤绕过-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\命令注入-过滤绕过-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\命令注入-过滤绕过-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\命令注入-过滤绕过-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\命令注入-过滤绕过-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\命令注入-过滤绕过-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\命令注入-过滤绕过-攻击库.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\h-pentest\\密码学-Padding-Oracle攻击-攻击库.md": {
+      "hash": "sha256:e05a309ad673a234",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\密码学-Padding-Oracle攻击-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\密码学-Padding-Oracle攻击-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\密码学-Padding-Oracle攻击-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\密码学-Padding-Oracle攻击-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\密码学-Padding-Oracle攻击-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\密码学-Padding-Oracle攻击-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\密码学-Padding-Oracle攻击-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\密码学-Padding-Oracle攻击-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\密码学-Padding-Oracle攻击-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\密码学-Padding-Oracle攻击-攻击库.md::chunk::9"
+      ]
+    },
+    "knowledge_base\\h-pentest\\文件上传-攻击库.md": {
+      "hash": "sha256:86c76b41fc9eb796",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\文件上传-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\文件上传-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\文件上传-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\文件上传-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\文件上传-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\文件上传-攻击库.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\h-pentest\\文件包含-日志注入RCE-攻击库.md": {
+      "hash": "sha256:100fca96d7600df2",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\文件包含-日志注入RCE-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\文件包含-日志注入RCE-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\文件包含-日志注入RCE-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\文件包含-日志注入RCE-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\文件包含-日志注入RCE-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\文件包含-日志注入RCE-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\文件包含-日志注入RCE-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\文件包含-日志注入RCE-攻击库.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\h-pentest\\文件包含-路径遍历-攻击库.md": {
+      "hash": "sha256:a1b4938995d32867",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\文件包含-路径遍历-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\文件包含-路径遍历-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\文件包含-路径遍历-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\文件包含-路径遍历-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\文件包含-路径遍历-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\文件包含-路径遍历-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\文件包含-路径遍历-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\文件包含-路径遍历-攻击库.md::chunk::7",
+        "knowledge_base\\h-pentest\\文件包含-路径遍历-攻击库.md::chunk::8",
+        "knowledge_base\\h-pentest\\文件包含-路径遍历-攻击库.md::chunk::9"
+      ]
+    },
+    "knowledge_base\\h-pentest\\权限提升-业务逻辑-攻击库.md": {
+      "hash": "sha256:600159d1853a6f64",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\权限提升-业务逻辑-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\权限提升-业务逻辑-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\权限提升-业务逻辑-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\权限提升-业务逻辑-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\权限提升-业务逻辑-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\权限提升-业务逻辑-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\权限提升-业务逻辑-攻击库.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\h-pentest\\竞态条件-并发攻击-攻击库.md": {
+      "hash": "sha256:62724ca44d742072",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\竞态条件-并发攻击-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\竞态条件-并发攻击-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\竞态条件-并发攻击-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\竞态条件-并发攻击-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\竞态条件-并发攻击-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\竞态条件-并发攻击-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\竞态条件-并发攻击-攻击库.md::chunk::6",
+        "knowledge_base\\h-pentest\\竞态条件-并发攻击-攻击库.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\h-pentest\\路径遍历-配置绕过-攻击库.md": {
+      "hash": "sha256:db89c23a12bebec5",
+      "mtime": 1774946464,
+      "chunks": [
+        "knowledge_base\\h-pentest\\路径遍历-配置绕过-攻击库.md::chunk::0",
+        "knowledge_base\\h-pentest\\路径遍历-配置绕过-攻击库.md::chunk::1",
+        "knowledge_base\\h-pentest\\路径遍历-配置绕过-攻击库.md::chunk::2",
+        "knowledge_base\\h-pentest\\路径遍历-配置绕过-攻击库.md::chunk::3",
+        "knowledge_base\\h-pentest\\路径遍历-配置绕过-攻击库.md::chunk::4",
+        "knowledge_base\\h-pentest\\路径遍历-配置绕过-攻击库.md::chunk::5",
+        "knowledge_base\\h-pentest\\路径遍历-配置绕过-攻击库.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Account Takeover\\README.md": {
+      "hash": "sha256:569f5ea654db8e72",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Account Takeover\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Account Takeover\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Account Takeover\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Account Takeover\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Account Takeover\\README.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\API Key Leaks\\README.md": {
+      "hash": "sha256:380e3a93f463cbd2",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\API Key Leaks\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\API Key Leaks\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\API Key Leaks\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\API Key Leaks\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\API Key Leaks\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\API Key Leaks\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Brute Force Rate Limit\\README.md": {
+      "hash": "sha256:df39f00ed2aea192",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Brute Force Rate Limit\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Brute Force Rate Limit\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Brute Force Rate Limit\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Brute Force Rate Limit\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Brute Force Rate Limit\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Brute Force Rate Limit\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Business Logic Errors\\README.md": {
+      "hash": "sha256:ee9a8b64633a08b7",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Business Logic Errors\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Business Logic Errors\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Business Logic Errors\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Business Logic Errors\\README.md::chunk::3"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Clickjacking\\README.md": {
+      "hash": "sha256:b200da842d971ca2",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Clickjacking\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Clickjacking\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Clickjacking\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Clickjacking\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Clickjacking\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Clickjacking\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Clickjacking\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\Clickjacking\\README.md::chunk::7",
+        "knowledge_base\\PayloadsAllTheThings\\Clickjacking\\README.md::chunk::8",
+        "knowledge_base\\PayloadsAllTheThings\\Clickjacking\\README.md::chunk::9"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Client Side Path Traversal\\README.md": {
+      "hash": "sha256:7e36b8e9a57b63cb",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Client Side Path Traversal\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Client Side Path Traversal\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Client Side Path Traversal\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Client Side Path Traversal\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Client Side Path Traversal\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Client Side Path Traversal\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Command Injection\\README.md": {
+      "hash": "sha256:d288a125cfde7c3a",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Command Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Command Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Command Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Command Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Command Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Command Injection\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Command Injection\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\Command Injection\\README.md::chunk::7",
+        "knowledge_base\\PayloadsAllTheThings\\Command Injection\\README.md::chunk::8",
+        "knowledge_base\\PayloadsAllTheThings\\Command Injection\\README.md::chunk::9"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\CORS Misconfiguration\\README.md": {
+      "hash": "sha256:31d1ea8247631e77",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\CORS Misconfiguration\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\CORS Misconfiguration\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\CORS Misconfiguration\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\CORS Misconfiguration\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\CORS Misconfiguration\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\CORS Misconfiguration\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\CORS Misconfiguration\\README.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\CRLF Injection\\README.md": {
+      "hash": "sha256:d25e1ccaa40f23ef",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\CRLF Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\CRLF Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\CRLF Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\CRLF Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\CRLF Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\CRLF Injection\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Cross-Site Request Forgery\\README.md": {
+      "hash": "sha256:2ecac25ef8583417",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Cross-Site Request Forgery\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Cross-Site Request Forgery\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Cross-Site Request Forgery\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Cross-Site Request Forgery\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Cross-Site Request Forgery\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Cross-Site Request Forgery\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\CSS Injection\\README.md": {
+      "hash": "sha256:600de67517de5664",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\CSS Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\CSS Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\CSS Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\CSS Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\CSS Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\CSS Injection\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\CSV Injection\\README.md": {
+      "hash": "sha256:2d6de468cb7fced3",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\CSV Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\CSV Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\CSV Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\CSV Injection\\README.md::chunk::3"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\CVE Exploits\\README.md": {
+      "hash": "sha256:a31291b3343bdde1",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\CVE Exploits\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\CVE Exploits\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\CVE Exploits\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\CVE Exploits\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\CVE Exploits\\README.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Denial of Service\\README.md": {
+      "hash": "sha256:b521e8ce23dd6a20",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Denial of Service\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Denial of Service\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Denial of Service\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Denial of Service\\README.md::chunk::3"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Dependency Confusion\\README.md": {
+      "hash": "sha256:958622dcd894afb5",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Dependency Confusion\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Dependency Confusion\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Dependency Confusion\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Dependency Confusion\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Dependency Confusion\\README.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Directory Traversal\\README.md": {
+      "hash": "sha256:16a8f28ee76c751b",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Directory Traversal\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Directory Traversal\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Directory Traversal\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Directory Traversal\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Directory Traversal\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Directory Traversal\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Directory Traversal\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\Directory Traversal\\README.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\DNS Rebinding\\README.md": {
+      "hash": "sha256:740f53efa20ef995",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\DNS Rebinding\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\DNS Rebinding\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\DNS Rebinding\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\DNS Rebinding\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\DNS Rebinding\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\DNS Rebinding\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\DOM Clobbering\\README.md": {
+      "hash": "sha256:692a449690a50f3a",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\DOM Clobbering\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\DOM Clobbering\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\DOM Clobbering\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\DOM Clobbering\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\DOM Clobbering\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\DOM Clobbering\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\DOM Clobbering\\README.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Encoding Transformations\\README.md": {
+      "hash": "sha256:fbd684e8f8e24819",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Encoding Transformations\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Encoding Transformations\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Encoding Transformations\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Encoding Transformations\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Encoding Transformations\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Encoding Transformations\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\External Variable Modification\\README.md": {
+      "hash": "sha256:d7d1a6cb10ad6185",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\External Variable Modification\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\External Variable Modification\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\External Variable Modification\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\External Variable Modification\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\External Variable Modification\\README.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\File Inclusion\\README.md": {
+      "hash": "sha256:ab04734631b64d53",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\File Inclusion\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\File Inclusion\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\File Inclusion\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\File Inclusion\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\File Inclusion\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\File Inclusion\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\File Inclusion\\README.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Google Web Toolkit\\README.md": {
+      "hash": "sha256:7086ba96670836ab",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Google Web Toolkit\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Google Web Toolkit\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Google Web Toolkit\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Google Web Toolkit\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Google Web Toolkit\\README.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\GraphQL Injection\\README.md": {
+      "hash": "sha256:63600a03e543b317",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\GraphQL Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\GraphQL Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\GraphQL Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\GraphQL Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\GraphQL Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\GraphQL Injection\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\GraphQL Injection\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\GraphQL Injection\\README.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Headless Browser\\README.md": {
+      "hash": "sha256:9a3b51107a4695fd",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Headless Browser\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Headless Browser\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Headless Browser\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Headless Browser\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Headless Browser\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Headless Browser\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Headless Browser\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\Headless Browser\\README.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Hidden Parameters\\README.md": {
+      "hash": "sha256:09a89cf3f7f04175",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Hidden Parameters\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Hidden Parameters\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Hidden Parameters\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Hidden Parameters\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Hidden Parameters\\README.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\HTTP Parameter Pollution\\README.md": {
+      "hash": "sha256:b9ac161c484969ca",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\HTTP Parameter Pollution\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\HTTP Parameter Pollution\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\HTTP Parameter Pollution\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\HTTP Parameter Pollution\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\HTTP Parameter Pollution\\README.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Insecure Deserialization\\README.md": {
+      "hash": "sha256:77119a904b3d40d5",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Deserialization\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Deserialization\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Deserialization\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Deserialization\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Deserialization\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Deserialization\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Insecure Direct Object References\\README.md": {
+      "hash": "sha256:b30662eb9a7a201c",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Direct Object References\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Direct Object References\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Direct Object References\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Direct Object References\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Direct Object References\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Direct Object References\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Insecure Management Interface\\README.md": {
+      "hash": "sha256:c7d06e8890f0de5a",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Management Interface\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Management Interface\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Management Interface\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Management Interface\\README.md::chunk::3"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Insecure Randomness\\README.md": {
+      "hash": "sha256:696cd8cb8aaca101",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Randomness\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Randomness\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Randomness\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Randomness\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Randomness\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Randomness\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Randomness\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Randomness\\README.md::chunk::7",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Randomness\\README.md::chunk::8",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Randomness\\README.md::chunk::9"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Insecure Source Code Management\\README.md": {
+      "hash": "sha256:3da35661d8679b76",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Source Code Management\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Source Code Management\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Source Code Management\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Source Code Management\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Insecure Source Code Management\\README.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Java RMI\\README.md": {
+      "hash": "sha256:77b7f2f95bda57a4",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Java RMI\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Java RMI\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Java RMI\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Java RMI\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Java RMI\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Java RMI\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\JSON Web Token\\README.md": {
+      "hash": "sha256:8093a790fabb0a73",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\JSON Web Token\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\JSON Web Token\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\JSON Web Token\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\JSON Web Token\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\JSON Web Token\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\JSON Web Token\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\JSON Web Token\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\JSON Web Token\\README.md::chunk::7",
+        "knowledge_base\\PayloadsAllTheThings\\JSON Web Token\\README.md::chunk::8"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\LaTeX Injection\\README.md": {
+      "hash": "sha256:fdd8961a70f549e7",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\LaTeX Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\LaTeX Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\LaTeX Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\LaTeX Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\LaTeX Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\LaTeX Injection\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\LaTeX Injection\\README.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\LDAP Injection\\README.md": {
+      "hash": "sha256:30d4a3ab859d6277",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\LDAP Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\LDAP Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\LDAP Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\LDAP Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\LDAP Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\LDAP Injection\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\LDAP Injection\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\LDAP Injection\\README.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Mass Assignment\\README.md": {
+      "hash": "sha256:c40d66477dd102f6",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Mass Assignment\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Mass Assignment\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Mass Assignment\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Mass Assignment\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Mass Assignment\\README.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\NoSQL Injection\\README.md": {
+      "hash": "sha256:74f4d5ae8022206c",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\NoSQL Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\NoSQL Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\NoSQL Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\NoSQL Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\NoSQL Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\NoSQL Injection\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\NoSQL Injection\\README.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\OAuth Misconfiguration\\README.md": {
+      "hash": "sha256:5f440f52e4d05a3c",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\OAuth Misconfiguration\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\OAuth Misconfiguration\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\OAuth Misconfiguration\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\OAuth Misconfiguration\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\OAuth Misconfiguration\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\OAuth Misconfiguration\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\OAuth Misconfiguration\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\OAuth Misconfiguration\\README.md::chunk::7",
+        "knowledge_base\\PayloadsAllTheThings\\OAuth Misconfiguration\\README.md::chunk::8",
+        "knowledge_base\\PayloadsAllTheThings\\OAuth Misconfiguration\\README.md::chunk::9"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Open Redirect\\README.md": {
+      "hash": "sha256:d46052ffaa71ad7b",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Open Redirect\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Open Redirect\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Open Redirect\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Open Redirect\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Open Redirect\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Open Redirect\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Open Redirect\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\Open Redirect\\README.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\ORM Leak\\README.md": {
+      "hash": "sha256:40f528cb12e4c0c9",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\ORM Leak\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\ORM Leak\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\ORM Leak\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\ORM Leak\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\ORM Leak\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\ORM Leak\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\ORM Leak\\README.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Prompt Injection\\README.md": {
+      "hash": "sha256:2eabca6c92034a81",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Prompt Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Prompt Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Prompt Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Prompt Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Prompt Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Prompt Injection\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Prompt Injection\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\Prompt Injection\\README.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Prototype Pollution\\README.md": {
+      "hash": "sha256:211e164e576f4160",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Prototype Pollution\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Prototype Pollution\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Prototype Pollution\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Prototype Pollution\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Prototype Pollution\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Prototype Pollution\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Race Condition\\README.md": {
+      "hash": "sha256:38541defa5c86d0c",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Race Condition\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Race Condition\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Race Condition\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Race Condition\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Race Condition\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Race Condition\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Race Condition\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\Race Condition\\README.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Regular Expression\\README.md": {
+      "hash": "sha256:dbae1fb2ee57656b",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Regular Expression\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Regular Expression\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Regular Expression\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Regular Expression\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Regular Expression\\README.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Request Smuggling\\README.md": {
+      "hash": "sha256:93eedac9212197a3",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Request Smuggling\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Request Smuggling\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Request Smuggling\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Request Smuggling\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Request Smuggling\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Request Smuggling\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Request Smuggling\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\Request Smuggling\\README.md::chunk::7"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Reverse Proxy Misconfigurations\\README.md": {
+      "hash": "sha256:7ebb57bd7399f739",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Reverse Proxy Misconfigurations\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Reverse Proxy Misconfigurations\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Reverse Proxy Misconfigurations\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Reverse Proxy Misconfigurations\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Reverse Proxy Misconfigurations\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Reverse Proxy Misconfigurations\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\SAML Injection\\README.md": {
+      "hash": "sha256:c13cdd2dd48f2d21",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\SAML Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\SAML Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\SAML Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\SAML Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\SAML Injection\\README.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Server Side Include Injection\\README.md": {
+      "hash": "sha256:e07c948f9e71a05c",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Include Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Include Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Include Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Include Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Include Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Include Injection\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Server Side Request Forgery\\README.md": {
+      "hash": "sha256:04073bdaa2d40f95",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Request Forgery\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Request Forgery\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Request Forgery\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Request Forgery\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Request Forgery\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Request Forgery\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Request Forgery\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Request Forgery\\README.md::chunk::7",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Request Forgery\\README.md::chunk::8",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Request Forgery\\README.md::chunk::9"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Server Side Template Injection\\README.md": {
+      "hash": "sha256:80def541785891b7",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Template Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Template Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Template Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Template Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Template Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Server Side Template Injection\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md": {
+      "hash": "sha256:c96349639d6fa3be",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::7",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::8",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::9",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::10",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::11",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::12",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::13",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::14",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::15",
+        "knowledge_base\\PayloadsAllTheThings\\SQL Injection\\README.md::chunk::16"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Tabnabbing\\README.md": {
+      "hash": "sha256:465f8693ecc4b10f",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Tabnabbing\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Tabnabbing\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Tabnabbing\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Tabnabbing\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Tabnabbing\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Tabnabbing\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Tabnabbing\\README.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Type Juggling\\README.md": {
+      "hash": "sha256:81bdf03fd579d545",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Type Juggling\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Type Juggling\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Type Juggling\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Type Juggling\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Type Juggling\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Type Juggling\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Type Juggling\\README.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\README.md": {
+      "hash": "sha256:82c28ff138b5cc50",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Virtual Hosts\\README.md": {
+      "hash": "sha256:65a86ba2ec291682",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Virtual Hosts\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Virtual Hosts\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Virtual Hosts\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Virtual Hosts\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Virtual Hosts\\README.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Web Cache Deception\\README.md": {
+      "hash": "sha256:c140312d14ec74b5",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Web Cache Deception\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Web Cache Deception\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Web Cache Deception\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Web Cache Deception\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Web Cache Deception\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Web Cache Deception\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Web Cache Deception\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\Web Cache Deception\\README.md::chunk::7",
+        "knowledge_base\\PayloadsAllTheThings\\Web Cache Deception\\README.md::chunk::8"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Web Sockets\\README.md": {
+      "hash": "sha256:1ba3caa102fa5779",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Web Sockets\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Web Sockets\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Web Sockets\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Web Sockets\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Web Sockets\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Web Sockets\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\Web Sockets\\README.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\XPATH Injection\\README.md": {
+      "hash": "sha256:ffb4813b1ee0f69f",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\XPATH Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\XPATH Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\XPATH Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\XPATH Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\XPATH Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\XPATH Injection\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\XS-Leak\\README.md": {
+      "hash": "sha256:039e482146fabf43",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\XS-Leak\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\XS-Leak\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\XS-Leak\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\XS-Leak\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\XS-Leak\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\XS-Leak\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\XS-Leak\\README.md::chunk::6"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\XSLT Injection\\README.md": {
+      "hash": "sha256:dfd3ed5d4b961692",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\XSLT Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\XSLT Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\XSLT Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\XSLT Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\XSLT Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\XSLT Injection\\README.md::chunk::5"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md": {
+      "hash": "sha256:7a14f1f0adb9aabc",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md::chunk::7",
+        "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md::chunk::8",
+        "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md::chunk::9",
+        "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md::chunk::10",
+        "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md::chunk::11",
+        "knowledge_base\\PayloadsAllTheThings\\XSS Injection\\README.md::chunk::12"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md": {
+      "hash": "sha256:52a4c226b19e7e24",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md::chunk::5",
+        "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md::chunk::6",
+        "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md::chunk::7",
+        "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md::chunk::8",
+        "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md::chunk::9",
+        "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md::chunk::10",
+        "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md::chunk::11",
+        "knowledge_base\\PayloadsAllTheThings\\XXE Injection\\README.md::chunk::12"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Zip Slip\\README.md": {
+      "hash": "sha256:c64c7af8924869ab",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Zip Slip\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Zip Slip\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Zip Slip\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Zip Slip\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Zip Slip\\README.md::chunk::4"
+      ]
+    },
+    "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\Configuration Apache .htaccess\\README.md": {
+      "hash": "sha256:f2befce91aaa42bb",
+      "mtime": 1774945252,
+      "chunks": [
+        "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\Configuration Apache .htaccess\\README.md::chunk::0",
+        "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\Configuration Apache .htaccess\\README.md::chunk::1",
+        "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\Configuration Apache .htaccess\\README.md::chunk::2",
+        "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\Configuration Apache .htaccess\\README.md::chunk::3",
+        "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\Configuration Apache .htaccess\\README.md::chunk::4",
+        "knowledge_base\\PayloadsAllTheThings\\Upload Insecure Files\\Configuration Apache .htaccess\\README.md::chunk::5"
+      ]
+    }
+  }
+}
