@@ -10,23 +10,7 @@ LLM 客户端 - 统一入口
 - openai: OpenAI 兼容格式 (/v1/chat/completions)
 - claude: Claude API 格式 (/v1/messages)
 
-使用示例：
-    # 方式1: 代码配置
-    from core.llm_client import configure
-    configure("https://api.openai.com/v1", "sk-xxx", "gpt-4o", "openai")
 
-    # 方式2: Claude API
-    configure("https://mydamoxing.cn", "sk-xxx", "Claude模型", "claude")
-
-    # 方式3: 配置文件（config.json）
-    {
-        "llm": {
-            "api_url": "https://mydamoxing.cn",
-            "api_key": "sk-xxx",
-            "model": "MiniMax-M2.7-highspeed",
-            "provider": "claude"
-        }
-    }
 """
 import json
 import os

@@ -7,7 +7,10 @@ Phase 1 增强：推理历史、失败模式、建议 bypass、阶段管理
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+# 编码修复
+from skills.encoding_fix import safe_print
 
 
 # 阶段定义
@@ -106,6 +109,11 @@ class StateManager:
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
         }
+        # 清理解题遗留文件，确保新题从干净状态开始
+        workspace = Path(__file__).parent.parent / "workspace"
+        (workspace / ".knowledge_checked").unlink(missing_ok=True)
+        (workspace / ".post_record_pending").unlink(missing_ok=True)
+        (workspace / ".last_command.tmp").unlink(missing_ok=True)
         self._save()
 
     def update_step(self, step: int) -> None:
@@ -199,9 +207,10 @@ class StateManager:
             payload_context: 关键 payload 或技术细节（会被保存到经验中）
 
         Returns:
-            成功保存时返回空字符串，需要补充上下文时返回提示信息
+            成功保存时返回空字符串，总是有警告时返回提示信息（但仍会保存）
         """
         self._state["flag"] = flag
+        self._state["step_count"] = 0  # 清零，为下一题准备
         # 保存 payload 上下文到状态中，供经验保存使用
         if payload_context:
             self._state["payload_context"] = payload_context
@@ -209,12 +218,15 @@ class StateManager:
 
         # 自动保存经验（如果状态已初始化且有成功方法）
         if method_succeeded:
-            # 校验上下文是否足够
+            # 校验上下文是否足够（即使有警告也继续保存）
             check_result = self._check_experience_quality(method_succeeded, payload_context)
-            if check_result:
-                return check_result  # 返回提示信息，不保存
 
+            # 无论是否有警告都保存经验
             self._auto_save_experience(method_succeeded)
+
+            # 返回警告信息（如果有的话）
+            if check_result:
+                return check_result
 
         return ""
 
@@ -268,14 +280,13 @@ class StateManager:
     def _auto_save_experience(self, method_succeeded: str) -> None:
         """自动保存经验（使用 LLM 智能处理）
 
-        LLM 会根据 method_succeeded、payload_context 等信息自动判断题型，
-        无需预先指定 challenge_type。
+        使用 state 中已保存的 type 作为题型。
         """
         try:
             from core.experience_manager import save_experience_with_llm
             result = save_experience_with_llm(
                 target=self._state.get("target", ""),
-                challenge_type="",  # LLM 自动判断
+                challenge_type=self._state.get("type", ""),  # 使用已保存的题型
                 flag=self._state.get("flag", ""),
                 method_succeeded=method_succeeded,
                 payload_context=self._state.get("payload_context", ""),
@@ -283,9 +294,9 @@ class StateManager:
                 methods_tried=self._state.get("methods_tried", []),
             )
             # 打印结果供调试
-            print(f"[经验保存] {result}")
+            safe_print(f"[经验保存] {result}")
         except Exception as e:
-            print(f"[经验保存失败] {type(e).__name__}: {e}")
+            safe_print(f"[经验保存失败] {type(e).__name__}: {e}")
 
     def get_target(self) -> str:
         """获取当前目标"""
@@ -337,7 +348,7 @@ class StateManager:
 
     def set_phase(self, phase: str) -> bool:
         """
-        设置当前阶段
+        设置当前阶段（不检查门口条件）
 
         Args:
             phase: 阶段名称 (recon/identify/exploit/flag)
@@ -357,6 +368,43 @@ class StateManager:
         if old_phase != phase:
             self.add_reasoning(f"阶段切换: {old_phase} → {phase}", f"进入 {phase} 阶段")
         return True
+
+    def try_set_phase(self, target_phase: str) -> Tuple[bool, str]:
+        """
+        尝试切换阶段（带门口检查）
+
+        Args:
+            target_phase: 目标阶段名称
+
+        Returns:
+            (success, message) - success=True 表示切换成功，message 说明结果
+        """
+        try:
+            from core.phase_gate import get_gate, Phase as PhaseEnum
+
+            current = self.get_phase()
+            gate = get_gate()
+            result = gate.check_transition(current, target_phase)
+
+            if result.can_pass:
+                self.set_phase(target_phase)
+                return True, f"阶段切换成功: {current} → {target_phase}"
+            else:
+                missing = "\n".join([f"  - {m}" for m in result.missing_conditions])
+                actions = "\n".join([f"  - {a}" for a in result.suggested_actions])
+                msg = f"""阶段切换被阻止: {current} → {target_phase}
+
+不满足条件：
+{missing}
+
+建议操作：
+{actions}"""
+                return False, msg
+
+        except Exception as e:
+            # 如果 phase_gate 检查失败，静默降级为直接切换
+            self.set_phase(target_phase)
+            return True, f"阶段切换（gate 检查异常）: {self.get_phase()} → {target_phase}"
 
     def get_phase(self) -> str:
         """获取当前阶段"""
@@ -531,7 +579,9 @@ class StateManager:
 
     def get_context_summary_intelligent(self, trigger: str = "general") -> str:
         """
-        智能状态摘要 - 在关键节点调用 LLM 生成针对性摘要
+        智能状态摘要 - 调用 advisor 模块生成针对性摘要
+
+        Phase 2 改造：调用 advisor.get_suggestions() 替代原有 LLM 调用
 
         Args:
             trigger: 触发场景
@@ -543,97 +593,16 @@ class StateManager:
         Returns:
             LLM 生成的针对性摘要
         """
+        from core.advisor import get_suggestions
+
         try:
-            from core.llm_client import call_llm, is_configured
-
-            if not is_configured():
-                return self.get_context_summary()
-
-            state = self._state
-            target = state.get("target", "")
-            challenge_type = state.get("type", "")
-            phase = state.get("phase", "unknown")
-            step_count = state.get("step_count", 0)
-            budget = state.get("budget", 8)
-            hypothesis = state.get("current_hypothesis", "未声明")
-            hypothesis_status = state.get("hypothesis_status", "unverified")
-            findings = state.get("findings", [])
-            methods_tried = state.get("methods_tried", [])
-            failed_patterns = state.get("failed_patterns", [])
-            reasoning_chain = state.get("reasoning_chain", [])
-            flag = state.get("flag", "")
-
-            # 获取失败记录
-            from core.failure_tracker import get_tracker
-            failures = get_tracker().get_failures(target)
-            failures_context = self._format_failures_for_llm(failures)
-
-            # 根据触发场景选择 prompt 模板
-            prompts = {
-                "stuck": """主 Agent 在当前挑战卡住了，需要分析失败模式并给出下一个可能成功的攻击方向。
-
-请分析当前状态，判断是否应该换方向，给出具体的下一个攻击建议。""",
-
-                "phase_transition": """即将进入新阶段，请评估当前状态是否满足阶段转换条件，并给出阶段切换建议。
-
-评估标准：
-- Recon: 是否收集了足够信息（目标、端口、路径、关键技术点）
-- Identify: 是否确定了漏洞类型和攻击向量
-- Exploit: 是否已有可行的攻击方案
-- Flag: 是否已获取 flag
-
-请给出是否满足转换条件的判断和建议。""",
-
-                "post_failure": """最近一次尝试失败，请分析是否应该换方向还是继续深挖当前方向。
-
-需要判断：
-1. 失败原因是防御性机制还是战术性错误？
-2. 是否还有同类方法没尝试过？
-3. 是否存在更直接的攻击向量？""",
-
-                "general": """请为这个 CTF 挑战生成一个简洁的状态摘要，包括：
-1. 当前进度评估
-2. 关键发现
-3. 下一步建议（1-3个具体动作）"""
-            }
-
-            trigger_prompt = prompts.get(trigger, prompts["general"])
-
-            prompt = f"""{trigger_prompt}
-
-## 当前状态
-- 目标: {target}
-- 题型: {challenge_type}
-- 阶段: {phase} ({step_count}/{budget} 步)
-- 假设: {hypothesis} [{hypothesis_status}]
-- FLAG: {flag or '未找到'}
-
-## 发现 ({len(findings)}条)
-{chr(10).join(f"- {f}" for f in findings) if findings else "  （暂无）"}
-
-## 已尝试方法 ({len(methods_tried)}个)
-{chr(10).join(f"- {m}" for m in methods_tried) if methods_tried else "  （暂无）"}
-
-## 失败记录 ({len(failures)}条)
-{failures_context if failures_context.strip() else "  （暂无失败记录）"}
-
-## 失败特征
-{chr(10).join(f"- {p}" for p in failed_patterns) if failed_patterns else "  （暂无）"}
-
-## 推理链（最近5条）
-{chr(10).join(f"Step{r['step']}: {r['action']} → {r['finding']}" for r in reasoning_chain[-5:]) if reasoning_chain else "  （暂无）"}
-
-请直接输出摘要内容，使用中文，突出重点。"""
-
-            response = call_llm(
-                prompt,
-                system="你是 CTF 辅助专家，负责分析解题状态并给出建议。输出要简洁具体。"
-            )
-            return response
-
+            return get_suggestions(self._state, trigger)
+        except RuntimeError as e:
+            # LLM 未配置时回退到普通摘要
+            safe_print(f"[智能摘要 LLM 未配置] {e}")
+            return self.get_context_summary()
         except Exception as e:
-            # 如果 LLM 调用失败，回退到普通摘要
-            print(f"[智能摘要 LLM 调用失败] {type(e).__name__}: {e}")
+            safe_print(f"[智能摘要失败] {type(e).__name__}: {e}")
             return self.get_context_summary()
 
     def _format_failures_for_llm(self, failures: list) -> str:
@@ -773,6 +742,19 @@ def record_failed(method: str, reason: str, payload: str = "") -> None:
 def set_phase(phase: str) -> bool:
     """设置当前阶段"""
     return get_state_manager().set_phase(phase)
+
+
+def try_set_phase(target_phase: str) -> Tuple[bool, str]:
+    """
+    尝试切换阶段（带门口检查）
+
+    Args:
+        target_phase: 目标阶段名称
+
+    Returns:
+        (success, message) - success=True 表示切换成功
+    """
+    return get_state_manager().try_set_phase(target_phase)
 
 
 def get_phase() -> str:

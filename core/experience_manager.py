@@ -8,6 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# 编码修复
+from skills.encoding_fix import safe_print
+
 
 class ExperienceManager:
     """
@@ -107,7 +110,7 @@ class ExperienceManager:
             return ""
         except Exception as e:
             # LLM 调用失败时，降级为不重复（允许保存）
-            print(f"[去重检查 LLM 调用失败] {e}，降级为不重复")
+            safe_print(f"[去重检查 LLM 调用失败] {e}，降级为不重复")
             return ""
 
     def _sanitize_filename(self, challenge_type: str) -> str:
@@ -523,14 +526,14 @@ def save_experience_with_llm(
 - Flag: {flag}
 - 发现: {findings if findings else []}
 
-题型选项：sqli, rce, lfi, upload, xss, auth, ssrf, ssti
+题型选项：sqli, rce, lfi, upload, xss, auth, ssrf, ssti, deserialization
 
 直接返回一个词作为题型，如：sqli
 不要其他解释。"""
             type_response = call_llm(type_prompt, system="你是 CTF 题型分类专家。")
             challenge_type = type_response.strip().lower()
             # 验证返回的是有效题型
-            valid_types = {"sqli", "rce", "lfi", "upload", "xss", "auth", "ssrf", "ssti"}
+            valid_types = {"sqli", "rce", "lfi", "upload", "xss", "auth", "ssrf", "ssti", "deserialization"}
             if challenge_type not in valid_types:
                 challenge_type = "sqli"  # 默认值
 
