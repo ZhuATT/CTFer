@@ -10,172 +10,229 @@
 
 ```
 1. curl 访问目标 → 观察页面结构
-2. 识别题型（rce/sqli/auth/lfi/xss/upload）
-3. 【自动获取知识】立即执行：
+2. 识别题型（rce/sqli/auth/lfi/xss/upload/ssti/ssrf/deserialization）
+3. 【必须】初始化状态：
+   C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.state_manager import init_state; init_state('URL', '题型')"
+4. 【自动获取知识】立即执行：
    C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('题型'))"
-   - 自动检索：skills/ + memories/ + wooyun/knowledge/ + wooyun_cases/
-   - 返回格式化知识，直接作为解题上下文
-4. 【基于知识制定攻击计划】根据返回的知识确定攻击方法
-5. 使用辅助工具（dirsearch/sqlmap）
-6. 构造 payload，执行攻击
-7. 识别 flag → 输出 FLAG{...}
-8. 【自动保存经验】set_flag('FLAG{...}', '成功方法', '关键payload')
+5. 【基于知识制定攻击计划】声明假设 → 进入 Exploit 阶段
+6. 执行攻击（curl/sqlmap/dirsearch）
+7. 识别 flag → set_flag('FLAG{...}', '方法名', 'payload')
 ```
 
 **强制规则**：
-- 步骤 3 必须立即执行，不得跳过
-- 步骤 4 必须基于步骤 3 的知识制定计划，不得盲试
-- 失败 3 次后重新执行步骤 3 获取新知识
+- 步骤 3、4 必须立即执行，不得跳过
+- 步骤 5 必须基于步骤 4 的知识制定计划
+- **Hook 会自动拦截未声明假设的攻击行为**
 
 ---
 
-## 攻击前检查清单
+## 阶段化攻击流程
 
-解题前必须完成：
+```
+Recon ────► Identify ────► Exploit ────► Flag
+(侦察)      (识别)       (攻击)       (拿旗)
+```
 
-- [x] curl 目标页面，观察结构
-- [x] 识别题型
-- [x] 执行 `get_all_type_knowledge('题型')` 获取知识
-- [x] 基于知识制定攻击计划
-- [ ] 执行攻击
+| 阶段 | 职责 | 预算 | 门口条件 |
+|------|------|------|----------|
+| Recon | 信息收集 | 10 步 | - |
+| Identify | 漏洞识别 + 假设声明 | 15 步 | ≥2 发现 |
+| Exploit | 攻击执行 | 20 步 | 假设已声明 |
+| Flag | 验证 + 保存 | - | 找到 Flag |
+
+**阶段门口（PhaseGate）**：
+- Recon → Identify：需要 ≥2 个发现
+- Identify → Exploit：需要声明假设
+- Exploit → Flag：需要找到 flag
 
 ---
 
-## 【强制】失败记录指令
+## Hook 自动检查机制
 
-**目标**：确保每次失败的尝试都被记录到 `failures.json`，供 Hook 检测阈值。
+**PreToolUse Hook（check_knowledge_hook.py）自动检查**：
 
-### 手动记录（LLM 自觉）
-当 curl/sqlmap 等工具**命令成功但攻击无效**时（如 SQL 注入无效果、LFI payload 无回显），LLM 必须：
+| 检查项 | 条件 | 动作 |
+|--------|------|------|
+| 假设声明 | Identify/Exploit 未声明 | **拦截** |
+| 方法失败 | 方法在 failures.json | 警告 + 替代建议 |
+| 预算耗尽 | step_count ≥ budget | 警告 |
+| 工具白名单 | 工具不在允许列表 | **拦截** |
+| 语义循环 | 同一动作 ≥3 次 | 警告 |
+| 失败阈值 | 同一目标 ≥3 次失败 | 强制重查 |
+| 签名循环 | 相同命令 ≥5 次 | **拦截** |
+
+**PostToolUse Hook（save_command_hook.py）自动处理**：
+- `add_method()` — 记录已使用方法
+- `increment_step()` — 更新阶段步数
+- `record_failure()` — 失败时写入 failures.json
+
+**所有检查和记录已自动化，LLM 无需手动调用。**
+
+---
+
+## 顾问审查（Advisor）
+
+每 3 步自动触发，或在关键节点主动调用：
 
 ```python
-record_failed('方法名', '失败原因', '使用的 payload')
+from core.advisor import review, ask
+
+# 初始审查
+review("initial")
+
+# 定期审查
+review("periodic")
+
+# 阶段转换审查
+review("phase_transition", question="从 identify 转到 exploit 是否合理？")
+
+# 失败后审查
+review("post_failure")
+
+# 主动提问
+ask("目标有 WAF，如何绕过？")
 ```
 
-### 检查方法是否已失败
+**输出格式**：
+```json
+{
+  "verdict": "proceed | pause | pivot",
+  "reasoning": "分析理由",
+  "suggestions": ["建议1", "建议2"],
+  "priority": 1-3
+}
+```
+
+---
+
+## 循环检测（LoopDetector）
+
+签名级重复检测，区分"真正循环"和"合理重试"：
+
+- 签名格式：`tool_name:args_json[:500]`
+- 滑动窗口：12 次
+- 阈值：≥3 次警告，≥5 次中断
+
+**自动触发**，无需手动调用。
+
+---
+
+## RAG v2.0 知识检索 + 自动联网
+
+**知识来源（5 个）**：
+1. `memories/experiences/*.md` — 成功经验（含 frontmatter 元数据）
+2. `skills/*/SKILL.md` — 题型技能知识
+3. `knowledge_base/wooyun/` — WooYun 技术手册
+4. `knowledge_base/h-pentest/` — H-Pentest 攻击库
+5. `knowledge_base/PayloadsAllTheThings/*/README.md` — PATT
+
+**检索流程**：BM25 多源检索 → RRF 融合 → 综合评分排序 → 格式化输出
+
+**持久化索引**：`rag_index/manifest.json` + `rag_index/kb_store.json`
+
+```bash
+# 获取题型全部知识
+C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('rce'))"
+
+# 关键词检索
+C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import search_knowledge; print(search_knowledge('disable_functions bypass', top_k=5))"
+
+# 重建索引
+C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import build_rag_index; build_rag_index(force_rebuild=True)"
+```
+
+### 自动联网规则
+
+**触发条件（满足任一即自动联网）**：
+1. 知识库检索结果为空或相关性很低（< 0.3）
+2. 遇到知识库中没有的漏洞/CVE/Payload
+3. 需要查询特定技术的最新解决方案
+4. 目标使用了知识库中没有记录的框架/中间件
+5. 攻击失败后需要查找替代方案
+
+**自动联网流程**：
+```
+知识库检索 → 结果不足 → 自动调用 /web-fetch 搜索 → 整合结果继续攻击
+```
+
+**联网优先级**：
+1. `/web-fetch search <技术关键词>` — playwright/Tavily 搜索解决方案
+2. `/web-fetch <相关 POC/Writeup URL>` — curl -k 抓取文章（CTF 目标）
+3. 优先使用 curl -k（跳过 SSL），复杂页面用 playwright
+
+---
+
+## 状态管理 API
+
 ```python
-is_method_failed('http://target.com', 'sqlmap')  # 返回 True/False
+from core.state_manager import (
+    init_state, add_finding, add_method, add_reasoning,
+    set_hypothesis, set_flag, get_context_summary,
+    record_failed, is_method_failed
+)
+
+# 初始化
+init_state('http://target.com', 'rce')
+
+# 记录发现
+add_finding('发现 admin.php 登录页面')
+add_finding('SQL 注入点在 id 参数')
+
+# 声明假设
+set_hypothesis('SQL 注入绕过 auth 获取 admin 权限', status='verified')
+
+# 设置 flag（自动保存经验）
+set_flag('FLAG{...}', 'sql_union_bypass', 'id=0 UNION SELECT...')
+
+# 检查失败方法
+is_method_failed('http://target.com', 'sqlmap')  # True/False
+
+# 获取状态摘要
+print(get_context_summary())
 ```
 
-### 强制重查触发
-当 `failures.json` 中同一目标的方法数 ≥3 时，Hook 会注入**强制重查消息**，要求你：
+---
+
+## 失败处理
+
+Hook 已自动处理失败记录，**无需手动调用 `record_failed()`**。
+
+**失败转向（失败 3 次后）**：
 1. 调用 `get_all_type_knowledge('题型')` 重新获取知识
 2. 查看 `memories/experiences/` 中的历史经验
-3. **禁止重复已失败的方法**
-
----
-
-## 失败触发知识查询
-
-**【重要】失败 3 次后，Hook 会强制提示重新查询知识**
-
-当你尝试 3 次都失败时，**必须自动执行以下步骤**：
-```
-1. 调用外部 LLM 智能分析（自动执行）：
-   C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.state_manager import get_context_summary_intelligent; print(get_context_summary_intelligent('stuck'))"
-2. 基于 LLM 建议制定新攻击计划
-3. 继续尝试
-```
-
-**不要重复尝试同样的方法**——失败后换思路。
+3. 尝试完全不同的攻击向量
 
 ---
 
 ## 题型识别
 
-根据挑战描述和文件类型识别 web 漏洞类型：
-
-**关键词识别：**
-- "XSS", "SQL", "injection", "cookie", "JWT" → XSS/SQLi
-- "upload", "file inclusion", "LFI", "RFI" → 文件上传/包含
-- "SSTI", "template" → SSTI
-- "auth", "bypass", "login", "password" → 认证绕过
-- "RCE", "command", "exec", "code execution" → RCE
-- "SSRF", "curl", "file_get_contents" → SSRF
-
-**文件类型识别：**
-- Web URL 或 HTML/JS/PHP 源码 → web
-- URL 路径包含 `/admin`, `/login`, `/api` → 认证相关
+| 关键词 | 题型 |
+|--------|------|
+| "RCE", "command", "exec", "code execution" | rce |
+| "SQL", "injection", "sqli" | sqli |
+| "LFI", "RFI", "file inclusion", "file_get_contents" | lfi |
+| "upload", "file upload" | upload |
+| "XSS", "script", "alert" | xss |
+| "auth", "bypass", "login", "JWT", "cookie" | auth |
+| "SSTI", "template", "jinja" | ssti |
+| "SSRF", "file_get_contents", "curl" | ssrf |
+| "serialize", "unserialize", "pickle", "phar" | deserialization |
 
 ---
 
-## 失败转向（Pivot When Stuck）
+## MCP 工具（已配置）
 
-**失败 3 次后必须执行以下步骤：**
+Claude Code 已配置以下 MCP 服务器，可直接调用：
 
-1. **重新审视假设** - 这个漏洞类型真的正确吗？
-2. **尝试不同技术** - 很多挑战混合多种漏洞
-3. **检查遗漏** - 隐藏文件、响应头、源码注释
-4. **检查边界情况** - 编码问题、竞争条件
+| 工具 | 用途 | 使用场景 |
+|------|------|----------|
+| **fetch** | 网页抓取 | SSL 证书不稳定的站点慎用 |
+| **chrome-devtools** | Chrome 开发者工具 | 浏览器环境 |
+| **playwright** | 浏览器自动化 | 搜索、复杂表单交互、截图 |
+| **Tavily** | 智能搜索 | 深度技术搜索 |
 
-**常见多类型组合：**
-- Web + Auth: JWT 伪造、session 利用
-- Web + File: 文件上传 + 代码执行
-
----
-
-## 快速检索命令
-
-```bash
-# 获取指定题型全部知识（自动检索以下4个来源）
-C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import get_all_type_knowledge; print(get_all_type_knowledge('rce'))"
-
-# 知识来源：
-# 1. skills/rce/SKILL.md - 技能知识
-# 2. memories/experiences/rce.md - 成功经验
-# 3. wooyun/knowledge/command-execution.md - WooYun 技术手册
-# 4. wooyun/plugins/wooyun-legacy/categories/ - WooYun 精简案例库
-
-# RAG 关键词检索
-C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import search_knowledge; print(search_knowledge('phpinfo', top_k=5))"
-
-# 检查失败方法
-C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.failure_tracker import is_method_failed; print(is_method_failed('http://target.com', 'system'))"
-```
-
----
-
-## 强制知识检查 Hook
-
-**【系统机制】PreToolUse Hook 自动检查（详见下方 Hook 自动检查章节）**
-
-当你执行 `curl`、`sqlmap`、`dirsearch` 等攻击工具时，系统会自动检查：
-
-1. **是否有未过期的知识查询标记**（`workspace/.knowledge_checked`）
-2. **假设声明** - Identify/Exploit 阶段必须声明当前假设
-3. **方法失败检查** - 方法在 failures.json 中已记录失败
-4. **预算检查** - 阶段步数已达预算
-5. **阶段工具白名单** - 工具不在允许列表中
-6. **语义级循环** - 同一动作家族失败 ≥3 次
-7. **失败阈值** - 同一目标失败 ≥3 次
-
-**正确的解题流程**：
-```
-1. curl 目标页面
-2. 识别题型
-3. Read skills/<type>/SKILL.md
-4. RAG 检索：C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe -c "from core.rag_knowledge import search_knowledge..."
-5. Read memories/experiences/<type>.md
-6. 执行攻击工具（curl/sqlmap/dirsearch）
-```
-
----
-
-## 技能知识（skills/）
-
-解题前必须加载：
-
-```
-skills/rce/SKILL.md           - RCE 命令注入绕过
-skills/sqli/SKILL.md         - SQL 注入 bypass
-skills/auth-bypass/SKILL.md   - 认证绕过
-skills/file-inclusion/SKILL.md - 文件包含 LFI
-skills/xss/SKILL.md           - XSS 绕过
-skills/upload/SKILL.md         - 文件上传绕过
-skills/deserialization/SKILL.md - 反序列化
-skills/ssrf/SKILL.md          - SSRF
-skills/ssti/SKILL.md          - 模板注入
-```
+**调用方式**：直接使用 `fetch`、`playwright`、`Tavily`、`chrome-devtools` 或 `curl` 工具，Claude Code 会自动识别。
 
 ---
 
@@ -184,28 +241,27 @@ skills/ssti/SKILL.md          - 模板注入
 ### curl（直接调用）
 ```
 curl -s -k http://target.com
+curl -s -k "http://target.com/?id=1 UNION SELECT 1,2,3"
 ```
 
-### sqlmap（通过 Python 模块）
+### sqlmap
 ```python
 from tools.sqlmap_tool import scan, deep_scan
-
-# 普通扫描
 result = scan("http://target.com/?id=1")
-
-# 深度扫描
 result = deep_scan("http://target.com/?id=1")
 ```
 
-### dirsearch（通过 Python 模块）
+### dirsearch
 ```python
 from tools.dirsearch_tool import scan, quick_scan
-
-# 扫描
 result = scan("http://target.com")
-
-# 快速扫描
 result = quick_scan("http://target.com")
+```
+
+### /web-fetch（slash command）
+```
+/web-fetch https://example.com       # 抓取网页
+/web-fetch search Python 教程         # 搜索
 ```
 
 ### 解析输出
@@ -215,111 +271,21 @@ from tools.output_parser import parse_curl, parse_sqlmap, parse_dirsearch
 
 ---
 
-## RAG 知识库类别
+## 技能知识（skills/）
 
-| category | 题型 |
-|----------|------|
-| command-execution | rce |
-| sql-injection | sqli |
-| file-traversal | lfi |
-| file-upload | upload |
-| xss | xss |
-| unauthorized-access | auth |
-| logic-flaws | auth |
-| info-disclosure | recon |
-
----
-
-## 状态管理
-
-```python
-# 初始化并记录状态
-from core.state_manager import init_state, add_finding, add_method, add_reasoning, add_failed_pattern, add_suggested_bypass, set_flag, record_failed, get_context_summary
-init_state('http://target.com', 'rce')
-
-# 记录每个动作和发现
-add_finding('disable_functions=exec,system')
-add_reasoning('curl homepage', '发现 PHPinfo 页面')
-add_reasoning('test system()', '被 disable_functions 拦截')
-
-# 记录失败特征和建议
-add_failed_pattern('disable_functions')
-add_suggested_bypass('copy() 文件写入', 'copy 函数未被禁用')
-
-# 记录方法
-add_method('system')
-add_method('exec')
-
-# 设置 flag（自动保存经验）
-# 第二个参数为成功方法，第三个参数为关键 payload（会保存到经验中）
-set_flag('FLAG{...}', 'path_traversal_bypass', 'mmm/../../../../../../../../flag.txt')
-
-# 获取完整状态摘要（重要！）
-print(get_context_summary())
-
-# 记录失败尝试（自动写入 failures.json）
-record_failed('system', 'disabled by disable_functions', 'system("id")')
-record_failed('copy', 'file not found', 'copy("/tmp/a","/var/www/html/b.php")')
-
-# 检查失败
-is_method_failed('http://target.com', 'system')  # True
-
-# 保存成功经验（自动用当前状态，已被 set_flag 替代）
-# 现在 set_flag('FLAG{...}', 'method') 会自动保存，无需单独调用
-# 但 save_experience_auto 仍可用于手动保存
-from core.state_manager import save_experience_auto
-save_experience_auto('copy')  # 传入成功的方法名
 ```
-
----
-
-## Hook 自动检查（无需手动调用）
-
-**PreToolUse Hook 已自动实现以下检查，执行攻击工具时会自动触发：**
-
-1. **假设声明检查** - Identify/Exploit 阶段必须声明 `current_hypothesis`，否则拦截
-2. **方法失败检查** - 方法在 `failures.json` 中已记录失败时，注入警告并显示替代建议
-3. **预算检查** - 阶段步数达到预算时，注入警告
-4. **阶段工具白名单检查** - 不在白名单的工具会被拦截
-5. **语义级循环检测** - 同一动作家族（php_protocol/log_poison/path_traversal 等）失败 ≥3 次时，强制换方向
-6. **失败阈值检测** - 同一目标失败 ≥3 次时，注入强制重查消息
-7. **PostToolUse 自动记录** - 自动记录方法到 `methods_tried`，失败时自动写入 `failures.json`
-
-**以下功能已 Hook 自动处理，不需要 LLM 手动调用：**
-- `add_method()` - 攻击后自动记录
-- `record_failure()` - 失败后自动记录
-- 步数更新 - 自动递增
-
----
-
-## 外部 LLM 增强
-
-**Phase 1.5 新增功能：**
-
-```python
-# 智能状态摘要 - 在关键节点获取 LLM 生成的针对性摘要
-from core.state_manager import get_context_summary_intelligent
-
-# 四种触发场景
-print(get_context_summary_intelligent('general'))     # 常规摘要
-print(get_context_summary_intelligent('stuck'))      # 卡住时：分析失败模式，给出下一步建议
-print(get_context_summary_intelligent('phase_transition'))  # 阶段转换时：评估是否满足转换条件
-print(get_context_summary_intelligent('post_failure'))      # 失败后：判断是否应该换方向
-
-# 增强版失败分析 - LLM 分析同目标全部失败记录，给出 should_pivot 判断
-from core.failure_tracker import analyze_failure_with_llm
-
-result = analyze_failure_with_llm(
-    method='proc_open',
-    reason='all disabled',
-    payload='proc_open("id")',
-    category='rce',
-    target='http://target.com'  # 新增参数：获取同目标全部失败记录
-)
-if result:
-    print(f"should_pivot: {result['should_pivot']}")      # 是否应换方向
-    print(f"next_method: {result['next_method']}")        # 下一步建议
-    print(f"alternative_vector: {result['alternative_vector']}")  # 完全不同的攻击向量
+skills/rce/SKILL.md               - RCE 命令注入绕过
+skills/sqli/SKILL.md             - SQL 注入 bypass
+skills/auth-bypass/SKILL.md       - 认证绕过
+skills/file-inclusion/SKILL.md   - 文件包含 LFI/RFI
+skills/upload/SKILL.md           - 文件上传绕过
+skills/xss/SKILL.md              - XSS 绕过
+skills/deserialization/SKILL.md   - 反序列化
+skills/ssrf/SKILL.md             - SSRF
+skills/ssti/SKILL.md             - 模板注入
+skills/recon/SKILL.md            - 信息收集
+skills/awdp/SKILL.md             - AWDP 模式
+skills/decoder/SKILL.md          - 编码绕过
 ```
 
 ---
@@ -330,9 +296,7 @@ if result:
   ```
   C:/Users/Administrator/Envs/CTFagent/Scripts/python.exe
   ```
-  禁止使用裸 `python`、`python3` 命令，所有 Python 调用必须带完整路径
-- 解题时联网请求用 `curl`（需要精确控制），其他场景可用 WebFetch/WebSearch
-- 发现 flag 后调用 `set_flag('FLAG{...}', 'method', 'payload')` 自动保存经验（payload 会写入经验文件）
+- 解题时联网请求用 `curl -k`，其他场景用 playwright/Tavily
 - **先查知识再动手**，不要盲试
-- 每次尝试前检查失败记录
 - 执行完每个步骤后主动推进，不要等待用户指令
+- 发现 flag 后调用 `set_flag()` 自动保存经验

@@ -26,24 +26,25 @@ from datetime import datetime, timedelta
 # 工作目录
 WORKSPACE = Path(__file__).parent.parent.parent / "workspace"
 STATE_FILE = WORKSPACE / "state.json"
-FAILURES_FILE = WORKSPACE / "failures.json"
 LAST_COMMAND_FILE = WORKSPACE / ".last_command"
 POST_RECORD_MARKER = WORKSPACE / ".post_record_pending"
 KNOWLEDGE_LOG = WORKSPACE / ".knowledge_log"
+ADVISOR_DIR = WORKSPACE / "advisor"
+ADVISOR_LATEST = ADVISOR_DIR / "latest.json"
 
 # 导入核心模块
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from core.loop_detector import (
     check_loop, LOOP_WARNING_MESSAGE, LOOP_BREAK_FORCE_MESSAGE
 )
-from core.failure_tracker import (
-    should_trigger_rag, get_failure_count, get_failures_list,
-    record_failure, get_tracker
-)
 from core.state_manager import (
     get_state_manager, Phase, PHASE_CONFIG,
     is_tool_allowed, check_budget as check_budget_func,
     get_phase as get_phase_func, get_hypothesis as get_hypothesis_func
+)
+from core.phase_gate import (
+    get_gate, check_phase_transition, get_transition_suggestion,
+    Phase as PhaseEnum
 )
 
 
@@ -89,21 +90,6 @@ def get_state_summary() -> str:
     return "\n".join(lines)
 
 
-def get_failures_summary() -> str:
-    """获取失败记录摘要"""
-    failures = load_json(FAILURES_FILE)
-    if not failures or not isinstance(failures, list):
-        return ""
-
-    lines = []
-    lines.append(f"\n【失败记录】({len(failures)} 条)")
-
-    for f in failures[-5:]:  # 只显示最近 5 条
-        method = f.get("method", "未知")
-        reason = f.get("reason", "")
-        lines.append(f"  - {method}: {reason}")
-
-    return "\n".join(lines)
 
 
 def get_knowledge_info() -> str:
@@ -133,14 +119,6 @@ def get_knowledge_info() -> str:
     return "\n".join(lines)
 
 
-def get_failures_for_target(target: str) -> list:
-    """获取指定目标的所有失败记录"""
-    failures = load_json(FAILURES_FILE)
-    if not failures or not isinstance(failures, list):
-        return []
-    if not target:
-        return []
-    return [f for f in failures if f.get("target") == target]
 
 
 def parse_command_signature(command: str) -> Tuple[Optional[str], Optional[str]]:
@@ -157,9 +135,24 @@ def parse_command_signature(command: str) -> Tuple[Optional[str], Optional[str]]
         return None, None
 
     command = command.strip()
+    command_lower = command.lower()
 
-    # 处理 python -c "..." 的情况
-    if command.startswith("python"):
+    # 处理 python 路径（Windows 完整路径或普通 python 命令）
+    # 例如: C:/Users/.../python.exe, python -c 等
+    if ".exe" in command_lower:
+        # 找到 .exe 的位置
+        exe_pos = command_lower.find(".exe")
+        # 检查 .exe 前面是否有 python
+        before_exe = command_lower[:exe_pos]
+        if "python" in before_exe:
+            # 这是 python.exe，提取参数
+            # 参数是从 .exe 之后开始的
+            after_exe = command[exe_pos + 4:].strip()
+            return "python", after_exe
+        # 不是 python.exe，用原始的第一个单词作为工具名
+        parts = command.split(" ", 1)
+        return parts[0], parts[1] if len(parts) > 1 else ""
+    elif command.startswith("python"):
         parts = command.split(" ", 1)
         if len(parts) > 1:
             return "python", parts[1]
@@ -241,62 +234,6 @@ def get_last_command_result() -> Optional[Dict[str, Any]]:
         return None
 
 
-# ==================== 新增：检查命令是否包含已失败的方法 ====================
-
-def check_command_for_failed_methods(command: str, failures: list) -> List[str]:
-    """
-    检查命令是否包含已失败的方法，返回警告信息
-
-    Args:
-        command: curl 命令内容
-        failures: 当前目标的失败记录列表
-
-    Returns:
-        警告字符串列表，如果有匹配的话
-    """
-    if not failures or not command:
-        return []
-
-    command_lower = command.lower()
-    warnings = []
-
-    # 方法名到 URL 参数/关键词的映射（帮助识别哪些方法可能被用在命令中）
-    method_indicators = {
-        "system": ["system", "cmd=", "c=", "exec=", "command="],
-        "exec": ["exec", "cmd=", "c=", "command="],
-        "shell_exec": ["shell_exec", "sh=", "bash="],
-        "popen": ["popen", "pipe="],
-        "copy": ["copy", "cp=", "move="],
-        "file_put_contents": ["file_put_contents", "write=", "fwrite="],
-        "file_get_contents": ["file_get_contents", "read=", "include=", "require="],
-        "unserialize": ["unserialize", "deserialize", "data="],
-        "sqlmap": ["sqlmap", "sql_injection", "--dbs"],
-        "路径遍历": ["../", "..%2f", "traversal", "path="],
-        "lfi": ["../../", "..%2f", "include=", "file="],
-    }
-
-    for failure in failures:
-        method = failure.get("method", "").lower()
-        reason = failure.get("reason", "")
-        payload = failure.get("payload", "")
-
-        # 直接检查方法名是否在命令中
-        if method in command_lower:
-            warnings.append(f'方法 "{method}" 已失败（原因: {reason}）')
-            continue
-
-        # 检查 method_indicators 中的关键词
-        if method in method_indicators:
-            for indicator in method_indicators[method]:
-                if indicator in command_lower:
-                    warnings.append(f'方法 "{method}" 已失败（原因: {reason}），命令中检测到 "{indicator}"')
-                    break
-
-        # 检查 payload 是否在命令中（payload 可能包含关键特征）
-        if payload and len(payload) > 3 and payload.lower() in command_lower:
-            warnings.append(f'Payload "{payload[:30]}..." 已失败（原因: {reason}）')
-
-    return warnings
 
 
 # ==================== Phase 1 增强：假设声明检查 ====================
@@ -341,58 +278,39 @@ HYPOTHESIS_REQUIRED_MESSAGE = """
 ═══════════════════════════════════════════════════════════════════════
 """
 
+# ==================== P0: 攻击命令拦截 ====================
 
-# ==================== Phase 1 增强：方法失败检查 ====================
+ATTACK_COMMANDS = ["sqlmap", "dirsearch", "nikto", "gobuster", "wfuzz", "hydra", "nmap", "wpscan", "ffuf", "dirb", "dirbuster", "medusa", "ncrack"]
 
-def check_method_failed(tool_name: str, args_str: str, target: str) -> Tuple[bool, str]:
-    """
-    检查方法是否在 failures.json 中已记录失败
+def is_attack_command(command: str) -> bool:
+    """判断是否为攻击性命令"""
+    cmd_lower = command.lower()
+    return any(x in cmd_lower for x in ATTACK_COMMANDS)
 
-    Returns:
-        (is_failed, message) - is_failed=True 表示方法已失败
-    """
-    if not target:
+def check_findings_required(command: str) -> Tuple[bool, str]:
+    """攻击命令需要先记录发现"""
+    if not is_attack_command(command):
         return False, ""
 
-    failures = load_json(FAILURES_FILE)
-    if not failures:
+    state = load_json(STATE_FILE)
+    if not state:
         return False, ""
 
-    target_failures = [f for f in failures if f.get("target") == target]
-    if not target_failures:
-        return False, ""
+    findings = state.get("findings", [])
+    if not findings:
+        return True, """
+═══════════════════════════════════════════════════════════════════════
+🛑 【拦截】攻击命令需要先记录发现
 
-    # 检查方法是否已失败
-    for f in target_failures:
-        method = f.get("method", "").lower()
-        if method == tool_name.lower():
-            reason = f.get("reason", "未知原因")
-            analysis = f.get("analysis", {})
-            alternatives = analysis.get("alternative_methods", []) if analysis else []
+你没有记录任何发现（findings=[]），攻击前请先：
+  add_finding('你的发现')
 
-            msg = METHOD_FAILED_MESSAGE.format(
-                method=method,
-                reason=reason,
-                alternatives="\n".join([f"  {i+1}. {a}" for i, a in enumerate(alternatives[:3])]) if alternatives else "  无明确替代建议，请查看经验库"
-            )
-            return True, msg
-
+例如：add_finding('发现登录表单，密码在JS中硬编码')
+═══════════════════════════════════════════════════════════════════════
+"""
     return False, ""
 
 
-METHOD_FAILED_MESSAGE = """
-═══════════════════════════════════════════════════════════════════════
-🛑 【失败检测】该方法已确认无效
-
-方法：{method}
-失败原因：{reason}
-
-建议尝试替代方向：
-{alternatives}
-
-请选择一个新方向继续攻击。
-═══════════════════════════════════════════════════════════════════════
-"""
 
 
 # ==================== Phase 1 增强：预算检查 ====================
@@ -487,108 +405,70 @@ TOOL_NOT_ALLOWED_MESSAGE = """
 ═══════════════════════════════════════════════════════════════════════
 """
 
+# ==================== Phase 4: 顾问审查通知 ====================
 
-# ==================== Phase 1 增强：语义级循环检测 ====================
-
-# 动作家族分类
-ACTION_FAMILIES = {
-    "php_protocol": ["php://filter", "php://input", "data://", "expect://"],
-    "log_poison": ["UA注入", "Referer注入", "日志包含", "User-Agent"],
-    "path_traversal": ["../", "....//", "%2e%2e", "..%2f", "....%2f"],
-    "session": ["session", "SESSION", "/tmp/sess_"],
-    "read_file": ["cat", "base64", "读取", "type", "more", "less"],
-    "sql_injection": ["union", "select", "or 1=1", "order by", "--", "sleep"],
-}
-
-# 方法名到动作家族的映射
-METHOD_TO_FAMILY = {
-    "php://filter": "php_protocol",
-    "php://input": "php_protocol",
-    "data://": "php_protocol",
-    "expect://": "php_protocol",
-    "UA注入": "log_poison",
-    "Referer注入": "log_poison",
-    "User-Agent注入": "log_poison",
-    "../": "path_traversal",
-    "..%2f": "path_traversal",
-    "....//": "path_traversal",
-    "session包含": "session",
-    "session污染": "session",
-    "cat": "read_file",
-    "base64": "read_file",
-    "union": "sql_injection",
-    "select": "sql_injection",
-    "or 1=1": "sql_injection",
-}
-
-
-def get_action_family(method: str) -> Optional[str]:
-    """根据方法名返回动作家族"""
-    return METHOD_TO_FAMILY.get(method)
-
-
-def check_semantic_loop(tool_name: str, args_str: str, target: str) -> Tuple[bool, str]:
+def get_advisor_notice() -> str:
     """
-    语义级循环检测：检测同一动作家族是否重复尝试
+    检查是否有未读的顾问建议
 
     Returns:
-        (is_loop, message)
+        格式化的顾问通知文本，如果有新建议的话
     """
-    if not target:
-        return False, ""
+    if not ADVISOR_LATEST.exists():
+        return ""
 
-    failures = load_json(FAILURES_FILE)
-    if not failures:
-        return False, ""
+    try:
+        advice = json.loads(ADVISOR_LATEST.read_text(encoding="utf-8"))
+        state = load_json(STATE_FILE)
+        if not state:
+            return ""
 
-    target_failures = [f for f in failures if f.get("target") == target]
+        last_advisor_read = state.get("last_advisor_read", "")
 
-    # 统计每个动作家族的失败次数
-    family_counts = {}
-    family_methods = {}
+        # 检查是否有新的顾问建议
+        if advice.get("timestamp") != last_advisor_read:
+            # 更新 last_advisor_read
+            state["last_advisor_read"] = advice.get("timestamp")
+            STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    for f in target_failures:
-        method = f.get("method", "")
-        family = METHOD_TO_FAMILY.get(method)
-        if family:
-            family_counts[family] = family_counts.get(family, 0) + 1
-            if family not in family_methods:
-                family_methods[family] = []
-            family_methods[family].append(method)
-
-    # 检查是否有动作家族失败 >= 3 次
-    for family, count in family_counts.items():
-        if count >= 3:
-            methods = ", ".join(set(family_methods[family]))
-            msg = SEMANTIC_LOOP_MESSAGE.format(
-                family=family,
-                count=count,
-                methods=methods
-            )
-            return True, msg
-
-    return False, ""
+            return format_advisor_notice(advice)
+    except (json.JSONDecodeError, IOError, TypeError):
+        pass
+    return ""
 
 
-SEMANTIC_LOOP_MESSAGE = """
-═══════════════════════════════════════════════════════════════════════
-🛑 【循环检测】检测到同类方法重复尝试
+def format_advisor_notice(advice: dict) -> str:
+    """格式化顾问通知"""
+    verdict = advice.get("verdict", "proceed")
+    reasoning = advice.get("reasoning", "")
+    suggestions = advice.get("suggestions", [])
+    review_type = advice.get("review_type", "review")
+    priority = advice.get("priority", 2)
 
-动作家族：{family}
-失败次数：{count}
-方法列表：{methods}
+    # verdict 颜色标记
+    verdict_icon = {"proceed": "✅", "pause": "⚠️", "pivot": "🔄"}.get(verdict, "📋")
 
-继续尝试同类方法可能是无效的。
-请选择完全不同的攻击向量。
-═══════════════════════════════════════════════════════════════════════
-"""
+    lines = [
+        f"\n{'='*70}",
+        f"{verdict_icon} 【顾问审查】{review_type} (优先级: {priority})",
+        f"verdict: {verdict}",
+        f"reasoning: {reasoning}"
+    ]
+
+    if suggestions:
+        lines.append("suggestions:")
+        for s in suggestions:
+            lines.append(f"  - {s}")
+
+    lines.append(f"{'='*70}")
+    return "\n".join(lines)
 
 
 # ==================== 重写：Hook 主函数 ====================
 
 def get_context_for_llm(command: str) -> Dict[str, Any]:
     """
-    Phase 1 增强版 Hook 上下文生成器
+    Phase 2 增强版 Hook 上下文生成器
 
     流程：
     0. 自动记录上一次命令结果（PostToolUse 模拟）
@@ -599,125 +479,225 @@ def get_context_for_llm(command: str) -> Dict[str, Any]:
        - 预算检查
        - 阶段工具白名单检查
        - 语义级循环检测
-    3. 原有检查：
+    3. Phase 2 新增：
+       - 阶段转换建议检查
+    4. 原有检查：
        - 循环检测（签名级）
        - 失败阈值检查
-    4. 注入所有警告和建议到 additionalContext
+    5. 注入所有警告和建议到 additionalContext
     """
-    # ========== 0. PostToolUse: 自动记录上一次命令 ==========
-    record_result = auto_record_last_command()
-    # record_result 只用于调试，不直接输出（会在后续上下文中体现）
-
     context_parts = []
-    target = get_current_target()
+    target = ""
 
-    # ========== 0. 解析命令 ==========
-    tool_name, args_str = parse_command_signature(command)
+    # ========== 0. PostToolUse: 自动记录上一次命令 ==========
+    try:
+        record_result = auto_record_last_command()
+    except Exception as e:
+        # 单个检查出错不影响其他检查
+        pass
+
+    # ========== 获取目标 ==========
+    try:
+        target = get_current_target()
+    except Exception:
+        pass
+
+    # ========== 解析命令 ==========
+    tool_name, args_str = None, None
+    try:
+        tool_name, args_str = parse_command_signature(command)
+    except Exception:
+        pass
 
     # ========== Phase 1 增强：PreToolUse 检查 ==========
 
+    # 0. 第一次攻击时自动触发初始顾问审查
+    try:
+        state = load_json(STATE_FILE)
+        if state and state.get("step_count", 0) == 0 and state.get("target"):
+            try:
+                from core.advisor import review_initial
+                advice = review_initial()
+                if advice:
+                    context_parts.append(format_advisor_notice(advice))
+            except Exception:
+                pass
+    except Exception:
+        pass
+
     # 1. 检查假设声明（Identify/Exploit 阶段必须声明假设）
-    needs_hypothesis, hypothesis_msg = check_hypothesis_declared()
-    if needs_hypothesis:
-        context_parts.append(hypothesis_msg)
-        return {
-            "continue": False,
-            "hookSpecificOutput": {
-                "additionalContext": "\n".join(context_parts)
-            }
-        }
-
-    # 2. 检查工具白名单
-    if tool_name:
-        not_allowed, tool_msg = check_tool_whitelist(tool_name)
-        if not_allowed:
-            context_parts.append(tool_msg)
+    try:
+        needs_hypothesis, hypothesis_msg = check_hypothesis_declared()
+        if needs_hypothesis:
+            context_parts.append(hypothesis_msg)
             return {
-                "continue": False,
                 "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": "Hypothesis not declared - please declare your hypothesis before attacking",
                     "additionalContext": "\n".join(context_parts)
                 }
             }
+    except Exception:
+        pass
 
-    # 3. 检查预算
-    budget_exceeded, budget_msg = check_phase_budget()
-    if budget_exceeded:
-        context_parts.append(budget_msg)
-        # 预算耗尽不强制中断，但注入警告
+    # P0: 攻击命令需要先有发现
+    try:
+        needs_findings, findings_msg = check_findings_required(command)
+        if needs_findings:
+            context_parts.append(findings_msg)
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": "No findings recorded - please call add_finding() first",
+                    "additionalContext": "\n".join(context_parts)
+                }
+            }
+    except Exception:
+        pass
 
-    # 4. 检查方法是否已知失败
-    if tool_name and target:
-        method_failed, failed_msg = check_method_failed(tool_name, args_str, target)
-        if method_failed:
-            context_parts.append(failed_msg)
-            # 方法已知失败，注入警告但继续执行
+    # 3. 检查预算（硬限制）
+    try:
+        budget_exceeded, budget_msg = check_phase_budget()
+        if budget_exceeded:
+            context_parts.append(budget_msg)
+            # 调用顾问获取预算耗尽时的建议
+            try:
+                from core.advisor import review
+                state = load_json(STATE_FILE)
+                phase = state.get("phase", "recon") if state else "recon"
+                advice = review("budget_exceeded",
+                    question=f"{phase}阶段预算耗尽，应该继续还是换方向？",
+                    state_override=state
+                )
+                if advice and advice.get("suggestions"):
+                    context_parts.append("\n顾问建议:")
+                    for s in advice["suggestions"][:3]:
+                        context_parts.append(f"  - {s}")
+                if advice and advice.get("verdict"):
+                    context_parts.append(f"顾问 verdict: {advice['verdict']}")
+            except Exception:
+                pass
+            # 硬限制：拦截
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": "Budget exceeded",
+                    "additionalContext": "\n".join(context_parts)
+                }
+            }
+    except Exception:
+        pass
 
-    # 5. 语义级循环检测
-    if tool_name and target:
-        semantic_loop, loop_msg = check_semantic_loop(tool_name, args_str, target)
-        if semantic_loop:
+    # ========== Phase 2 新增：阶段转换建议 ==========
+    try:
+        transition_suggestion = get_transition_suggestion()
+        if transition_suggestion:
+            context_parts.append(f"\n{'='*70}\n{transition_suggestion}\n{'='*70}")
+    except Exception:
+        pass
+
+    # P4: Recon 阶段使用攻击命令时的提示
+    try:
+        state = load_json(STATE_FILE)
+        if state and state.get("phase") == Phase.RECON and is_attack_command(command):
+            context_parts.append("""
+💡 【提示】你还在 recon 阶段，考虑切换到 identify：
+  try_set_phase('identify')
+""")
+    except Exception:
+        pass
+
+    # 5. 基于计数的自动顾问触发（不再依赖失败检测）
+    # 每 3 次尝试自动触发一次顾问审查
+    try:
+        state = load_json(STATE_FILE)
+        if state and target:
+            step_count = state.get("step_count", 0)
+            # 达到 3/6/9 次时自动触发顾问
+            if step_count > 0 and step_count % 3 == 0:
+                try:
+                    from core.advisor import review
+                    advice = review("periodic",
+                        question=f"已尝试 {step_count} 次，是否应该换方向或调整策略？",
+                        state_override=state
+                    )
+                    if advice:
+                        context_parts.append(format_advisor_notice(advice))
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # 6. 签名级循环检测
+    try:
+        loop_result = check_loop_detection(command)
+        if loop_result:
+            loop_status, loop_msg = loop_result
             context_parts.append(loop_msg)
-            # 语义循环，注入警告但继续执行
 
-    # ========== 原有检查 ==========
-
-    # 6. 检查失败阈值（3次失败触发强制重查）
-    if target:
-        rerag_triggered, rerag_msg, count = should_trigger_rag(target)
-        if rerag_triggered:
-            context_parts.append(rerag_msg)
-            # 失败阈值达到，强制重查
-
-    # 7. 检查签名级循环
-    loop_result = check_loop_detection(command)
-    if loop_result:
-        loop_status, loop_msg = loop_result
-        context_parts.append(loop_msg)
-
-        # break 级别强制中断
-        if loop_status == "break":
-            return {
-                "continue": False,
-                "hookSpecificOutput": {
-                    "additionalContext": "\n".join(context_parts)
+            # break 级别强制中断
+            if loop_status == "break":
+                return {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": "Loop detection triggered - too many repeated attempts",
+                        "additionalContext": "\n".join(context_parts)
+                    }
                 }
-            }
+    except Exception:
+        pass
 
-    # ========== 8. 注入上一次命令结果 ==========
-    last_result = get_last_command_result()
-    if last_result:
-        last_output = last_result.get("output", "")[:500]
-        if last_output:
-            context_parts.append(f"【上次命令输出】\n{last_output}")
+    # ========== 9. 注入上一次命令结果 ==========
+    try:
+        last_result = get_last_command_result()
+        if last_result:
+            last_output = last_result.get("output", "")[:500]
+            if last_output:
+                context_parts.append(f"【上次命令输出】\n{last_output}")
+    except Exception:
+        pass
 
-    # ========== 9. 状态摘要 ==========
-    state_summary = get_state_summary()
-    if state_summary:
-        context_parts.insert(0, state_summary)
+    # ========== 10. 状态摘要 ==========
+    try:
+        state_summary = get_state_summary()
+        if state_summary:
+            context_parts.insert(0, state_summary)
+    except Exception:
+        pass
 
-    # ========== 10. 失败记录摘要（未达阈值时） ==========
-    if target and not rerag_triggered:
-        failures = get_failures_list(target, max_rows=5)
-        if failures and "（暂无" not in failures:
-            context_parts.append(f"\n【已有失败记录】\n{failures}")
+    # ========== 11. 知识库信息 ==========
+    try:
+        if target:
+            knowledge_info = get_knowledge_info()
+            if knowledge_info:
+                context_parts.append(knowledge_info)
+    except Exception:
+        pass
 
-    # ========== 11. 检查命令是否包含已失败的方法（额外警告） ==========
-    failures_list = get_failures_for_target(target)
-    if failures_list and command:
-        failed_warnings = check_command_for_failed_methods(command, failures_list)
-        if failed_warnings:
-            context_parts.append("\n【Hook 警告 - 方法已失败】")
-            for w in failed_warnings:
-                context_parts.append(f"  ⚠️ {w}")
-            context_parts.append("建议：换用其他方法，或基于失败原因调整 bypass 策略")
+    # ========== 13. 知识库提示 ==========
+    try:
+        if not target:
+            context_parts.append("\n📋 提示：这是新的解题任务，请先用 curl 访问目标识别题型。")
+    except Exception:
+        pass
 
-    # ========== 12. 知识库提示 ==========
-    if not target:
-        context_parts.append("\n📋 提示：这是新的解题任务，请先用 curl 访问目标识别题型。")
+    # ========== Phase 4: 顾问审查通知 ==========
+    try:
+        advisor_notice = get_advisor_notice()
+        if advisor_notice:
+            context_parts.append(advisor_notice)
+    except Exception:
+        pass
 
     return {
-        "continue": True,
         "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "allow",
+            "permissionDecisionReason": "Auto-approved by check_knowledge_hook",
             "additionalContext": "\n".join(context_parts)
         }
     }
@@ -734,7 +714,9 @@ def parse_tool_name_from_command(command: str) -> str:
 
     command = command.strip()
 
-    # python -c "..." 的情况
+    # python 路径（Windows 完整路径）
+    if ".exe" in command and "python" in command.lower():
+        return "python"
     if command.startswith("python"):
         return "python"
 
@@ -760,53 +742,6 @@ def parse_tool_name_from_command(command: str) -> str:
     return ""
 
 
-def analyze_command_success(output: str, return_code: int) -> Tuple[bool, str]:
-    """
-    分析命令是否成功执行
-
-    Returns:
-        (is_success, reason)
-    """
-    # 检查返回码
-    if return_code != 0:
-        return False, f"命令返回非零退出码: {return_code}"
-
-    # 检查输出中的常见失败标志
-    output_lower = output.lower()
-
-    failure_indicators = [
-        ("not found", "404 Not Found"),
-        ("forbidden", "403 Forbidden"),
-        ("error", "输出包含 error"),
-        ("invalid", "输出包含 invalid"),
-        ("empty", "输出为空"),
-        ("no such", "文件或目录不存在"),
-        ("permission denied", "权限拒绝"),
-        ("connection refused", "连接被拒绝"),
-        ("timeout", "连接超时"),
-        ("parse error", "解析错误"),
-        ("denied", "访问被拒绝"),
-    ]
-
-    for indicator, desc in failure_indicators:
-        if indicator in output_lower:
-            return False, desc
-
-    # 检查是否有成功标志
-    success_indicators = [
-        "flag{", "flag{",  # CTF flag
-        "200 ok", "200 OK",
-        "<html",  # HTML 响应
-        "{",  # JSON 响应
-        "[",  # 数组响应
-    ]
-
-    for indicator in success_indicators:
-        if indicator in output_lower:
-            return True, "命令正常执行"
-
-    # 默认认为成功（因为 curl 200 就是成功）
-    return True, "命令正常执行"
 
 
 def auto_record_last_command() -> str:
@@ -816,8 +751,7 @@ def auto_record_last_command() -> str:
     在 PreToolUse Hook 执行前调用，检查是否需要记录上一次命令的结果。
     这样可以在下一次命令执行前自动：
     1. add_method() - 记录已使用的方法
-    2. record_failure() - 分析失败原因并记录（如果失败）
-    3. increment_step() - 更新当前阶段步数
+    2. increment_step() - 更新当前阶段步数
 
     Returns:
         记录结果描述（用于调试）
@@ -850,9 +784,6 @@ def auto_record_last_command() -> str:
     if not tool_name:
         return f"无法识别工具名: {command[:50]}"
 
-    # 分析是否成功
-    is_success, reason = analyze_command_success(output, return_code)
-
     # 1. 添加方法到状态
     state = load_json(STATE_FILE)
     if state:
@@ -867,34 +798,6 @@ def auto_record_last_command() -> str:
 
         STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    # 3. 如果失败，记录到 failures.json
-    if not is_success:
-        failures = load_json(FAILURES_FILE) or []
-        target = state.get("target", "") if state else ""
-        category = state.get("type", "") if state else ""
-
-        # 检查是否已存在相同记录
-        found = False
-        for f in failures:
-            if f.get("target") == target and f.get("method") == tool_name:
-                f["reason"] = reason
-                f["payload"] = command
-                f["updated_at"] = datetime.now().isoformat()
-                found = True
-                break
-
-        if not found:
-            failures.append({
-                "target": target,
-                "method": tool_name,
-                "reason": reason,
-                "payload": command,
-                "category": category,
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat(),
-            })
-
-        FAILURES_FILE.write_text(json.dumps(failures, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # 标记已记录
     marker = {
@@ -902,14 +805,11 @@ def auto_record_last_command() -> str:
         "command": last_result.get("command", ""),
         "recorded": True,
         "tool": tool_name,
-        "success": is_success
+        "success": True
     }
     POST_RECORD_MARKER.write_text(json.dumps(marker, ensure_ascii=False), encoding="utf-8")
 
-    if is_success:
-        return f"✓ PostRecord: {tool_name} 成功 (step: {step_count if state else '?'})"
-    else:
-        return f"✗ PostRecord: {tool_name} 失败 - {reason}"
+    return f"✓ PostRecord: {tool_name} 成功 (step: {step_count if state else '?'})"
 
 
 def main():
