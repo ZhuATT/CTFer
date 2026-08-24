@@ -164,6 +164,8 @@ runner.spawn(task, prompt, cwd, time_box_s) -> AgentResult
 
 **断点续跑**：异常退出（API 429/5xx、进程崩溃——非时间盒耗尽）时指数退避（cap 300s）后 `claude -p --resume <session_id>` 续跑，完整上下文恢复，每会话上限 20 次；**时间盒/max-turns 耗尽是终态，不 resume**（恢复等于放大时间盒），走 Handoff 代码合成兜底。原始 stream-json 逐消息追加落 `transcript.jsonl`（kill 后磁盘永远留可读轨迹；门 3 的物理依赖）。
 
+**解析纪律（实测 CLI v2.1.238）**：输出流混有**非 JSON 行**（stdin 警告、`[claude-code:…]` 遥测前缀行）——runner 逐行 `try json.loads` 跳过失败行，按 `type/subtype` 匹配事件；`init` 事件为首条 JSON 行（`{"type":"system","subtype":"init",…,"session_id":…}`），`result` 事件带 num_turns/stop_reason/usage/total_cost_usd；prompt 经 stdin 喂入后即关闭（CLI 会等 stdin ~3s）；单次 headless 会话固定开销 ~25k input tokens（系统提示+工具定义），轮次预算按此估基线。
+
 **收割纪律**：结构化标签从**最后一条消息向前扫**（agent 常先吐标签再说 "Done!"，朴素取末条只拿到散文）。
 
 ### 3.2 providers.py —— 模型接入

@@ -11,7 +11,7 @@
 | # | 事项 | 状态 | 说明 |
 |---|---|---|---|
 | 1 | **hxbai 源码路径** | ✅ **已解决** | `D:\Downloads\hacker\lernproject\hxbai-main\hxbai\`——vendor 来源九文件齐备（ccrunner/blackboard/verify/stoploss/llm/oob/task/scheduler/longtask_guard/config 合计 2067 行，与计划预估一致）；`drivers/benchmark_driver.py`（1608 行）确认存在且不拷贝 |
-| 2 | claude CLI headless 验证 | ◐ | 已确认：解析路径 `/c/Users/Administrator/.local/bin/claude`；**实测发现 `-p` + stream-json 必须加 `--verbose`**（已写进设计§3.1 spawn 命令）。剩：完整跑通一次确认 `init`/`result` 事件可见 |
+| 2 | claude CLI headless 验证 | ✅ 跑通（CLI v2.1.238） | 实测四事实已入库：① `-p`+stream-json 必须加 `--verbose`；② 输出流**混有非 JSON 行**（stdin 警告、`[claude-code:…]` 遥测行）→ runner 逐行 try json.loads 跳过失败行、按 type/subtype 匹配；③ init/result 事件均带 `session_id`，result 另带 num_turns/stop_reason/usage/total_cost_usd；④ prompt 经 stdin 喂入后即关闭（CLI 等 stdin ~3s）；单次 headless 固定开销 ~25k input tokens（系统提示+工具定义），预算按此估 |
 | 3 | Python 环境 | ✅ | `.venv` 已建于 at1-github（Python 3.13.11 / pip 25.3）；无重依赖（标准库 + 门1.5 用 urllib） |
 | 4 | solver 模型 env | ✅ | 默认 glm，现有 CC 配置直接复用（providers.anthropic_env()） |
 | 5 | deepseek key | ⬜ 可延到 M3 | 门 2 verifier 用；没有 → 按设计§7 换异构方案，先记着不阻塞 M1/M2 |
