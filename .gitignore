@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# 运行产物
+results/
+out/
+
+# engagement 工作区（含凭证/会话状态，永不入库）
+engagements/
+storage-states/
+*storage-state*.json
+cookies*.txt
+
+# 会话轨迹与控制器日志（归档在各自 engagement 区，不入框架仓库）
+transcript.jsonl
+auto-log.jsonl
+
+# 本机杂项
+.DS_Store
+Thumbs.db
