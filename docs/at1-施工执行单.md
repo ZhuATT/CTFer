@@ -11,8 +11,8 @@
 | # | 事项 | 状态 | 说明 |
 |---|---|---|---|
 | 1 | **hxbai 源码路径** | ✅ **已解决** | `D:\Downloads\hacker\lernproject\hxbai-main\hxbai\`——vendor 来源九文件齐备（ccrunner/blackboard/verify/stoploss/llm/oob/task/scheduler/longtask_guard/config 合计 2067 行，与计划预估一致）；`drivers/benchmark_driver.py`（1608 行）确认存在且不拷贝 |
-| 2 | claude CLI headless 验证 | ⬜ | PowerShell 跑 `claude -p "say ok" --output-format stream-json`，确认能逐行看到 `init`/`result` 事件；顺带确认 `claude` 在 PATH 的解析形式（`.cmd`？绝对路径？runner spawn 用哪种写法） |
-| 3 | Python 环境 | ⬜ | ≥3.10，`python -m venv .venv`；无重依赖（标准库 + 门1.5 的 http 客户端用 urllib 即可） |
+| 2 | claude CLI headless 验证 | ◐ | 已确认：解析路径 `/c/Users/Administrator/.local/bin/claude`；**实测发现 `-p` + stream-json 必须加 `--verbose`**（已写进设计§3.1 spawn 命令）。剩：完整跑通一次确认 `init`/`result` 事件可见 |
+| 3 | Python 环境 | ✅ | `.venv` 已建于 at1-github（Python 3.13.11 / pip 25.3）；无重依赖（标准库 + 门1.5 用 urllib） |
 | 4 | solver 模型 env | ✅ | 默认 glm，现有 CC 配置直接复用（providers.anthropic_env()） |
 | 5 | deepseek key | ⬜ 可延到 M3 | 门 2 verifier 用；没有 → 按设计§7 换异构方案，先记着不阻塞 M1/M2 |
 

@@ -141,7 +141,7 @@ script/at1/
 
 ### 3.1 runner.py —— 进程桥
 
-`claude -p --output-format stream-json --dangerously-skip-permissions --max-turns <时间盒> --model <模型>`，prompt 经 stdin 喂一次永不变；stdout 逐行解析；环境消毒（spawn 前剥掉 API key 与控制变量，消毒键名 `AT1_*`）；cwd = workdir。
+`claude -p --output-format stream-json **--verbose** --dangerously-skip-permissions --max-turns <时间盒> --model <模型>`，prompt 经 stdin 喂一次永不变；stdout 逐行解析；环境消毒（spawn 前剥掉 API key 与控制变量，消毒键名 `AT1_*`）；cwd = workdir。
 
 **接口**（driver 的唯一入口）：
 
