@@ -1,4 +1,4 @@
-# Phase 1 —— 骨架（M1）执行计划
+#   Phase 1 —— 骨架（M1）执行计划
 
 > 依据：`docs/at1-施工执行单.md` 卡 1.1-1.3 + headless 实测四事实（commit 51aed76）
 > 目标：跑通"控制器 spawn 一个 `-p` 会话 → 解析流 → 落事件 → 收割 Handoff"的最小闭环。**Phase 1 结束时 AT1 还不能挖洞**，但进程桥这一地基是实的。
@@ -17,9 +17,9 @@
 
 ```
 at1-github/                ← 仓库根 = 项目根
-├── at1/                   # 控制器包（= 设计§2.1 的 pilot/ 包）
+├── src/                   # 控制器包（= 设计§2.1 的 pilot/ 包）
 │   ├── __init__.py
-│   ├── __main__.py        # 入口：python -m at1 …（Phase 1 只有 selftest 子命令）
+│   ├── __main__.py        # 入口：python -m src …（Phase 1 只有 selftest 子命令）
 │   ├── providers.py
 │   ├── events.py
 │   ├── runner.py
@@ -73,7 +73,7 @@ runner 改造清单（按实测事实，逐条对应）：
 | 2 | 解析器：逐行 `try json.loads`，失败**静默跳过**；按 `type/subtype` 分派：`system/init`→抓 session_id、`assistant/tool_use`→按 id 暂存、`user/tool_result`→配对后调 `on_fact`、`assistant/text`→暂存、`result`→终态 | 实测②③ |
 | 3 | prompt 经 stdin 写入后**立即 close stdin** | 实测④ |
 | 4 | 心跳：tool_result 计数每满 25 → `heartbeat` 事件 + `on_heartbeat` 回调（不与 worker 交互） | 设计§3.1 |
-| 5 | transcript：原始流逐行 append 到 `<workdir>/.pilot/transcript.jsonl`，每行 flush | 设计§3.1 |
+| 5 | transcript：原始流逐行 append 到 `<workdir>/.at1/transcript.jsonl`，每行 flush | 设计§3.1 |
 | 6 | resume：session_id 落盘；异常退出（非 max-turns）→ `--resume <session_id>`，上限 20；`result.stop_reason` 含 max-turns 类 → 不 resume | 设计§3.1 |
 | 7 | Handoff 收割：assistant.text 消息**从后向前**找 `<Handoff>…</Handoff>` 正则 | 设计§3.1 |
 | 8 | 环境消毒：spawn 前剥 API key 类变量，注入 `AT1_*` | 设计§3.1 |
@@ -82,20 +82,26 @@ untrusted.py：原样移植（37 行），加一条单测（nonce 包裹 + 闭�
 
 ### P1.4 selftest + Phase 验收
 
-`python -m at1 selftest --dry-run` 做这件事：
+`python -m src selftest --dry-run` 做这件事：
 
 1. 在临时目录放一个 `hello.txt`（内容随机）
 2. spawn 真 `-p` 会话，prompt = "读 hello.txt，把内容写入 out.txt，然后输出 `<Handoff>done</Handoff>`"
 3. 全流程走 P1.3 的解析/落盘/心跳/收割
 
-**Phase 1 完成定义（DoD，全部可演示）**：
+**Phase 1 完成定义（DoD）—— ✅ 已验收（2026-08-24，全部通过）**：
 
-- [ ] stream-json 被逐行解析，`session_start/fact_added(≥1)/heartbeat?(若≥25次调用)/session_end` 事件落 auto-log.jsonl
-- [ ] `.pilot/transcript.jsonl` 存在且含完整消息流
-- [ ] `<Handoff>` 正则提取成功
-- [ ] 会话中途 Ctrl+C / kill：transcript 留有已发生部分（可读）
-- [ ] `result` 事件的 num_turns/stop_reason/total_cost_usd 被记录进 session_end 事件
-- [ ] pytest 全绿；单次 selftest 成本 ~$0.15 量级（25k input 基线，实测数据）
+- [x] stream-json 逐行解析，run_start/session_start/fact_added(≥1)/session_end/run_end 落 auto-log.jsonl（selftest 实测 fact_added 实时触发）
+- [x] `.at1/transcript.jsonl` 存在且含完整消息流（实测 4-turn 任务 2031 行——thinking_tokens 事件极多，M2 的 board.observe 需按需过滤）
+- [x] `<Handoff>` 正则提取成功，且从 assistant 文本块**后向扫描**命中（final_text 只有 "Done!" 的场景，单测覆盖）
+- [x] kill 后 transcript 可读：单测（逐行 flush）+ **live 演示**（5s 时间盒击杀真会话：stop=timeout、终态不报错、session_id 已捕获、transcript 留存可读）
+- [x] `result` 的 num_turns/stop_reason/total_cost_usd/tokens 记入 session_end（实测 turns=4 · tokens=100,681 · cost=$0.35）
+- [x] pytest **25/25** 绿（含 resume 续跑策略四测：异常才续/max_turns·timeout·end_turn 终态不续/无 session_id 放弃/上限 20 封顶）；单次 selftest 实测成本 **$0.35**（比预估 $0.15 高——本机 CC 配置带全套工具定义+MCP，input 基线 ~54k 而非 25k；轮次预算估算按 ≥50k 计）
+
+**验收时捞到的三个真实事实（已修进代码+测试）**：
+
+1. glm 端点逐 assistant 事件的 usage 全为 0，真实总量在 `result` 事件的 `usage` 块——runner 两处都累加（首次 selftest 因此 FAIL 一项，修复后过）
+2. 包目录 `at1/` 应用户要求改名 `src/`，入口命令为 `python -m src`（tests 同步改 `from src.…`；设计文档路径引用已同步）
+3. **run() 的 resumes 计数 bug（补测揪出）**：计数原记在被丢弃的错误结果对象上，成功返回的那份恒为 0——续跑策略单测首跑即 FAIL，修复为记在返回结果上（auto-log 里 session_end.resumes 字段因此才有意义）
 
 ## 3. 节奏与纪律
 

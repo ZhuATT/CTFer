@@ -5,7 +5,7 @@
 > v2.1 修正：**工作台是唯一用户入口**（布置→监控→中断→收结果，M5 交付），CLI 降为开发通道；删除"人随时接管"设计；§3.5 补渲染机制；§4.3 扩成工作台规格。
 > v2.2 裁剪：surface.md 并入 status.md 攻击面段（四件套→三件套）；MEMORY.md 取消（接力块渲染时从黑板现算，Handoff 存黑板字段）；少两条写路径、消灭一处双记；补 §3.4.4 门的实现契约（evidence 格式/函数签名/门2 质疑清单/门3 机械实现）与 §3.6 终止判定主体澄清（driver 查盘，worker 声明零权重，轮末检查）；§3.7 evaluator 触发时机显式化（条件 C 达成那一刻，收工前验收闸）。
 > v2.3 定稿：门 2 prompt 首版草案 + 无环境访问原则（§3.4.4）；控制器区 `.at1/` 物理分离 + guard 禁写（transcript 独立性，§2.3/§3.7/§5）；事实双入口与 FACTS 上报通道（§3.3/§2.3）；check_goal 机械形态伪代码（§3.3）；门触发时机与心跳语义（§3.4/§3.1/§4.2）；工作台运行页事件→呈现映射（§4.3）。设计冻结，施工按 `at1-施工执行单.md`。
-> 施工纪律：不改 hxbai/aiscan 源文件，全部 vendor 拷贝进 `script/at1/`；每里程碑验收通过才进下一个。
+> 施工纪律：不改 hxbai/aiscan 源文件，全部 vendor 拷贝进仓库 `src/`；每里程碑验收通过才进下一个。
 
 ---
 
@@ -24,14 +24,14 @@
 - 任务模型：一个 engagement = 一个任务，串行轮次推进
 - 骨架：hxbai vendor 拷贝改（~2000 行）；验证协议与防注入吸收 dcr-harness
 - 执行底座：CC 默认工具 + workdir 级 `.mcp.json` 配 Playwright（浏览器为可选重武器）；身份经 js-intel storage-state 注入
-- 用户入口：**工作台是唯一使用入口**（布置任务表单 → 监控 → 中断/转向 → 收结果；规格见 §4.3，M5 交付）；`python -m at1` CLI 是开发/调试通道
+- 用户入口：**工作台是唯一使用入口**（布置任务表单 → 监控 → 中断/转向 → 收结果；规格见 §4.3，M5 交付）；`python -m src` CLI 是开发/调试通道
 
 **v1 不做**：自研循环、多任务并发、跨题学习、tmux、TUI、双车道、CTF 类别（pwn/crypto/mobile/区块链）。其余推迟项见 §8。
 
 ### 1.2 运行时形态
 
 ```
-python -m at1 <engagement路径> [--budget 秒] [--provider x] [--state storage-state.json]
+python -m src <engagement路径> [--budget 秒] [--provider x] [--state storage-state.json]
    │
    ├─ 控制器进程（常驻 Python，自己不产生 token）
    │    ├─ driver     主循环：渲染 prompt → 派工 → 收割 → 验证 → 写回 → 判停
@@ -68,8 +68,8 @@ python -m at1 <engagement路径> [--budget 秒] [--provider x] [--state storage-
 ### 2.1 工程结构
 
 ```
-script/at1/
-├── at1/                  # 控制器包（Python）
+at1-github/（仓库根 = 项目根，phase1 定版）
+├── src/                  # 控制器包（Python）
 │   ├── runner.py           ← hxbai ccrunner.py（原样为主 + resume/transcript）
 │   ├── providers.py        ← hxbai config.py（删网关，加预设）
 │   ├── board.py            ← hxbai blackboard.py（改 6 处，见 §3.3）
@@ -86,7 +86,7 @@ script/at1/
 │   └── untrusted.py        ★ 新写（移植 dcr-harness，37 行）：nonce 隔离渲染
 ├── scaffolding/            # workdir 模板（见 §2.3）
 ├── canary-web/             # 本地集成靶（设计规范见 §6.3）
-└── __main__.py             # 入口：python -m at1 <engagement路径> [--budget 秒] [--provider x] [--state storage-state.json]
+└── __main__.py             # 入口：python -m src <engagement路径> [--budget 秒] [--provider x] [--state storage-state.json]
 ```
 
 ### 2.2 engagement 协议目录（人机接口）
@@ -571,7 +571,7 @@ driver 在轮界与心跳点轮询（**worker 永远不知道此文件存在**�
 | 前置情报（文本粘贴或文件上传） | notes/prior-intel.md |
 | 初始攻击面（可选） | status.md 攻击面段首批行 |
 
-提交 → 生成 engagement.json / state/status.md / notes/prior-intel.md 骨架 → spawn `python -m at1 <dir> …`。
+提交 → 生成 engagement.json / state/status.md / notes/prior-intel.md 骨架 → spawn `python -m src <dir> …`。
 
 **运行页**：事件流（SSE tail auto-log.jsonl）+ 状态卡 + 三档告警 + 三个动作。全部功能 = tail 事件流 + 本地推断，控制器零新增接口：
 
@@ -587,7 +587,7 @@ driver 在轮界与心跳点轮询（**worker 永远不知道此文件存在**�
 **结果页**：status.md 漏洞表渲染、evidence/ 文件浏览、report.md 预览、auto-log 回放。
 **续跑页**：用 prior-intel-draft.md 预填"下次任务"表单，用户改完确认——跨 run 接力闭环。
 
-**开发期 CLI 工具**（M1-M4 验收用）：`python -m at1 watch <engagement>`——tail auto-log.jsonl 渲染成彩色一行式（isatty 才着色）。工作台与控制器的全部接口就是三个文件：**tail auto-log 渲染 + 写 CONTROL + 读 status.md**，控制器零专门接口。
+**开发期 CLI 工具**（M1-M4 验收用）：`python -m src watch <engagement>`——tail auto-log.jsonl 渲染成彩色一行式（isatty 才着色）。工作台与控制器的全部接口就是三个文件：**tail auto-log 渲染 + 写 CONTROL + 读 status.md**，控制器零专门接口。
 
 ---
 
