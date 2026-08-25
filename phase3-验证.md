@@ -15,7 +15,7 @@
 **前置**：
 | # | 事项 | 状态 |
 |---|---|---|
-| 1 | deepseek key（门 2 异构 verifier） | ⬜ **动工前要**——没有则降级：verifier 换 glm 同模型 + 门 3 加严（providers 改一行，已留位） |
+| 1 | 门 2 异构 verifier 通道 | ✅ **已就位（2026-08-25 实测）**：讯飞 maas 承载 DeepSeek V4 Pro（`xopdeepseekv4pro`，OpenAI 兼容 `/v2`），key 在 `.secrets.env`（gitignored）；Bearer id:secret 整串认证；developer role 被拒（llm.py 不用）；providers 预设 `xfyun` 已加。原 deepseek 官方 key 不再需要 |
 
 ## 1. 契约定版（本 Phase 锁死）
 

@@ -21,3 +21,6 @@ auto-log.jsonl
 # 本机杂项
 .DS_Store
 Thumbs.db
+
+# 密钥（绝不入库）
+.secrets.env

@@ -59,8 +59,9 @@ def test_anthropic_env_no_credentials_keeps_local_cli_config(monkeypatch):
 
 
 def test_verifier_defaults_heterogeneous_to_solver(monkeypatch):
-    # solver=glm → verifier 默认 deepseek（异构，设计§7）
+    # solver=glm → verifier 默认 DeepSeek 经讯飞 maas（异构，设计§7；key 在 .secrets.env）
     monkeypatch.setenv("AT1_API_KEY", "sk-k1")
     v = build_verifier_config(SolverConfig.from_env())
     assert v.provider == "openai"
-    assert "deepseek" in v.base_url
+    assert "xf-yun" in v.base_url
+    assert v.model == "xopdeepseekv4pro"

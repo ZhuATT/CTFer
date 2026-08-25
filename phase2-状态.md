@@ -112,6 +112,7 @@ kill 组（同流程变体）：round 1 spawn 后**条件杀**（on_fact ≥1 �
 6. **合成 Handoff 只记命令不记输出 = 接力断链**（kill 变体首败根因）：被杀前最后一次 Read 的输出里才有 marker，命令行里没有——尾部工具调用段已加输出摘录（~160 字/条）
 7. **环境抖动观察**（已加双阈值防护）：glm 端点偶发"呆滞会话"——240s 时间盒内零工具调用，但 transcript 有 16k 行 thinking 增量（**流是活的、工具不动**——单盯流空闲抓不住它）。终版 `_stall_watch` 双判据：**流级**（无任何输出 ≥120s → `stalled=true`，抓网络挂死）+ **工具级**（无 tool_result ≥600s → `stalled_tools=true`，抓 thinking 马拉松；阈值放宽因长思考合法）；各自节流，只告警不杀；阈值可经 `AT1_STALL_WARN_S`/`AT1_STALL_TOOL_WARN_S` 环境变量调；判定逻辑抽成纯函数 `_stall_flags` 单测覆盖。轮末兜底另由 M4 stoploss 负责
 8. **收尾修复**（遗留清单清账）：端点 usage 双零 → 断言放宽为"cost 或 tokens 任一 >0"（无第三方数据源，接受为端点特性）；控制台中文乱码 → `main()` 入口 stdout/stderr reconfigure UTF-8（实测 --help 恢复正常）；**identity 手册已写全文**（三实验方法论；平台形态参考经用户终审**移出手册、归 prior-intel 模板**——对齐 §5.4 两层资产分工：语义层经验按 engagement 播种，不焊死全局手册，M4 scaffolding 时落地）；**recon 手册 v2** 依 CLAUDE.md 对齐（浏览器四步铁律/js-intel 精确命令/cookies.txt/5 次失败切换/log.jsonl 记账）；exploit/report 两份维持 M3/M4 时点（依赖 Claim/写回契约，提前写必返工）
+9. **P1+P2 实战冒烟（2026-08-25，本地 Flask 靶两轮，临时驱动+靶测后已删）**：6/7 过——端点覆盖 **16/16**、指纹/密钥/阶段连推两档（recon→identity→**exploit**）、接力闭环、prompt2 仅 2210 字符；575k tokens / 32 turns 无崩溃。唯一 FAIL（marker 入板）根因=**worker 用真工作顶替占位指令**（写了 27 行含完整身份三实验的 FACTS，顶掉了 marker 行）——教训挂 M4：WORKER-CLAUDE.md 输出契约（Handoff/启动自检等机械要求）必须强制化。计划外收获：驱动忘写 Handoff 指令 → **合成兜底路径在真目标上实战验证**（两轮 synthesized 接力成功）
 
 ## 3. 节奏与纪律
 
