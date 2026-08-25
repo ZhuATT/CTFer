@@ -225,3 +225,41 @@ def test_run_gives_up_without_session_id_or_after_cap(monkeypatch):
     res2 = runner_mod.run("干活", "wd", _mk(), None)
     assert len(calls2) == runner_mod.MAX_RESUMES + 1
     assert res2.resumes == runner_mod.MAX_RESUMES
+
+
+def test_agent_task_has_on_spawn_hook():
+    # kill 演示/CONTROL 用的钩子位（P2.4）；spawn 行为由 relay demo 实测
+    t = AgentTask(on_spawn=lambda proc: None)
+    assert callable(t.on_spawn)
+
+
+# ── 双阈值呆滞判定 ─────────────────────────────────────────────────────────
+
+def test_stall_flags_dual_threshold():
+    from src.runner import STALL_TOOL_WARN_S, STALL_WARN_S, _stall_flags
+    # 正常：都不触发
+    assert _stall_flags(10.0, 30.0) == {}
+    # 流级挂死（无任何输出）→ stalled
+    assert _stall_flags(STALL_WARN_S + 1, None) == {"stalled": True}
+    # 工具级呆滞（流活着、无工具调用——实测 glm thinking 马拉松形态）
+    assert _stall_flags(5.0, STALL_TOOL_WARN_S + 1) == {"stalled_tools": True}
+    # 两者同时 → 双标志
+    f = _stall_flags(STALL_WARN_S + 1, STALL_TOOL_WARN_S + 1)
+    assert f == {"stalled": True, "stalled_tools": True}
+    # 未见过工具调用（last_tool_ts=0 → tool_idle=None）不算工具级呆滞
+    assert "stalled_tools" not in _stall_flags(5.0, None)
+
+
+def test_parser_tracks_last_tool_ts():
+    p = StreamParser()
+    assert p.last_tool_ts == 0.0
+    uid = "t1"
+    p.feed_line(_assistant([_tool_use(uid, "Bash", {"command": "echo x"})]) + "\n")
+    p.feed_line(_tool_result(uid, "out\n") + "\n")
+    assert p.last_tool_ts > 0
+    t1 = p.last_tool_ts
+    # 只有 assistant 文本（thinking 马拉松形态）不刷新工具时间戳
+    p.feed_line(_assistant([_text("thinking only...")]) + "\n")
+    p.feed_line(_assistant([_text("more thinking...")]) + "\n")
+    assert p.last_tool_ts == t1
+    p.close()

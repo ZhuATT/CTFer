@@ -1,0 +1,12 @@
+浏览器 network 面板导出（合成样本）
+GET  https://fake-shop.example/api/item/list?page=1&size=20   200 application/json
+GET  https://fake-shop.example/api/item/detail?id=8823        200 application/json
+GET  https://fake-shop.example/api/user/profile               200 application/json
+POST https://fake-shop.example/api/order/create               401 application/json
+GET  https://cdn.fake-shop.example/static/config.js           200 application/javascript
+GET  https://fake-shop.example/api/admin/userList             403 application/json
+
+响应头（主页）：
+Server: nginx/1.18.0
+X-Powered-By: Express
+Via: 1.1 fake-gateway (FAKE)

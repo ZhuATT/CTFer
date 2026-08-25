@@ -1,0 +1,11 @@
+{"code":0,"message":"success","data":{
+  "transId":"FAKE-trans-id-20260825-0001",
+  "session_id":"FAKE-session-abc123def456",
+  "status":"COMPLETED",
+  "records":[
+    {"channel_id":0,"begin_time":1000,"end_time":3500,
+     "content":"转写内容合成样本","speaker":0}
+  ],
+  "token":"FAKE-bearer-token-zzz999",
+  "meeting_info":{"meeting_uuid":"FAKE-uuid-111222333","duration":180}
+}}

@@ -1,0 +1,16 @@
+# 上传的配置备份（脱敏合成样本）
+[default]
+aws_access_key_id = AKIAFAKEFAKEFAKEFAKE
+aws_secret_access_key = FAKEsecretFAKEsecretFAKEsecret12
+region = cn-north-1
+
+staging key: ASIAFAKEFAKEFAKEFAKE
+token = FAKE-session-token-xyz-999888777
+
+-----BEGIN RSA PRIVATE KEY-----
+MIIEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+-----END RSA PRIVATE KEY-----
+
+endpoint: https://s3.cn-north-1.amazonaws.com.cn/backup-fake-bucket
+sk-FAKEskFAKEskFAKEskFAKEsk123

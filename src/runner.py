@@ -29,8 +29,22 @@ _FINAL_RX = re.compile(r"<FinalAnswer>(.*?)</FinalAnswer>", re.IGNORECASE | re.D
 
 MAX_TOOL_CHARS = 20_000          # 单条 tool_result 喂给 on_fact 的截断长度
 HEARTBEAT_EVERY = 25             # 每 N 次 tool_result 一次心跳（设计§3.1）
+# 双阈值呆滞告警（实测 glm 有两种呆滞形态，单阈值抓不全）：
+STALL_WARN_S = float(os.getenv("AT1_STALL_WARN_S", "120"))       # 流级：无任何输出（网络挂死）
+STALL_TOOL_WARN_S = float(os.getenv("AT1_STALL_TOOL_WARN_S", "600"))  # 工具级：流活着但无 tool_result（thinking 马拉松）
 MAX_RESUMES = 20                 # 每会话续跑上限（设计§3.1）
 RESUME_BACKOFF_CAP_S = 300.0     # 退避封顶
+
+
+def _stall_flags(stream_idle_s: float, tool_idle_s: float | None) -> dict:
+    """呆滞判定（纯函数，可单测）。两级独立：流级抓网络挂死，工具级抓
+    thinking-only 呆滞（实测：16k 行 thinking 增量、零工具调用——流级监控对它无效）。"""
+    flags: dict = {}
+    if stream_idle_s >= STALL_WARN_S:
+        flags["stalled"] = True
+    if tool_idle_s is not None and tool_idle_s >= STALL_TOOL_WARN_S:
+        flags["stalled_tools"] = True
+    return flags
 _RESUME_PROMPT = "继续上次中断的任务，从中断处接着做。"
 
 
@@ -58,6 +72,7 @@ class AgentTask:
     on_fact: Optional[Callable[[ToolEvent], None]] = None
     on_heartbeat: Optional[Callable[[dict], None]] = None
     transcript_path: Optional[str] = None   # 增量追加的原始流落盘位置（.at1/transcript.jsonl）
+    on_spawn: Optional[Callable[[object], None]] = None   # Popen 后回调（杀进程演示/CONTROL 用）
 
 
 @dataclass
@@ -112,6 +127,7 @@ class StreamParser:
         self.assistant_texts: list[str] = []
         self.tool_events: list[ToolEvent] = []
         self.tool_count = 0
+        self.last_tool_ts: float = 0.0     # 最近一次 tool_result 的时刻（工具级呆滞判据）
         self.raw_lines = 0
         self._tf = None
         if self.task.transcript_path:
@@ -169,6 +185,7 @@ class StreamParser:
                 te = ToolEvent(tool=name, args=args, output=output)
                 self.tool_events.append(te)
                 self.tool_count += 1
+                self.last_tool_ts = time.time()
                 if self.task.on_fact is not None:
                     try:
                         self.task.on_fact(te)
@@ -320,7 +337,14 @@ def spawn_once(
         return AgentResult(stop_reason="error", is_error=True,
                            error=f"failed to launch claude: {e}")
 
+    if task.on_spawn is not None:
+        try:
+            task.on_spawn(proc)
+        except Exception:
+            pass
+
     stderr_tail: list[str] = []
+    stall = {"last_ts": time.time()}
 
     def _drain_stderr():
         try:
@@ -337,14 +361,39 @@ def spawn_once(
                 line = proc.stdout.readline()
                 if not line:
                     break
+                stall["last_ts"] = time.time()
                 parser.feed_line(line)
         except Exception:
             pass
 
+    def _stall_watch():
+        """双阈值呆滞告警，只告警不杀（设计§4.2）。发完各自重置计时防刷屏。"""
+        while proc.poll() is None:
+            time.sleep(10)
+            now = time.time()
+            stream_idle = now - stall["last_ts"]
+            tool_idle = (now - parser.last_tool_ts) if parser.last_tool_ts else None
+            flags = _stall_flags(stream_idle, tool_idle)
+            if flags and task.on_heartbeat is not None:
+                try:
+                    task.on_heartbeat({**flags,
+                                       "stream_idle_s": round(stream_idle, 1),
+                                       "tool_idle_s": round(tool_idle, 1) if tool_idle else None,
+                                       "tool_calls": parser.tool_count,
+                                       "tokens": parser.tokens})
+                except Exception:
+                    pass
+            if "stalled" in flags:
+                stall["last_ts"] = now            # 流级节流
+            if "stalled_tools" in flags:
+                parser.last_tool_ts = now         # 工具级节流
+
     t_out = threading.Thread(target=_read_stdout, daemon=True)
     t_err = threading.Thread(target=_drain_stderr, daemon=True)
+    t_stall = threading.Thread(target=_stall_watch, daemon=True)
     t_out.start()
     t_err.start()
+    t_stall.start()
 
     # prompt 经 stdin 一次喂入并立即关闭（实测：CLI 等 stdin ~3s）
     try:

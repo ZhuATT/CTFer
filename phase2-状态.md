@@ -91,16 +91,27 @@ kill 组（同流程变体）：round 1 spawn 后**条件杀**（on_fact ≥1 �
   → round 2 照常接力 = 被杀不断
 ```
 
-**Phase 2 完成定义（DoD）**：
+**Phase 2 完成定义（DoD）—— ✅ 已验收（2026-08-25）**：
 
-- [ ] board 单测全绿（P2.1 六条验收）
-- [ ] harvest 单测全绿（diff 幂等 / synth 含要素）
-- [ ] prompt 单测全绿（顺序/确定性/tried/directive）
-- [ ] relay demo：round2 answer.txt 正确；prompt2 的事实/接力/台账段现场断言
-- [ ] kill demo：强杀后接力不断，auto-log 记 handoff_harvested(origin=synthesized)
-- [ ] pytest 全绿（Phase 1 的 25 条不回归）
-- [ ] 成本：两轮真会话 ≈ $0.7-1.0
-- [ ] 设计文档回写：模块表加 harvest.py；§3.3/§3.5 与实现的差异清单（若有）
+- [x] board 单测全绿（含六份真实形状夹具、状态机、会话守卫、预算闸、bak 回退）
+- [x] harvest 单测全绿（diff 幂等 + CRLF 容错 / synth 含要素）
+- [x] prompt 单测全绿（9 段顺序 / 确定性（剥 nonce 后逐字节同）/ tried / directive）
+- [x] **relay 正常接力 9/9 PASS**：FACTS 入板 → identity_model 渲染进第 4 段 → round2 answer 含 marker
+- [x] **kill 变体 10/10 PASS**：条件杀生效 → 合成 Handoff（含尾部输出摘录）落第 5 段 → round2 经接力拿到 marker
+- [x] pytest **50/50**（Phase 1 的 25 条不回归）
+- [x] 成本：单次 relay ≈ $0.5-1（实测 r1 ~110k tokens / r2 ~150k tokens）
+- [x] 设计文档回写：§2.1 模块表与 §3.7 已加 harvest.py
+
+**验收时捞到的真实事实（已修进代码）**：
+
+1. **PowerShell `>>` 写出带 BOM 的文件**，`json.loads` 拒收整行 → FACTS 显式上报 0 条；ingest_facts 已加 BOM 剥离
+2. **worker 会改写"原样执行"的文案**（"身份结论"→"数据结论"），但 key 载荷（marker）存活 → 显式通道的容错解析比指令精确更重要
+3. `_METHOD_PATH_RX` 字符类漏了 `/`，路径只匹配到第一段（单测抓出）
+4. KV 正则不吃 JSON 引号形态（`"signKey":"..."`）→ 引号容忍 + 键名泛化（\w*token/\w*ticket）
+5. 会话守卫正则误伤"grep token file"类命令 → 改为凭证赋值形态匹配（`cookie\s*[=:]`）
+6. **合成 Handoff 只记命令不记输出 = 接力断链**（kill 变体首败根因）：被杀前最后一次 Read 的输出里才有 marker，命令行里没有——尾部工具调用段已加输出摘录（~160 字/条）
+7. **环境抖动观察**（已加双阈值防护）：glm 端点偶发"呆滞会话"——240s 时间盒内零工具调用，但 transcript 有 16k 行 thinking 增量（**流是活的、工具不动**——单盯流空闲抓不住它）。终版 `_stall_watch` 双判据：**流级**（无任何输出 ≥120s → `stalled=true`，抓网络挂死）+ **工具级**（无 tool_result ≥600s → `stalled_tools=true`，抓 thinking 马拉松；阈值放宽因长思考合法）；各自节流，只告警不杀；阈值可经 `AT1_STALL_WARN_S`/`AT1_STALL_TOOL_WARN_S` 环境变量调；判定逻辑抽成纯函数 `_stall_flags` 单测覆盖。轮末兜底另由 M4 stoploss 负责
+8. **收尾修复**（遗留清单清账）：端点 usage 双零 → 断言放宽为"cost 或 tokens 任一 >0"（无第三方数据源，接受为端点特性）；控制台中文乱码 → `main()` 入口 stdout/stderr reconfigure UTF-8（实测 --help 恢复正常）；**identity 手册已写全文**（三实验方法论；平台形态参考经用户终审**移出手册、归 prior-intel 模板**——对齐 §5.4 两层资产分工：语义层经验按 engagement 播种，不焊死全局手册，M4 scaffolding 时落地）；**recon 手册 v2** 依 CLAUDE.md 对齐（浏览器四步铁律/js-intel 精确命令/cookies.txt/5 次失败切换/log.jsonl 记账）；exploit/report 两份维持 M3/M4 时点（依赖 Claim/写回契约，提前写必返工）
 
 ## 3. 节奏与纪律
 
@@ -118,3 +129,47 @@ kill 组（同流程变体）：round 1 spawn 后**条件杀**（on_fact ≥1 �
 | worker 不按指示输出 `<Handoff>` / 不写 FACTS | prompt1 给逐字模板；★**断言不依赖 worker 自觉**：prompt2 的事实断言全部走 observe 自动抽取（prompt1 让 worker 跑几条输出含 URL/头域的命令，endpoint/fingerprint 自然入库，与它写不写 FACTS 无关）；★Handoff 缺失本身就是生产路径的**双路收割演练**——模型版没有就落代码合成版，demo 反而多验了一条真实链路 |
 | 双会话成本 ~$1/次 demo | 单元层覆盖逻辑，demo 按需跑。★round1/round2 同一次 selftest 调用内完成（省一次进程启动）；round1 max_turns 压到 6 |
 | Windows 文件句柄 / 黑板损坏 | 原子写（临时文件 + rename）。★rename 前 fsync（防断电半写）；★**留 .bak**：每次覆写前把上一份好黑板拷成 `_blackboard.json.bak`，加载时主文件损坏自动回退 .bak——"唯一事实源"值得这个保险 |
+
+---
+
+## 5. 测试策略（本 Phase 起生效的全局分层；源自 dcr "units + canary" 两层策略的本地化）
+
+**原则：夹具守管道，canary 判能力，transcript 反哺夹具库。** AT1 的代码分两类，测试路线完全不同：
+
+### 5.1 按代码类型路由测试层
+
+| 代码类型 | 模块 | 用什么测 | 什么时候跑 | 成本 |
+|---|---|---|---|---|
+| **确定性管道**（字符串/JSON/文件变换） | observe 抽取、check_goal、render、门1 词表（M3）、门3 查 transcript（M3）、harvest diff、events 脱敏、untrusted、prompt 拼装 | **pytest + 合成夹具** | 每次改完立刻 | 秒级、零 token |
+| **LLM 行为**（不可确定性断言） | worker 挖矿、门2 语义（M3）、Handoff 质量、evaluator | **阶梯**：relay demo → canary-web 对分（M3.5）→ 真实 engagement（M4） | 里程碑验收 / 动核心后 | $1 → $2 → 真目标 |
+
+**纪律（M4 起生效）：动了 verify/board 核心逻辑 → 必跑一次 canary 回归。** pytest 绿只证明没弄坏已知形状；"还能干活"由 canary 兜底。
+
+### 5.2 夹具库 = 起点 + 实战喂养（只做回归保护，不做平台理解）
+
+- 起点：本 Phase 的 `tests/fixtures/` 合成样本（形状真内容假，见风险表第 1 行）
+- **喂养纪律**：每次真实 engagement 收尾，过一遍 transcript，把抽取器**漏抽/错抽**的真实输出脱敏后加进 fixtures——漏过的形状永远不再漏
+- LLM 件的"夹具" = canary-web 的 ground truth 题库（4 真洞 + 7 干扰项 = 11 道标准题）：以后每改门 2 prompt / evaluator criteria，跑一遍 canary 对分即回归
+- **明确不承诺**（讨论修正，防再混淆）：夹具不提供"同平台目标天然熟"——那是语义层的事（见 5.4）。夹具的全部价值 = 回归保护（改代码不弄坏已知形状）+ 特例补丁（某平台怪转义导致漏抽，修一题记一题）
+
+### 5.3 抽取回放器（推迟项，M4 后第一个真实 engagement 跑完时做，~80 行）
+
+```
+python -m src replay <engagement>
+  历史 transcript 的 tool_result 逐条重放给 observe()
+  对比"当时黑板入了什么" vs "Handoff 里 worker 叙述发现了什么"
+  输出抽取漏报清单 → 直接喂 5.2 的夹具库
+```
+
+零 token 成本，每个跑完的 engagement 白得一次抽取器体检。
+
+### 5.4 两层资产分工（职责边界，讨论定论）
+
+**死脚本（正则）为什么能工作**：它只抓**全互联网标准形状**——URL（RFC 3986 语法）、云凭证（`AKIA…` 前缀/JWT 三段 base64，发行方规定）、HTTP 头/KV 行语法。这些形状全世界一个样，正则吃标准形状天经地义；**平台特有语义（cticket 派生身份、signKey 非强制、阿里系 JSON 信封）正则永远抽不出**——所以事实有两个入口（§3.3）：入口① 自动抽取只兜标准形状；入口② FACTS 显式上报承载语义结论（worker LLM 判断后写入）。死脚本从不假装理解平台。
+
+| 资产层 | 内容 | 载体 | 消费者 |
+|---|---|---|---|
+| **语义层**（怎么打这类平台） | 身份模型结论、平台怪癖、打法经验 | memory 笔记 / prior-intel.md | worker（LLM），下个同平台 engagement 播种进黑板 |
+| **管道层**（抽取器别坏） | 已知响应形状 + 标准答案 | tests/fixtures/ 夹具 | pytest 回归 |
+
+两层各干各的：夹具是考题，memory 是经验——**不许再混为一谈**。

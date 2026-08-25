@@ -1,0 +1,11 @@
+HTTP/2 200
+content-type: application/json
+set-cookie: tongyi_sso_ticket=FAKEticket9f8e7d6c5b4a; Path=/; HttpOnly; Secure
+date: Mon, 25 Aug 2026 10:00:00 GMT
+
+{"request_id":"FAKE-req-0001","success":true,"data":{
+  "user_id":10086,"display_name":"测试用户甲","phone":"13800000000",
+  "signKey":"FAKE-sign-key-aaaa1111bbbb2222cccc",
+  "apiToken":"FAKE-api-token-dddd3333eeee4444",
+  "model_quota":{"used":12,"limit":100}
+}}

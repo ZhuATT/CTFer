@@ -1,0 +1,17 @@
+//! bundle.app.afaake11.js — 合成样本
+(function(e){ "use strict";
+const API_BASE="https://api.fake-target.example/v2";
+const endpoints={
+  list:"/api/item/list",
+  detail:"/api/item/detail?id=",
+  profile:"/api/user/profile",
+  orderCreate:"/api/order/create"
+};
+e.config={
+  apiKey:"FAKEjsApiKey000111222333",
+  session:"FAKE-js-session-444555666",
+  sign_key:"FAKE-js-signkey-777888999"
+};
+fetch(API_BASE+"/api/user/profile",{headers:{"Authorization":"Bearer FAKE-bearer-aaa123"}})
+  .then(r=>r.json()).then(console.log);
+})(window);

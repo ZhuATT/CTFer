@@ -1,0 +1,11 @@
+HTTP/1.1 200 OK
+Server: Ctrip-Web-FAKE/2.1
+Set-Cookie: cticket=FAKE-cticket-77aa88bb99cc; Path=/; Domain=.fake-ctrip.example; HttpOnly
+Set-Cookie: GUID=FAKE-guid-0a1b2c3d4e; Path=/
+
+GET /api/soa2-FAKE/getUserInfo 200
+{"ResponseStatus":{"Ack":"Success"},"userInfo":{
+  "uid":20001,"name":"测试用户乙","mobile":"13900000000",
+  "spidertoken":"FAKE-spider-token-ee11ff22",
+  "ibulanguage":"CN"
+}}

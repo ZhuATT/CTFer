@@ -83,6 +83,7 @@ at1-github/（仓库根 = 项目根，phase1 定版）
 │   ├── prompt.py           ★ 新写：阶段手册 + prompt 渲染
 │   ├── driver.py           ★ 新写 ~500 行：engagement 主循环
 │   ├── events.py           ★ 新写：事件类型 + JSONL writer
+│   ├── harvest.py          ★ 新写（phase2 增补）：FINDINGS/FACTS 轮末 diff + Handoff 代码合成
 │   └── untrusted.py        ★ 新写（移植 dcr-harness，37 行）：nonce 隔离渲染
 ├── scaffolding/            # workdir 模板（见 §2.3）
 ├── canary-web/             # 本地集成靶（设计规范见 §6.3）
@@ -510,6 +511,7 @@ infoleak：instance-id/内网 IP/版本号不构成）
 - **guard.py**：hxbai longtask_guard 判定正则原样；deny 教学模板 Windows 化（不提 tmux）；**scope 先行拦截**（engagement.json 的 allow/deny 直接消费）；**控制器区禁写**：deny worker 对 `<engagement>/.at1/**` 与 `state/**` 的写/删——黑板与 transcript 的独立性（门 3 的物理锚）靠这个保
 - **stoploss.py**：四维——会话上限 / 活跃预算 / 无新事实连击 / 不可达连击（默认 3/预算/3/3，§7）
 - **events.py**：事件类型定义 + 只追加 JSONL writer + secret 脱敏
+- **harvest.py**（phase2 增补）：`diff_new_lines()`（FINDINGS/FACTS 轮末增量，offset 记黑板）+ `synthesize_handoff()`（被杀会话的代码合成交接：最近事实 + 高频命令 + 未竟后台任务 + **尾部工具调用的输出摘录**——被杀前最后看到的观测必须接力下去）
 - **untrusted.py**：`make_nonce()` / `sanitize_untrusted()` / `untrusted_block()`，board/prompt 渲染统一走此封装
 - **llm.py / oob.py / task.py**：hxbai 原样（oob 白捡 SSRF oracle）
 - **scheduler.py**：原样留存，v2 启用
