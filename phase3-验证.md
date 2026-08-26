@@ -96,7 +96,7 @@ transcript 是 JSON 行，命令串在里面带 `\u`/`\"` 转义——**逐字�
 
 | 风险 | 应对 |
 |---|---|
-| deepseek 无 key | 降级预案已定：verifier=glm + 门 3 加严（providers 一行）；七案照跑，⑤⑥标注"同模型验证" |
+| 讯飞 maas key 失效（白嫖 key，Pod 重建即换，周期约 1 年） | 同款降级预案仍成立：verifier 临时换 glm 同模型 + 门 3 加严（providers 一行）；拿到新 key 更新 `.secrets.env` 即恢复异构 |
 | gate2 输出不稳定（JSON 格式漂移） | 温度 0 + 严格解析 + 重试 1 次 + 失败降 tentative（绝不误放）；单测用 mock llm，live 只验两案 |
 | evidence 四段格式 worker 不守约 | 解析容错（标题变体/BOM/缺段）；缺"响应"段的 idor claim → rejected（reason=evidence 格式不符）——宁可错杀进 tentative 不放行 |
 | transcript 转义导致门 3 假阴性 | §1.3 策略：解码后规范化匹配；单测造含 `\u` 转义的 transcript 验证 |
