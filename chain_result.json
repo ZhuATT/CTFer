@@ -1,0 +1,48 @@
+{
+ "claims": [
+  {
+   "id": "F-001",
+   "class": "sqli_error",
+   "endpoint": "GET /search?q="
+  },
+  {
+   "id": "F-002",
+   "class": "sqli_diff",
+   "endpoint": "GET /search?q="
+  },
+  {
+   "id": "F-003",
+   "class": "authbypass",
+   "endpoint": "POST /admin/config/update"
+  }
+ ],
+ "verdicts": [
+  {
+   "claim_id": "F-001",
+   "verdict": "confirmed",
+   "reasons": [
+    "gate3: 请求在 transcript 可寻"
+   ],
+   "immune": null,
+   "pattern": null
+  },
+  {
+   "claim_id": "F-002",
+   "verdict": "confirmed",
+   "reasons": [
+    "gate3: 请求在 transcript 可寻"
+   ],
+   "immune": null,
+   "pattern": null
+  },
+  {
+   "claim_id": "F-003",
+   "verdict": "confirmed",
+   "reasons": [
+    "gate3: 请求在 transcript 可寻"
+   ],
+   "immune": null,
+   "pattern": null
+  }
+ ]
+}

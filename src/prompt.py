@@ -18,6 +18,8 @@ MANUALS: dict[str, str] = {
     "recon": """【阶段手册① 侦察拓面】
 铁律：不做浏览器侦察，不准开始 curl。
 目标：攻击面摸清并沉淀进黑板（端点/指纹自动入库；结论写 FACTS）。
+额外任务：识别目标业务类型（电商/社交/SaaS/内部系统），写一条
+{"kind":"business_context","value":"这是XX平台，XX行为是正常业务","evidence":"..."} 进 FACTS。
 
 操作序列（按序执行）：
 1. 浏览器侦察四步（Playwright MCP）：
@@ -36,7 +38,7 @@ MANUALS: dict[str, str] = {
 实战纪律：
 - 同一方向连续 5 次失败 → 切换方向，不死磕
 - cookie 统一存 evidence/cookies.txt，命令里引用文件，不裸拼长串
-- 动手前先看状态区的"已免疫勿重测"；同一命令不跑第三遍
+- 动手前先看状态区的阴性记录与已否决模式，规划时跳过已试过的同姿势（换姿势不受限）；同一命令不跑第三遍
 - 现象（CORS/sourcemap/指纹）只记录当弹药，继续挖到结果类发现
 出口判据见指令行——达标即进下一阶段，不恋战。""",
 
@@ -56,13 +58,13 @@ MANUALS: dict[str, str] = {
 （参考是假设不是答案，三个实验仍要做全）。
 出口：黑板出现 identity_model（含三项实验结论）→ 进 exploit。""",
 
-    "exploit": """【阶段手册③ 越权闭环——提纲占位，M3 前定稿】
-对象枚举 → 身份对调（marker 取自 marker_source）→ 响应 diff → 写操作必须读回。
-每候选当场落 evidence/ + FINDINGS 行（含 distinct_from）。""",
+    "exploit": """【阶段手册③ 越权闭环——提纲占位，M4 前定稿】
+对象枚举 → 身份对调（A 的 cookie 访问 B 的资源）→ 响应 diff → 写操作必须读回。
+每发现当场写白话 evidence 文件 + FINDINGS 行（4 字段：endpoint/evidence/summary/round）。""",
 
     "report": """【阶段手册④ 报告产出——提纲占位，M4 前定稿】
-同根因合并；evidence 四段模板（请求/响应/佐证/来源命令）；阴性结论写
-status.md"已确认非漏洞"段；产出 report.md 草稿。""",
+同根因合并；已确认发现从黑板"已确认发现"段取；阴性结论从免疫/已否决段取；
+产出 report.md 草稿（人定稿）。""",
 }
 
 # 第 8 段 hints：指纹关键词 → skill 路由行（设计§3.5.2 第 5 段路由表的渲染子集）
@@ -78,14 +80,20 @@ _SEGMENT_MARKS = ("【序言】", "【阶段手册】", "【指令】", "【状�
                   "【上一轮交接】", "【重复命令告警】", "【后台任务】", "【提示】", "【人工指示】")
 
 
-def render_round_prompt(board, directive: Optional[str] = None, *, round_: int = 0) -> str:
-    """9 段固定顺序。确定性：同黑板两次调用逐字节相同（nonce 例外——untrusted 防注入需随机）。"""
+def render_round_prompt(board, directive: Optional[str] = None, *, round_: int = 0,
+                        tested_endpoints: set | None = None) -> str:
+    """9 段固定顺序。确定性：同黑板两次调用逐字节相同（nonce 例外——untrusted 防注入需随机）。
+    tested_endpoints 传入时 → board.render 在状态区后插入"未测面"段（覆盖对账，中期审核①②）。"""
     segs: list[str] = []
     segs.append(PREAMBLE)
     segs.append(MANUALS.get(board.goal.get("stage", "recon"), MANUALS["recon"]))
     segs.append(board.plan_directive(round_=round_))
-    segs.append(board.render())
-    segs.append(board.handoff if board.handoff else "（首轮，无上一轮交接）")
+    segs.append(board.render(tested_endpoints=tested_endpoints))
+    relay = board.handoff if board.handoff else "（首轮，无上一轮交接）"
+    intel = board.intel_summary()
+    if intel:
+        relay += f"\n\n[观察者情报] {intel}"
+    segs.append(relay)
     tried = sorted(board.ledger.get("tried", {}).items(), key=lambda x: -x[1])
     hot = [(c, n) for c, n in tried if n >= 3][:5]
     segs.append("\n".join(f"- {c[:100]}（已 ×{n}，勿重跑）" for c, n in hot)

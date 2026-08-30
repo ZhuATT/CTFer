@@ -641,7 +641,7 @@ driver 在轮界与心跳点轮询（**worker 永远不知道此文件存在**�
 |---|---|---|
 | solver 模型 | glm | `--provider` |
 | 门2 verifier 模型 | deepseek（与 solver 异构） | providers 配置 |
-| 门2 票数 | 1 | verify 配置 `votes` |
+| 门2 票数 | **3**（P3 实测单票不稳定，改多数决；`AT1_GATE2_VOTES` 可调） | verify 配置 / 环境变量 |
 | 门1.5 独立重放 | **关**（canary 对分后开） | verify 配置 `replay` |
 | FINDINGS 格式 | JSONL（定死） | — |
 | 侦察出口 N | 15 | engagement.json 可覆写 |
