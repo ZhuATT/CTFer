@@ -62,3 +62,25 @@ def test_whitespace_normalized_match(tmp_path):
     tp = _write_transcript(tmp_path, "curl -s http://127.0.0.1:8790/api/v1/user?id=2")
     ev = "请求了 http://127.0.0.1:8790/api/v1/user?\nid=2"
     assert verify_evidence_in_transcript(tp, ev) is True
+
+
+def test_relative_path_prose_evidence(tmp_path):
+    """白话证据写相对路径（GET /search?q=%27），transcript 是全 URL → 子串命中。"""
+    tp = _write_transcript(tmp_path, 'Invoke-WebRequest "http://127.0.0.1:8790/search?q=%27%20OR%20%271%27%3D%271"')
+    ev = """# SQL 注入 — /search?q=
+请求：`GET /search?q=%27`（即 q='）
+响应：<h1>Debug</h1><p>error in your SQL syntax</p>"""
+    assert verify_evidence_in_transcript(tp, ev) is True
+
+
+def test_quoted_api_path_anchor(tmp_path):
+    tp = _write_transcript(tmp_path, 'curl http://127.0.0.1:8790/api/order/detail?id=8823')
+    ev = '端点 `/api/order/detail?id=8823` 返回了 B 的手机号'
+    assert verify_evidence_in_transcript(tp, ev) is True
+
+
+def test_short_anchor_noise_rejected(tmp_path):
+    # 太短的锚（<5 字符）噪声大不匹配——证据只有 "GET /api" 这种
+    tp = _write_transcript(tmp_path, "curl http://127.0.0.1:8790/anything")
+    ev = "看了 GET /api 一眼"
+    assert verify_evidence_in_transcript(tp, ev) is False
