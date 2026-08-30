@@ -232,12 +232,14 @@ _VERIFIER_PRESETS = {
 
 
 def build_verifier_config(solver: "SolverConfig") -> LLMConfig:
-    """门2 verifier：默认与 solver 异构（solver=glm → verifier=DeepSeek 经讯飞 maas，设计§7）。"""
+    """门2 verifier：默认与 solver 异构（solver=glm → verifier=DeepSeek 经讯飞 maas，设计§7）。
+    LLM_FALLBACK_* 环境变量配置降级链（如 xfyun 模型故障 → DeepSeek 官方）。"""
     apply_llm_profile()
     family = "xfyun-glm" if solver.provider.startswith("glm") else "glm"
     preset = _VERIFIER_PRESETS.get(family, _VERIFIER_PRESETS["deepseek"])
     provider = (_env("LLM_PROVIDER") or preset["provider"]).lower()
     base = _env("LLM_BASE_URL") or preset["base_url"]
+    fb_url = (_env("LLM_FALLBACK_BASE_URL") or "").rstrip("/")
     return LLMConfig(
         provider=provider,
         base_url=(base or "").rstrip("/"),
@@ -251,5 +253,12 @@ def build_verifier_config(solver: "SolverConfig") -> LLMConfig:
         reasoning_effort=_env("LLM_REASONING_EFFORT", "low") or "low",
         max_tokens_fast=int(_env("LLM_MAX_TOKENS_FAST", "1024") or "1024"),
         empty_retries=int(_env("LLM_EMPTY_RETRIES", "2") or "2"),
-        fast_model=_env("LLM_FAST_MODEL", preset["model"]) or preset["model"],
+        # fast_model 刻意留空：OpenAIBackend.complete 在 thinking=False 时走
+        # fast_model 分支，若默认成 preset 模型会污染 fallback 后端（fallback 继承
+        # 同一 cfg.fast_model → DeepSeek 收到 xopglm53 → 400）。verifier 本身就是快路径。
+        fast_model=_env("LLM_FAST_MODEL") or "",
+        fallback_provider=(_env("LLM_FALLBACK_PROVIDER") or "").lower() or None,
+        fallback_base_url=fb_url or None,
+        fallback_api_key=_env("LLM_FALLBACK_API_KEY") or None,
+        fallback_model=_env("LLM_FALLBACK_MODEL") or None,
     )

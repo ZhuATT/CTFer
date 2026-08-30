@@ -6,9 +6,11 @@
 import re
 import sqlite3
 
+import os
+
 from flask import Flask, Response, jsonify, request
 
-PORT = 8790
+PORT = int(os.environ.get("CANARY_PORT", "8790"))
 MARKER_PHONE = "13900000002"          # userB 手机号（idor marker）
 SID = {"FAKE-sess-userA": "userA", "FAKE-sess-userB": "userB"}
 
