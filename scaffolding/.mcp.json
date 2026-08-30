@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--executable-path",
+        "D:\\chrome\\Chrome\\Application\\chrome.exe"
+      ]
+    }
+  }
+}
