@@ -1,0 +1,113 @@
+"""writeback 单测（P4.6）：表尾追加幂等 / 深度刷新只升不降 / draft 生成 / immune 反向读。"""
+
+from src.board import Blackboard
+from src.writeback import (append_status_row, gen_prior_intel_draft,
+                           parse_immune_from_status, refresh_surface_depth)
+
+_STATUS = """# Status
+
+## 漏洞表
+| ID | 等级 | 标题 | 证据 |
+|---|---|---|---|
+| F-old | 高 | 旧发现 | evidence/old.md (r1) |
+
+## 攻击面
+| 功能/端点 | 深度 | 测过什么 | 结论/免疫 |
+|---|---|---|---|
+| /api/login | seen | 首页发现 | - |
+| /search | tested | 单引号探测 | 有报错 |
+
+## 已确认非漏洞
+- /api/login（authbypass——403，2026-08-24）
+- /health 接口无需鉴权属设计内
+
+## 阻断项
+（无）
+"""
+
+
+def _status(tmp_path):
+    p = tmp_path / "status.md"
+    p.write_text(_STATUS, encoding="utf-8")
+    return str(p)
+
+
+def test_append_row_at_table_tail(tmp_path):
+    p = _status(tmp_path)
+    ok, why = append_status_row(p, {"id": "F-001", "severity": "high",
+                                    "summary": "SQL注入", "evidence": "evidence/s.md",
+                                    "round": 2})
+    assert ok and why == "appended"
+    txt = open(p, encoding="utf-8").read()
+    # 新行在旧行之后、攻击面段之前（表尾）
+    assert txt.index("F-old") < txt.index("F-001") < txt.index("## 攻击面")
+
+
+def test_append_idempotent(tmp_path):
+    p = _status(tmp_path)
+    append_status_row(p, {"id": "F-001", "severity": "high", "summary": "x",
+                          "evidence": "e.md", "round": 1})
+    ok, why = append_status_row(p, {"id": "F-001", "severity": "high", "summary": "x",
+                                    "evidence": "e.md", "round": 1})
+    assert ok and why == "already-present"
+    assert open(p, encoding="utf-8").read().count("F-001") == 1
+
+
+def test_append_missing_anchor_fails_gracefully(tmp_path):
+    p = tmp_path / "status.md"
+    p.write_text("# 随便的文件没有锚点\n", encoding="utf-8")
+    ok, why = append_status_row(str(p), {"id": "F-1", "summary": "", "evidence": ""})
+    assert not ok and "锚点" in why
+
+
+def test_refresh_depth_only_upgrades(tmp_path):
+    p = _status(tmp_path)
+    bb = Blackboard()
+    bb.add_finding({"id": "F-1", "endpoint": "/search", "summary": "sqli",
+                    "assessment": "confirmed", "severity": "high", "round": 1})
+    ok, why = refresh_surface_depth(p, bb)
+    assert ok
+    txt = open(p, encoding="utf-8").read()
+    assert "| /search | deep |" in txt
+    assert "| /api/login | seen |" in txt      # 未覆盖的不动
+
+    # 降级保护：无 confirmed 时 deep 不退回 seen
+    bb2 = Blackboard()
+    refresh_surface_depth(p, bb2)
+    assert "| /search | deep |" in open(p, encoding="utf-8").read()
+
+
+def test_refresh_missing_anchor_tolerant(tmp_path):
+    p = tmp_path / "status.md"
+    p.write_text("no anchors\n", encoding="utf-8")
+    ok, why = refresh_surface_depth(str(p), Blackboard())
+    assert not ok and "宽容" in why
+
+
+def test_draft_generation(tmp_path):
+    bb = Blackboard()
+    bb.add_finding({"id": "F-1", "endpoint": "/search", "summary": "sqli",
+                    "assessment": "confirmed", "severity": "high", "round": 1})
+    bb.add_fact("identity_model", "身份靠cookie派生", provenance="evidence/identity.md")
+    bb.add_immune("/api/login", status="403")
+    bb.update_session_intel({"coverage_gaps": ["/api/order 未测"],
+                             "effective_patterns": ["id 遍历有效"],
+                             "suggestions": [], "notable_attempts": [],
+                             "intel_summary": "目标无 WAF"})
+    bb.record_handoff("已完成：侦察；未竟：idor 面", "model")
+    out = gen_prior_intel_draft(str(tmp_path), bb, stop_reason="预算耗尽")
+    txt = out.read_text(encoding="utf-8")
+    assert "预算耗尽" in txt and "F-1" in txt and "身份靠cookie派生" in txt
+    assert "/api/login" in txt and "/api/order 未测" in txt and "未竟：idor 面" in txt
+
+
+def test_parse_immune_seeds():
+    import tempfile, os
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "status.md")
+        open(p, "w", encoding="utf-8").write(_STATUS)
+        imm = parse_immune_from_status(p)
+        eps = [i["endpoint"] for i in imm]
+        assert "/api/login" in eps and "/health" in eps
+        # 段外内容不进（漏洞表的 /api/login 是 seen 行——只解析列表行，表格行跳过）
+        assert all(i["status"] for i in imm)
