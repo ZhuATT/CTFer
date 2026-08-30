@@ -27,6 +27,15 @@ from .providers import SolverConfig
 _HANDOFF_RX = re.compile(r"<Handoff>(.*?)</Handoff>", re.IGNORECASE | re.DOTALL)
 _FINAL_RX = re.compile(r"<FinalAnswer>(.*?)</FinalAnswer>", re.IGNORECASE | re.DOTALL)
 
+# thinking 进度事件短路（phase3.5 §六：实测 98.8% 流量是 system/thinking_tokens，
+# 每条 json.loads + flush 是 I/O 洪水根因）。标记用正则匹配原始行——JSON 字符串
+# 内的引号必被转义，未转义的 "subtype":"thinking_tokens" 只可能出现在结构层，
+# 不会误伤 tool_result 文本里恰好含这段文字的内容。
+_THINKING_RX = re.compile(r'"subtype"\s*:\s*"thinking_tokens"')
+_THINK_DELTA_RX = re.compile(r'"estimated_tokens_delta"\s*:\s*(\d+)')
+_THINKING_TOTAL_RX = re.compile(r'"estimated_tokens"\s*:\s*(\d+)')
+THINKING_SAMPLE_EVERY = 100      # 进度事件采样写盘：每 100 条留 1 条
+
 MAX_TOOL_CHARS = 20_000          # 单条 tool_result 喂给 on_fact 的截断长度
 HEARTBEAT_EVERY = 25             # 每 N 次 tool_result 一次心跳（设计§3.1）
 # 双阈值呆滞告警（实测 glm 有两种呆滞形态，单阈值抓不全）：
@@ -107,11 +116,14 @@ def _tool_result_text(content) -> str:
 
 
 class StreamParser:
-    """逐行解析 stream-json。非 JSON 行（stdin 警告、[claude-code:…] 遥测）
-    静默跳过但照常写 transcript——transcript 是原始流的忠实记录，不是解析结果。
+    """逐行解析 stream-json，transcript 按 I/O 分级写（phase3.5 §六）：
+    init/result/tool_result 逐条 flush（不能丢）；assistant 常规写（量小，
+    过滤洪水后 flush 开销可忽略）；thinking 进度只计数 + 1/100 采样；
+    遥测/非 JSON 行不写。
 
     实测依据（CLI v2.1.238）：init 事件 = 首条 JSON 行，带 session_id；
-    result 事件带 num_turns/stop_reason/usage/total_cost_usd。
+    result 事件带 num_turns/stop_reason/usage/total_cost_usd；
+    system/thinking_tokens 占流量的 98.8%（flash thinking 洪水根因）。
     """
 
     def __init__(self, task: AgentTask | None = None):
@@ -129,6 +141,8 @@ class StreamParser:
         self.tool_count = 0
         self.last_tool_ts: float = 0.0     # 最近一次 tool_result 的时刻（工具级呆滞判据）
         self.raw_lines = 0
+        self.thinking_events = 0           # thinking 进度事件计数（短路，不解析）
+        self.thinking_tokens_est = 0       # 估算 thinking token 总量（正则抽 delta 累加）
         self._tf = None
         if self.task.transcript_path:
             os.makedirs(os.path.dirname(self.task.transcript_path) or ".", exist_ok=True)
@@ -138,18 +152,32 @@ class StreamParser:
 
     def feed_line(self, raw: str) -> None:
         self.raw_lines += 1
-        if self._tf is not None:
-            self._tf.write(raw if raw.endswith("\n") else raw + "\n")
-            self._tf.flush()          # kill 后磁盘留有已写部分
         line = raw.strip()
+        # ① thinking 进度短路：只计数 + 正则抽 token 估算，不 json.loads；
+        #    每 THINKING_SAMPLE_EVERY 条采样写盘 1 条（丢了无所谓）
+        if _THINKING_RX.search(line):
+            self.thinking_events += 1
+            m = _THINK_DELTA_RX.search(line) or _THINKING_TOTAL_RX.search(line)
+            if m:
+                self.thinking_tokens_est += int(m.group(1))
+            if (self._tf is not None
+                    and self.thinking_events % THINKING_SAMPLE_EVERY == 0):
+                self._tf.write(raw if raw.endswith("\n") else raw + "\n")
+                self._tf.flush()
+            return
+        # ② 非 JSON 行（stdin 警告、[claude-code:…] 遥测前缀）：不写 transcript
         if not line or not line.startswith("{"):
-            return                     # 非 JSON 行：静默跳过（实测存在）
+            return
         try:
             ev = json.loads(line)
         except Exception:
             return
         if not isinstance(ev, dict):
             return
+        # ③ 通过过滤的 JSON 事件照写 transcript + flush（kill 后磁盘留有已写部分）
+        if self._tf is not None:
+            self._tf.write(raw if raw.endswith("\n") else raw + "\n")
+            self._tf.flush()
 
         etype = ev.get("type")
         if etype == "system" and ev.get("subtype") == "init":
@@ -197,6 +225,8 @@ class StreamParser:
                             "tool_calls": self.tool_count,
                             "tokens": self.tokens,
                             "assistant_msgs": len(self.assistant_texts),
+                            "thinking_events": self.thinking_events,
+                            "thinking_tokens_est": self.thinking_tokens_est,
                         })
                     except Exception:
                         pass
@@ -380,7 +410,9 @@ def spawn_once(
                                        "stream_idle_s": round(stream_idle, 1),
                                        "tool_idle_s": round(tool_idle, 1) if tool_idle else None,
                                        "tool_calls": parser.tool_count,
-                                       "tokens": parser.tokens})
+                                       "tokens": parser.tokens,
+                                       "thinking_events": parser.thinking_events,
+                                       "thinking_tokens_est": parser.thinking_tokens_est})
                 except Exception:
                     pass
             if "stalled" in flags:

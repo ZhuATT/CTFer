@@ -126,17 +126,77 @@ def test_result_error_subtype_marks_error():
     assert res.session_id == "s9"
 
 
-def test_transcript_writes_every_raw_line_incrementally(tmp_path):
+def test_transcript_io_tiering_skips_noise(tmp_path):
+    """I/O 分级（phase3.5 §六）：遥测/非 JSON 行不写 transcript；JSON 事件逐条写。"""
     tp = tmp_path / ".at1" / "transcript.jsonl"
     p = StreamParser(AgentTask(transcript_path=str(tp)))
-    p.feed_line("junk-before-json\n")
-    p.feed_line(_result())
+    p.feed_line("junk-before-json\n")                       # 不写
+    p.feed_line('[claude-code:unrecognized_model] {"model":"glm-5"}\n')  # 不写
+    p.feed_line(json.dumps({"type": "system", "subtype": "init",
+                            "session_id": "s1", "model": "glm-5.3"}) + "\n")  # 写
+    p.feed_line(_assistant([_tool_use("t1", "Bash", {"command": "curl x"})]) + "\n")  # 写
+    p.feed_line(_tool_result("t1", "out\n") + "\n")         # 写
+    p.feed_line(_result())                                   # 写
     assert tp.exists()
     # feed 完即可读（增量 flush，不等会话结束）
     lines = tp.read_text(encoding="utf-8").splitlines()
-    assert lines[0] == "junk-before-json"
-    assert len(lines) == 2
+    assert len(lines) == 4                                  # junk ×2 被过滤
+    assert not any("junk" in l or "claude-code" in l for l in lines)
+    assert any('"subtype":"init"' in l or '"subtype": "init"' in l for l in lines)
+    assert any('"type": "result"' in l or '"type":"result"' in l for l in lines)
     p.close()
+
+
+def _thinking_event(delta=1, total=None):
+    d = {"type": "system", "subtype": "thinking_tokens",
+         "estimated_tokens": total if total is not None else delta,
+         "estimated_tokens_delta": delta, "uuid": "u", "session_id": "s1"}
+    return json.dumps(d) + "\n"
+
+
+def test_thinking_flood_short_circuit(tmp_path):
+    """flash thinking 洪水（98.8% 流量）：只计数不解析，1/100 采样写盘。"""
+    tp = tmp_path / "transcript.jsonl"
+    facts = []
+    p = StreamParser(AgentTask(on_fact=facts.append, transcript_path=str(tp)))
+
+    p.feed_line(json.dumps({"type": "system", "subtype": "init", "session_id": "s1"}) + "\n")
+    # 250 条进度事件（真实形态：compact JSON，delta=1）
+    for _ in range(250):
+        p.feed_line(_thinking_event(delta=1))
+    # 只有 total 没有 delta 的变体
+    p.feed_line(json.dumps({"type": "system", "subtype": "thinking_tokens",
+                            "estimated_tokens": 5}) + "\n")
+    # 洪水中间夹的真实事件必须照常配对收割
+    p.feed_line(_assistant([_tool_use("t1", "Bash", {"command": "echo hi"})]) + "\n")
+    p.feed_line(_tool_result("t1", "marker-ok\n") + "\n")
+    p.feed_line(_result())
+    p.close()
+
+    assert p.thinking_events == 251
+    assert p.thinking_tokens_est == 250 * 1 + 5    # delta 优先，缺 delta 用 total
+    assert len(facts) == 1 and "marker-ok" in facts[0].output
+    lines = tp.read_text(encoding="utf-8").splitlines()
+    # 采样：第 100、200 条各留 1 条 → transcript 里 thinking 行恰好 2 条
+    thinking_lines = [l for l in lines if "thinking_tokens" in l]
+    assert len(thinking_lines) == 2
+    # 其余事件全量在
+    assert len(lines) == 2 + 4                       # 采样2 + init/assistant/tool_result/result
+
+
+def test_thinking_marker_not_confused_by_tool_result_text(tmp_path):
+    """tool_result 文本里恰好含 thinking_tokens 字样：JSON 转义保护，不得短路。"""
+    tp = tmp_path / "transcript.jsonl"
+    facts = []
+    p = StreamParser(AgentTask(on_fact=facts.append, transcript_path=str(tp)))
+    poison = '服务器返回了 {"subtype":"thinking_tokens"} 字样'   # 会以转义形式进 JSON
+    p.feed_line(_tool_result("t1", poison) + "\n")
+    p.close()
+    assert p.thinking_events == 0                    # 未被误判为进度事件
+    assert len(facts) == 1
+    assert "thinking_tokens" in facts[0].output
+    # 事件本体照写 transcript
+    assert "thinking_tokens" in tp.read_text(encoding="utf-8")
 
 
 def test_sanitize_env_strips_controller_secrets(monkeypatch):
