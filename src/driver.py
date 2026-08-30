@@ -106,6 +106,9 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
     pilot = root / ".at1"
     pilot.mkdir(exist_ok=True)
     (root / "state").mkdir(exist_ok=True)
+    # worker 配置隔离：不读本机 ~/.claude/settings.json 的 env 覆盖（实测会劫持
+    # 注入的 ANTHROPIC_BASE_URL）。指向控制器区空目录，worker 只吃注入配置。
+    os.environ.setdefault("AT1_CLAUDE_CONFIG_DIR", str(pilot / "claude-config"))
     workdir = scaffold.expand(root, eng)
     bb = board_mod.Blackboard(str(pilot / "_blackboard.json"))
     ev = events_mod.EventWriter(str(root / "state" / "auto-log.jsonl"))

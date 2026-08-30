@@ -199,6 +199,18 @@ def test_thinking_marker_not_confused_by_tool_result_text(tmp_path):
     assert "thinking_tokens" in tp.read_text(encoding="utf-8")
 
 
+def test_sanitize_env_claude_config_dir_isolation(monkeypatch, tmp_path):
+    """AT1_CLAUDE_CONFIG_DIR → worker 的 CLAUDE_CONFIG_DIR（隔离本机 settings 劫持）。"""
+    monkeypatch.setenv("AT1_PROVIDER", "glm")
+    monkeypatch.setenv("AT1_API_KEY", "sk-bigmodel")
+    monkeypatch.setenv("AT1_CLAUDE_CONFIG_DIR", str(tmp_path / "cfg"))
+    cfg = _mk(api_key="sk-bigmodel", base_url="https://open.bigmodel.cn/api/anthropic")
+    env = _sanitize_env(cfg)
+    assert env["CLAUDE_CONFIG_DIR"] == str(tmp_path / "cfg")
+    assert "AT1_CLAUDE_CONFIG_DIR" not in env          # 控制变量不进 worker
+    assert env["ANTHROPIC_BASE_URL"] == "https://open.bigmodel.cn/api/anthropic"
+
+
 def test_sanitize_env_strips_controller_secrets(monkeypatch):
     monkeypatch.setenv("AT1_PROVIDER", "glm")
     monkeypatch.setenv("AT1_SECRET_STATE", "ctrl")

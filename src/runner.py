@@ -299,8 +299,13 @@ def _sanitize_env(solver: SolverConfig) -> dict:
     - benchmark 遗留变量剥掉
     - ANTHROPIC_*：仅当 solver 自带凭证时才剥（随后由 anthropic_env 重新注入
       自己的）；solver 无凭证时保留本机配置——selftest 零配置可跑
+    - AT1_CLAUDE_CONFIG_DIR（控制器指定）：worker 的 claude CLI 用它做
+      CLAUDE_CONFIG_DIR 隔离——不读本机 ~/.claude/settings.json 的 env 覆盖
+      （实测：settings env 优先于进程 env，会把注入的 ANTHROPIC_BASE_URL 拉回
+      本机配置，worker 打错通道）。隔离后 worker 只吃注入的 ANTHROPIC_*。
     """
     env = dict(os.environ)
+    claude_cfg_dir = env.pop("AT1_CLAUDE_CONFIG_DIR", None)
     for k in list(env):
         if (k.startswith("AT1_") or k.startswith("LLM_")
                 or k in ("SOLVER_API_KEY", "BENCHMARK_TOKEN", "BENCHMARK_BASE_URL", "LLM_PROFILE")):
@@ -310,6 +315,12 @@ def _sanitize_env(solver: SolverConfig) -> dict:
                   "ANTHROPIC_MODEL"):
             env.pop(k, None)
     env.update(solver.anthropic_env())
+    if claude_cfg_dir:
+        try:
+            os.makedirs(claude_cfg_dir, exist_ok=True)
+        except OSError:
+            pass
+        env["CLAUDE_CONFIG_DIR"] = claude_cfg_dir
     env["CLAUDECODE"] = ""    # 阻断 CLI 嵌套会话检测（dcr load-bearing #1）
     env["IS_SANDBOX"] = "1"   # 允许 bypassPermissions 生效（dcr load-bearing #2）
     return env
