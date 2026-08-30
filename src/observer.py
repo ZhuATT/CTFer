@@ -12,13 +12,25 @@ from __future__ import annotations
 import json
 from typing import Callable, Optional
 
+from . import noreport
 from .verify import parse_llm_json   # 三层剥取复用
 
 # ── 发现级 prompt（小输入：一条发现 + 证据 + 业务上下文）──
 
-JUDGE_SYSTEM = "你是安全发现审阅者。按四步框架思考，输出严格JSON。不要输出其他内容。"
+JUDGE_SYSTEM = "你是安全发现审阅者。按第零步硬否决+四步框架思考，输出严格JSON。不要输出其他内容。"
 
+# 第零步（P4.0c 强化）：绝对不报表从"框架内的一条"提为前置硬否决——A4 实测
+# 开放重定向在旧 prompt 位置下被 confirmed，此改动 + noreport.py 代码硬拒双层拦截。
 JUDGE_PROMPT = """请判断以下渗透测试发现是否为真实漏洞。
+
+【第零步：绝对不报——硬否决，先于一切判断】
+以下类型无论证据多确凿，直接判 is_vulnerability=false（仅当满足"但书"时才可继续四步）：
+- 单独的开放重定向（无链式利用证明——OAuth 回调/token 窃取/绕过 allowlist）
+- CORS 配置问题（除非证据显示已实际窃取到具体敏感数据）
+- Self-XSS / 无投递链的 XSS（仅自己可见、无受害者路径）
+- sourcemap / 版本指纹 / 安全头缺失 / rate limit 缺失
+- 裸 instance-id / 内网 IP / 元数据端点（无 IAM·RAM·AK/SK 凭证跟随）
+但书：该现象只是载体，实际影响是凭证泄露/越权/注入/RCE → 判 true 并在 reason 说明链路。
 
 【四步影响框架】
 第一步：影响是什么？
@@ -69,6 +81,13 @@ SESSION_PROMPT = """请从全局视角审阅本轮渗透测试会话。
 比较本轮发现与历史已确认发现：同端点+同根因 = 重复。
 重复的发现标 assessment 为 "duplicate" 而非 "confirmed"。
 （参考 SRC 标准：同一功能越权只确认 1 个；同根因只收第 1 个）
+
+【绝对不报——硬否决】
+发现级已标注"硬拒"（noreport 代码判定）的条目：assessment 保持
+likely_false_positive，不得改为 confirmed。以下类型同理，无论证据多确凿：
+单独开放重定向（无链式利用）/ CORS 配置 / Self-XSS 无投递链 /
+sourcemap / 安全头缺失 / 版本指纹 / 裸 instance-id·内网 IP·元数据（无凭证）。
+例外：现象只是载体、实际影响为凭证泄露/越权/注入/RCE 的链式发现。
 
 【目标业务上下文】
 {business_context}
@@ -153,22 +172,34 @@ class Observer:
     def run(self, findings: list[dict], evidence_texts: dict[str, str],
             previous_confirmed: list[dict], board_summary: str,
             handoff: str) -> dict:
-        """完整流程：逐条 judge → 一次 observe → 合并输出可直入黑板。"""
-        # 1. 发现级：逐条快判
+        """完整流程：noreport 硬拒 → 逐条 judge → 一次 observe → 合并可直入黑板。"""
+        # 0. 代码硬拒（P4.0c）：确定性现象类直接标 likely_false_positive，
+        #    不进 judge LLM；会话级也不得翻案
         judged = []
+        hard_rejected: set[str] = set()
         for f in findings:
-            ev = evidence_texts.get(f.get("id", ""), "")
+            fid = f.get("id", "")
+            ev = evidence_texts.get(fid, "")
+            nr = noreport.check(f, ev)
+            if nr["match"]:
+                hard_rejected.add(fid)
+                judged.append({**f, "is_vulnerability": False, "severity": None,
+                               "reason": f"硬拒·{nr['category']}：{nr['reason']}"})
+                continue
             r = self.judge_finding(f, ev)
             judged.append({**f, **r})
-        # 2. 会话级：全局观察（含判重）
+        # 1. 会话级：全局观察（含判重）
         session = self.observe_session(judged, previous_confirmed,
                                        board_summary, handoff)
-        # 3. 合并：会话级 final_assessments 覆盖发现级判定（判重可能改 confirmed→duplicate）
+        # 2. 合并：会话级 final_assessments 覆盖发现级判定（判重可能改 confirmed→duplicate）
+        #    硬拒条目不参与覆盖——代码判定的铁律不受 LLM 翻案
         final = {fa.get("id", ""): fa for fa in session.get("final_assessments", [])}
         merged = []
         for j in judged:
             fid = j.get("id", "")
-            if fid in final:
+            if fid in hard_rejected:
+                merged.append({**j, "assessment": "likely_false_positive"})
+            elif fid in final:
                 merged.append({**j, "assessment": final[fid].get("assessment"),
                                "severity": final[fid].get("severity", j.get("severity")),
                                "reason": final[fid].get("reason", j.get("reason"))})
