@@ -274,9 +274,11 @@ def _terminate(bb, reason) -> bool
 | P4.6 写回 | ✅ | `af6e1ba` |
 | P4.7 手册定稿 | ✅ | `4f60ff5`（待用户过目） |
 | P4.8 watch | ✅ | `02f2460` |
-| **P4.9 canary 回归** | 🔄 | 运行中（`f2e7331` 修复 worker 通道 + `e1272e7` 观察者 fallback + `.secrets.env` 切 bigmodel glm-5.3） |
-| P4.10 真实 engagement | ⏸ | 等目标 |
-| P4.11 旧 verify 清理 | ⏸ | 等 canary PASS |
+| **P4.9 canary 回归** | ✅ 接受 | **2/4 检出 + 0 误报 + 锚 3/3**（用户拍板：系统 PASS，覆盖待优化）。V3 authbypass + V4 sqli confirmed；V1/V2 idor worker 未测（模型行为，A4 遗留）。发现并修复 harvest 字节 offset 丢行 bug（`37053cb` 改 ID 去重）+ exploit 手册 idor 强化 |
+| P4.10 真实 engagement | ⏸ | 等用户提供目标三件套 |
+| P4.11 旧 verify 清理 | 🔄 | 条件满足（P4.9 接受），开始 |
+
+**通道修复实录**（P4.9 前置，架构级）：
 
 **通道修复实录**（P4.9 前置，架构级）：
 1. `~/.claude/settings.json` env 块优先于进程 env 劫持注入的 ANTHROPIC_BASE_URL → worker 打错通道 → **CLAUDE_CONFIG_DIR 隔离**（`f2e7331`）

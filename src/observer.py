@@ -13,7 +13,7 @@ import json
 from typing import Callable, Optional
 
 from . import noreport
-from .verify import parse_llm_json   # 三层剥取复用
+from .json_utils import parse_llm_json   # 三层剥取复用（P4.11 verify 迁出）
 
 # ── 发现级 prompt（小输入：一条发现 + 证据 + 业务上下文）──
 
