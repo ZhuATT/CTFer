@@ -288,6 +288,95 @@ def cmd_selftest(args: argparse.Namespace) -> int:
     return 1 if mandatory_fail else 0
 
 
+def cmd_run(args: argparse.Namespace) -> int:
+    """M4：跑一个 engagement（driver 主循环）。"""
+    from .driver import run_engagement
+    return run_engagement(
+        args.engagement,
+        budget_s=args.budget,
+        max_rounds=args.rounds,
+        stop_on_first_confirmed=args.stop_on_first_confirmed,
+        dry_run=args.dry_run,
+        provider=args.provider,
+        observer_on=not args.no_observer)
+
+
+def cmd_watch(args: argparse.Namespace) -> int:
+    """M4：tail auto-log.jsonl 渲染彩色一行式（isatty 才着色）。"""
+    import time
+
+    path = os.path.join(args.engagement, "state", "auto-log.jsonl")
+    if not os.path.isfile(path):
+        print(f"[watch] 找不到 {path}（engagement 还没跑过？）")
+        return 2
+    color = sys.stdout.isatty()
+    C = {"dim": "\033[2m", "red": "\033[31m", "yellow": "\033[33m",
+         "green": "\033[32m", "cyan": "\033[36m", "off": "\033[0m"} if color else \
+        {k: "" for k in ("dim", "red", "yellow", "green", "cyan", "off")}
+
+    # 事件 → 呈现映射（设计§4.3 运行页同款；M5 工作台复用这张表）
+    def render(row: dict) -> str:
+        t, r, d = row.get("type", ""), row.get("round"), row.get("data", {})
+        ts = row.get("ts", "")[11:19]
+        base = f"{C['dim']}{ts}{C['off']} r{r}"
+        if t == "heartbeat":
+            flags = [k for k in ("stalled", "stalled_tools") if d.get(k)]
+            if flags:
+                return f"{base} {C['yellow']}⚠ 呆滞 {','.join(flags)} " \
+                       f"stream={d.get('stream_idle_s')}s tools={d.get('tool_calls')}{C['off']}"
+            return f"{base} · 心跳 tools={d.get('tool_calls')} tokens={d.get('tokens')}"
+        if t == "finding_confirmed":
+            return f"{base} {C['red']}★ confirmed {d.get('id')} {d.get('endpoint')} " \
+                   f"sev={d.get('severity')}{C['off']}"
+        if t == "claim_verdict":
+            mark = {"confirmed": C['green'] + "✓", "likely_false_positive": C['yellow'] + "✗",
+                    "uncertain": C['yellow'] + "?", "duplicate": C['dim'] + "≡"}.get(
+                    d.get("assessment"), "?")
+            ev = "锚" if d.get("evidence_verified") else "未锚"
+            return f"{base} {mark} {d.get('id')} {d.get('assessment')} [{ev}] " \
+                   f"{str(d.get('reason', ''))[:70]}{C['off']}"
+        if t == "guard_violation":
+            c = C['red'] if d.get("critical") else C['yellow']
+            return f"{base} {c}⛔ guard[{d.get('kind')}] {str(d.get('reason', ''))[:80]}{C['off']}"
+        if t == "stoploss_trigger":
+            return f"{base} {C['yellow']}△ stoploss {d.get('dim')}{C['off']}"
+        if t == "session_start":
+            return f"{base} {C['cyan']}▶ r{d.get('round')} [{d.get('stage')}] box={d.get('timebox')}s{C['off']}"
+        if t == "session_end":
+            return f"{base} {C['dim']}■ stop={d.get('stop_reason')} turns={d.get('turns')} " \
+                   f"tokens={d.get('tokens')}{C['off']}"
+        if t == "phase_check":
+            return f"{base} {C['cyan']}◇ stage={d.get('stage')}{C['off']}"
+        if t == "run_end":
+            return f"{base} {C['green']}■■ run_end {d.get('reason')} confirmed={d.get('confirmed')}{C['off']}"
+        if t in ("fact_added",):
+            return f"{base} + fact {d.get('tool')} new={d.get('new')}"
+        if t in ("handoff_harvested", "directive_injected", "observer_error",
+                 "surface_parse_fail", "immune_added"):
+            return f"{base} {t} {str(d)[:90]}"
+        return f"{base} {t}"
+
+    with open(path, encoding="utf-8") as f:
+        f.seek(0, 2)                        # 从尾部开始（--all 回放全量）
+        if args.all:
+            f.seek(0)
+        while True:
+            line = f.readline()
+            if not line:
+                if args.once:
+                    break
+                time.sleep(1)
+                continue
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                print(render(json.loads(line)))
+            except (json.JSONDecodeError, ValueError):
+                pass
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     # git-bash/PowerShell 控制台中文乱码修复：Python 输出统一 UTF-8
     try:
@@ -306,6 +395,23 @@ def main(argv: list[str] | None = None) -> int:
     p_st.add_argument("--provider", default=None, help="覆盖 AT1_PROVIDER")
     p_st.add_argument("--keep", action="store_true", help="保留临时工作目录")
     p_st.set_defaults(fn=cmd_selftest)
+
+    p_run = sub.add_parser("run", help="M4：跑一个 engagement（driver 主循环）")
+    p_run.add_argument("engagement", help="engagement 目录（三件套所在）")
+    p_run.add_argument("--budget", type=float, default=7200, help="总预算秒（默认 7200）")
+    p_run.add_argument("--rounds", type=int, default=6, help="最大轮次（默认 6）")
+    p_run.add_argument("--dry-run", action="store_true", help="渲染首轮 prompt 不 spawn")
+    p_run.add_argument("--stop-on-first-confirmed", action="store_true",
+                       help="字面终止A：confirmed 即停待人收割（默认走完 report 阶段）")
+    p_run.add_argument("--no-observer", action="store_true", help="关观察者（调试用）")
+    p_run.add_argument("--provider", default=None, help="覆盖 AT1_PROVIDER")
+    p_run.set_defaults(fn=cmd_run)
+
+    p_w = sub.add_parser("watch", help="M4：tail 事件流实时渲染")
+    p_w.add_argument("engagement", help="engagement 目录")
+    p_w.add_argument("--all", action="store_true", help="回放全量（默认只看新增）")
+    p_w.add_argument("--once", action="store_true", help="读完现有内容即退出（不跟随）")
+    p_w.set_defaults(fn=cmd_watch)
 
     args = ap.parse_args(argv)
     if getattr(args, "provider", None):

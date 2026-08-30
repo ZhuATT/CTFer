@@ -18,7 +18,7 @@ EVENT_TYPES = frozenset({
     "session_start", "session_end",
     "heartbeat",
     "fact_added", "immune_added",
-    "phase_enter",
+    "phase_enter", "phase_check",
     "claim_submitted", "claim_verdict",
     "gate_pass", "gate_fail",
     "stoploss_trigger",
@@ -26,6 +26,10 @@ EVENT_TYPES = frozenset({
     "finding_confirmed",
     "goal_eval_start", "goal_eval_end",
     "surface_parse_fail",
+    # M4 新增（driver）
+    "guard_violation",        # guard 实时检测命中（kind: scope/controller_zone/self_destruct）
+    "directive_injected",     # CONTROL directive 已注入下一轮 prompt
+    "observer_error",         # 观察者 LLM 故障（降级 uncertain，不阻塞收割）
 })
 
 # 脱敏键名匹配：cookie/token/secret/authorization/credential/password/api_key。

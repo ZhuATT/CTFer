@@ -175,5 +175,6 @@ def parse_immune_from_status(status_path: str) -> list[dict]:
             for m in _EP_RX.findall(s):
                 ep = m.rstrip("。，,；;)）").rstrip("/")
                 if ep and not any(i["endpoint"] == ep for i in out):
-                    out.append({"endpoint": ep, "status": s[:60], "since_round": 0})
+                    status = s.replace(m, "").strip("（）()-— \t")[:60]
+                    out.append({"endpoint": ep, "status": status, "since_round": 0})
     return out
