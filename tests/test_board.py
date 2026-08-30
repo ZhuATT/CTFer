@@ -109,6 +109,22 @@ def test_exploit_report_terminal(tmp_path):
     assert b.check_goal(str(root)) == "TERMINAL_C"
 
 
+def test_stage_round_fallback_unstuck():
+    """轮次兜底（P4.9 根因）：指纹/identity_model 没抽到时阶段不死锁。
+
+    实测场景：canary 三轮 32 端点 0 指纹 → recon 卡死，worker 永远拿侦察手册，
+    见不到 exploit 手册的 IDOR 清单（A4/P4.9 idor 缺口共同根因）。
+    """
+    b = Blackboard()
+    for i in range(32):
+        b.add_fact("endpoint", f"/api/x{i}")
+    assert b.check_goal() == "recon"                  # 第 1 轮末：无指纹不推
+    assert b.check_goal(round_no=2) == "identity"     # 第 2 轮起强制放行
+    # identity 卡死（worker 没写 identity_model FACT）→ 第 3 轮放行
+    assert b.check_goal(round_no=2) == "identity"
+    assert b.check_goal(round_no=3) == "exploit"
+
+
 # ── 会话守卫（P2.1 验收第 4 条） ──────────────────────────────────────────
 
 def test_verify_fact_credential_guard(tmp_path):

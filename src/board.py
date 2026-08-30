@@ -322,16 +322,26 @@ class Blackboard:
                 if f.get("assessment") in ("likely_false_positive", "duplicate")]
 
     # ── 阶段判定（count/exists/文件存在，无文本匹配） ──────────────────
-    def check_goal(self, engagement_root: Optional[str] = None) -> str:
+    def check_goal(self, engagement_root: Optional[str] = None,
+                   round_no: int = 0) -> str:
         stage = self.goal.get("stage", "recon")
         n_ep = sum(1 for f in self.facts.values() if f["kind"] == "endpoint")
         n_fp = sum(1 for f in self.facts.values() if f["kind"] == "fingerprint")
         has_idm = any(f["kind"] == "identity_model" for f in self.facts.values())
         v = self.verified
 
-        if stage == "recon" and n_ep >= self.config.get("endpoint_n", 15) and n_fp >= 1:
+        # recon 出口轮次兜底（P4.9 根因修复）：出口要求"端点≥N 且指纹≥1"，但指纹
+        # 抽取依赖 worker 输出形态（实测 canary 三轮 32 端点 0 指纹 → 卡死 recon，
+        # worker 永远拿侦察手册，见不到 exploit 手册的 IDOR 清单——A4/P4.9 两轮
+        # idor 缺口的共同根因）。侦察工作首轮即应完成，第 2 轮起强制放行。
+        if stage == "recon" and (
+                (n_ep >= self.config.get("endpoint_n", 15) and n_fp >= 1)
+                or round_no >= 2):
             self._advance("identity")
-        elif stage == "identity" and has_idm:
+        elif stage == "identity" and (has_idm or round_no >= 3):
+            # identity 同理兜底：worker 没写 identity_model FACT 时第 3 轮起放行
+            #（手册要求的三实验大概率已做过但没汇报；exploit 手册的 A/B 对调闭环
+            # 本身就覆盖身份实验语义）
             self._advance("exploit")
         elif stage == "exploit" and (
                 # A1: 从 findings 列表判（观察者驱动），verified 是过渡兼容的影子

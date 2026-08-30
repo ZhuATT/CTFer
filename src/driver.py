@@ -333,7 +333,7 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
             break
         if bb.confirmed_findings() and had_confirmed_at_round is None:
             had_confirmed_at_round = rnd
-        go = bb.check_goal(str(root))
+        go = bb.check_goal(str(root), round_no=rnd)
         ev.emit("phase_check", {"round": rnd, "stage": bb.goal.get("stage"),
                                 "goal": go}, round_=rnd)
         if go == "TERMINAL_C":
