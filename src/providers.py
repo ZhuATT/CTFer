@@ -51,12 +51,12 @@ _SOLVER_PRESETS = {
     },
     "glm": {
         "base_url": "https://open.bigmodel.cn/api/anthropic",
-        "model": "glm-5.3-flash",
+        "model": "glm-5.3",
         "small_fast_model": "glm-5.3-flash",
     },
     "glm-1m": {
         "base_url": "https://open.bigmodel.cn/api/anthropic",
-        "model": "glm-5.3-flash",
+        "model": "glm-5.3",
         "small_fast_model": "glm-5.3-flash",
         "auto_compact_window": "1000000",
         "api_timeout_ms": "3000000",
@@ -225,16 +225,16 @@ _VERIFIER_PRESETS = {
     # developer role 被拒——llm.py 只用 system/user 不受影响；key 放 .secrets.env 不入库）
     "xfyun": {"provider": "openai", "base_url": "https://maas-api.cn-huabei-1.xf-yun.com/v2",
               "model": "xopdeepseekv4pro"},
-    # 观察者：glm-5.3 全量直连 bigmodel（与 solver 同模型同 key，OpenAI 兼容端点）
-    "bigmodel-glm": {"provider": "openai", "base_url": "https://open.bigmodel.cn/api/paas/v4",
-                      "model": "glm-5.3"},
+    # 观察者：glm-5.3 全量经讯飞（同模型，走讯飞中转避免争 worker 的 bigmodel 并发额度）
+    "xfyun-glm": {"provider": "openai", "base_url": "https://maas-api.cn-huabei-1.xf-yun.com/v2",
+                   "model": "xopglm53"},
 }
 
 
 def build_verifier_config(solver: "SolverConfig") -> LLMConfig:
     """门2 verifier：默认与 solver 异构（solver=glm → verifier=DeepSeek 经讯飞 maas，设计§7）。"""
     apply_llm_profile()
-    family = "bigmodel-glm" if solver.provider.startswith("glm") else "glm"
+    family = "xfyun-glm" if solver.provider.startswith("glm") else "glm"
     preset = _VERIFIER_PRESETS.get(family, _VERIFIER_PRESETS["deepseek"])
     provider = (_env("LLM_PROVIDER") or preset["provider"]).lower()
     base = _env("LLM_BASE_URL") or preset["base_url"]
