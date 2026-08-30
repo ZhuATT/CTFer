@@ -276,7 +276,7 @@ def _terminate(bb, reason) -> bool
 | P4.8 watch | ✅ | `02f2460` |
 | **P4.9 canary 回归** | ✅ 接受 | **2/4 检出 + 0 误报 + 锚 3/3**（用户拍板：系统 PASS，覆盖待优化）。V3 authbypass + V4 sqli confirmed；V1/V2 idor worker 未测（模型行为，A4 遗留）。发现并修复 harvest 字节 offset 丢行 bug（`37053cb` 改 ID 去重）+ exploit 手册 idor 强化 |
 | P4.10 真实 engagement | ⏸ | 等用户提供目标三件套 |
-| P4.11 旧 verify 清理 | 🔄 | 条件满足（P4.9 接受），开始 |
+| P4.11 旧 verify 清理 | ✅ | `c6688f6`（verify.py 删、parse_llm_json 迁 json_utils.py、旧测试删） |
 
 **通道修复实录**（P4.9 前置，架构级）：
 
