@@ -45,6 +45,28 @@ def _find_ledger(workdir: Path, base: str) -> Path:
     return workdir / base
 
 
+def _harvest_findings(workdir: Path, bb, round_no: int) -> list[dict]:
+    """收割 FINDINGS 全部候选文件，按 ID 去重（不用字节 offset）。
+
+    offset 方案在 worker 重写文件/换 .jsonl 变体时会丢行（P4.9 实测 F-004 丢失）。
+    ID 去重对文件重写和名字变体都鲁棒：每轮全量解析，跳过已处理 ID。
+    """
+    seen = set(bb._offsets.get("findings_ids", []))
+    new: list[dict] = []
+    for name in ("FINDINGS", "FINDINGS.jsonl", "FINDINGS.txt"):
+        p = workdir / name
+        if not p.is_file():
+            continue
+        for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            f = _parse_finding(line)
+            if f and f.get("id") not in seen:
+                seen.add(f["id"])
+                f["round"] = f.get("round", round_no)
+                new.append(f)
+    bb._offsets["findings_ids"] = sorted(seen)
+    return new
+
+
 def _parse_finding(line: str) -> dict | None:
     line = line.strip().lstrip("﻿").strip()
     if not line:
@@ -238,17 +260,14 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
         sl.record_round(facts_delta=facts_delta,
                         session_ok=(res.stop_reason != "error"))
 
-        # ── 收割 FINDINGS/FACTS ──
-        fpath = _find_ledger(workdir, "FINDINGS")
-        lines, off = harvest.diff_new_lines(str(fpath), bb._offsets.get("findings", 0))
-        bb._offsets["findings"] = off
+        # ── 收割 FINDINGS（ID 去重，鲁棒于文件重写/变体）/ FACTS（字节 offset）──
+        new_findings = _harvest_findings(workdir, bb, rnd)
         facts_lines, foff = harvest.diff_new_lines(
             str(_find_ledger(workdir, "FACTS")), bb._offsets.get("facts", 0))
         bb._offsets["facts"] = foff
         if facts_lines:
             bb.ingest_facts(facts_lines, round_=rnd)
 
-        new_findings = [f for f in (_parse_finding(l) for l in lines) if f]
         verdicts: list[dict] = []
         if new_findings and observer_on:
             evidence_texts = {}

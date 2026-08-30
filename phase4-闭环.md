@@ -259,4 +259,30 @@ def _terminate(bb, reason) -> bool
 
 ---
 
-*变更记录：v1 draft（2026-08-30），等待用户对 D1-D5 拍板后定稿施工。*
+## 5. 施工进度（2026-08-30）
+
+| 卡 | 状态 | 说明 |
+|---|---|---|
+| P4.0a commit 基线 | ✅ | `ca9ca03`（观察者通道 xfyun-glm + worker glm-5.3 升级） |
+| P4.0b thinking 短路 | ✅ | `519b1cb`（I/O 分级，真实洪水回放 98% 短路） |
+| P4.0c 绝对不报表硬拒 | ✅ | `c7478be`（noreport.py 五类确定性硬拒 + 第零步强化） |
+| P4.1 scaffolding | ✅ | `84a170c`（CLAUDE.md 落位吃 CLI 自动加载） |
+| P4.2 guard | ✅ | `b23333e`（scope/控制器区/自毁） |
+| P4.3 stoploss | ✅ | `49c76d7` |
+| P4.4 transcript 锚定 | ✅ | `7eead3d` + `d3b43fd`（白话相对路径锚定修复） |
+| P4.5 driver | ✅ | `02f2460`（含 run/watch 子命令） |
+| P4.6 写回 | ✅ | `af6e1ba` |
+| P4.7 手册定稿 | ✅ | `4f60ff5`（待用户过目） |
+| P4.8 watch | ✅ | `02f2460` |
+| **P4.9 canary 回归** | 🔄 | 运行中（`f2e7331` 修复 worker 通道 + `e1272e7` 观察者 fallback + `.secrets.env` 切 bigmodel glm-5.3） |
+| P4.10 真实 engagement | ⏸ | 等目标 |
+| P4.11 旧 verify 清理 | ⏸ | 等 canary PASS |
+
+**通道修复实录**（P4.9 前置，架构级）：
+1. `~/.claude/settings.json` env 块优先于进程 env 劫持注入的 ANTHROPIC_BASE_URL → worker 打错通道 → **CLAUDE_CONFIG_DIR 隔离**（`f2e7331`）
+2. xfyun `xopglm53` 模型已死（502/400）→ 观察者主通道切 bigmodel `/paas/v4` glm-5.3（`.secrets.env`）
+3. verifier fast_model 默认成 preset 模型污染 fallback → 留空（`e1272e7`）
+
+---
+
+*变更记录：v1 draft（2026-08-30）→ D1-D5 拍板 → M4 施工进行中。*

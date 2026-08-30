@@ -210,3 +210,28 @@ def test_dry_run_renders_prompt(tmp_path):
     txt = p.read_text(encoding="utf-8")
     assert "【序言】" in txt and "【阶段手册】" in txt
     assert "任务简报" in txt and "example.com" in txt
+
+
+def test_harvest_findings_id_dedup_across_rewrites_and_variants(tmp_path):
+    """ID 去重：worker 中途重写文件、换 .jsonl 变体，都不丢发现（P4.9 F-004 教训）。"""
+    from src import board as board_mod
+    wd = tmp_path / ".auto"
+    wd.mkdir()
+    bb = board_mod.Blackboard()
+    # round 1：worker 写 FINDINGS（无扩展名）
+    (wd / "FINDINGS").write_text(
+        '{"id":"F-001","endpoint":"/a","evidence":"e1.md","summary":"x","round":1}\n', encoding="utf-8")
+    r1 = driver_mod._harvest_findings(wd, bb, 1)
+    assert [f["id"] for f in r1] == ["F-001"]
+    # round 2：worker 重写整个文件（含 F-001 旧行）+ 新增 F-002，且改用 FINDINGS.jsonl
+    (wd / "FINDINGS").write_text(
+        '{"id":"F-001","endpoint":"/a","evidence":"e1.md","summary":"x","round":1}\n'
+        '{"id":"F-002","endpoint":"/b","evidence":"e2.md","summary":"y","round":2}\n',
+        encoding="utf-8")
+    (wd / "FINDINGS.jsonl").write_text(
+        '{"id":"F-003","endpoint":"/c","evidence":"e3.md","summary":"z","round":2}\n',
+        encoding="utf-8")
+    r2 = driver_mod._harvest_findings(wd, bb, 2)
+    assert sorted(f["id"] for f in r2) == ["F-002", "F-003"]     # F-001 已 seen，不重复
+    r3 = driver_mod._harvest_findings(wd, bb, 3)                 # 无新内容
+    assert r3 == []
