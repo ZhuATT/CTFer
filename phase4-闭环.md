@@ -279,12 +279,112 @@ def _terminate(bb, reason) -> bool
 | P4.11 旧 verify 清理 | ✅ | `c6688f6`（verify.py 删、parse_llm_json 迁 json_utils.py、旧测试删） |
 
 **通道修复实录**（P4.9 前置，架构级）：
-
-**通道修复实录**（P4.9 前置，架构级）：
 1. `~/.claude/settings.json` env 块优先于进程 env 劫持注入的 ANTHROPIC_BASE_URL → worker 打错通道 → **CLAUDE_CONFIG_DIR 隔离**（`f2e7331`）
 2. xfyun `xopglm53` 模型已死（502/400）→ 观察者主通道切 bigmodel `/paas/v4` glm-5.3（`.secrets.env`）
 3. verifier fast_model 默认成 preset 模型污染 fallback → 留空（`e1272e7`）
 
 ---
 
-*变更记录：v1 draft（2026-08-30）→ D1-D5 拍板 → M4 施工进行中。*
+## 6. M4 全周期问题台账（上线前自检定稿，2026-08-31）
+
+> 施工/回归/自检三轮里发现的全部问题。每条：**现象 → 根因 → 修复方案 → 状态**。
+> 已修的附 commit；未修的给建议，等你拍板。
+
+### 6.1 已修复（有测试覆盖，144 passed）
+
+#### #1 阶段状态机卡死 recon —— idor 缺口的共同根因 🔴
+
+- **现象**：A4 与 P4.9 两轮 canary，V1/V2（idor 读/写）三轮都没被测。worker 在思考里明确列出过 `/api/order/detail?id= (IDOR candidate)`，看得到但不去打。
+- **根因**：check_goal 的 recon 出口要求「端点≥15 **且** 指纹≥1」。指纹抽取依赖 worker 输出形态（正则要 `Server: xxx` 头行原文），canary 上 worker 用 PowerShell 的输出形态始终没匹配上——实测黑板 32 个端点、0 个指纹 → 阶段三轮都卡在 recon。**worker 三轮拿的都是侦察手册，从未见过 exploit 手册里的 IDOR 必做清单**。
+- **修复方案**（`71d3b91`）：check_goal 加 round_no 参数，轮次兜底——recon 第 2 轮起强制放行（侦察工作首轮就该做完，阶段推进不该被单一事实类型卡死）；identity 第 3 轮兜底（worker 没写 identity_model FACT 时不再死锁）。
+- **状态**：✅ 已修+单测，**效果未验证**（没重跑 canary；真目标首跑即验证）。
+
+#### #2 TERMINAL_C 的 evidence 路径错位 🔴
+
+- **现象**：上线前自检（2026-08-31）发现。goal 链的终止判据查 `engagement/evidence/`，但 worker 契约（CLAUDE.md「evidence/ 目录下」相对 workdir）实际写 `.auto/evidence/`——两处永远对不上。
+- **根因**：设计文档 §7 写「evidence 直写 engagement 的 evidence/」，实现走了 workdir 路线，check_goal 没跟着改。
+- **后果**：**goal 链永远走不到 TERMINAL_C**——engagement 只能靠 stoploss/预算草草收尾，report 阶段（写报告→自然收工）形同虚设。canary 上没暴露是因为 stoploss 先触发了。
+- **修复方案**（`59e58ac`）：check_goal 改查 `.auto/evidence`（跟 worker 契约对齐），加防回退测试（engagement 根的 evidence/ 不满足 C）。
+- **状态**：✅ 已修+单测。**report 阶段全程仍未被真实验证过**——P4.10 首次走到 report 轮。
+
+#### #3 FINDINGS 收割丢行（字节 offset 失效）🟡
+
+- **现象**：P4.9 回归 round 2 的 F-004（XSS 链式发现）写进了 FINDINGS 文件，但黑板里没有它，日志也没有「观察者 r2」行——整条发现消失。
+- **根因**：收割用字节 offset 增量读。worker 在轮内会**重写整个 FINDINGS 文件**（或换 `FINDINGS.jsonl` 变体名）——文件变短再变长时，旧 offset 之后的内容被跳过或半行截断。
+- **修复方案**（`37053cb`）：弃 offset，改 **ID 去重全量收割**——每轮全量解析三个候选文件名，按 ID 跳过已收割的。对重写和改名都鲁棒。
+- **状态**：✅ 已修+单测。
+
+#### #4 FINDINGS ID 冲突吞发现 🟡
+
+- **现象**：自检推演发现（未实际发生）。ID 去重的弱点：新一轮 worker 如果不读旧文件、从头编 `F-001`，新发现会被去重逻辑吞掉；即使收进来，`add_finding` 的同 ID 覆盖逻辑还会把 round 1 的真发现顶掉。
+- **根因**：ID 是 worker 自编的，跨会话唯一性没有保证。
+- **修复方案**（`59e58ac`）：去重键改 **ID→endpoint 映射**——同 ID 同端点=旧发现跳过；同 ID 不同端点=新发现，重编号 `F-R{round}-{orig}` 收进来。
+- **状态**：✅ 已修+单测。
+
+#### #5 guard 漏 PowerShell 🟡
+
+- **现象**：P4.9 事件流里 worker 的工具调用全是 `PowerShell`（Windows 上 Claude Code 的命令工具），不是 `Bash`。
+- **根因**：guard 的命令类检查（自毁特征/禁区路径/命令内 URL scope）只挂在 `Bash`/`Execute` 工具名下——**Windows 上整套命令层检测形同虚设**。canary 无风险（本地靶）没暴露。
+- **修复方案**（`59e58ac`）：工具名白名单加 `PowerShell`/`Shell`；写提示正则补 PS 写 cmdlet（Add-Content/Set-Content/Out-File/Copy-Item/Move-Item/Remove-Item）。
+- **状态**：✅ 已修+单测。
+
+#### #6 worker 通道被本机 settings 劫持 🔴
+
+- **现象**：冒烟首轮 worker 全部会话秒败（400: supported model names are deepseek-v4...），卡在 resume 循环烧 token。
+- **根因**：本机 `~/.claude/settings.json` 的 env 块（用户 /model 切换时写入）**优先于进程注入的 ANTHROPIC_BASE_URL**——runner 消毒并注入的 bigmodel 配置被拉回本机 DeepSeek 配置。A4 当时能跑纯属 settings 恰好指向 bigmodel。
+- **修复方案**（`f2e7331`）：`CLAUDE_CONFIG_DIR` 隔离——driver 指定控制器区空目录作 worker 的配置目录，worker 只吃注入的 ANTHROPIC_*，本机 settings 完全不可见。这是架构级修复（worker 配置独立性不再依赖宿主机状态）。
+- **状态**：✅ 已修+单测+冒烟实测（修复后 44 facts / 16 工具调用 / 0 API 错）。
+
+#### #7 观察者通道两级故障 🔴
+
+- **现象**：xfyun `xopglm53` 持续 502；切 fallback DeepSeek 后又 400（DeepSeek 收到了 xopglm53 模型名）。
+- **根因**：① xfyun 该模型服务端死了；② `build_verifier_config` 把 `fast_model` 默认成 preset 模型（xopglm53），观察者 thinking=False 时走 fast_model 分支，**fallback 后端继承了主通道的模型名**。
+- **修复方案**（`e1272e7` + `.secrets.env`）：fast_model 刻意留空（verifier 本身就是快路径）；主通道切 bigmodel `/paas/v4` glm-5.3（恢复 phase3.5 设计目标：观察者=glm-5.3 全量同 worker 同 key），fallback 留 DeepSeek。
+- **状态**：✅ 已修+实测（bigmodel 观察者判定正常，~80s/条）。
+
+#### #8 thinking 洪水 🟡（phase3.5 遗留 #1）
+
+- **现象**：transcript 98.8% 是 `system/thinking_tokens` 进度事件（14,653/14,834 行），每条 JSON 解析+flush。
+- **根因**：flash 模型 thinking 流式进度事件没有被 runner 短路。
+- **修复方案**（`519b1cb`）：正则预检短路（转义安全——JSON 字符串内引号必被转义，标记只出现在结构层）只计数，1/100 采样写盘；I/O 分级（遥测行不写/关键事件逐条 flush）。
+- **状态**：✅ 已修+真实洪水回放验证（98% 短路，工具事件全收，transcript 体积降 98%）。
+
+#### #9 杂项 🟢
+
+- events 脱敏 `token` 正则误伤 `tokens` 用量字段 → watch 输出 `***`；改 `token(?!s)`（`59e58ac`）。
+- driver session_end 的 thinking_events 硬编码 0 → AgentResult 加字段接真实值（`59e58ac`）。
+- transcript 锚定只认完整 URL，白话证据写相对路径 `GET /search?q=` → 全部锚 False；扩为 URL+method路径+引号路径三类锚（`d3b43fd`，真实工件回放 3/3 命中）。
+- 计划文档重复行清理。
+
+### 6.2 未修/观察项（等你拍板或 P4.10 首跑观察）
+
+#### #10 观察者在真实业务上的误报率未知 ⚠ 核心观察项
+
+- **问题**：canary 全合成数据。四步框架 + 第零步硬否决在真实业务上下文（电商/社交/SaaS/内部系统）下的误报/漏报率没有数据。
+- **计划**：P4.10 首跑逐条人工核对观察者判定（尤其 tentative 和 confirmed 的 reason 是否靠谱）；误判案例收集进 phase3.5 遗留 #5「反馈学习回路」的原料。
+- **这是 P4.10 的第一观察目的，不是先修项。**
+
+#### #11 noreport 硬拒的误杀风险（设计边界）🟡
+
+- **问题**：硬拒是代码终裁，观察者无法翻案。真实目标上若出现「CORS 只是载体、实际影响是数据窃取」的链式发现，而 summary 恰好没有影响词、证据里恰好没有 PII/凭证形状——会被错杀。
+- **现有缓解**：实害豁免先行（summary 影响词/证据凭证形状/手机号 PII 任一命中即放行）+ 收尾 draft 的「硬拒清单」段人工抽查（`59e58ac`）。
+- **判断**：链式攻击的 writeup 几乎必含「窃取/steal/dump」类词，实际风险低。v1 保持现状；P4.10 若真出现误杀案例再升级（如硬拒降级为 parked 状态）。
+
+#### #12 首轮时间盒 600s 对全量模型偏紧 🟢
+
+- **现象**：P4.9 r1 被 600s 杀时还在正常干活（37 facts, 0 FINDINGS——发现都写在被杀前一刻）。
+- **建议**：真目标首跑 `--budget` 给足（≥7200），时间盒阶梯 600→1200→1800 自动走；若首轮仍常被杀，把 TIMEBOX_LADDER 首档提到 1200（一行常量）。
+- **不阻塞上线。**
+
+#### #13 阶段修复效果未验证 🟡
+
+- 问题 #1（阶段卡死）的修复只有单测，没有端到端验证——round 2 起 worker 拿到 exploit 手册后**是否真的去做 A/B 对调**，是模型行为，不保证。
+- **两个选择**：(a) 先重跑 canary 一次（~40min，看 V1/V2 检出+goal 链走 C）；(b) 直接上真目标（P4.10 首跑同时验证）。已向你提供两案，待拍板。
+
+#### #14 worker+观察者共用 bigmodel key 🟢（用户已确认无影响）
+
+- P4.9 一轮同时打未撞额度；用户确认不处理。留档备忘。
+
+---
+
+*变更记录：v1 draft（2026-08-30）→ D1-D5 拍板 → M4 施工进行中 → 2026-08-31 上线前自检定稿（问题台账 §6）。*
