@@ -32,6 +32,12 @@ JUDGE_PROMPT = """请判断以下渗透测试发现是否为真实漏洞。
 - 裸 instance-id / 内网 IP / 元数据端点（无 IAM·RAM·AK/SK 凭证跟随）
 但书：该现象只是载体，实际影响是凭证泄露/越权/注入/RCE → 判 true 并在 reason 说明链路。
 
+【系统预检——检察官公诉，你是法官】
+以下是对本条的代码预检意见（正则形状匹配，不懂语义）。它与第零步同源：
+除非证据显示实际影响（凭证/数据窃取/越权/注入/RCE/链式利用），否则应判 false；
+证据充分时按证据判，不受公诉意见约束。
+{precheck}
+
 【四步影响框架】
 第一步：影响是什么？
   攻击者能做什么本来不该做的事？
@@ -126,13 +132,15 @@ class Observer:
         self.chat = chat_fn
         self.business_context = business_context or "（未提供——判断设计内行为时请保守，不确定标 uncertain）"
 
-    def judge_finding(self, finding: dict, evidence_text: str) -> dict:
-        """发现级评判：小输入快判。返回 {is_vulnerability, severity, reason}。"""
+    def judge_finding(self, finding: dict, evidence_text: str,
+                      precheck: str = "") -> dict:
+        """发现级评判：小输入快判。precheck = noreport 预检公诉意见（方案 A）。"""
         prompt = JUDGE_PROMPT.format(
             business_context=self.business_context,
             endpoint=finding.get("endpoint", ""),
             summary=finding.get("summary", ""),
-            evidence=evidence_text[:2000])
+            evidence=evidence_text[:2000],
+            precheck=precheck or "（无公诉——本条无预检信号）")
         msgs = [{"role": "system", "content": JUDGE_SYSTEM},
                 {"role": "user", "content": prompt}]
         result = parse_llm_json(self.chat(msgs))
@@ -172,21 +180,25 @@ class Observer:
     def run(self, findings: list[dict], evidence_texts: dict[str, str],
             previous_confirmed: list[dict], board_summary: str,
             handoff: str) -> dict:
-        """完整流程：noreport 硬拒 → 逐条 judge → 一次 observe → 合并可直入黑板。"""
-        # 0. 代码硬拒（P4.0c）：确定性现象类直接标 likely_false_positive，
-        #    不进 judge LLM；会话级也不得翻案
+        """完整流程：noreport 预检（reject 终审 / suspect 公诉）→ 逐条 judge →
+        一次 observe → 合并可直入黑板。方案 A：代码是检察官，观察者是法官。"""
+        # 0. 代码预检（方案 A，2026-08-31）：
+        #    reject（形状即现象）→ 终审 likely_false_positive，不进 LLM，不可翻案
+        #    suspect（定性类）→ 公诉意见注入 judge prompt，观察者按证据裁决
         judged = []
         hard_rejected: set[str] = set()
         for f in findings:
             fid = f.get("id", "")
             ev = evidence_texts.get(fid, "")
             nr = noreport.check(f, ev)
-            if nr["match"]:
+            if nr["verdict"] == "reject":
                 hard_rejected.add(fid)
                 judged.append({**f, "is_vulnerability": False, "severity": None,
                                "reason": f"硬拒·{nr['category']}：{nr['reason']}"})
                 continue
-            r = self.judge_finding(f, ev)
+            pre = (f"疑似 {nr['category']}：{nr['reason']}" if nr["verdict"] == "suspect"
+                   else "")
+            r = self.judge_finding(f, ev, precheck=pre)
             judged.append({**f, **r})
         # 1. 会话级：全局观察（含判重）
         session = self.observe_session(judged, previous_confirmed,
