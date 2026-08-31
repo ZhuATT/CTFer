@@ -18,7 +18,8 @@
 
 | # | 事项 | 状态 | 等谁 |
 |---|---|---|---|
-| T1 | §3 对标借鉴 8 项（DEC-1..8）拍板后落地（~1h） | 🔄 待拍板 | 用户 |
+| T1a | **DEC-9 STATE.md 投影落地**（✅ 已拍板 D10，~1h） | 🔄 可施工 | — |
+| T1b | §3 对标借鉴 DEC-1..8 拍板后落地（~1h） | 🔄 待拍板 | 用户 |
 | T2 | recon 手册过目定稿（`src/prompt.py` MANUALS["recon"]） | 🔄 待过目 | 用户 |
 | T3 | 阶段修复效果验证：canary 复验（~40min）vs 直接真目标首跑同验 | ⚖ 待拍板 | 用户 |
 | T4 | **P4.10 真实 engagement 全项验收**（唯一大 blocker） | ⏸ 等三件套 | 用户提供 target/scope/凭证 |
@@ -147,16 +148,17 @@ source .secrets.env && python -c "..."                 # 通道见 §1.2
 
 ### 3.0 总表（索引）
 
-| DEC | 一句话 | 级 | 涉及文件 |
-|---|---|---|---|
-| 1 | 观察者判官 prompt 加防注入指令 | 🟢 | observer.py |
-| 2 | 未测面数字写进指令行（量化验收） | 🟢 | prompt.py |
-| 3 | 否定结论分 observed/inferred | 🟢 | CLAUDE.md 模板 + board.py |
-| 4 | 上报硬纪律：真实触发过才报 | 🟢 | CLAUDE.md 模板 |
-| 5 | 封锁重开标准：材料性新机理 | 🟢 | CLAUDE.md 模板 |
-| 6 | 中间产物不写 /tmp | 🟢 | CLAUDE.md 模板 |
-| 7 | 时间盒首档 600→1200 | 🟡 | driver.py |
-| 8 | FACTS 即时写别攒 | 🟡 | 手册 + CLAUDE.md 模板 |
+| DEC | 一句话 | 级 | 涉及文件 | 状态 |
+|---|---|---|---|---|
+| 1 | 观察者判官 prompt 加防注入指令 | 🟢 | observer.py | 待拍板 |
+| 2 | 未测面数字写进指令行（量化验收） | 🟢 | prompt.py | 待拍板 |
+| 3 | 否定结论分 observed/inferred | 🟢 | CLAUDE.md 模板 + board.py | 待拍板 |
+| 4 | 上报硬纪律：真实触发过才报 | 🟢 | CLAUDE.md 模板 | 待拍板 |
+| 5 | 封锁重开标准：材料性新机理 | 🟢 | CLAUDE.md 模板 | 待拍板 |
+| 6 | 中间产物不写 /tmp | 🟢 | CLAUDE.md 模板 | 待拍板 |
+| 7 | 时间盒首档 600→1200 | 🟡 | driver.py | 待拍板 |
+| 8 | FACTS 即时写别攒 | 🟡 | 手册 + CLAUDE.md 模板 | 待拍板 |
+| **9** | **STATE.md 状态投影：prompt 摘要化 + 细节按需 Read** | 🟢 | prompt.py + driver.py + CLAUDE.md | **✅ 已拍板（2026-08-31，D10）** |
 
 ---
 
@@ -301,6 +303,29 @@ source .secrets.env && python -c "..."                 # 通道见 §1.2
 
 ---
 
+### DEC-9 STATE.md 状态投影：prompt 摘要化 + 细节按需 Read ✅ 已拍板（2026-08-31，D10）
+
+> 本项源于用户对"状态怎么进 worker"的追问（"为什么不让 worker 自己读黑板"），讨论后用户拍板采用投影文件方案。是 ARTEX「graph_overview 摘要 + list_facts 按需查询」的 AT1 等价落地（用文件代替查询工具）。
+
+**我们的问题**：现在每轮 prompt 把黑板全量渲染塞进状态区（④段），三个代价：
+1. **重要信号被埋**——状态越多，欠账/阴性/标注这些关键信息越沉底（DEC-2 的"未测面被埋"就是实例）；
+2. **上下文随轮次膨胀**——现有 cap（每类 12 条 + 总 4000 字）硬裁，裁掉的信息 worker 永远看不到；
+3. **派生视图只活在 prompt 里**——未测面/阴性记录/观察者标注/Handoff 全文只在轮初喂一次，worker 轮内想回看"刚才状态区说了什么"没有途径（prompt 是 stdin 一次喂入，会话中不可翻）。
+
+**为什么不是"让 worker 直接读黑板"**（讨论结论）：技术上可行但有三个坑——①"读状态"变成 best-effort 的自律行为，失忆 worker 读失败时会编造状态而不是承认（prompt 是唯一 guaranteed 到达的通道）；②原始黑板是控制器区（guard 禁写禁读，单向阀），且内容 nonce 未包裹，直接读破坏注入防线；③ raw facts 可能巨大，直接读爆上下文，还得做分页。**投影文件方案同时解决这三个**：文件是渲染产物（过了 nonce 包裹，可放 workdir）、每轮 spawn 前由 driver 写（guaranteed 新鲜）、prompt 摘要保底到达率。
+
+**适配方案**（施工 ~1h）：
+1. `src/prompt.py` 拆分：`render_state_projection(board, tested)` 返回完整状态文本（即现在状态区的全部内容——事实/未测面/阴性/已确认/已否决/观察者建议，带 untrusted nonce 包裹）；`render_round_prompt` 的状态段改为**紧凑摘要**（各段计数 + DEC-2 的未测面数字）+ 一行指引：「完整状态见 STATE.md（未测面清单/阴性记录/已确认发现/观察者建议全文），需要细节时 Read 它」。
+2. `src/driver.py`：每轮 spawn 前把投影写入 `workdir/STATE.md`（**覆盖写**——投影是本轮快照不是账本；轮内不变，与 prompt 同源）。
+3. CLAUDE.md 加一条：「STATE.md 是系统给你的状态投影（由黑板渲染，每轮更新）。开工先读它获取全貌；它与 prompt 摘要同源，冲突以 prompt 为准。只读——不要编辑它」。
+4. guard：STATE.md 在 workdir（worker 可读），v1 靠 CLAUDE.md 标注只读不做硬拦（driver 每轮覆盖写，worker 改了也会被下轮覆盖，自误范围有限）。
+
+**与 DEC-2 配套**：DEC-2 把欠账**数字**放进指令行（guaranteed 到达，制造压力）；DEC-9 把**全文清单**放进 STATE.md（按需查阅，prompt 不再膨胀）。两者一起落地。
+
+**成本与边界**：render 拆分 + driver 写盘 + 模板一行 + 测试，~1h。边界：worker 可能不主动读 STATE.md——prompt 摘要保底（关键数字都在指令行）；投影文件与 prompt 同轮同源，无 stale 问题。
+
+---
+
 ### 3.9 看了但不抄的（及理由）
 
 | 他们有 | 不抄理由 |
@@ -374,6 +399,7 @@ RLAgent 两个可抄细节（暂存备用）：评分 rubric 区间化（"X 情�
 | D7 | noreport：方案 A 检察官/法官 | 08-31 |
 | D8 | P4.9 接受 2/4+0 误报，覆盖缺口留 P4.10 | 08-30 |
 | D9 | DEC-1..8 对标借鉴：**待拍板** | — |
+| D10 | **DEC-9 STATE.md 状态投影：prompt 摘要化 + 细节按需 Read**（§3 DEC-9） | 08-31 |
 
 ### 5.4 run_chain → driver 复用映射（迁移依据存档）
 
