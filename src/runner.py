@@ -97,6 +97,7 @@ class AgentResult:
     is_error: bool = False
     error: str = ""
     resumes: int = 0
+    thinking_events: int = 0     # thinking 进度事件计数（短路不写盘，遥测用）
 
 
 def _tool_result_text(content) -> str:
@@ -284,6 +285,7 @@ class StreamParser:
             final_answer=extract_final_answer(self.final_text),
             is_error=self.is_error,
             resumes=resumes,
+            thinking_events=self.thinking_events,
         )
         return res
 

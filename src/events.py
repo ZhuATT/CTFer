@@ -34,8 +34,10 @@ EVENT_TYPES = frozenset({
 
 # 脱敏键名匹配：cookie/token/secret/authorization/credential/password/api_key。
 # 刻意不含裸 "session"——session_id 是本地会话标识不是凭据，DoD 要求它可见。
+# "token" 用负向前瞻排除 tokens/thinking_tokens_est——用量字段不是凭据
+# （实测：session_end 的 tokens 被打成 ***，watch 输出失去用量可观测性）。
 _REDACT_KEY_RX = re.compile(
-    r"cookie|token|secret|authorization|credential|password|api[_-]?key",
+    r"cookie|token(?!s)|secret|authorization|credential|password|api[_-]?key",
     re.IGNORECASE,
 )
 _REDACTED = "***"

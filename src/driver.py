@@ -50,8 +50,12 @@ def _harvest_findings(workdir: Path, bb, round_no: int) -> list[dict]:
 
     offset 方案在 worker 重写文件/换 .jsonl 变体时会丢行（P4.9 实测 F-004 丢失）。
     ID 去重对文件重写和名字变体都鲁棒：每轮全量解析，跳过已处理 ID。
+
+    ID 冲突重编号（上线前自检）：新会话 worker 可能不读旧文件从头编 F-001——
+    同 ID 不同端点 = 新发现，重编号 F-R{round}-{orig} 收进来（不重编会被
+    add_finding 的同 id 覆盖逻辑吃掉 r1 的真发现）。
     """
-    seen = set(bb._offsets.get("findings_ids", []))
+    seen: dict[str, str] = dict(bb._offsets.get("findings_ids_map", {}))
     new: list[dict] = []
     for name in ("FINDINGS", "FINDINGS.jsonl", "FINDINGS.txt"):
         p = workdir / name
@@ -59,11 +63,21 @@ def _harvest_findings(workdir: Path, bb, round_no: int) -> list[dict]:
             continue
         for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
             f = _parse_finding(line)
-            if f and f.get("id") not in seen:
-                seen.add(f["id"])
-                f["round"] = f.get("round", round_no)
-                new.append(f)
-    bb._offsets["findings_ids"] = sorted(seen)
+            if not f:
+                continue
+            fid = f.get("id", "")
+            ep = str(f.get("endpoint", "")).split("?")[0]
+            prev_ep = seen.get(fid)
+            if prev_ep == ep:
+                continue                        # 同 ID 同端点：已收割过
+            if prev_ep is not None:
+                f["id"] = f"F-R{round_no}-{fid}"        # 同 ID 不同端点：重编号
+                if f["id"] in seen:
+                    continue
+            seen[f["id"]] = ep
+            f["round"] = f.get("round", round_no)
+            new.append(f)
+    bb._offsets["findings_ids_map"] = seen
     return new
 
 
@@ -253,7 +267,8 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
                          time_box_s=min(box, budget_left), max_turns=MAX_TURNS)
         ev.emit("session_end", {"round": rnd, "stop_reason": res.stop_reason,
                                 "turns": res.turns, "tokens": res.tokens,
-                                "resumes": res.resumes, "thinking_events": 0}, round_=rnd)
+                                "resumes": res.resumes,
+                                "thinking_events": res.thinking_events}, round_=rnd)
         print(f"[worker r{rnd}] stop={res.stop_reason} turns={res.turns} "
               f"tokens={res.tokens} facts={len(bb.facts)}")
         facts_delta = len(bb.facts) - facts_before

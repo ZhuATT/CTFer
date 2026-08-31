@@ -36,7 +36,9 @@ _SELF_DESTRUCT_RX = re.compile(
 
 _WRITE_TOOL_HINT_RX = re.compile(r">>|>\s*\S|\btouch\b|\btee\b|\bmv\b|\bcp\b|"
                                  r"\brm\b|\bdel\b|\bwrite|\bsave|\bcreate\b|"
-                                 r"\bnew-file\b|\bedit\b|>>?", re.IGNORECASE)
+                                 r"\bnew-file\b|\bedit\b|"
+                                 r"add-content|set-content|out-file|"
+                                 r"copy-item|move-item|remove-item", re.IGNORECASE)
 
 
 @dataclass
@@ -86,10 +88,14 @@ class Guard:
     # ── 工具调用综合判定（on_fact 挂点） ─────────────────────────────────
 
     def check_tool(self, tool: str, args: dict) -> GuardVerdict:
-        """URL 类参数走 scope；Bash 命令查自毁 + 控制器区写；写类工具查路径。"""
+        """URL 类参数走 scope；Bash/PowerShell 命令查自毁 + 控制器区写；写类工具查路径。
+
+        Windows worker 实测用 PowerShell 工具（P4.9 事件流 tool:PowerShell）——
+        命令类检查必须覆盖，否则自毁/禁区检测在 Windows 上形同虚设。
+        """
         # ① 自毁（最高优先级，critical）
-        if tool in ("Bash", "Execute"):
-            cmd = str((args or {}).get("command", ""))
+        if tool in ("Bash", "Execute", "PowerShell", "Shell"):
+            cmd = str((args or {}).get("command", "") or (args or {}).get("script", ""))
             if _SELF_DESTRUCT_RX.search(cmd):
                 return GuardVerdict(False, "self_destruct", f"高危命令特征：{cmd[:120]}")
             # 禁区查命令文本（URL 剥掉——url 路径段 /state/ 不是禁区）
@@ -97,7 +103,7 @@ class Guard:
             if _ZONE_PATH_RX.search(cmd_sanitized) and _WRITE_TOOL_HINT_RX.search(cmd_sanitized):
                 return GuardVerdict(False, "controller_zone",
                                     f"疑似写控制器区/协议文件：{cmd[:120]}")
-            # Bash 里的 curl/wget URL 走 scope
+            # 命令里的 curl/wget URL 走 scope
             for m in _URL_STRIP_RX.finditer(cmd):
                 v = self.check_url(m.group(0))
                 if not v.ok:

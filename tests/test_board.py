@@ -99,14 +99,25 @@ def test_dedup_and_stage_transition(tmp_path):
 
 def test_exploit_report_terminal(tmp_path):
     root = tmp_path / "eng"
-    (root / "evidence").mkdir(parents=True)
-    (root / "evidence" / "idor-1.md").write_text("x", encoding="utf-8")
+    # evidence 在 workdir（.auto/evidence）——worker 契约位置（上线前自检修复）
+    (root / ".auto" / "evidence").mkdir(parents=True)
+    (root / ".auto" / "evidence" / "idor-1.md").write_text("x", encoding="utf-8")
     (root / "report.md").write_text("# draft", encoding="utf-8")
     b = Blackboard()
     b.goal["stage"] = "exploit"
     b.verified["confirmed"] = 1
     assert b.check_goal(str(root)) == "report"
     assert b.check_goal(str(root)) == "TERMINAL_C"
+
+
+def test_terminal_c_not_fooled_by_engagement_root_evidence(tmp_path):
+    """engagement 根的 evidence/（不是 workdir 的）不满足 TERMINAL_C——防路径回退。"""
+    root = tmp_path / "eng"
+    (root / "evidence").mkdir(parents=True)          # 错位置
+    (root / "report.md").write_text("# draft", encoding="utf-8")
+    b = Blackboard()
+    b.goal["stage"] = "report"
+    assert b.check_goal(str(root)) == "report"       # 不触发 C
 
 
 def test_stage_round_fallback_unstuck():

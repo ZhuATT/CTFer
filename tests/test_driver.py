@@ -235,3 +235,20 @@ def test_harvest_findings_id_dedup_across_rewrites_and_variants(tmp_path):
     assert sorted(f["id"] for f in r2) == ["F-002", "F-003"]     # F-001 已 seen，不重复
     r3 = driver_mod._harvest_findings(wd, bb, 3)                 # 无新内容
     assert r3 == []
+
+
+def test_harvest_findings_id_collision_renumbered(tmp_path):
+    """ID 冲突重编号：新会话 worker 从头编 F-001 指向不同端点 → 收进来不覆盖。"""
+    from src import board as board_mod
+    wd = tmp_path / ".auto"
+    wd.mkdir()
+    bb = board_mod.Blackboard()
+    (wd / "FINDINGS").write_text(
+        '{"id":"F-001","endpoint":"/old","evidence":"e.md","summary":"r1 发现"}\n', encoding="utf-8")
+    assert [f["id"] for f in driver_mod._harvest_findings(wd, bb, 1)] == ["F-001"]
+    # round 2 worker 重写文件，F-001 指向新端点（没读旧文件从头编号）
+    (wd / "FINDINGS").write_text(
+        '{"id":"F-001","endpoint":"/new","evidence":"e2.md","summary":"r2 新发现"}\n', encoding="utf-8")
+    r2 = driver_mod._harvest_findings(wd, bb, 2)
+    assert len(r2) == 1 and r2[0]["id"] == "F-R2-F-001"
+    assert r2[0]["endpoint"] == "/new"

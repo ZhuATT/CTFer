@@ -349,7 +349,9 @@ class Blackboard:
                 or v.get("confirmed", 0) >= 1):
             self._advance("report")
         elif stage == "report" and engagement_root:
-            ev_dir = os.path.join(engagement_root, "evidence")
+            # evidence 在 workdir（worker 契约：evidence/ 相对 .auto/）——曾错查
+            # engagement 根的 evidence/ 导致 TERMINAL_C 永不触发（上线前自检修复）
+            ev_dir = os.path.join(engagement_root, ".auto", "evidence")
             has_ev = os.path.isdir(ev_dir) and bool(os.listdir(ev_dir))
             has_report = os.path.isfile(os.path.join(engagement_root, "report.md"))
             if has_ev and has_report:                        # status.md 行由 driver 判（M4）

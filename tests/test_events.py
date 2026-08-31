@@ -58,3 +58,15 @@ def test_writer_rejects_unknown_type(tmp_path):
     with pytest.raises(ValueError):
         w.emit("not_a_real_event", {})
     w.close()
+
+
+def test_redact_tokens_field_visible():
+    """tokens（用量）不是凭据——脱敏不得打 ***（watch 可观测性）。"""
+    from src.events import redact
+    row = {"tokens": 885148, "thinking_tokens_est": 20610,
+           "api_key": "sk-x", "tool_call_token": "abc"}
+    r = redact(row)
+    assert r["tokens"] == 885148
+    assert r["thinking_tokens_est"] == 20610
+    assert r["api_key"] == "***"
+    assert r["tool_call_token"] == "***"          # 真凭据形态仍脱敏

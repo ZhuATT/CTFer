@@ -144,6 +144,15 @@ def gen_prior_intel_draft(engagement_root: str, board, stop_reason: str = "") ->
         parts += ["", "## 有效模式"] + [f"- {p}" for p in si["effective_patterns"]]
     if si.get("intel_summary"):
         parts += ["", "## 情报摘要", si["intel_summary"]]
+    # 硬拒清单（上线前自检新增）：noreport 代码硬拒是终裁无人复核——收尾必须
+    # 给人过目，误杀的链式发现从这里捞回来（auto-log claim_verdict 有全量）
+    hard_rejected = [f for f in board.findings
+                     if f.get("assessment") == "likely_false_positive"
+                     and str(f.get("reason", "")).startswith("硬拒")]
+    if hard_rejected:
+        parts += ["", "## 硬拒清单（代码判定非漏洞——请人工抽查是否误杀）"]
+        parts += [f"- {f.get('id')} {f.get('endpoint')}：{str(f.get('reason',''))[:100]}"
+                  for f in hard_rejected]
     parts += ["", "## 待跟进", f"- 交接：{(board.handoff or '（无）')[:400]}"]
 
     out = Path(engagement_root) / "notes" / "prior-intel-draft.md"
