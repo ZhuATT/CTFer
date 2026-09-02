@@ -60,7 +60,9 @@
 
 4. **tested 集合扩展**：`findings 端点 ∪ immune 端点 ∪ directions 关联端点`——修"worker 探过但没留痕迹，端点永远算未测"的缺口。
 
-5. **Handoff 降级**：只写叙事总结（已完成概览/关键判断），"未竟"段废弃（directions 接管）。
+5. **Handoff 降级**：只写叙事总结（已完成概览/关键判断），"未竟"段废弃（directions 接管）；旧格式 Handoff 的"未竟"段 driver 做 best-effort 提取为 directions（不强求）。
+
+6. **渲染三层优先级**（schema §5 并入）：`① 方向层置顶（open/in_progress/blocked + 关联段）→ ② 结论层（identity_model > business_context > findings 标注 > 阴性记录按 confidence 分档）→ ③ 分母层（credential > kv_secret > endpoint > fingerprint）`。**cap 裁剪只发生在分母层**——结论和方向永不裁。
 
 **关联**：依赖 B（黑板加 directions 对象 + confidence）；与 E 配套（STATE.md 里方向+关联置顶）；D 的即时写纪律覆盖 DIRECTIONS；chain 与 C 的观察者是同一组件（session 输出加一段）。
 
@@ -87,6 +89,8 @@
 4. **被动抽取定位声明**（D2）：分母层四类（endpoint/credential/kv_secret/fingerprint）= 覆盖度分母 + 盲区兜底（worker 忘了报不丢），**不承担语义权威**；语义结论只认显式层。
 
 5. **增量纪律**（ARTEX/Cairn 双印证）：写 FACTS 前扫已有事实，只写新结论，不换措辞重记。
+
+6. **conf 派生规则与迁移语义**（schema §6 并入）：conf 不再由人写，控制器派生（observed→0.9 / inferred→0.5 / 被动抽取→0.7）。旧黑板迁移：无 confidence 的旧 fact 按 conf≥0.8→observed、否则→inferred 推断；旧 immune 无 confidence 一律→**inferred**（保守：可重验）。
 
 **关联**：A 的 directions 依赖黑板扩展；C 的"嫌疑写 FACTS"依赖 confidence=inferred 语义；F 无关。
 
