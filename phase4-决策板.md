@@ -52,8 +52,10 @@
 2. **chain 关联字段**（★chain 提案，2026-08-31）——发现之间联系的结构化落点：
    - FINDINGS/FACTS 行加**可选** `"chain"` 字段，worker 写发现时顺手记：
      `{"id":"F-005",...,"chain":"基于 F-001 的 SQL 调试页反射——同根因"}` 或 `"chain":"F-002 的 SSRF + credential 事实（内网 redis）= 可组合成 RCE 路径，值得试"`
+   - **chain 引用必须用对象 id（F-xxx / D-xxx）**——前端用正则抽 id 画边，机器可解析（M5 图视图需求倒推的契约纪律）
    - 观察者 session 输出加 `chains: [...]`——**它每轮看全局，正是发现跨轮联系的最佳位置**（零新组件，观察者的新职责）
    - STATE.md 渲染「**关联**」段置顶区——这就是 chain 的**当下消费者**：下一轮 worker 直接读到"这两个发现能组合"，不用自己重新看穿（跨轮联系接力，与 directions 同一个"结构化接力"主题）
+   - **M5 前端图视图（用户需求，2026-08-31 定）**：directions（按 status 着色）+ findings（按 severity 着色）+ endpoint（未测暗色）为节点，chain/direction.endpoint 为边——参照 ARTEX"探索链路"力导向图。**A 块落地后数据即齐，M5 不需要等 v2 全图化**；数据通道=工作台直接读 `_blackboard.json`
    - v2 图化时：chain 字段 → derived_from/combo 边，机械迁移
 
 3. **指令行欠账数字**（DEC-2 修正版）：`已收集（endpoint:32）；未测面 7 个（目标：清零）；进行中方向 2 个`——数字从全量算（不用截断值），清零显示 ✓。
@@ -127,9 +129,35 @@
 
 ---
 
-## 决策 E：STATE.md 投影（已拍板，D10，列出保完整）
+## 决策 E：STATE.md 投影（主体已拍板 D10；**投影格式细化待确认**）
 
-`render_state_projection` 落盘 `.auto/STATE.md`（nonce 包裹，每轮覆盖写）；prompt 状态段改紧凑摘要 + "细节 Read STATE.md"。**与 A 配套**：指令行数字保到达（A-2），STATE.md 全文按需查；A-1 的 directions 在 STATE.md 里置顶。无需再拍，落地即可。
+**主体（已拍板）**：`render_state_projection` 落盘 `.auto/STATE.md`（nonce 包裹，每轮覆盖写）；prompt 状态段改紧凑摘要 + "细节 Read STATE.md"。**与 A 配套**：指令行数字保到达（A-3），STATE.md 全文按需查；A-1 的 directions 置顶。
+
+**E-1 投影格式细化（2026-08-31 补，待确认）**：**图层 YAML + 其余 markdown** 的混合投影——
+
+```
+STATE.md 结构:
+  ## 方向与图（YAML 块）—— 图层用 Cairn 式 YAML
+  ```yaml
+  directions:
+    - {id: D-001, status: in_progress, endpoint: /api/order/detail, goal: 验证idor读}
+    - {id: D-002, status: blocked, endpoint: /admin/config/update, blocked: 需X-CSRF头}
+  findings:
+    - {id: F-001, sev: high, endpoint: /search, chain: "调试页反射→F-004同根因"}
+  chains:
+    - "F-002 SSRF + redis凭证 = 可组合RCE路径"
+  ```
+  ## 阴性记录 / 事实清单 / 观察者建议（markdown，保持现状 + 分档）
+```
+
+三层格式决策（与 Cairn 对比后的结论）：
+| 层 | 格式 | 理由 |
+|---|---|---|
+| 存储（`.at1/_blackboard.json`） | JSON 保持 | Cairn 存储也是 DB 非 YAML；JSON 是前端母语 |
+| **worker 投影（STATE.md）** | **图层 YAML + 其余 markdown** | ① id 必须可见（chain 引用契约要求 worker 看到 F-xxx/D-xxx）；② 引用/边在 YAML 自然表达；③ 图层小（策展层）不膨胀；**分母层（endpoint×50）不进 YAML**（全 YAML dump 对噪声层是灾难） |
+| 前端（M5） | 读 `_blackboard.json` | JSON 原生，无需转换 |
+
+**E-2 M5 图视图（用户需求，2026-08-31 定，记录非拍板）**：前端控制台必须有图视图——directions（按 status 着色）+ findings（按 severity 着色）+ endpoint（未测暗色）为节点，chain/direction.endpoint 为边，参照 ARTEX"探索链路"力导向图。**A 块落地后数据即齐**（ids 都有、chain 纪律要求用 id 引用），M5 不需要等 v2 全图化；YAML 图层与前端视图共用同一节点/边模型，一份投影两个消费者。
 
 ---
 
