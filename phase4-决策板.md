@@ -20,7 +20,7 @@
 
 | 块 | 内容 | 关联 | 拍板 |
 |---|---|---|---|
-| **A** | 方向层（DIRECTIONS）+ 未测面数字 + tested 集合扩展 + Handoff 降级 | DEC-2/8 + D5 | ☐ |
+| **A** | 方向层与结构化接力：DIRECTIONS + **chain 关联字段** + 未测面数字 + tested 扩展 + Handoff 降级 | DEC-2/8 + D5 + chain 提案 | ☐ |
 | **B** | 事实层契约：FACTS 生产端 + confidence 枚举 + unclassified + 被动定位 | D1/D2/D3 + DEC-3 | ☐ |
 | **C** | 上报硬纪律 + 判官防注入 | DEC-4 + DEC-1 | ☐ |
 | **D** | 封锁重开标准 + 不写 /tmp + 即时写纪律 | DEC-5/6/8 | ☐ |
@@ -29,11 +29,15 @@
 
 ---
 
-## 决策 A：方向层与接力闭环 ★本次最大的新增
+## 决策 A：方向层与结构化接力（directions + chain）★本次最大的新增
 
-**为什么（病①+②）**：P4.9 漏 idor 的完整病灶链是三层——阶段卡死（已修）→ 未测面无存在感（指令行只有正向数字）→ **Handoff 有损接力**（worker 被杀后"我正测到一半的方向"彻底蒸发，代码合成兜底自认"不含任何本想干什么"）。前两层已有对策，第三层没有。
+**为什么（病①+②）**：失忆 worker 之间的接力靠两类信息——**工作状态**（干到哪了）和**知识关联**（发现之间的联系），两者现在都只活在叙事里（Handoff 散文），而有损：
+- 工作状态：P4.9 漏 idor 的病灶链第三层——worker 被杀后"我正测到一半的方向"彻底蒸发（代码合成兜底自认"不含任何本想干什么"）
+- 知识关联：轮 1 发现的 SSRF + 轮 2 发现的内网 redis 凭证 = 完整攻击链，但轮 2 的失忆 worker 只看到两条孤立记录——**联系没有被结构化传递，每轮 worker 都要自己重新"看出"联系**（与未测面被埋同构：信息在，消费的钩子不在）。且**当时没人记下的联系，v2 图化时无法重建**——不捕获就永久丢失。
 
-**做什么（四个配套件）**：
+> 这一块源自用户对"图"的坚持。结论：图在串行架构下的价值 = **用结构保住"叙事会丢的东西"**——工作状态（directions）、来源血缘（provenance，在 B 块）、知识关联（chain）三颗"字段形态的图种子"，v2 图化时全部机械升格成边。全图数据模型本身维持 v2（没有遍历图的机器消费者——M5 UI/链推荐/并发认领才是，现在都没有）。
+
+**做什么（五个配套件）**：
 
 1. **DIRECTIONS 方向文件**（worker 写，过程中落盘，被杀不丢）：
 ```json
@@ -45,15 +49,22 @@
 - 观察者每轮 suggestions 自动入列（source=observer）
 - driver 轮末收割入黑板；渲染置顶（STATE.md + prompt 摘要）
 
-2. **指令行欠账数字**（DEC-2 修正版）：`已收集（endpoint:32）；未测面 7 个（目标：清零）；进行中方向 2 个`——数字从全量算（不用截断值），清零显示 ✓。
+2. **chain 关联字段**（★chain 提案，2026-08-31）——发现之间联系的结构化落点：
+   - FINDINGS/FACTS 行加**可选** `"chain"` 字段，worker 写发现时顺手记：
+     `{"id":"F-005",...,"chain":"基于 F-001 的 SQL 调试页反射——同根因"}` 或 `"chain":"F-002 的 SSRF + credential 事实（内网 redis）= 可组合成 RCE 路径，值得试"`
+   - 观察者 session 输出加 `chains: [...]`——**它每轮看全局，正是发现跨轮联系的最佳位置**（零新组件，观察者的新职责）
+   - STATE.md 渲染「**关联**」段置顶区——这就是 chain 的**当下消费者**：下一轮 worker 直接读到"这两个发现能组合"，不用自己重新看穿（跨轮联系接力，与 directions 同一个"结构化接力"主题）
+   - v2 图化时：chain 字段 → derived_from/combo 边，机械迁移
 
-3. **tested 集合扩展**：`findings 端点 ∪ immune 端点 ∪ directions 关联端点`——修"worker 探过但没留痕迹，端点永远算未测"的缺口。
+3. **指令行欠账数字**（DEC-2 修正版）：`已收集（endpoint:32）；未测面 7 个（目标：清零）；进行中方向 2 个`——数字从全量算（不用截断值），清零显示 ✓。
 
-4. **Handoff 降级**：只写叙事总结（已完成概览/关键判断），"未竟"段废弃（directions 接管）。
+4. **tested 集合扩展**：`findings 端点 ∪ immune 端点 ∪ directions 关联端点`——修"worker 探过但没留痕迹，端点永远算未测"的缺口。
 
-**关联**：依赖 B（黑板加 directions 对象 + confidence）；与 E 配套（STATE.md 里方向置顶）；D 的即时写纪律覆盖 DIRECTIONS。
+5. **Handoff 降级**：只写叙事总结（已完成概览/关键判断），"未竟"段废弃（directions 接管）。
 
-**影响文件**：board.py（directions + untested + directive）、driver.py（DIRECTIONS 收割）、CLAUDE.md（契约教学）、prompt.py（渲染）。
+**关联**：依赖 B（黑板加 directions 对象 + confidence）；与 E 配套（STATE.md 里方向+关联置顶）；D 的即时写纪律覆盖 DIRECTIONS；chain 与 C 的观察者是同一组件（session 输出加一段）。
+
+**影响文件**：board.py（directions + chain + untested + directive）、driver.py（DIRECTIONS 收割）、observer.py（session chains 输出）、CLAUDE.md（契约教学）、prompt.py（渲染）。
 
 ---
 
