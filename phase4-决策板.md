@@ -154,13 +154,14 @@ P4.9 r1 被杀于干活中；ARTEX 生产数据 600→1200。**连带**：3 轮�
 "direction_comments": [  // 方向治理（原 suggestions 并入）
   {"id":"D-002","comment":"已blocked两轮无线索,建议关闭或转向"},
   {"goal":"验证 /api/user BOLA","endpoint":"/api/user","note":"identity_model显示无对象级校验"}],
-"immune_reviews": [      // 否定复核（DEC-3 闭环：inferred 否定从死标签变活字段）
-  {"endpoint":"/api/login","verdict":"endorse","reason":"换过3种姿势证据充分"},
-  {"endpoint":"/api/old","verdict":"retest","reason":"仅一次403未换姿势"}],
+"immune_reviews": [      // 否定复核（09-03 审计裁决 Q3：只留 retest，砍 endorse 改值权）
+  {"endpoint":"/api/old","verdict":"retest","reason":"仅一次403未换姿势,值得低成本重验"}],
 "chains": [{"rel","refs","note"}]  // duplicate 判重顺产 same_root 边
 ```
 
-**下游消费**：direction_comments(id)→direction 对象加 comment 字段（STATE.md 方向段批注列）；direction_comments(goal)→board.directions(open)；immune endorse→confidence 升 observed；retest→自动开 open direction；chains→关联段+M5 边。
+**下游消费**：direction_comments(id)→direction 对象加 comment 字段（STATE.md 方向段批注列）；direction_comments(goal)→board.directions(open)；immune retest→自动开 open direction，reason→渲染为阴性记录行"观察者备注"（**不改 confidence**——谁实测谁标 observed，观察者不进环境无实测权，endorse 改值已砍）；chains→关联段+M5 边。
+
+**notable_attempts 接线（09-03 审计裁决 Q1）**：审计实锤该字段当前零消费者（observer 产、无人读）——**给消费者而非删**：STATE.md 图层旁渲染"接近成功的尝试"段（与 chains 并列——已成立联系/半成品联系，都是联想原料；也是 DEC-5 重开判断"上次试到什么程度"的对比材料）。~3 行渲染。
 
 **judge_finding 不动**：assessment 四态已是 finding 置信度语义，新对象全是全局层。
 
