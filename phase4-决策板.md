@@ -49,14 +49,20 @@
 - 观察者每轮 suggestions 自动入列（source=observer）
 - driver 轮末收割入黑板；渲染置顶（STATE.md + prompt 摘要）
 
-2. **chain 关联字段**（★chain 提案，2026-08-31）——发现之间联系的结构化落点：
-   - FINDINGS/FACTS 行加**可选** `"chain"` 字段，worker 写发现时顺手记：
-     `{"id":"F-005",...,"chain":"基于 F-001 的 SQL 调试页反射——同根因"}` 或 `"chain":"F-002 的 SSRF + credential 事实（内网 redis）= 可组合成 RCE 路径，值得试"`
-   - **chain 引用必须用对象 id（F-xxx / D-xxx）**——前端用正则抽 id 画边，机器可解析（M5 图视图需求倒推的契约纪律）
-   - 观察者 session 输出加 `chains: [...]`——**它每轮看全局，正是发现跨轮联系的最佳位置**（零新组件，观察者的新职责）
-   - STATE.md 渲染「**关联**」段置顶区——这就是 chain 的**当下消费者**：下一轮 worker 直接读到"这两个发现能组合"，不用自己重新看穿（跨轮联系接力，与 directions 同一个"结构化接力"主题）
-   - **M5 前端图视图（用户需求，2026-08-31 定）**：directions（按 status 着色）+ findings（按 severity 着色）+ endpoint（未测暗色）为节点，chain/direction.endpoint 为边——参照 ARTEX"探索链路"力导向图。**A 块落地后数据即齐，M5 不需要等 v2 全图化**；数据通道=工作台直接读 `_blackboard.json`
-   - v2 图化时：chain 字段 → derived_from/combo 边，机械迁移
+2. **chain 关联字段——结构化边**（★chain 提案 2026-08-31，09-03 按 ARTEX 边模型升级为结构化）——发现之间联系的机器可连边：
+   - FINDINGS/FACTS 行加**可选** `"chain"` 字段，**结构化三段**（rel 枚举 + refs 数组 + note）：
+     ```json
+     {"id":"F-005",...,"chain":{"rel":"derived_from","refs":["F-001"],"note":"SQL调试页反射，同根因"}}
+     {"id":"F-006",...,"chain":{"rel":"combines","refs":["F-002","D-003"],"note":"SSRF+redis凭证=可组合RCE路径，值得试"}}
+     ```
+   - **rel 是系统拥有的固定枚举**（ARTEX 原则：worker 传引用，不发明边类型）：`derived_from`（派生）/ `combines`（可组合）/ `same_root`（同根因）。ARTEX 的 spawns/yields 是意图管道 plumbing，我们 directions 有自身字段，不需要
+   - **refs 是 id 数组，机器直接连节点**（前端画边不再正则抽文本）；支持多父——"两个发现组合出一条路"可表达（ARTEX 同款能力）
+   - **note 保留自然语言**——worker/人读，画边忽略
+   - ingest 校验（控制器执行）：rel ∉ 枚举 → 降级 note-only；refs 悬空 → 保留但渲染标（悬空引用）
+   - 观察者 session 输出加 `chains: [{"rel","refs","note"}]`——同一形状，两处写入者格式一致（worker 顺手 + 观察者跨轮全局视角）
+   - STATE.md 的 YAML 图层直接渲染结构化边：`chain: "derived_from F-001 (调试页反射)"`——worker 读到的是边不是散文
+   - **M5 前端图视图（用户需求）**：directions（按 status 着色）+ findings（按 severity 着色）+ endpoint（未测暗色）为节点；**chain 的 rel 为边类型（分色）、refs 为边两端**——参照 ARTEX"探索链路"力导向图。**A 块落地后数据即齐**；数据通道=工作台直接读 `_blackboard.json`
+   - v2 图化时：chain 结构 → exploration_edges 同款表，机械迁移
 
 3. **指令行欠账数字**（DEC-2 修正版）：`已收集（endpoint:32）；未测面 7 个（目标：清零）；进行中方向 2 个`——数字从全量算（不用截断值），清零显示 ✓。
 
