@@ -79,7 +79,7 @@ rel ∈ `derived_from/combines/same_root`（固定枚举）；refs = id 数组�
 3. **kind 菜单 6+1**：+`unclassified` 兜底，未知 kind 不丢弃。
 4. **被动抽取定位**（D2）：分母层四类 = 覆盖分母+盲区兜底，不承担语义权威。
 5. **增量纪律**：写前扫已有，只写新结论。
-6. **conf 派生+迁移**：控制器派生（observed→0.9/inferred→0.5/被动→0.7）；旧数据按 conf≥0.8→observed 推断、旧 immune 一律→inferred。
+6. **conf 字段删除 + 迁移语义**（09-03 字段审计裁决 Q2）：审计实锤 conf 三个活消费全是排序（render:396/query:496/add_fact:219 升级）、零决策门；被动层逐正则微调置信在 D2 定位后失去意义。**删 conf 字段，排序改 `(confidence, ts)`——枚举是唯一输入和决策货币**。旧数据迁移：按 conf≥0.8→observed、否则→inferred 推断后**丢弃浮点**；旧 immune 一律→inferred。
 
 **改动明细**：board.py（ingest_facts 解析 confidence+chain+unclassified 映射/add_immune 参数/render 阴性分档/加载迁移）｜CLAUDE.md（FACTS 契约教学）。
 
@@ -173,7 +173,7 @@ P4.9 r1 被杀于干活中；ARTEX 生产数据 600→1200。**连带**：3 轮�
 
 ### B1 黑板核心（board.py，~2.5h）
 - KINDS + unclassified；ingest_facts 解析 confidence/chain（校验降级规则）
-- facts 加 confidence/conf 派生；加载迁移（旧 conf 推断）
+- facts 加 confidence、**删 conf 字段**（排序改 confidence+ts）；加载迁移（旧 conf 推断后丢弃）
 - directions 对象 + merge_directions（整表合并，worker 文件优先）+ comment 字段
 - immune 加 confidence
 - untested_surface(limit) + tested 含 directions 端点
