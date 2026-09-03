@@ -66,7 +66,7 @@
 
 **D2 定位声明**：分母层四类 = 覆盖度分母 + 盲区兜底（"worker 忘了报的，被动不丢"），**不承担语义权威**；语义结论只认显式层。被动抽取的 conf 恒 0.7、confidence 恒 observed。
 
-### 2.2 findings（保持，一处明确）
+### 2.2 findings（一处保持 + chain 边字段）
 
 | 字段 | 类型 | 谁写 | 语义 |
 |---|---|---|---|
@@ -74,12 +74,25 @@
 | endpoint / summary | str | worker | 定位 + 一句话定性 |
 | evidence | str | worker（相对 workdir 路径） | 证据文件引用 |
 | round | int | worker/控制器 | 提交轮次 |
+| **chain** | {rel, refs[], note} 可选 | **worker**（发现时最知关联） | **结构化图边**（★2026-09-03 升级，见下） |
 | assessment | confirmed/likely_false_positive/uncertain/duplicate | **观察者**（noreport 终审类为控制器） | 判定 |
 | severity | high/medium/low/null | 观察者 | 严重度 |
 | reason | str | 观察者/控制器（硬拒格式"硬拒·{cat}：…"） | 判定理由（writeback 硬拒清单按此前缀识别） |
 | evidence_verified | bool | **控制器**（transcript_check） | 证据锚定 |
 
-**不变量**：同 id 覆盖（观察者重评更新）；硬拒不可被会话级翻案（方案 A）。
+**chain 边规格**（ARTEX 边模型适配——worker 传引用，系统拥有词汇表）：
+
+```json
+"chain": {"rel": "derived_from", "refs": ["F-001"], "note": "SQL调试页反射，同根因"}
+"chain": {"rel": "combines", "refs": ["F-002", "D-003"], "note": "SSRF+redis凭证=可组合RCE路径，值得试"}
+```
+- **rel ∈ 系统固定枚举**（worker 不发明边类型）：`derived_from`（派生）/ `combines`（可组合）/ `same_root`（同根因）
+- **refs = id 数组**（F-xxx / D-xxx）——机器直接连节点（M5 前端画边零解析），多父可表达
+- **note** = 自然语言细节，worker/人读，画边忽略
+- **ingest 校验**（控制器执行）：rel ∉ 枚举 → 降级 note-only（refs 丢弃）；refs 悬空 → 保留，渲染标"（悬空引用）"
+- FACTS 行同样支持可选 chain 字段（同规格）
+
+**不变量**：同 id 覆盖（观察者重评更新）；硬拒不可被会话级翻案（方案 A）；chain 随 finding 原样透传观察者不删改。
 
 ### 2.3 immune（阴性记录，DEC-3 接线）
 
@@ -115,8 +128,8 @@
 
 | 对象 | 变化 |
 |---|---|
-| session_intel | 不变（coverage_gaps/effective_patterns/suggestions/notable_attempts/intel_summary）。**接线**：suggestions → directions（source=observer） |
-| handoff | **降级**：只写叙事总结（已完成概览/关键判断），"未竟"段废弃（directions 接管）；被杀时合成兜底照旧（它的缺陷由 directions 补） |
+| session_intel | 加 **`chains: [{rel, refs, note}]`**（★与 worker 的 chain 同形状——观察者每轮看全局，是发现跨轮联系的最佳位置；轮 1 的 A 与轮 3 的 B 可组合，失忆 worker 看不到，观察者看得到）。原五字段不变。**接线**：suggestions → directions（source=observer）；chains → 黑板独立列表 → STATE.md 关联段 + M5 图视图 |
+| handoff | **降级**：只写叙事总结（已完成概览/关键判断），"未竟"段废弃（directions 接管）；旧格式"未竟"段 driver best-effort 提为 directions；被杀时合成兜底照旧（它的缺陷由 directions 补） |
 | goal | 不变（stage/history + 轮次兜底已在 `71d3b91`） |
 | ledger | 不变（tried 计数 / background） |
 | verified | 保持派生影子（由 findings 计数） |
@@ -129,7 +142,7 @@
 ### 3.1 FINDINGS（不变 + DEC-4 纪律）
 
 ```json
-{"id":"F-001","endpoint":"/search","evidence":"evidence/sql-test.md","summary":"单引号返回SQL报错","round":1}
+{"id":"F-001","endpoint":"/search","evidence":"evidence/sql-test.md","summary":"单引号返回SQL报错","round":1,"chain":{"rel":"derived_from","refs":["F-004"],"note":"同调试页"}}
 ```
 纪律（DEC-4 上报门槛）：只有**真实触发过**、拿到可复现证据才写；版本/CVE 匹配、"看起来可注入"、漏洞库推断**不算**——触发不了的嫌疑写 FACTS（confidence=inferred）。
 
@@ -183,10 +196,31 @@ evidence/（白话+请求响应原文；中间产物一律写 workdir 不写 /tm
 ## 5. 渲染优先级 v2（三层替代原单列表）
 
 ```
-① 方向层（置顶）：open/in_progress/blocked directions —— 接力第一优先
+① 方向层（置顶）：open/in_progress/blocked directions + 关联段（chains）—— 接力第一优先
 ② 结论层：identity_model > business_context > findings 标注 > 阴性记录（observed 在前，inferred 弱化）
 ③ 分母层：credential > kv_secret > endpoint > fingerprint（cap 裁剪只发生在这层）
 ```
+
+### 5.1 STATE.md 投影格式（E-1 细化：图层 YAML + 其余 markdown）
+
+**三视图模型**（同一份图的三个视图）：`DIRECTIONS 文件` = worker 眼中的图（自己维护的工作状态）；`STATE.md` = 系统投影的图（driver 每轮覆盖写）；`_blackboard.json` = 存储的图（M5 前端读它画图）。
+
+```
+STATE.md 结构:
+  ## 方向与图（YAML 块）—— 图层用 YAML（Cairn 式，id 可见/边自然表达）
+  ```yaml
+  directions:
+    - {id: D-001, status: in_progress, endpoint: /api/order/detail, goal: 验证idor读}
+    - {id: D-002, status: blocked, endpoint: /admin/config/update, blocked: 需X-CSRF头}
+  findings:
+    - {id: F-001, sev: high, endpoint: /search, chain: "derived_from F-004 (调试页反射)"}
+  chains:
+    - {rel: combines, refs: [F-002, D-003], note: SSRF+redis凭证=RCE路径}
+  ```
+  ## 阴性记录 / 事实清单 / 观察者建议（markdown，保持现状 + confidence 分档）
+```
+
+为什么图层 YAML、分母层不进 YAML：① chain 引用契约要求 worker **看到** F-xxx/D-xxx（YAML 里 id 是一等列）；② 引用/边在 YAML 自然表达；③ 图层小（策展层）不膨胀，分母层（endpoint×50）进 YAML 是灾难。nonce 包裹策略与现 markdown 段一致。
 
 ---
 
@@ -210,6 +244,7 @@ evidence/（白话+请求响应原文；中间产物一律写 workdir 不写 /tm
 | D2（被动=分母） | §2.1.1 分层声明 |
 | D3（字段接线） | §2.1 confidence/provenance + §2.3 + §4 消费表 |
 | D5 轻量版（directions） | §2.4 + §3.3 |
+| chain 结构化边（09-03 升级） | §2.2 + §2.5 + §5.1 |
 | DEC-2/3/4/5/6/8 | §3.1/3.2/3.3 纪律 + §4 |
 | DEC-9（STATE.md） | §4 渲染行 |
 
@@ -227,10 +262,22 @@ evidence/（白话+请求响应原文；中间产物一律写 workdir 不写 /tm
 
 ---
 
-## 9. v2 并发升级路径（scheduler 触发时的迁移预告）
+## 9. 图的第一消费者：M5 前端图视图（2026-09-03 用户需求）+ v2 并发升级路径
 
-directions 天然前向兼容：并发时代它升级为可认领 intent（加 claim/heartbeat/concluded 字段——Cairn 模式）；facts/findings 加 id 与 derived_from 边（字段→边的机械迁移，provenance 已保信息）；分母层保持扁平索引不图化。**现在做的所有字段都为此留了门。**
+**M5 图视图**（前端控制台必须有，参照 ARTEX"探索链路"力导向图）：
+
+| 图要素 | 数据（v2 schema 已齐） |
+|---|---|
+| 节点 | findings（id + severity 着色）、directions（id + status 着色：open/blocked/done）、endpoint facts（未测面暗色） |
+| 边 | **chain 的 rel 为边类型（分色：derived_from/combines/same_root）、refs 为边两端**；direction.endpoint 为节点→资产锚 |
+| 数据通道 | 工作台直接读 `_blackboard.json`（JSON 原生），与 YAML 图层共用同一节点/边模型 |
+
+**A 块落地后数据即齐，M5 不需要等 v2 全图化。**
+
+**v2 并发升级路径**（scheduler 触发时的迁移预告）：
+
+directions 天然前向兼容：并发时代它升级为可认领 intent（加 claim/heartbeat/concluded 字段——Cairn 模式）；facts/findings 加 id 与边表（**chain 结构 → exploration_edges 同款 (src, rel, dst) 表，机械迁移**；provenance → 来源边）；分母层保持扁平索引不图化。**现在做的所有字段都为此留了门。**
 
 ---
 
-*拍板位：本 schema 整体一份契约，确认或逐节批注。确认后：①晋升 docs/ 正式契约 ②phase4 决策板 D1/D2/D3/D5 随之关闭 ③按执行计划一批落地（CLAUDE.md/ingest/board/directions/渲染/测试）。*
+*拍板位：本 schema 整体一份契约（决策板 A-F 是其决策摘要），确认或逐节批注。确认后：①晋升 docs/ 正式契约 ②phase4 决策板 A/B 块随之关闭 ③按执行计划一批落地（CLAUDE.md/ingest/board/directions/chain/渲染/测试）。*
