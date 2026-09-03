@@ -1,12 +1,12 @@
 # AT1 拍板清单（合并版——黑板 schema + 对标改进，一次定完）
 
 > **性质**：唯一的待拍板文档。合并了原《黑板 schema 定稿》的决策点与《决策板》D4（DEC-1..8）。字段级细节见 `phase4-黑板schema.md`（实施契约），本文档只放**决策所需**内容。
-> **用法**：六个决策块（A-F），每块一个勾选框。全部勾完 → 我按 §8 执行计划一批落地 → dry-run + canary 冒烟 → P4.10。
+> **用法**：七个决策块（A-G），每块一个勾选框。全部勾完 → 我按 §8 执行计划一批落地 → dry-run + canary 冒烟 → P4.10。
 > **日期**：2026-08-31。
 
 ---
 
-## 0. 总览：六个决策块及其针对的病
+## 0. 总览：七个决策块及其针对的病
 
 我们 M4 遗留的病就三个，六个决策块全部围绕它们：
 
@@ -16,7 +16,7 @@
 | **② 接力有损**（被杀丢方向） | P4.9 r1 被杀→合成 Handoff 无"本想干什么"；FACTS 0 行 | **A**（directions 过程落盘）+ **D**（即时写纪律） |
 | **③ 误报/噪声防线不完整** | A4 重定向误报靠观察者事后拦；worker 上报门槛空；判官 prompt 无防注入 | **B**（confidence 分级）+ **C**（两道防线） |
 
-外加 **E**（已拍板的 STATE.md，列出保完整）和 **F**（时间盒，需单独确认预算假设）。
+外加 **E**（已拍板的 STATE.md，列出保完整）、**F**（时间盒，需单独确认预算假设）和 **G**（观察者 v2——新架构失配修复）。
 
 | 块 | 内容 | 关联 | 拍板 |
 |---|---|---|---|
@@ -26,6 +26,7 @@
 | **D** | 封锁重开标准 + 不写 /tmp + 即时写纪律 | DEC-5/6/8 | ☐ |
 | **E** | STATE.md 投影 | DEC-9（✅ 已拍板 D10） | 无需再拍 |
 | **F** | 时间盒首档 600→1200 | DEC-7（连带预算假设） | ☐ |
+| **G** | **观察者 v2：输出契约随图扩展**（方向批注/否定复核/chains顺产） | 新架构失配修复 | ☐ |
 
 ---
 
@@ -174,6 +175,34 @@ STATE.md 结构:
 **连带影响（这是单独确认的原因）**：3 轮 × 1200s = 3600s，**总预算假设变了**——真目标要 `--budget 7200+`，或接受轮数变少。
 
 **拍板**：☐ 改（推荐，P4.10 前定） / ☐ 不改（P4.10 给足 --budget 观察后再说）
+
+---
+
+## 决策 G：观察者 v2 —— 输出契约随图扩展 ★新架构失配修复
+
+**为什么**：观察者是为 worker 服务/互补的——串行架构里它是**唯一跨轮、全局、无投入偏见的眼睛**（worker 失忆、driver 机械）。但它的 I/O 契约还是旧世界三件套（judge 一条 finding + 会话观察五件），新对象 directions/chains/confidence 全没覆盖。
+
+**不变的原则**（phase3.5 冻结，继续有效）：无工具、轮间跑、建议不指挥、**不关闭方向**（关闭权在 worker，它只批注）。
+
+**输入扩展**（session prompt）：+directions 全表（含 status/note/blocked_reason）、+已有 chains（防重复建议）。
+
+**输出扩展**（三个新职责，全部建议式）：
+
+```json
+"direction_comments": [   // 方向治理：原 suggestions 并入（带 goal=建议新方向；带 id=对既有方向批注）
+  {"id":"D-002","comment":"已blocked两轮且无线索,建议关闭或转向"},
+  {"goal":"验证 /api/user BOLA","endpoint":"/api/user","note":"identity_model 显示无对象级校验"}],
+"immune_reviews": [       // 否定复核（DEC-3 闭环）：inferred 否定不再是死标签
+  {"endpoint":"/api/login","verdict":"endorse","reason":"换过3种姿势,证据充分"},
+  {"endpoint":"/api/old","verdict":"retest","reason":"仅一次403未换姿势"}],
+"chains": [{"rel","refs","note"}]  // 跨轮联系边；duplicate 判定顺产 same_root 边
+```
+
+**下游消费**：direction_comments(id)→STATE.md 方向段"观察者批注"列；direction_comments(goal)→board.directions(open)；immune_reviews endorse→confidence 升 observed；retest→自动开 open direction；chains→STATE.md 关联段+M5 边。
+
+**judge_finding 不动**：assessment 四态本身就是 finding 的置信度语义，再加 confidence 是冗余；新对象全是全局层，归会话输出。
+
+**影响文件**：observer.py（SESSION_PROMPT+解析 ~60 行）、driver.py（消费端 ~40 行）、STATE.md 渲染。
 
 ---
 

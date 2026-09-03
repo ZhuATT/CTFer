@@ -128,7 +128,7 @@
 
 | 对象 | 变化 |
 |---|---|
-| session_intel | 加 **`chains: [{rel, refs, note}]`**（★与 worker 的 chain 同形状——观察者每轮看全局，是发现跨轮联系的最佳位置；轮 1 的 A 与轮 3 的 B 可组合，失忆 worker 看不到，观察者看得到）。原五字段不变。**接线**：suggestions → directions（source=observer）；chains → 黑板独立列表 → STATE.md 关联段 + M5 图视图 |
+| session_intel | **观察者 v2（决策 G，09-03）**——输出契约随图扩展，原五字段基础上：① 加 **`chains: [{rel, refs, note}]`**（与 worker 的 chain 同形状；duplicate 判定顺产 same_root 边）② 加 **`direction_comments`**（方向治理，原 suggestions 并入：带 id=对既有方向批注"已blocked两轮建议转向"；带 goal=建议新方向）③ 加 **`immune_reviews`**（否定复核，DEC-3 闭环：endorse→confidence 升 observed；retest→自动开 open direction）。**输入扩展**：session prompt 加 directions 全表+已有 chains。**原则不变**：无工具/轮间/建议不指挥/不关闭方向（关闭权在 worker） |
 | handoff | **降级**：只写叙事总结（已完成概览/关键判断），"未竟"段废弃（directions 接管）；旧格式"未竟"段 driver best-effort 提为 directions；被杀时合成兜底照旧（它的缺陷由 directions 补） |
 | goal | 不变（stage/history + 轮次兜底已在 `71d3b91`） |
 | ledger | 不变（tried 计数 / background） |
