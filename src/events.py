@@ -30,6 +30,10 @@ EVENT_TYPES = frozenset({
     "guard_violation",        # guard 实时检测命中（kind: scope/controller_zone/self_destruct）
     "directive_injected",     # CONTROL directive 已注入下一轮 prompt
     "observer_error",         # 观察者 LLM 故障（降级 uncertain，不阻塞收割）
+    # phase5 新增（schema v2.1 方向层/观察者 v2）
+    "directions_merged",      # DIRECTIONS 轮末收割合并（changed 行数）
+    "directions_from_handoff",  # 旧格式 Handoff 未竟段提取为方向（added 条数）
+    "observer_governance",    # 观察者治理消费（comments/new_directions/retests 计数）
 })
 
 # 脱敏键名匹配：cookie/token/secret/authorization/credential/password/api_key。

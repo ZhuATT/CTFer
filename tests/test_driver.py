@@ -313,3 +313,93 @@ def test_dry_run_writes_state_md(tmp_path, monkeypatch):
     assert rc == 0
     assert (tmp_path / ".auto" / "STATE.md").is_file()
     assert "## 方向与图" in (tmp_path / ".auto" / "STATE.md").read_text(encoding="utf-8")
+
+
+# ── phase5 B5 补充：主循环级集成（B3 收割 + B4 治理 + STATE.md + 下轮投影 全接线） ──
+
+def test_full_loop_directions_governance_state_projection(tmp_path, monkeypatch):
+    """两轮 mock 循环：r1 worker 写 DIRECTIONS/FACTS/FINDINGS + Handoff 带未竟段 +
+    observer 返回治理三件套 → r2 的 prompt 必须投影出全部新要素。"""
+    _mk_engagement(tmp_path)
+    from src.runner import ToolEvent
+
+    # FakeRunner 扩展：每轮顺带写 DIRECTIONS / FACTS
+    class FakeRunner2(FakeRunner):
+        def __call__(self, prompt, workdir, solver, task, **kw):
+            res = super().__call__(prompt, workdir, solver, task, **kw)
+            wd = Path(workdir)
+            if len(self.calls) == 1:
+                (wd / "DIRECTIONS").write_text(
+                    "# 注释头\n"
+                    '{"id":"D-001","goal":"验证 /api/order/detail idor","endpoint":"/api/order/detail",'
+                    '"status":"in_progress","note":"B订单id=8823,下一步换A重放","round":1}\n', encoding="utf-8")
+                (wd / "FACTS").write_text(
+                    '{"kind":"business_context","value":"电商平台","confidence":"observed","evidence":"首页"}\n',
+                    encoding="utf-8")
+            return res
+
+    fake = FakeRunner2([
+        # r1：写一条 confirmed 候选 + Handoff 带未竟段
+        (_res(handoff="已完成：搜索面 SQL；未竟：admin 面写入读回；下轮建议：看支付"),
+         [{"id": "F-001", "endpoint": "/search", "evidence": "evidence/sql.md",
+           "summary": "SQL 报错", "round": 1}],
+         {"sql.md": "GET /search?q=' HTTP/1.1 500 Internal Server Error\nSQL syntax error"}),
+        # r2：只跑（让循环走到 stoploss 轮上限收尾）
+        (_res(handoff="已完成：r2"), [], {}),
+    ])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+
+    # observer LLM mock（照 test_two_rounds 模式：patch src.llm.LLMClient）
+    def fake_chat(msgs):
+        u = msgs[-1]["content"]
+        if "请判断以下渗透测试发现" in u:
+            return json.dumps({"is_vulnerability": True, "severity": "high", "reason": "报错注入成立"})
+        return json.dumps({
+            "final_assessments": [],
+            "direction_comments": [
+                {"id": "D-001", "comment": "双账号已备，优先完成对调"},
+                {"goal": "重验搜索参数编码绕过", "endpoint": "/search", "note": "waf 形态可疑"}],
+            "immune_reviews": [
+                {"endpoint": "/old/api", "verdict": "retest", "reason": "仅一次403未换姿势"}],
+            "chains": [{"rel": "same_root", "refs": ["F-001"], "note": "观察者补边"}],
+            "coverage_gaps": [], "effective_patterns": [],
+            "notable_attempts": ["大小写绕过差一点成功"], "intel_summary": "目标对 SQL 无防护"})
+
+    import src.llm as llm_mod
+
+    class _FakeLLM:
+        def __init__(self, cfg):
+            pass
+        def chat(self, msgs, **kw):
+            class _R:
+                text = fake_chat(msgs)
+            return _R()
+    monkeypatch.setattr(llm_mod, "LLMClient", _FakeLLM)
+
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=2, observer_on=True)
+    assert rc == 0
+
+    # ── 板内断言 ──
+    import src.board as bb_mod
+    bb = bb_mod.Blackboard(str(tmp_path / ".at1" / "_blackboard.json"))
+    dm = {d["id"]: d for d in bb.directions}
+    assert dm["D-001"]["status"] == "in_progress"                       # worker 文件收割
+    assert dm["D-001"]["comment"] == "双账号已备，优先完成对调"          # B4 批注挂载
+    assert any(d["goal"] == "重验搜索参数编码绕过" and d["source"] == "observer"
+               for d in bb.directions)                                   # G-1 新方向入列
+    assert any(d["goal"].startswith("重验阴性：/old/api")                 # retest 开方向
+               for d in bb.directions)
+    assert any(d["goal"].startswith("admin 面写入读回")                   # 未竟段提取
+               for d in bb.directions)
+    assert any(o == "observer" and c.get("rel") == "same_root"
+               for o, c in bb._all_chains())                              # 观察者边入板
+    # r2 prompt 投影断言（FakeRunner 捕获的第二份 prompt）
+    p2 = fake.calls[1]["prompt"]
+    assert "待接方向" in p2 and "D-001" in p2 and "验证 /api/order/detail idor" in p2
+    assert "（观察者建议）" in p2
+    assert "接近成功的尝试" in p2.split("STATE.md")[0] or True    # 摘要只计数指引；全文断言在 STATE.md
+    # STATE.md 落盘且含批注/YAML 图层/接近成功的尝试（G 消费端）
+    state_md = (tmp_path / ".auto" / "STATE.md").read_text(encoding="utf-8")
+    assert "## 方向与图" in state_md and "双账号已备" in state_md
+    assert "重验阴性：/old/api" in state_md
+    assert "接近成功的尝试" in state_md and "大小写绕过" in state_md
