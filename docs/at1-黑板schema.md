@@ -101,7 +101,7 @@
 | endpoint | str | 控制器（403 检测）/ status.md 反向读 | 关了的口子 | 保留 |
 | status | str | 同上 | 结果标记（403/设计内…） | 保留 |
 | since_round | int | 控制器 | 轮次 | 保留 |
-| confidence | "observed"\|"inferred" | worker（经 FACTS）/ 控制器默认（**缺省 inferred**） | **实测关闭 vs 推断关闭** | ★ |
+| confidence | "observed"\|"inferred" | worker（经 FACTS）/ 控制器默认（**缺省 inferred**） | **实测关闭 vs 推断关闭** | ★ 同端点重复登记：observed 可升档（inferred→observed），**永不降档** |
 
 **渲染语义（DEC-3 落点）**：observed → "实测关闭（重开需材料性新机理）"；inferred → "推断关闭·未穷尽（可低成本重验）"——弱化阻断力，解"轻率否定焊死路线"。
 
@@ -122,9 +122,9 @@
 | source | worker / observer | 写入者 | 来源（渲染带"（观察者建议）"标注） |
 | round | int | 控制器 | 创建/最后更新轮次 |
 
-**生命周期**：worker 开工先读 open/blocked 方向 → 接着干（in_progress）→ done（写结论进 FACTS/FINDINGS）或 blocked（写 reason）。观察者每轮的建议自动追加 source=observer 的 open 方向（**每轮截断 3 条**，见 §2.5）。**整表替换语义**：DIRECTIONS 文件是 worker 眼中的当前状态，driver 轮末全量合并（worker 文件的 status 优先；observer 方向不被 worker 碰则保留；comment 字段由控制器维护，worker 重写不清除）。
+**生命周期**：worker 开工先读 open/blocked 方向 → 接着干（in_progress）→ done（写结论进 FACTS/FINDINGS）或 blocked（写 reason）。观察者每轮的建议自动追加 source=observer 的 open 方向（**每轮截断 3 条**，见 §2.5）。**合并语义（upsert 不删除）**：DIRECTIONS 文件是 worker 眼中的当前状态，driver 轮末按 id 全量合并——worker 文件的 status/内容优先；observer 方向不被 worker 碰则保留；comment 字段由控制器维护，worker 重写不清除；**worker 文件漏抄的方向一律保留**（黑板是累积真值，退役只能显式 status=done/blocked）。
 
-**渲染位置**：prompt 状态区**方向层置顶**（G-2：source 标注 + "探不探你定"段头 + DIRECTIONS_CAP）+ 指令行计数（"未测面 N 个；进行中方向 M 个"）+ STATE.md 全文——与 DEC-2 配套构成双重欠账。
+**渲染位置与排序**：prompt 状态区**方向层置顶**（G-2：source 标注 + "探不探你定"段头 + DIRECTIONS_CAP=12 超限降计数行）+ 指令行计数 + STATE.md 全文。置顶排序 **in_progress 最先**（干到一半的接力价值最高）→ open → blocked；render_summary 待接列表同序（cap 8，**必含 in_progress**）。
 
 ### 2.5 session_intel / handoff / goal / ledger / verified / config / offsets
 
@@ -135,7 +135,7 @@
 | goal | 不变（stage/history + 轮次兜底） |
 | ledger | 不变（tried 计数 / background） |
 | verified | 保持派生影子（由 findings 计数） |
-| offsets | 保持（findings_ids_map / facts / directions 合并态） |
+| offsets | 保持（findings_ids_map / facts）；directions 合并为 id 全量 upsert，**免 offset 记账** |
 
 ---
 
@@ -288,3 +288,4 @@ directions 天然前向兼容：并发时代它升级为可认领 intent（加 c
 ---
 
 *晋升记录：v2.1（2026-09-04）由 phase4-黑板schema.md v2 晋升，按决策板拍板附注同步四处（conf 删除/directions.chain/tested 语义/G 渲染细节）。施工执行：`phase5-落地施工单.md`。*
+*v2.1.1（2026-09-04）：施工期实施细则回写四处——immune 升档规则（observed 可升永不降）/directions 合并 upsert 不删除（漏抄保留）/渲染排序（in_progress 最先+DIRECTIONS_CAP=12+summary 待接含 in_progress）/offsets 免 directions 记账。契约=代码核对基准：实跑字段集与 §2 字段表逐一一致。*
