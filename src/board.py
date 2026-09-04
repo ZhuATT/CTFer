@@ -605,7 +605,8 @@ class Blackboard:
         return f"- [{origin}] {chain['rel']} {'、'.join(refs)}{tail}" + (f" — {note}" if note else "")
 
     def _all_chains(self) -> list[tuple[str, dict]]:
-        """聚合全部结构化边：findings + directions + facts（携带 chain 的）。"""
+        """聚合全部结构化边：findings + directions + facts + 观察者（session_intel.chains，
+        判重顺产 same_root——G 消费通道）。观察者边过 normalize_chain 校验。"""
         out: list[tuple[str, dict]] = []
         for f in self.findings:
             if isinstance(f.get("chain"), dict):
@@ -616,6 +617,10 @@ class Blackboard:
         for fact in self.facts.values():
             if isinstance(fact.get("chain"), dict):
                 out.append((f"fact:{fact['kind']}", fact["chain"]))
+        for c in ((self.session_intel or {}).get("chains") or []):
+            nc = normalize_chain(c)
+            if nc is not None:
+                out.append(("observer", nc))
         return out
 
     def _render_directions_block(self, nonce: str) -> str:

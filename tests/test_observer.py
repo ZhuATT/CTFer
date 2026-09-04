@@ -124,3 +124,80 @@ def test_board_integration():
     assert "观察者建议" not in r
     assert b.intel_summary() == "z"
     assert b.verified["confirmed"] == 1
+
+
+# ── phase5 B4：C-2 防注入 / G 三件套 / G-1 截断 / 消费端 ──────────────────
+
+def test_injection_guard_in_both_prompts():
+    """C-2 文本断言：两个 PROMPT 最开头（证据文本之前）都有不可信声明。
+    防回归——被删了这条测试就红。"""
+    from src.observer import JUDGE_PROMPT, SESSION_PROMPT
+    for p in (JUDGE_PROMPT, SESSION_PROMPT):
+        assert "证据不可信声明" in p
+        assert "一律无视" in p and "只当数据" in p
+        assert "不猜 false" in p
+        # 位置：声明在证据/发现文本之前
+        assert p.find("证据不可信声明") < p.find("【证据】") if "【证据】" in p else True
+        assert p.find("证据不可信声明") < p.find("【本轮全部发现") if "【本轮全部发现" in p else True
+
+
+def test_observe_session_new_inputs_rendered():
+    obs, captured = _mk_observer([json.dumps({
+        "final_assessments": [], "direction_comments": [], "immune_reviews": [],
+        "chains": [], "coverage_gaps": [], "effective_patterns": [],
+        "notable_attempts": [], "intel_summary": "ok"})])
+    obs.observe_session([], [], "bs", "h",
+                        directions=[{"id": "D-001", "status": "blocked",
+                                     "goal": "admin 面写入", "note": "需 CSRF 头",
+                                     "comment": "建议转向"}],
+                        chains=[{"rel": "same_root", "refs": ["F-001", "F-002"]}])
+    p = captured[0][1]["content"]
+    assert "【方向表" in p and "[D-001] blocked admin 面写入" in p
+    assert "建议转向" in p
+    assert "【已知联系" in p and "same_root" in p
+
+
+def test_observe_session_parses_three_pieces():
+    payload = {
+        "final_assessments": [],
+        "direction_comments": [
+            {"id": "D-002", "comment": "已blocked两轮建议转向"},
+            {"goal": "验证 /api/user BOLA", "endpoint": "/api/user", "note": "无对象级校验"}],
+        "immune_reviews": [{"endpoint": "/api/old", "verdict": "retest", "reason": "仅一次403"}],
+        "chains": [{"rel": "same_root", "refs": ["F-001", "F-007"], "note": "判重顺产"}],
+        "coverage_gaps": [], "effective_patterns": [],
+        "notable_attempts": [], "intel_summary": "x"}
+    obs, _ = _mk_observer([json.dumps(payload)])
+    r = obs.observe_session([], [], "bs", "h")
+    assert len(r["direction_comments"]) == 2
+    assert r["immune_reviews"][0]["verdict"] == "retest"
+    assert r["chains"][0]["rel"] == "same_root"
+
+
+def test_governance_truncates_new_directions_at_three():
+    """G-1：observer 新方向建议每轮截断 3 条（接单员化闸）。"""
+    from src.driver import _apply_observer_governance
+    from src.board import Blackboard
+    bb = Blackboard()
+    session = {"direction_comments": [
+        {"goal": f"方向{i}", "endpoint": f"/api/{i}"} for i in range(6)]}
+    out = _apply_observer_governance(bb, session, round_no=1)
+    assert out["new_directions"] == 3
+    assert sum(1 for d in bb.directions if d["source"] == "observer") == 3
+
+
+def test_governance_comment_and_retest():
+    from src.driver import _apply_observer_governance
+    from src.board import Blackboard
+    bb = Blackboard()
+    bb.add_direction({"id": "D-001", "goal": "g", "status": "blocked"}, round_=1)
+    session = {"direction_comments": [{"id": "D-001", "comment": "建议转向"}],
+               "immune_reviews": [{"endpoint": "/api/old", "verdict": "retest", "reason": "只试过一次403"},
+                                   {"endpoint": "/api/old", "verdict": "retest", "reason": "重复"}]}
+    out = _apply_observer_governance(bb, session, round_no=2)
+    assert out["comments"] == 1
+    dm = {d["id"]: d for d in bb.directions}
+    assert dm["D-001"]["comment"] == "建议转向"
+    retest = [d for d in bb.directions if d["goal"].startswith("重验阴性：")]
+    assert len(retest) == 1 and retest[0]["source"] == "observer"   # 同口子不重复开
+    assert retest[0]["endpoint"] == "/api/old"

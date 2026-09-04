@@ -173,6 +173,50 @@ def _render_state_projection(bb, tested: set | None) -> str:
     return "\n\n".join(parts) + "\n"
 
 
+def _apply_observer_governance(bb, session: dict, round_no: int) -> dict:
+    """G 消费端（建议式，全部逐字段容错缺省跳过）：
+    - direction_comments(id) → 方向 comment 字段（STATE.md 批注列）
+    - direction_comments(goal) → 新方向入列（source=observer，**每轮截断 3 条**——G-1 接单员化闸）
+    - immune_reviews(verdict=retest) → 自动开 open direction（关闭权仍在 worker；不改 confidence）
+    chains 走 session_intel 持久化（board._all_chains 聚合），无需在此入板。"""
+    out = {"comments": 0, "new_directions": 0, "retests": 0}
+    dc = session.get("direction_comments")
+    if isinstance(dc, list):
+        for c in dc:
+            if not isinstance(c, dict):
+                continue
+            if c.get("id"):
+                if bb.set_direction_comment(str(c["id"]), str(c.get("comment", ""))):
+                    out["comments"] += 1
+            elif c.get("goal") and out["new_directions"] < 3:      # G-1：新方向建议每轮 ≤3
+                if bb.add_direction({"goal": str(c["goal"])[:200],
+                                     "endpoint": str(c.get("endpoint", "")),
+                                     "note": str(c.get("note", ""))[:500],
+                                     "status": "open"},
+                                    source="observer", round_=round_no):
+                    out["new_directions"] += 1
+    ir = session.get("immune_reviews")
+    if isinstance(ir, list):
+        existing_goals = {d.get("goal", "") for d in bb.directions}
+        for r in ir:
+            if not isinstance(r, dict) or r.get("verdict") != "retest":
+                continue
+            ep = str(r.get("endpoint", "")).strip()
+            if not ep:
+                continue
+            goal = f"重验阴性：{ep}"
+            if goal in existing_goals:                              # 同口子不重复开
+                continue
+            if bb.add_direction({"goal": goal,
+                                 "endpoint": ep.split("?")[0],
+                                 "status": "open",
+                                 "note": f"观察者 retest 建议：{str(r.get('reason', ''))[:150]}"},
+                                source="observer", round_=round_no):
+                existing_goals.add(goal)
+                out["retests"] += 1
+    return out
+
+
 def run_engagement(engagement_root: str, *, budget_s: float = 7200,
                    max_rounds: int = 6, stop_on_first_confirmed: bool = False,
                    dry_run: bool = False, provider: str | None = None,
@@ -363,10 +407,15 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
                                 evidence_texts=evidence_texts,
                                 previous_confirmed=bb.confirmed_findings(),
                                 board_summary=bb.render()[:2000],
-                                handoff=res.handoff or "")
+                                handoff=res.handoff or "",
+                                directions=bb.active_directions(),
+                                chains=[c for _, c in bb._all_chains()])
                 verdicts = result["findings"]
                 if result.get("session_intel"):
                     bb.update_session_intel(result["session_intel"])
+                    gov = _apply_observer_governance(bb, result["session_intel"], rnd)
+                    if any(gov.values()):
+                        ev.emit("observer_governance", {"round": rnd, **gov}, round_=rnd)
             except Exception as e:                       # 观察者故障不阻塞收割
                 ev.emit("observer_error", {"round": rnd, "error": str(e)[:200]}, round_=rnd)
                 verdicts = [{**f, "assessment": "uncertain",
