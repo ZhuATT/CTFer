@@ -1,14 +1,16 @@
 """AT1 scaffold —— workdir 模板展开（P4.1，设计§2.3）。
 
 <sengagement>/.auto/ 展开：CLAUDE.md（常驻纪律层，由模板 WORKER-CLAUDE.md 渲染）
-+ .mcp.json（Playwright → 本地 chrome）+ FINDINGS/FACTS 预创建空文件 + evidence/。
++ .mcp.json（Playwright → 本地 chrome）+ FINDINGS/FACTS/DIRECTIONS 预创建（带注释头）
++ evidence/。
 
 文件名决策：模板叫 WORKER-CLAUDE.md，落位成 CLAUDE.md——Claude Code CLI 对
 cwd 的 CLAUDE.md 有自动加载机制（进 system prompt 基线），纪律层靠机制保证
 被读，不依赖 worker 自觉"开工先读 WORKER-CLAUDE.md"。
 
-幂等：重复展开不覆盖已有 FINDINGS/FACTS/evidence（发现即落盘的物理保证）；
-CLAUDE.md/.mcp.json 每次重写（纪律层随 engagement 配置，内容确定性）。
+幂等：重复展开不覆盖已有 FINDINGS/FACTS/DIRECTIONS/evidence（发现即落盘的
+物理保证，注释头只在文件不存在时写入）；CLAUDE.md/.mcp.json 每次重写
+（纪律层随 engagement 配置，内容确定性）。
 """
 
 from __future__ import annotations
@@ -19,6 +21,28 @@ import shutil
 from pathlib import Path
 
 _TEMPLATE_DIR = Path(__file__).parent.parent / "scaffolding"
+
+# 账本注释头（phase5 B2/实施决策①）：worker 开工 Read 就见格式示例；
+# 解析器跳过非 JSON 行，注释头不碍收割。幂等：只在文件不存在时写入。
+_LEDGER_HEADERS = {
+    "FINDINGS": (
+        "# 每行一条发现（JSONL）。字段：id/endpoint/evidence/summary/round；\n"
+        "# 可选 chain 把发现连成图：{\"rel\":\"derived_from|combines|same_root\",\"refs\":[\"F-001\"],\"note\":\"...\"}（refs 只能指 F-/D-）。\n"
+        "# 上报硬门槛：只有真实触发过+可复现证据才写；嫌疑写 FACTS（详见 CLAUDE.md §2/§3.1）。\n"
+    ),
+    "FACTS": (
+        "# 每行一条结论（JSONL）。字段：kind（endpoint/credential/kv_secret/fingerprint/\n"
+        "# identity_model/business_context/unclassified 拿不准就用它）/value/confidence/evidence。\n"
+        "# confidence：observed=直接看到；inferred=推断（否定结论没穷尽手段一律 inferred）。可选 chain 同 FINDINGS。\n"
+        "# 例：{\"kind\":\"unclassified\",\"value\":\"config.js 有内部端点表\",\"confidence\":\"inferred\",\"evidence\":\"curl\"}\n"
+    ),
+    "DIRECTIONS": (
+        "# 每行一个方向（JSONL），整文件重写更新。字段：id/goal/endpoint/status(open|in_progress|blocked|done)/\n"
+        "# note/round，blocked 加 blocked_reason，可选 chain 同 FINDINGS。\n"
+        "# 例：{\"id\":\"D-001\",\"goal\":\"验证 /api/x idor\",\"endpoint\":\"/api/x\",\"status\":\"open\",\"note\":\"下一步...\",\"round\":1}\n"
+        "# 开工第一件事：接手 open/blocked 方向（接力第一优先级）。重开 blocked 需材料性新机理（详见 CLAUDE.md §3.3）。\n"
+    ),
+}
 
 
 def _render_worker_claude(engagement: dict) -> str:
@@ -59,9 +83,12 @@ def expand(engagement_root: str | os.PathLike, engagement: dict, *,
         _render_worker_claude(engagement), encoding="utf-8")
     shutil.copyfile(_TEMPLATE_DIR / ".mcp.json", workdir / ".mcp.json")
 
-    # 账本：预创建空文件（实测教训：不预创建 worker 会建 .jsonl 变体名）
-    for name in ("FINDINGS", "FACTS"):
-        (workdir / name).touch(exist_ok=True)
+    # 账本：预创建带注释头（实测教训：不预创建 worker 会建 .jsonl 变体名；
+    # 注释头让 worker 开工 Read 即见格式——实施决策①的缓解）
+    for name, header in _LEDGER_HEADERS.items():
+        p = workdir / name
+        if not p.exists():
+            p.write_text(header, encoding="utf-8")
 
     # 身份注入：engagement.json credentials.storage_state → workdir/storage-state.json
     cred = engagement.get("credentials", {}) or {}

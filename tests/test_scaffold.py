@@ -88,3 +88,57 @@ def test_load_engagement_fail_fast(tmp_path):
         assert False, "应拒启"
     except ValueError as e:
         assert "allow" in str(e)
+
+
+# ── phase5 B2：三账本注释头 + 新契约文本 ─────────────────────────────────
+
+def test_ledger_files_created_with_headers(tmp_path):
+    _mk_engagement(tmp_path)
+    eng = load_engagement(tmp_path)
+    wd = expand(tmp_path, eng)
+    for name in ("FINDINGS", "FACTS", "DIRECTIONS"):
+        p = wd / name
+        assert p.is_file(), name
+        txt = p.read_text(encoding="utf-8")
+        assert txt.startswith("#"), f"{name} 缺注释头"
+        assert "{" in txt          # 含 JSON 格式示例
+
+
+def test_worker_contract_texts(tmp_path):
+    """B2 契约断言：C-1 上报门槛 / 7-kind+confidence / DIRECTIONS 生命周期 / D 三条。"""
+    _mk_engagement(tmp_path)
+    eng = load_engagement(tmp_path)
+    wd = expand(tmp_path, eng)
+    txt = (wd / "CLAUDE.md").read_text(encoding="utf-8")
+    # C-1 上报硬门槛
+    assert "真实触发过" in txt and "可复现证据" in txt
+    assert "漏洞库推断" in txt and "inferred" in txt
+    # FACTS：7 kind 菜单 + confidence 语义 + 否定门槛
+    for k in ("endpoint", "credential", "kv_secret", "fingerprint",
+              "identity_model", "business_context", "unclassified"):
+        assert k in txt
+    assert "observed" in txt and "inferred" in txt              # confidence 二值语义进纪律层
+    assert "没穷尽手段" in txt                                   # 否定结论门槛
+    # DIRECTIONS 契约：开工先读 + 生命周期 + 自主权话术
+    assert "接手 open/blocked" in txt and "高于开新方向" in txt
+    assert "in_progress" in txt and "blocked_reason" in txt
+    assert "不是派工单" in txt                                   # 自主权（接单员化缓解 G-2）
+    # D 三条
+    assert "材料性新机理" in txt                                 # DEC-5 重开标准
+    assert "不写 /tmp" in txt                                    # DEC-6
+    assert "立刻写" in txt                                       # DEC-8 即时写
+    # chain 契约（A-1）
+    assert "derived_from" in txt and "same_root" in txt and "combines" in txt
+    assert "F-xxx/D-xxx" in txt or "F-/D-" in txt.replace("只能指 F-/D-", "F-xxx/D-xxx")
+
+
+def test_ledger_headers_idempotent(tmp_path):
+    _mk_engagement(tmp_path)
+    eng = load_engagement(tmp_path)
+    wd = expand(tmp_path, eng)
+    (wd / "DIRECTIONS").write_text('{"id":"D-001","goal":"已有方向","status":"open","round":1}\n',
+                                   encoding="utf-8")
+    expand(tmp_path, eng)                                        # 二次展开
+    t = (wd / "DIRECTIONS").read_text(encoding="utf-8")
+    assert '{"id":"D-001"}' not in t and "已有方向" in t         # 已有内容不被注释头覆盖
+    assert not t.startswith("#")                                 # 不重复盖头
