@@ -30,8 +30,10 @@ def test_segment_sources():
     assert "侦察拓面" in p.split("【指令】")[0]
     # 段3 = plan_directive（阶段/出口/轮次）
     assert "阶段=recon" in p and "第 2 轮" in p
-    # 段4 = Graph State（untrusted + 端点）
-    assert "untrusted_data" in p and "/api/x" in p
+    # 段4 = 状态摘要（DEC-9/E：紧凑摘要 + 引导读 STATE.md；事实全量不在 prompt）
+    assert "untrusted_data" in p and "状态摘要" in p
+    assert "STATE.md" in p
+    assert "未测面 1 个（目标：清零）" in p
     # 段5 = 上一轮交接
     assert "已完成侦察首屏" in p
     # 段6 = tried≥3 告警

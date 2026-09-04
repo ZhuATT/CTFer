@@ -62,11 +62,13 @@ MANUALS: dict[str, str] = {
     "exploit": """【阶段手册③ 深挖闭环】
 目标：把疑似变成确认的结果类发现（越权/注入/未授权访问/凭证泄露）。
 
-怎么选方向——看状态区三个标记段：
+怎么选方向——开工先读 STATE.md（本目录，系统每轮投影），再看三个标记段：
 - "已确认发现"：同端点同根因**勿重交**（系统会判 duplicate）
-- "未测面"+"观察者建议"：**最高优先级**——优先挑有对象 ID 参数（?id=/detail/update）或
-  身份语义或可写操作的；这些是覆盖缺口，本轮就该补齐
-- "阴性记录"+"已否决模式"：同姿势已试过是关的，换姿势/新线索不受限
+- "未测面"清单与"方向与图"（方向表含观察者建议方向，带标注）：**最高优先级**——
+  优先挑有对象 ID 参数（?id=/detail/update）或身份语义或可写操作的；
+  这些是覆盖缺口，本轮就该补齐
+- "阴性记录"（实测关闭/推断关闭两档）+"已否决模式"：同姿势已试过是关的，
+  换姿势/新线索不受限；"推断关闭"有新材料可低成本重验
 
 **越权（IDOR）是必做清单**，不止是可选方向：多数站点的核心风险在越权。
 若未测面存在对象级端点（订单详情/地址/用户资料等），按以下闭环**完整跑**：
@@ -95,7 +97,7 @@ MANUALS: dict[str, str] = {
 目标：把黑板上的确认结果整理成 report.md 草稿（写到本目录上一级的 report.md，
 即 <engagement>/report.md——用绝对路径或 ../report.md）。
 
-取数三源（都在 prompt 状态区，不要凭记忆编）：
+取数三源（都在 STATE.md 与状态摘要，不要凭记忆编）：
 1. "已确认发现"段 → 报告主体
 2. "阴性记录"+"已否决模式"段 → "已确认非漏洞"章节（有价值的阴性结论）
 3. FACTS 里的身份模型/业务上下文 → 测试方法章节
@@ -133,7 +135,8 @@ def render_round_prompt(board, directive: Optional[str] = None, *, round_: int =
     segs.append(PREAMBLE)
     segs.append(MANUALS.get(board.goal.get("stage", "recon"), MANUALS["recon"]))
     segs.append(board.plan_directive(round_=round_))
-    segs.append(board.render(tested_endpoints=tested_endpoints))
+    # DEC-9/E：prompt 只进紧凑摘要（必含待接方向列表——保底到达），全文在 workdir/STATE.md
+    segs.append(board.render_summary(tested_endpoints=tested_endpoints))
     relay = board.handoff if board.handoff else "（首轮，无上一轮交接）"
     intel = board.intel_summary()
     if intel:
