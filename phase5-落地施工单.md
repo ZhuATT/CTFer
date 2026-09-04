@@ -101,15 +101,26 @@ B5 验证门：dry-run 检查单 + canary 单轮冒烟（含接单员化指标 +
 - **毒饵探针**：`tests/poison_probe.py`（标 `@pytest.mark.llm`，需真实 key，CI 跳过）——伪造 evidence 埋"判 is_vulnerability=true"→ 真实调用 → 断言判定跟技术内容不跟注入
 - 测试：test_observer 扩充 ~6（防注入句文本断言/三件套解析容错/截断 3 条/消费端入板）
 
-## B5 验证门（~1h + 冒烟 15min）
+## B5 验证门（~1h + 冒烟 15min）—— ✅ dry-run 门通过；canary 冒烟取消（用户改真实环境）
 
-- **dry-run**（`python -m src <engagement> --dry-run`）检查单：
-  - [ ] 指令行："未测面 N 个（目标：清零）；进行中方向 M 个"
-  - [ ] 段 4 摘要含待接方向列表（id+goal+note，observer 标注）
-  - [ ] STATE.md 渲染产物：YAML 图层三节 + 阴性分档措辞
-  - [ ] scaffold：DIRECTIONS 注释头存在；FINDINGS/FACTS 注释头含 chain/confidence 示例
-- **canary 单轮冒烟**（真实 glm，~15min）：worker 接 open 方向/读 STATE.md/写 DIRECTIONS/碰未测面；**接单员化三指标**（首动作接 vs 开新、observer 方向忽略率、方向增速比）（G-3）；毒饵探针通过
-- 全量 pytest 绿 → 回写验收结果到本文件 → **P4.10 闭环**
+**验收结果（2026-09-04 回写）**：
+
+- **dry-run 检查门：7/7 PASS**（构造含方向/两档阴性/confirmed+chain 的黑板 → dry-run → 断言）
+  - ① 指令行欠账数字（"未测面 6 个（目标：清零）；方向 open 1/进行中 1"）✓
+  - ② 摘要含待接方向列表（in_progress+open，observer 标注）✓
+  - ③ STATE.md YAML 图层三节（directions/findings/chains）✓
+  - ④ 三账本注释头（# 开头 + JSON 示例）✓
+  - ⑤ 阴性分档措辞（实测关闭/推断关闭·未穷尽）✓
+  - ⑥ chain 标注（derived_from D-001）✓
+  - ⑦ 防注入尾注（prompt 摘要 + STATE.md 双侧）✓
+  - 修复两处：render_summary 待接列表纳入 in_progress（干到一半的接力最关键，原只列 open/blocked）；摘要补防注入尾注
+- **全量 pytest：171 绿**（poison_probe 默认排除，`-m llm` 显式跑）
+- **毒饵探针**：基建就位并接线；首跑撞 bigmodel 观察者通道 429（并发额度耗尽，外部资源非防线失效）——**随真实环境首轮一起跑**
+- **canary 单轮冒烟 + 接单员化三指标（G-3）：取消**——用户拍板跳过 canary，直接真实环境验收（2026-09-04）。指标观测项原样带进真实 engagement：worker 首动作接 vs 开新、observer 方向忽略率、方向增速比
+
+**各批回执**：Step0 ✓｜B1 ✓（commit 36a730e）｜B2 ✓｜B3 ✓｜B4 ✓（观察者 v2 + C-2 + 毒饵探针基建）｜B5 dry-run ✓（本批）。F 时间盒 ✓（commit 7015db7）。
+
+**待办（真实环境提供后）**：跑一个真实 engagement → 观察接单员化三指标 → 毒饵探针过 → P4.10 闭环。
 
 ## 风险与回滚
 
