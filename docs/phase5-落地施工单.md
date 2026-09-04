@@ -9,7 +9,7 @@
 ## 0. 总览
 
 ```
-Step0 schema 晋升（docs/at1-黑板schema.md，四处同步）
+Step0 schema 晋升（at1-黑板schema.md，四处同步）
    ↓
 B1 黑板核心 board.py ──→ B2 worker 契约 scaffolding/（可并行，文字工作）
    ↓                        ↓
@@ -42,13 +42,13 @@ B5 验证门：dry-run 检查单 + canary 单轮冒烟（含接单员化指标 +
 
 ## Step0 schema 晋升（30min）
 
-- `phase4-黑板schema.md` → `docs/at1-黑板schema.md`（正式契约），顶部标注"正式契约 v2.1（2026-09-04 晋升）"；原文件顶部加"已晋升"指针。
+- `phase4-黑板schema.md` → `at1-黑板schema.md`（正式契约），顶部标注"正式契约 v2.1（2026-09-04 晋升）"；原文件顶部加"已晋升"指针。
 - 同步四处（拍板裁定覆盖旧稿）：
   1. §2.1/§6 的 conf 行："保留为派生字段" → **物理删除**；§6 迁移改为"读旧 conf 推断 confidence 后**丢弃浮点**"
   2. §2.4 directions 字段表加 `chain`（同 §2.2 规格）+ `comment`（观察者批注）
   3. §2.4 tested 语义：directions 端点只有 in_progress/blocked/done 计入
   4. §5.1 YAML 图层：directions 项渲染 source 标注与 chain 标注；§2.5 补"新方向建议每轮截断 3 条"
-- 验收：docs/at1-黑板schema.md 存在且四处改动在位；phase4 原文件有指针。
+- 验收：at1-黑板schema.md 存在且四处改动在位；phase4 原文件有指针。
 
 ## B1 黑板核心 board.py（~2.5h）
 

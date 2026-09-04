@@ -1,6 +1,6 @@
 #   Phase 1 —— 骨架（M1）执行计划
 
-> 依据：`docs/at1-施工执行单.md` 卡 1.1-1.3 + headless 实测四事实（commit 51aed76）
+> 依据：`at1-施工执行单.md` 卡 1.1-1.3 + headless 实测四事实（commit 51aed76）
 > 目标：跑通"控制器 spawn 一个 `-p` 会话 → 解析流 → 落事件 → 收割 Handoff"的最小闭环。**Phase 1 结束时 AT1 还不能挖洞**，但进程桥这一地基是实的。
 > 工作目录：`D:\Downloads\hacker\at1-github`（本仓库根 = 项目根）
 
@@ -106,7 +106,7 @@ untrusted.py：原样移植（37 行），加一条单测（nonce 包裹 + 闭�
 ## 3. 节奏与纪律
 
 - commit 节奏：每张任务卡一个 commit，格式 `feat(P1.x): …`
-- 施工冲突处理：发现设计文档与实际不符 → 改 `docs/at1-执行开发计划.md` 并在同 commit 提交，再继续施工
+- 施工冲突处理：发现设计文档与实际不符 → 改 `at1-执行开发计划.md` 并在同 commit 提交，再继续施工
 - vendor 来源只读，不回写 hxbai/dcr-harness 源文件
 - Phase 1 完成后：更新施工执行单 M1 行打勾 → 开 Phase 2（M2 状态）计划
 

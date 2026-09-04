@@ -1,6 +1,6 @@
 # Phase 2 —— 状态（M2）执行计划
 
-> 依据：`docs/at1-施工执行单.md` 卡 2.1-2.3 + 设计§3.3（board）/§3.5（prompt）/§2.3（workdir 契约）
+> 依据：`at1-施工执行单.md` 卡 2.1-2.3 + 设计§3.3（board）/§3.5（prompt）/§2.3（workdir 契约）
 > 目标：**跨轮状态成立**——会话 1 干的活（事实/台账/交接）出现在会话 2 的 prompt 里；会话被杀，接力不断。
 > Phase 2 结束时 AT1 有了记忆，但还没有验证（M3）和主循环（M4）。
 > 工作目录：`D:\Downloads\hacker\at1-github`；上一 Phase：`9850aa0`（骨架，pytest 25/25）

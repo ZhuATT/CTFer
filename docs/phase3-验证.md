@@ -1,6 +1,6 @@
 # Phase 3 —— 验证（M3）执行计划
 
-> 依据：`docs/at1-施工执行单.md` 卡 3.1-3.4 + 设计§3.4 全节（含 §3.4.4 实现契约与门 2 prompt 草案）
+> 依据：`at1-施工执行单.md` 卡 3.1-3.4 + 设计§3.4 全节（含 §3.4.4 实现契约与门 2 prompt 草案）
 > 目标：**worker 报的发现可以被机器验真**——Claim 进四门漏斗，confirmed 才算数。
 > Phase 3 结束时 AT1 有记忆+有裁判，但没有主循环（M4）——canary-web（M3.5）并行开建，另立 `phase3.5-canary.md`。
 > 工作目录：`D:\Downloads\hacker\at1-github`；上一 Phase：`b3e641f`（状态层，52 单测 + relay 双场景）
