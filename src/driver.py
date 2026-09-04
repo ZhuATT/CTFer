@@ -32,7 +32,7 @@ from .observer import Observer
 from .providers import SolverConfig, build_verifier_config
 from .stoploss import Stoploss
 
-TIMEBOX_LADDER = (600, 1200, 1800)      # 轮次时间盒阶梯（§7）
+TIMEBOX_LADDER = (1200, 1200, 1800)     # 轮次时间盒阶梯（§7；F 拍板 2026-09-04：首档 600→1200，P4.9 r1 被杀于干活中 + ARTEX 生产同款）
 MAX_TURNS = 60
 
 
