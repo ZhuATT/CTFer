@@ -120,6 +120,7 @@ def test_board_integration():
     # 渲染验证
     r = b.render()
     assert "已确认发现" in r and "/e" in r
-    assert "观察者建议" in r and "try y" in r
+    # G 块：旧 suggestions 独立段废除——建议改经 direction_comments 入方向层（source=observer）
+    assert "观察者建议" not in r
     assert b.intel_summary() == "z"
     assert b.verified["confirmed"] == 1

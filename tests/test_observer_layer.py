@@ -54,7 +54,9 @@ def test_duplicate_assessment():
     assert b.verified["confirmed"] == 1
 
 
-def test_session_intel_suggestions_render():
+def test_session_intel_observer_voice_moved_to_directions():
+    """G 块：旧 suggestions 独立段废除（并入 direction_comments → 方向层，source=observer）；
+    notable_attempts 有了消费者（"接近成功的尝试"段，09-03 审计裁决 Q1）。"""
     b = Blackboard()
     b.update_session_intel({
         "coverage_gaps": ["/api/order/detail 未测"],
@@ -64,9 +66,8 @@ def test_session_intel_suggestions_render():
         "intel_summary": "目标对 id 遍历无防护",
         "round": 2})
     r = b.render()
-    # B1 选法 b：观察者建议独立段（与机械未测面分开）
-    assert "观察者建议" in r and "address/update" in r
-    assert "未测面" not in r.split("观察者建议")[0].split("阴性记录")[0]  # 两者分开
+    assert "观察者建议" not in r                      # 旧独立段已废（G 落地）
+    assert "接近成功的尝试" in r and "路径穿越" in r    # notable_attempts 接了消费者
     # intel_summary 在交接段
     assert b.intel_summary() == "目标对 id 遍历无防护"
 

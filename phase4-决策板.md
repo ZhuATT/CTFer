@@ -28,7 +28,12 @@
 
 ---
 
-## 决策 A：方向层与结构化接力（directions + chain）
+## 决策 A：方向层与结构化接力（directions + chain）—— ✅ 已拍板（2026-09-04）
+
+> **拍板附注（本次讨论补充，随 B1/B3 落地）**：
+> 1. **directions 加同规格 chain 字段**（rel/refs/note，ingest 校验复用）——补齐"方向不能做边起点"的不对称，worker 不必把组合方向伪装成 finding 才能挂边。
+> 2. **tested 集合实施缺省**：directions 关联端点只有 `in_progress / blocked / done` 计入 tested；`open` 不计（还没动手的不算测过——未测面清单必须能看见计划面）。
+> 3. **fact→fact 边 v1 明确不做**（facts 无 id）：想连链的观察升格成 finding 或 direction 再连；事后补边走 FACTS 挂 chain / 观察者判重顺产 same_root 两条通道。v2 图化时随 §9 迁移规则机械升格。
 
 **为什么（病①+②）**：失忆 worker 之间的接力靠两类信息——工作状态（干到哪）和知识关联（发现间的联系），现在都只活在 Handoff 叙事里：被杀场景连"本想干什么"都丢（合成兜底自认）；轮 1 的 SSRF + 轮 2 的 redis 凭证 = 攻击链，轮 2 worker 只见两条孤立记录——**联系没被结构化传递，每轮要自己重新看穿**；且不捕获的联系 v2 图化无法重建。
 
@@ -66,7 +71,10 @@ rel ∈ `derived_from/combines/same_root`（固定枚举）；refs = id 数组�
 
 ---
 
-## 决策 B：事实层契约（confidence 枚举 + KINDS 6+1 + 被动定位）
+## 决策 B：事实层契约（confidence 枚举 + KINDS 6+1 + 被动定位）—— ✅ 已拍板（2026-09-04）
+
+> **拍板附注（实施缺省，B1 按此执行，可推翻）**：FACTS 行缺 `confidence` 字段时缺省 **inferred**（保守：未声明的推断不当实测；与 §6 旧数据迁移方向一致）。schema（phase4-黑板schema.md）随 A/B 拍板生效，但**晋升 docs/ 正式契约等 C/D/E-1/G 全部拍板后一并执行**。
+> **文档冲突裁定（2026-09-04 扫描发现）**：conf 字段**以本块第 6 条为准——物理删除**（09-03 审计裁决晚于 schema 成稿）；schema §2.1"conf 降级为派生字段保留"与 §6"保留字段"系旧稿表述，晋升 docs/ 时同步改为"删除 + 排序改 (confidence, ts)"。
 
 **为什么**：schema 审计——conf 半死（无决策读）、provenance 全死（runtime 零调用）= 负优化；否定结论无分级（一次 403 焊死路线，漏 idor 部分根因）；FACTS 校验松（未知字段静默丢）。
 
@@ -85,7 +93,7 @@ rel ∈ `derived_from/combines/same_root`（固定枚举）；refs = id 数组�
 
 ---
 
-## 决策 C：两道防误报防线
+## 决策 C：两道防误报防线 —— ✅ 已拍板（2026-09-04）
 
 **为什么**：A4 重定向误报靠观察者事后拦——第一道（worker 上报门槛）空的；判官直接吃 evidence（攻击者可控）prompt 无防注入（nonce 只保护 worker 方向，判官方向裸奔）。
 
@@ -99,7 +107,7 @@ rel ∈ `derived_from/combines/same_root`（固定枚举）；refs = id 数组�
 
 ---
 
-## 决策 D：worker 环境纪律三条
+## 决策 D：worker 环境纪律三条 —— ✅ 已拍板（2026-09-04，七块全闭环）
 
 1. **封锁重开标准**（DEC-5）：材料性新机理（新发现/新入口/新参数/明显不同构造）才重开，说清"这次和上次不同在哪"。
 2. **不写 /tmp**（DEC-6）：中间产物一律当前目录或 evidence/。
@@ -109,7 +117,7 @@ rel ∈ `derived_from/combines/same_root`（固定枚举）；refs = id 数组�
 
 ---
 
-## 决策 E：STATE.md 投影（主体已拍板 D10；**E-1 格式待确认**）
+## 决策 E：STATE.md 投影（主体已拍板 D10；**E-1 格式已确认**）—— ✅ 已拍板（2026-09-04，schema §5.1 即 E-1 规格，无需另同步）
 
 **主体**：`render_state_projection` 落盘 `.auto/STATE.md`（nonce 包裹，每轮覆盖写）；prompt 段 4 改紧凑摘要（含 A-4 的待接方向列表）+ 指引。
 
@@ -134,14 +142,20 @@ STATE.md:
 
 ---
 
-## 决策 F：时间盒首档 600→1200（★单独确认）
+## 决策 F：时间盒首档 600→1200（★单独确认）—— ✅ 已拍板（2026-09-04）
 
 P4.9 r1 被杀于干活中；ARTEX 生产数据 600→1200。**连带**：3 轮×1200s=3600s，真目标 `--budget 7200+` 或接受轮数减少。
-☐ 改（推荐）/ ☐ 不改（给足 --budget 观察后再说）
+✅ **改**。TIMEBOX_LADDER → (1200, 1200, 1800)（driver.py 已改，原 B5 那行提前落）；**默认预算核实 = 本来就是 7200s**（__main__.py:401 / driver.py:117），无需改动。设计文档 §7 时间盒行待下次文档整编时同步。
 
 ---
 
-## 决策 G：观察者 v2 —— 输出契约随图扩展
+## 决策 G：观察者 v2 —— 输出契约随图扩展 —— ✅ 已拍板（2026-09-04）
+
+> **拍板附注（随 B1/B4/B5 落地）**：
+> 1. **observer 新方向建议每轮上限 3 条**（解析端截断；批注/immune_reviews/chains 不限）——封住"接单员化"的注水口，B4 落。
+> 2. **方向层渲染带 source 标注**（observer 方向标"（观察者建议）"）；"探不探你定"自主权措辞从旧建议段（board.py:447，并入 direction_comments 后消失）**搬到方向层段头**；`DIRECTIONS_CAP` 裁剪（open/in_progress 优先）——B1 落。
+> 3. **接单员化验收指标**（B5 canary 冒烟）：worker 首动作接方向 vs 开新方向；observer 方向被忽略率；方向表增速 vs worker 自开方向增速。
+> 4. **已知事项**：观察者 v2 落地后预期还要迭代（用户明确）——输出契约与解析器按逐字段容错风格演进，不改冻结原则（无工具/轮间/建议不指挥/不关闭方向）。
 
 **为什么**：串行架构里观察者是**唯一跨轮+全局+无投入偏见的眼睛**（worker 失忆、driver 机械），但它的 I/O 还是旧世界三件套，新对象 directions/chains/confidence 全没覆盖。
 

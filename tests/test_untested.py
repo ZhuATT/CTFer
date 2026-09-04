@@ -38,14 +38,13 @@ def test_render_untested_section():
     r = b.render(tested_endpoints={"/search"})
     assert "未测面" in r and "探不探你定" in r
     assert "/api/address/update" in r
-    # 顺序：阳性事实 → 未测面 → 阴性记录
-    i_pos = r.find("[credential]")
+    # 顺序（schema §5 三层）：结论层（未测面 → 阴性）在前，分母层最后
     i_un = r.find("未测面")
-    assert 0 < i_pos < i_un
+    i_cred = r.find("[credential]")
     b.add_immune("/admin/userList", "authbypass", round_=1, status="403")
     r2 = b.render(tested_endpoints={"/search"})
     i_imm = r2.find("阴性记录")
-    assert i_un < i_imm
+    assert 0 < i_un < i_imm < i_cred
     # 已测端点不出现在未测面
     assert "/search" not in r2.split("未测面")[1].split("阴性记录")[0].replace("/search", "X") or True
 
@@ -60,6 +59,6 @@ def test_quoted_path_with_query():
     # 中期审核④ bug 修复：orders:"/api/order/detail?id=" —— 带 query 的引号路径入库
     js = 'const API={orders:"/api/order/detail?id=",addr:"/api/address/update"};'
     facts = _extract_facts(js)
-    eps = [v for k, v, _ in facts if k == "endpoint"]
+    eps = [v for k, v in facts if k == "endpoint"]
     assert "/api/order/detail?id=" in eps or "/api/order/detail" in eps
     assert "/api/address/update" in eps
