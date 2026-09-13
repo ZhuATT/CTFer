@@ -68,13 +68,18 @@ def _strings_of(obj, out: list) -> None:
             _strings_of(v, out)
 
 
-def _transcript_hays(transcript_path: str) -> tuple[str, str]:
+def _transcript_hays(transcript_path: str, start_offset: int = 0) -> tuple[str, str]:
     """账本双形态解码文本：(原文规范化, URL-decode 后规范化)。
     逐行 json.loads 后拼字符串值（防转义假阴性）；decode 形态防 evidence 写明文、
-    账本记编码（q=' vs q=%27）的假阴性。"""
+    账本记编码（q=' vs q=%27）的假阴性。
+    start_offset > 0 时只读该字节之后的窗口（治理批#2：轮窗复现抽验——
+    transcript 跨轮追加，整卷查"出现过"对被动事实永远为真）。"""
     parts: list[str] = []
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as f:
+            if start_offset > 0:
+                f.seek(start_offset)
+                f.readline()                     # 丢弃半行（偏移可能落在行中间）
             for line in f:
                 line = line.strip()
                 if not line.startswith("{"):

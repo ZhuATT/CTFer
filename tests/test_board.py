@@ -138,27 +138,40 @@ def test_stage_round_fallback_unstuck():
 
 # ── 会话守卫（P2.1 验收第 4 条） ──────────────────────────────────────────
 
-def test_verify_fact_credential_guard(tmp_path):
+def test_verify_fact_credential_guard():
+    """治理批#2：凭证 provenance 冻结——不检、不降、不记账。"""
     b = Blackboard()
     b.add_fact("endpoint", "/api/user", confidence="observed",
                provenance="round1 Bash: curl -s -H 'Cookie: sid=x' https://t/api/user")
     key = [k for k in b.facts if k.startswith("endpoint:")][0]
-    calls = []
-    assert b.verify_fact(key, run=lambda c: (calls.append(c), "")[1]) == "skipped"
-    assert calls == []                       # 没重放
-    assert b.facts[key]["confidence"] == "observed"   # 冻结不降
-    assert "conf" not in b.facts[key]                 # B-2：conf 浮点物理删除
+    r = b.verify_facts_against_transcript(("", ""), round_no=9)   # 空窗口=必然不可寻
+    assert r["checked"] == 0                            # 被会话守卫拦截，未检
+    assert b.facts[key]["confidence"] == "observed"     # 冻结
+    assert "last_verified_round" not in b.facts[key]
 
 
-def test_verify_fact_non_credential_replay():
+def test_verify_facts_round_window_semantics():
+    """治理批#2 五语义：窗口再现保持/恢复 observed；未再现降 inferred；结论类跳过。"""
     b = Blackboard()
-    b.add_fact("kv_secret", "token=abc123", confidence="observed",
-               provenance="round1 Bash: grep token config.txt")
-    key = [k for k in b.facts][0]
-    assert b.verify_fact(key, run=lambda c: "token=abc123 here") is True   # 复现 → 保持 observed
-    assert b.facts[key]["confidence"] == "observed"
-    assert b.verify_fact(key, run=lambda c: "nothing") is False            # 未复现 → observed 降 inferred（不删除）
-    assert b.facts[key]["confidence"] == "inferred"
+    b.add_fact("endpoint", "/api/alive", confidence="observed",
+               provenance="round1 Bash: curl /api/alive")
+    b.add_fact("endpoint", "/api/gone", confidence="observed",
+               provenance="round1 Bash: curl /api/gone")
+    b.add_fact("endpoint", "/api/heal", confidence="inferred",  # 曾被降档
+               provenance="round2 Bash: curl /api/heal")
+    next(f for f in b.facts.values() if f["value"] == "/api/heal")["last_verified_round"] = 2
+    b.add_fact("identity_model", "身份靠 cticket 派生", confidence="observed",
+               provenance="evidence/identity-tests.md")           # 显式结论类
+    hay = ("get /api/alive nothing else get /api/heal tail", "")
+    r = b.verify_facts_against_transcript((hay[0], hay[0]), round_no=5)
+    fm = {f["value"]: f["confidence"] for f in b.query()}
+    assert fm["/api/alive"] == "observed"                # 窗口再现 → 保持
+    assert fm["/api/gone"] == "inferred"                 # 窗口不可寻 → observed 衰减
+    assert fm["/api/heal"] == "observed"                 # 对称自愈：再现 → 恢复
+    assert fm["身份靠 cticket 派生"] == "observed"        # 结论类跳过
+    assert r == {"checked": 3, "downgraded": 1, "restored": 1}
+    # last_verified_round 防重验：同轮再跑 → checked=0
+    assert b.verify_facts_against_transcript((hay[0], hay[0]), round_no=5)["checked"] == 0
 
 
 # ── 渲染：确定性 / untrusted / 预算闸 / 免疫段 ────────────────────────────

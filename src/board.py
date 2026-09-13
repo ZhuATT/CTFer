@@ -24,7 +24,7 @@ import os
 import re
 import threading
 from datetime import datetime, timezone
-from typing import Callable, Optional
+from typing import Optional
 from urllib.parse import urlsplit
 
 from .untrusted import make_nonce, untrusted_block
@@ -574,28 +574,39 @@ class Blackboard:
             self.goal["stage"] = stage
             self.goal.setdefault("history", []).append(stage)
 
-    # ── 复核 + 会话守卫 ─────────────────────────────────────────────────
-    def verify_fact(self, key: str, run: Optional[Callable[[str], str]] = None):
-        """凭证类 provenance（cookie/token 类命令）→ 跳过重放、confidence 冻结（防过期错杀）。
-        其余：有 run 回调才重放；复现→confidence 不变；未复现→observed 降 inferred（schema §4）。"""
-        f = self.facts.get(key)
-        if f is None:
-            return None
-        prov = f.get("provenance", "")
-        if _CRED_PROV_RX.search(prov):
-            return "skipped"                                  # 会话守卫
-        cmd = prov.split(":", 1)[1].strip() if ":" in prov else ""
-        if not run or not cmd or cmd.startswith(("http://", "https://")):
-            return None
-        try:
-            out = run(cmd) or ""
-        except Exception:
-            return False
-        val = f["value"]
-        reproduced = (val in out) or (val.split("=", 1)[-1] in out)
-        if not reproduced and f.get("confidence") == "observed":
-            f["confidence"] = "inferred"                      # 独立重放打不回 → 降档不删除
-        return reproduced
+    # ── 复核 + 会话守卫（治理批#2：verify_fact 接线，provenance 的消费者） ──
+    def verify_facts_against_transcript(self, hay_pair: tuple[str, str],
+                                        round_no: int) -> dict:
+        """轮末被动事实复现抽验（零网络）：被动类事实（provenance 以 round 开头）的
+        value 在【最近一轮 transcript 窗口】解码文本中是否再现。
+        - 再现 → 保持 observed；此前被降过 inferred → 恢复 observed（对称自愈）
+        - 未再现 → observed 降 inferred（不删除——最近没再见到 ≠ 假了，缓降一位）
+        - 凭证 provenance 冻结不检（会话守卫：token 过期 ≠ 事实假）
+        - 显式结论类（provenance 非 round 前缀）跳过——prose 结论不该要求逐字在流
+        - last_verified_round 防重复验（每事实每轮一次）
+        返回 {checked, downgraded, restored}。"""
+        checked = downgraded = restored = 0
+        with self._lock:
+            for f in self.facts.values():
+                prov = str(f.get("provenance", ""))
+                if not prov.startswith("round"):              # 显式结论类跳过
+                    continue
+                if _CRED_PROV_RX.search(prov):                # 会话守卫：凭证冻结
+                    continue
+                if f.get("last_verified_round") == round_no:
+                    continue
+                f["last_verified_round"] = round_no
+                checked += 1
+                val = _norm(f.get("value", ""))
+                found = bool(val) and (val in hay_pair[0] or val in hay_pair[1])
+                if found:
+                    if f.get("confidence") == "inferred":
+                        f["confidence"] = "observed"          # 自愈
+                        restored += 1
+                elif f.get("confidence") == "observed":
+                    f["confidence"] = "inferred"              # 衰减（不删除）
+                    downgraded += 1
+        return {"checked": checked, "downgraded": downgraded, "restored": restored}
 
     # ── Handoff ────────────────────────────────────────────────────────
     def record_handoff(self, text: str, origin: str) -> None:

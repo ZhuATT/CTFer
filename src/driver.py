@@ -337,6 +337,9 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
         ev.emit("session_start", {"round": rnd, "stage": stage, "timebox": box}, round_=rnd)
         tool_tail: list = []
         proc_ref: dict = {}
+        # 轮窗偏移（治理批#2）：记本轮 transcript 起点——verify 抽验只看"最近一轮窗口"
+        tx_path = pilot / "transcript.jsonl"
+        tx_off = tx_path.stat().st_size if tx_path.is_file() else 0
 
         def on_fact(t, _r=rnd):
             n = bb.observe(t.tool, t.args, t.output, round_=_r)
@@ -376,6 +379,12 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
         facts_delta = len(bb.facts) - facts_before
         sl.record_round(facts_delta=facts_delta,
                         session_ok=(res.stop_reason != "error"))
+
+        # ── 被动事实复现抽验（治理批#2：provenance 的消费者，confidence 衰减通道）──
+        vres = bb.verify_facts_against_transcript(
+            transcript_check._transcript_hays(str(tx_path), tx_off), rnd)
+        if vres["checked"]:
+            ev.emit("facts_verified", {"round": rnd, **vres}, round_=rnd)
 
         # ── 收割 FINDINGS（ID 去重，鲁棒于文件重写/变体）/ FACTS（字节 offset）/ DIRECTIONS ──
         new_findings = _harvest_findings(workdir, bb, rnd)
