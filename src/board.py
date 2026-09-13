@@ -597,7 +597,7 @@ class Blackboard:
                     continue
                 f["last_verified_round"] = round_no
                 checked += 1
-                val = _norm(f.get("value", ""))
+                val = re.sub(r"\s+", " ", f.get("value", "")).strip().lower()
                 found = bool(val) and (val in hay_pair[0] or val in hay_pair[1])
                 if found:
                     if f.get("confidence") == "inferred":
