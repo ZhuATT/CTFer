@@ -484,7 +484,7 @@ infoleak：instance-id/内网 IP/版本号不构成）
 启动: 读三件套（fail-fast 校验）→ 构造 AgentTask → 初始化 board（首次播种 prior-intel 摘要
      + 反向读 status.md"已确认非漏洞"播种 immune）
      装 guard（scope+Windows 模板）→ 展开 scaffolding 建 workdir ▶run_start
-轮次循环（时间盒 600→1200→1800 封顶，§7）:
+轮次循环（时间盒 1200→1200→1800 封顶，§7；F 拍板 2026-09-04 首档 600→1200）:
   ① prompt 渲染（阶段选装） ▶session_start
   ② runner.spawn（env = providers 注入 + 消毒）
   ③ 实时收割：on_fact → board.observe ▶fact_added / ▶immune_added
@@ -645,7 +645,7 @@ driver 在轮界与心跳点轮询（**worker 永远不知道此文件存在**�
 | 门1.5 独立重放 | **关**（canary 对分后开） | verify 配置 `replay` |
 | FINDINGS 格式 | JSONL（定死） | — |
 | 侦察出口 N | 15 | engagement.json 可覆写 |
-| 时间盒阶梯 | 600→1200→1800s 封顶 | `--budget` / 常量 |
+| 时间盒阶梯 | 1200→1200→1800s 封顶（F 拍板 2026-09-04：首档 600→1200） | `--budget` / 常量 |
 | stoploss 四维 | 会话上限 3 / 预算 / 无新事实连击 3 / 不可达连击 3 | config |
 | resume 上限 | 20 次/会话 | 常量 |
 | heartbeat 间隔 | 25 turns | 常量 |
@@ -675,4 +675,4 @@ driver 在轮界与心跳点轮询（**worker 永远不知道此文件存在**�
 
 ---
 
-*变更记录：v2.0 施工版，由 v1.5 归档的全部拍板内容重整；未定项已参数化为 §7 默认值。*
+*变更记录：v2.0 施工版，由 v1.5 归档的全部拍板内容重整；未定项已参数化为 §7 默认值。v2.3.1（2026-09-04）：§7 时间盒同步 F 拍板（首档 600→1200），设计主体不变。*
