@@ -41,7 +41,7 @@ def test_render_untested_section():
     # 顺序（schema §5 三层）：结论层（未测面 → 阴性）在前，分母层最后
     i_un = r.find("未测面")
     i_cred = r.find("[credential]")
-    b.add_immune("/admin/userList", "authbypass", round_=1, status="403")
+    b.add_immune("/admin/userList", round_=1, status="403")
     r2 = b.render(tested_endpoints={"/search"})
     i_imm = r2.find("阴性记录")
     assert 0 < i_un < i_imm < i_cred

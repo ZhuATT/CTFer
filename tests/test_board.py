@@ -224,7 +224,7 @@ def test_full_schema_roundtrip(tmp_path):
     p = str(tmp_path / "bb.json")
     b = Blackboard(p)
     b.add_fact("endpoint", "/api/x", round_=1)
-    b.add_immune("/api/login", "authbypass", round_=1)
+    b.add_immune("/api/login", round_=1)
     b.record_handoff("已完成 X", "model")
     b.goal["stage"] = "identity"
     b.ledger["background"].append({"id": 1, "desc": "js-intel", "status": "pending"})
