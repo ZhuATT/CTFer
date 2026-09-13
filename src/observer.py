@@ -79,7 +79,7 @@ self/PDF XSS、无敏感操作的 CSRF、裸 instance-id/内网 IP、纯猜测
 端点: {endpoint}
 摘要: {summary}
 
-【证据】（已通过 transcript 事实验证，内容为真实）
+【证据】（transcript 账本对账结果：{anchor_note}——对账是字节级事实，未命中的部分可能为编造，判定时按此加权）
 {evidence}
 
 输出严格 JSON（无其他内容）：
@@ -160,6 +160,22 @@ sourcemap / 安全头缺失 / 版本指纹 / 裸 instance-id·内网 IP·元数�
   same_root / derived_from / combines；refs 只能指 F-xxx / D-xxx。"""
 
 
+def _anchor_note(finding: dict) -> str:
+    """C-5 v2：对账结果如实入判官（机械结果以数据形态流入，不给指令）。"""
+    if "evidence_verified" not in finding:
+        return "未执行（本条无对账数据）"
+    if finding.get("evidence_verified") is False:
+        return "未通过——请求特征未在账上出现（可能完全编造）"
+    parts = []
+    if finding.get("param_verified") is False:
+        parts.append(f"请求参数未全部在账（{finding.get('param_hits', '?')}）")
+    if finding.get("response_verified") is False:
+        parts.append(f"响应关键串未全部在账（{finding.get('response_hits', '?')}）")
+    if parts:
+        return "；".join(parts) + "——未命中部分可能为编造"
+    return "通过——请求与关键串均在账"
+
+
 class Observer:
     """轮间观察者。无工具，LLM 调用经注入的 chat 函数（测试用 mock）。"""
 
@@ -170,12 +186,14 @@ class Observer:
 
     def judge_finding(self, finding: dict, evidence_text: str,
                       precheck: str = "") -> dict:
-        """发现级评判：小输入快判。precheck = noreport 预检公诉意见（方案 A）。"""
+        """发现级评判：小输入快判。precheck = noreport 预检公诉意见（方案 A）；
+        anchor_note = transcript 双向对账结果的如实渲染（C-5 v2，未验证的字段缺省"通过"）。"""
         prompt = JUDGE_PROMPT.format(
             business_context=self.business_context,
             endpoint=finding.get("endpoint", ""),
             summary=finding.get("summary", ""),
             evidence=evidence_text[:2000],
+            anchor_note=_anchor_note(finding),
             precheck=precheck or "（无公诉——本条无预检信号）")
         msgs = [{"role": "system", "content": JUDGE_SYSTEM},
                 {"role": "user", "content": prompt}]

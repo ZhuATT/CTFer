@@ -393,11 +393,18 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
                 if ep.is_file():
                     evidence_texts[f["id"]] = ep.read_text(encoding="utf-8",
                                                             errors="replace")
-            # transcript 定点比对（事实层锚定）→ evidence_verified
+            # transcript 双向对账（C-5 v2 事实层锚定）→ evidence_verified + param/response 软标记
             tpath = str(pilot / "transcript.jsonl")
             for f in new_findings:
-                f["evidence_verified"] = transcript_check.verify_evidence_in_transcript(
+                rep = transcript_check.verify_evidence_detailed(
                     tpath, evidence_texts.get(f["id"], ""))
+                f["evidence_verified"] = rep["evidence_verified"]
+                if rep["param_verified"] is not None:
+                    f["param_verified"] = rep["param_verified"]
+                    f["param_hits"] = f'{rep["param_hits"]}/{rep["param_total"]}'
+                if rep["response_verified"] is not None:
+                    f["response_verified"] = rep["response_verified"]
+                    f["response_hits"] = f'{rep["response_hits"]}/{rep["response_total"]}'
 
             bc_facts = bb.query("business_context")
             ob = Observer(chat_fn=get_chat(),
@@ -428,6 +435,8 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
                                           "assessment": f.get("assessment"),
                                           "severity": f.get("severity"),
                                           "evidence_verified": f.get("evidence_verified"),
+                                          "param_verified": f.get("param_verified"),
+                                          "response_verified": f.get("response_verified"),
                                           "reason": str(f.get("reason", ""))[:150]},
                         round_=rnd)
                 if f.get("assessment") == "confirmed":

@@ -78,7 +78,8 @@
 | assessment | confirmed/likely_false_positive/uncertain/duplicate | **观察者**（noreport 终审类为控制器） | 判定 |
 | severity | high/medium/low/null | 观察者 | 严重度 |
 | reason | str | 观察者/控制器（硬拒格式"硬拒·{cat}：…"） | 判定理由（writeback 硬拒清单按此前缀识别） |
-| evidence_verified | bool | **控制器**（transcript_check） | 证据锚定 |
+| evidence_verified | bool | **控制器**（transcript_check 双向对账，C-5 v2） | 证据锚定硬判定：请求路径在账；**参数与响应关键串双侧全空 → false（编造形态）** |
+| param_verified / response_verified | bool，可选 | **控制器**（同上） | 软标记：参数值/响应高信号 token 部分未在账（None=无可对账项）——如实渲染进判官 prompt 加权，不硬杀 |
 
 **chain 边规格**（ARTEX 边模型适配——worker 传引用，系统拥有词汇表）：
 
