@@ -178,8 +178,8 @@ def _apply_observer_governance(bb, session: dict, round_no: int) -> dict:
     - direction_comments(id) → 方向 comment 字段（STATE.md 批注列）
     - direction_comments(goal) → 新方向入列（source=observer，**每轮截断 3 条**——G-1 接单员化闸）
     - immune_reviews(verdict=retest) → 自动开 open direction（关闭权仍在 worker；不改 confidence）
-    chains 走 session_intel 持久化（board._all_chains 聚合），无需在此入板。"""
-    out = {"comments": 0, "new_directions": 0, "retests": 0}
+    - chains → bb.add_chains 入常设边库（治理批#1：不再寄存 session_intel，边不随覆盖蒸发）"""
+    out = {"comments": 0, "new_directions": 0, "retests": 0, "chains": 0}
     dc = session.get("direction_comments")
     if isinstance(dc, list):
         for c in dc:
@@ -214,6 +214,9 @@ def _apply_observer_governance(bb, session: dict, round_no: int) -> dict:
                                 source="observer", round_=round_no):
                 existing_goals.add(goal)
                 out["retests"] += 1
+    ch = session.get("chains")
+    if isinstance(ch, list) and ch:
+        out["chains"] = bb.add_chains(ch, origin="observer", round_=round_no)
     return out
 
 

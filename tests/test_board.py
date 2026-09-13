@@ -401,3 +401,57 @@ def test_old_board_with_rejected_patterns_key_loads(tmp_path):
     assert not hasattr(b, "add_rejected_pattern")       # 方法已物理删除
     b.save()
     assert "rejected_patterns" not in json.load(open(p, encoding="utf-8"))   # 快照不再写该键
+
+
+# ── 治理批#1：常设 chains 边库（边不随 session_intel 覆盖蒸发） ───────────
+
+def test_chains_survive_session_intel_overwrite():
+    b = Blackboard()
+    b.add_chains([{"rel": "same_root", "refs": ["F-001", "F-002"], "note": "判重顺产"}],
+                 origin="observer", round_=1)
+    b.update_session_intel({"intel_summary": "新一轮覆盖", "round": 2})   # 旧实现：边在此蒸发
+    assert len(b.chains) == 1
+    assert b.chains[0]["origin"] == "observer"
+    assert any(o == "observer" for o, _ in b._all_chains())
+
+
+def test_chains_dedup_and_degrade_dropped():
+    b = Blackboard()
+    assert b.add_chains([{"rel": "same_root", "refs": ["F-001", "F-002"], "note": "a"}],
+                        round_=1) == 1
+    # 同键（refs 乱序）→ 去重不重复入列
+    assert b.add_chains([{"rel": "same_root", "refs": ["F-002", "F-001"], "note": "b"}],
+                        round_=2) == 0
+    # rel 非法 → 降 note-only → 无结构信息不入常设库
+    assert b.add_chains([{"rel": "invented", "refs": ["F-001"], "note": "x"}], round_=2) == 0
+    assert len(b.chains) == 1
+
+
+def test_chains_persist_roundtrip(tmp_path):
+    p = str(tmp_path / "bb.json")
+    b = Blackboard(p)
+    b.add_chains([{"rel": "combines", "refs": ["F-001", "D-001"], "note": "组合路径"}],
+                 origin="worker", round_=2)
+    b.save()
+    b2 = Blackboard(p)
+    assert b2.chains and b2.chains[0]["rel"] == "combines"
+    assert b2.chains[0]["origin"] == "worker"
+
+
+def test_legacy_session_intel_chains_migrated(tmp_path):
+    """旧黑板：边寄存在 session_intel.chains → 加载时一次性迁入常设库并摘除旧键。"""
+    p = tmp_path / "old.json"
+    p.write_text(json.dumps({
+        "facts": [], "immune": [], "findings": [], "directions": [],
+        "session_intel": {"intel_summary": "x", "round": 1,
+                          "chains": [{"rel": "same_root", "refs": ["F-001", "F-009"], "note": "旧边"}]},
+        "handoff": "", "goal": {"stage": "recon"},
+        "ledger": {"tried": {}, "background": []},
+        "verified": {"confirmed": 0, "tentative": 0}, "config": {}, "offsets": {},
+    }, ensure_ascii=False), encoding="utf-8")
+    b = Blackboard(str(p))
+    assert len(b.chains) == 1 and b.chains[0]["rel"] == "same_root"
+    assert "chains" not in b.session_intel               # 旧键摘除
+    b.save()
+    assert "chains" in json.load(open(p, encoding="utf-8"))          # 快照有一等键
+    assert "chains" not in json.load(open(p, encoding="utf-8")).get("session_intel", {})

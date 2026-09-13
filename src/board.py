@@ -184,6 +184,7 @@ class Blackboard:
         self.immune: list[dict] = []              # 阴性记录（confidence 分档，schema §2.3）
         self.findings: list[dict] = []            # 观察层：观察者的发现标注（A1 新增）
         self.directions: list[dict] = []          # 方向层：接力的一等公民（schema §2.4）
+        self.chains: list[dict] = []              # 图的边库（一等公民，治理批#1：只增不删+去重）
         self.session_intel: dict = {}             # 观察层：最新会话观察（A1 新增）
         self.handoff: str = ""
         self.handoff_origin: str = ""
@@ -217,7 +218,12 @@ class Blackboard:
             i.setdefault("confidence", "inferred")
         self.findings = data.get("findings", [])
         self.directions = data.get("directions", [])
-        self.session_intel = data.get("session_intel", {})
+        self.chains = data.get("chains", [])
+        si = data.get("session_intel", {}) or {}
+        legacy = si.pop("chains", None)            # 一次性迁移：旧位置（会随覆盖蒸发）→ 一等列表
+        self.session_intel = si
+        if isinstance(legacy, list) and legacy:
+            self.add_chains(legacy, origin="observer", round_=0)
         self.handoff = data.get("handoff", "")
         self.handoff_origin = data.get("handoff_origin", "")
         self.goal = data.get("goal", self.goal)
@@ -235,6 +241,7 @@ class Blackboard:
                 "immune": self.immune,
                 "findings": self.findings,
                 "directions": self.directions,
+                "chains": self.chains,
                 "session_intel": self.session_intel,
                 "handoff": self.handoff,
                 "handoff_origin": self.handoff_origin,
@@ -464,6 +471,33 @@ class Blackboard:
                     return True
         return False
 
+    # ── 图的边库（治理批#1：一等公民，只增不删+去重） ────────────────────
+    @staticmethod
+    def _chain_key(c: dict):
+        return (c.get("rel"), frozenset(c.get("refs") or []))
+
+    def add_chains(self, items, *, origin: str = "observer", round_: int = 0) -> int:
+        """常设边库唯一入口：normalize 校验（同 worker chain 闸）+ (rel, refs集合) 去重
+        + 持久化。只收带 rel 的结构边（note-only 无结构信息，不入库——宿主对象上已保留）。
+        返回新增条数。"""
+        origin = origin if origin in ("worker", "observer") else "worker"
+        added = 0
+        with self._lock:
+            keys = {self._chain_key(c) for c in self.chains}
+            for raw in (items or []):
+                nc = normalize_chain(raw)
+                if nc is None or not nc.get("rel"):
+                    continue
+                nc["origin"] = origin
+                nc["round"] = round_
+                k = self._chain_key(nc)
+                if k in keys:
+                    continue
+                keys.add(k)
+                self.chains.append(nc)
+                added += 1
+        return added
+
     def active_directions(self) -> list[dict]:
         """open/in_progress/blocked 方向（置顶渲染与计数用；done 不进置顶）。
         排序 in_progress 最先——干到一半的方向接力价值最高；其次 open；blocked 最后。"""
@@ -592,8 +626,8 @@ class Blackboard:
         return f"- [{origin}] {chain['rel']} {'、'.join(refs)}{tail}" + (f" — {note}" if note else "")
 
     def _all_chains(self) -> list[tuple[str, dict]]:
-        """聚合全部结构化边：findings + directions + facts + 观察者（session_intel.chains，
-        判重顺产 same_root——G 消费通道）。观察者边过 normalize_chain 校验。"""
+        """聚合全部结构化边：挂载式（findings/directions/facts 对象上的 chain）
+        + 常设边库 self.chains（观察者判重顺产等独立边，治理批#1）。"""
         out: list[tuple[str, dict]] = []
         for f in self.findings:
             if isinstance(f.get("chain"), dict):
@@ -604,10 +638,8 @@ class Blackboard:
         for fact in self.facts.values():
             if isinstance(fact.get("chain"), dict):
                 out.append((f"fact:{fact['kind']}", fact["chain"]))
-        for c in ((self.session_intel or {}).get("chains") or []):
-            nc = normalize_chain(c)
-            if nc is not None:
-                out.append(("observer", nc))
+        for c in self.chains:
+            out.append((c.get("origin", "observer"), c))
         return out
 
     def _render_directions_block(self, nonce: str) -> str:
