@@ -677,12 +677,27 @@ class Blackboard:
                   "blocked 重开需材料性新机理）：\n")
         return "\n\n" + header + untrusted_block("\n".join(lines), nonce)
 
+    def _combines_hot(self, chain: dict) -> bool:
+        """combines 边 refs 含 open/in_progress/blocked 方向 = 待试攻击链（治理批#3）。"""
+        if chain.get("rel") != "combines":
+            return False
+        live = {d.get("id") for d in self.directions
+                if d.get("status") in ("open", "in_progress", "blocked")}
+        return any(r in live for r in (chain.get("refs") or []))
+
     def _render_chains_block(self, nonce: str) -> str:
         chains = self._all_chains()
         if not chains:
             return ""
         known = self._known_ids()
-        lines = [ln for ln in (self._chain_line(o, c, known) for o, c in chains) if ln]
+        lines = []
+        for o, c in chains:
+            ln = self._chain_line(o, c, known)
+            if not ln:
+                continue
+            if self._combines_hot(c):
+                ln = "⚡组合路径待试：" + ln.lstrip("- ")
+            lines.append(ln)
         if not lines:
             return ""
         return ("\n\n关联（chain 边——已成立/可组合的联系，组合路径值得试）：\n"
@@ -855,6 +870,8 @@ class Blackboard:
             if not ch.get("rel"):
                 continue
             item = {"rel": ch["rel"], "refs": ch.get("refs") or [], "from": origin}
+            if self._combines_hot(ch):
+                item["hot"] = "组合路径待试"
             if ch.get("note"):
                 item["note"] = ch["note"]
             lines.append(f"  - {json.dumps(item, ensure_ascii=False)}")

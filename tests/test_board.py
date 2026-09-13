@@ -468,3 +468,23 @@ def test_legacy_session_intel_chains_migrated(tmp_path):
     b.save()
     assert "chains" in json.load(open(p, encoding="utf-8"))          # 快照有一等键
     assert "chains" not in json.load(open(p, encoding="utf-8")).get("session_intel", {})
+
+
+# ── 治理批#3：combines 组合路径⚡浮现 ─────────────────────────────────────
+
+def test_combines_hot_marking():
+    b = Blackboard()
+    b.add_direction({"id": "D-001", "goal": "SSRF 打内网", "status": "open"}, round_=1)
+    b.add_chains([{"rel": "combines", "refs": ["F-001", "D-001"], "note": "SSRF+凭证=RCE"}],
+                 origin="worker", round_=1)
+    r = b.render()
+    assert "⚡组合路径待试" in r
+    y = b.render_yaml_layer()
+    assert '"hot": "组合路径待试"' in y
+    # 指向 done 方向的 combines → 不标
+    b.add_direction({"id": "D-002", "goal": "已完成的方向", "status": "done"}, round_=1)
+    b2lines = b.render_yaml_layer()
+    assert b2lines.count("组合路径待试") == 1
+    # 非 combines 边 → 不标
+    b.add_chains([{"rel": "same_root", "refs": ["F-001", "D-001"], "note": "n"}], round_=2)
+    assert b.render().count("⚡组合路径待试") == 1
