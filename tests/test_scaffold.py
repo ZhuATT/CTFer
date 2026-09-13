@@ -142,3 +142,12 @@ def test_ledger_headers_idempotent(tmp_path):
     t = (wd / "DIRECTIONS").read_text(encoding="utf-8")
     assert '{"id":"D-001"}' not in t and "已有方向" in t         # 已有内容不被注释头覆盖
     assert not t.startswith("#")                                 # 不重复盖头
+
+
+def test_state_md_readonly_declared(tmp_path):
+    """治理批#4：STATE.md 只读声明进纪律层。"""
+    _mk_engagement(tmp_path)
+    eng = load_engagement(tmp_path)
+    wd = expand(tmp_path, eng)
+    txt = (wd / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "STATE.md 是系统投影" in txt and "只读" in txt
