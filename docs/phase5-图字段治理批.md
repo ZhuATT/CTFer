@@ -42,17 +42,19 @@ worker 下轮看不到上轮的关联（接力有损），M5 画的图不完整�
 
 ## 2. 死字段激活：verify_fact 接线（provenance 的消费者）
 
-**病灶**：`verify_fact` 全仓零调用（grep 仅 pycache）；`provenance` 字段因此是死重——与当初被审计处死的 conf 同罪，躲在"v2 接线"名义下。
+**病灶（两层）**：
+1. `verify_fact` 全仓零调用（grep 仅 pycache）；`provenance` 字段因此是死重——与当初被审计处死的 conf 同罪，躲在"v2 接线"名义下。
+2. **功能缺口**：事实不会衰老——轮 1 抽取的 observed 事实到轮 5 仍以最高置信渲染，哪怕目标已改版/凭证已轮换/端点已下线。confidence 是决策货币却永不衰减。
 
-**修法（零网络、复用 C-5 基建）**：轮末对**被动抽取类事实**（`provenance` 以 `round` 开头）做 transcript 复现抽验：
-- `value` 在 transcript 解码文本（C-5 v2 的 `_transcript_hays` 双形态）可寻 → 复现通过，confidence 不变
-- 不可寻 → `observed` 降 `inferred`（**凭证 provenance 照旧冻结不检**——会话守卫语义不变）
-- 显式结论类（identity_model/business_context/unclassified，provenance 非 round 前缀）**不检**——prose 结论本就不该要求在流里逐字出现
-- 抽验结果进 `fact["last_verified_round"]`（防每轮重验同一批；每事实只验一次）
+**修法（零网络、复用 C-5 hay 基建；语义 = "最近仍在观测"而非"仍然为真"）**：
+- **轮窗记账**：`offsets["transcript_rounds"]` 记每轮 transcript 起始字节偏移——transcript 是跨轮追加的，整卷查"出现过"对被动事实永远为真（它本来就是从流里抽的，检查会空转）；**只验最近一轮窗口内是否再现**
+- 对象筛选：仅**被动抽取类**（provenance 以 `round` 开头）；显式结论类（identity_model 等 prose）不检——结论不该要求在流里逐字出现；**凭证 provenance 照旧冻结**（会话守卫语义不变）
+- 判定（对称自愈）：最近窗口内 value 可寻 → 保持/恢复 observed；不可寻 → observed 降 inferred（不删除）；`fact["last_verified_round"]=N` 防重复验
+- 语义诚实声明：机械验不了"仍然为真"（那要重放，已冻结）——能机械验的是"最近还在观测"。最近没再见到 → 缓降一位（渲染排序轻降，无硬伤害）
 
-**接线点**：driver 轮末（STATE.md 投影前）调用；`verify_fact` 本体改为 `verify_fact_against_transcript(key, hay)` 签名（不再接受 run 回调——旧的重放语义连同其从未存在的调用方一起退役）。
+**接线点**：driver 轮末（STATE.md 投影前）；`verify_fact` 旧 `run` 回调签名连同其从未存在的调用方一起退役 → `verify_fact_against_transcript(bb, hay_pair, round_no)`。
 
-**验收（测试 ~3）**：①被动事实 value 在流→保持 observed；②不在流→observed 降 inferred；③凭证 provenance 冻结；④显式结论类跳过。
+**验收（测试 ~5）**：①最近窗口内再现→保持 observed；②窗口内不可寻→observed 降 inferred；③凭证 provenance 冻结；④显式结论类跳过；⑤降级后下轮窗口再现→恢复 observed（自愈）。
 
 ## 3. 图利用：组合路径显式浮现
 
