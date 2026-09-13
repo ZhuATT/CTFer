@@ -182,7 +182,6 @@ class Blackboard:
         self._lock = threading.RLock()
         self.facts: dict[str, dict] = {}          # key → fact dict
         self.immune: list[dict] = []              # 阴性记录（confidence 分档，schema §2.3）
-        self.rejected_patterns: list[dict] = []   # [deprecated] 旧门架构产物，渲染由 findings 的 likely_false 驱动
         self.findings: list[dict] = []            # 观察层：观察者的发现标注（A1 新增）
         self.directions: list[dict] = []          # 方向层：接力的一等公民（schema §2.4）
         self.session_intel: dict = {}             # 观察层：最新会话观察（A1 新增）
@@ -216,7 +215,6 @@ class Blackboard:
         self.immune = data.get("immune", [])
         for i in self.immune:                      # 旧 immune 一律 → inferred（B-2）
             i.setdefault("confidence", "inferred")
-        self.rejected_patterns = data.get("rejected_patterns", [])
         self.findings = data.get("findings", [])
         self.directions = data.get("directions", [])
         self.session_intel = data.get("session_intel", {})
@@ -235,7 +233,6 @@ class Blackboard:
             snapshot = {
                 "facts": list(self.facts.values()),
                 "immune": self.immune,
-                "rejected_patterns": self.rejected_patterns,
                 "findings": self.findings,
                 "directions": self.directions,
                 "session_intel": self.session_intel,
@@ -336,10 +333,10 @@ class Blackboard:
         return n
 
     # ── 阴性记录 / 已否决模式 ───────────────────────────────────────────
-    def add_immune(self, endpoint: str, klass: str = "", *, round_: int = 0,
+    def add_immune(self, endpoint: str, *, round_: int = 0,
                    status: str = "", confidence: str = "inferred") -> None:
         """阴性记录（schema §2.3）：confidence 分档——403 检测（实测）传 observed，
-        worker FACTS/status.md 反向读缺省 inferred。klass 已废弃仅向后兼容。"""
+        worker FACTS/status.md 反向读缺省 inferred。"""
         conf = _norm_confidence(confidence)
         with self._lock:
             for i in self.immune:
@@ -349,16 +346,6 @@ class Blackboard:
                     return
             self.immune.append({"endpoint": endpoint, "status": status,
                                 "since_round": round_, "confidence": conf})
-
-    def add_rejected_pattern(self, endpoint: str, klass: str, reason_head: str = "",
-                             *, round_: int = 0) -> None:
-        """已否决模式。[deprecated] 旧门架构产物——新代码用 add_finding(assessment="likely_false_positive")。"""
-        with self._lock:
-            if not any(r.get("endpoint") == endpoint and r.get("class") == klass
-                       for r in self.rejected_patterns):
-                self.rejected_patterns.append({"endpoint": endpoint, "class": klass,
-                                               "reason_head": reason_head[:80],
-                                               "since_round": round_})
 
     # ── 观察层（A1）：观察者的发现标注 + 会话观察 ────────────────────────
     def add_finding(self, finding: dict) -> None:
@@ -386,7 +373,7 @@ class Blackboard:
         return [f for f in self.findings if f.get("assessment") == "confirmed"]
 
     def false_positive_findings(self) -> list[dict]:
-        """已否决发现（渲染"已否决模式"段用，替代旧 rejected_patterns 渲染）。"""
+        """已否决发现（渲染"已否决模式"段用）。"""
         return [f for f in self.findings
                 if f.get("assessment") in ("likely_false_positive", "duplicate")]
 
