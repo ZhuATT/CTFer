@@ -18,6 +18,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -114,6 +116,41 @@ def _poll_control(engagement_root: Path) -> dict | None:
     except OSError:
         pass
     return data if isinstance(data, dict) else None
+
+
+def _preflight(claude_bin: str, mcp_config: Path) -> dict:
+    """启动预检（Cairn 式：把无声失败消灭在 spawn 前，2026-09-14）。
+
+    - claude CLI 不可用 → ok=False（拒启——没有它一切免谈）
+    - MCP 起不来 → 只警告不拒启（P-7 已有 curl 降级路径，浏览器缺席可活）
+    纯函数（subprocess 可 monkeypatch），线程无关。
+    """
+    out = {"claude": "", "mcp": "", "ok": True}
+    try:
+        r = subprocess.run([claude_bin, "--version"], capture_output=True,
+                           text=True, timeout=30)
+        out["claude"] = ((r.stdout or r.stderr or "ok").strip()[:60])
+        if r.returncode != 0:
+            out["claude"] += f" (rc={r.returncode})"
+            out["ok"] = False
+    except Exception as e:
+        out["claude"] = f"不可用：{str(e)[:80]}"
+        out["ok"] = False
+    if not mcp_config.is_file():
+        out["mcp"] = "无 .mcp.json（浏览器能力缺席，curl 起步）"
+        return out
+    npx = shutil.which("npx")     # Windows: npx 是 .cmd 垫片，裸名单 subprocess 找不到（WinError 2）
+    if not npx:
+        out["mcp"] = "npx 不在 PATH（降级 curl）"
+        return out
+    try:
+        r = subprocess.run([npx, "@playwright/mcp@latest", "--version"],
+                           capture_output=True, text=True, timeout=90)
+        out["mcp"] = ("playwright 可启动（" + (r.stdout or "").strip()[:30] + "）"
+                      if r.returncode == 0 else f"启动失败 rc={r.returncode}（降级 curl）")
+    except Exception as e:
+        out["mcp"] = f"检查失败：{str(e)[:80]}（降级 curl）"
+    return out
 
 
 def _controller_kill(proc) -> None:
@@ -339,6 +376,16 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
         print(f"[driver] dry-run：首轮 prompt → {out}；STATE.md → {workdir / 'STATE.md'}（未 spawn）")
         ev.emit("run_end", {"reason": "dry-run"}, round_=0)
         return 0
+
+    # ── 启动预检（Cairn 式：把无声失败消灭在 spawn 前，2026-09-14）──
+    pf = _preflight(os.getenv("AT1_CLAUDE_BIN", "claude"), workdir / ".mcp.json")
+    ev.emit("preflight", {**pf})
+    print(f"[driver] 预检：claude={pf['claude']} | mcp={pf['mcp']}")
+    if not pf["ok"]:
+        ev.emit("run_end", {"reason": "preflight-fail"}, round_=0)
+        ev.close()
+        print("[driver] 拒启：claude CLI 不可用")
+        return 2
 
     rnd = 0
     # ── P-11 v2（2026-09-14，参照 ARTEX具名取消/Cairn 即时杀）：盯梢线程 ──

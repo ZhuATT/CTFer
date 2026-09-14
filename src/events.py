@@ -34,6 +34,7 @@ EVENT_TYPES = frozenset({
     "directions_merged",      # DIRECTIONS 轮末收割合并（changed 行数）
     "directions_from_handoff",  # 旧格式 Handoff 未竟段提取为方向（added 条数）
     "ledger_synced",          # 收尾：.auto/log.jsonl → state/log.jsonl 搬运（P-6）
+    "preflight",              # 启动预检结果（claude/mcp 可用性，2026-09-14）
     "observer_governance",    # 观察者治理消费（comments/new_directions/retests/chains 计数）
     "facts_verified",         # 被动事实轮窗复现抽验（checked/downgraded/restored，治理批#2）
 })

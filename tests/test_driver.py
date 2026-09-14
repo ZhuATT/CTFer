@@ -554,3 +554,56 @@ def test_kill_process_tree_kills_children():
     r = subprocess.run(["tasklist", "/FI", f"PID eq {child_pid}"],
                        capture_output=True, text=True)
     assert str(child_pid) not in r.stdout, f"孙进程 {child_pid} 未被树杀"
+
+
+def test_preflight_verdicts(tmp_path, monkeypatch):
+    """启动预检三分：claude 坏=拒启 / mcp 坏=降级不拒启 / 全好=过。"""
+    import subprocess as sp
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        if cmd[0] == "claude":
+            if len(calls) == 1:      # 场景1:claude 挂
+                return sp.CompletedProcess(cmd, 1, "", "boom")
+            return sp.CompletedProcess(cmd, 0, "2.1.238 (Claude Code)", "")
+        return sp.CompletedProcess(cmd, 0, "Version 0.0.80", "")   # npx playwright
+
+    monkeypatch.setattr(driver_mod.subprocess, "run", fake_run)
+    monkeypatch.setattr(driver_mod.shutil, "which", lambda x: "C:/fake/npx.cmd")
+    mcp = tmp_path / ".mcp.json"
+    mcp.write_text("{}", encoding="utf-8")
+    # 场景1:claude 坏 → ok=False
+    pf = driver_mod._preflight("claude", mcp)
+    assert pf["ok"] is False and "rc=1" in pf["claude"]
+    # 场景2:mcp 文件缺失 → 警告但 ok=True(降级 curl 可活)
+    pf = driver_mod._preflight("claude", tmp_path / "nope.json")
+    assert pf["ok"] is True and "缺席" in pf["mcp"]
+    # 场景3:全好
+    pf = driver_mod._preflight("claude", mcp)
+    assert pf["ok"] is True and "2.1.238" in pf["claude"] and "playwright 可启动" in pf["mcp"]
+
+
+def test_preflight_npx_missing_warns_only(tmp_path, monkeypatch):
+    """Windows 常态:npx 是 .cmd 垫片且可能不在 PATH——警告降级,不拒启。"""
+    monkeypatch.setattr(driver_mod.shutil, "which", lambda x: None)
+    mcp = tmp_path / ".mcp.json"
+    mcp.write_text("{}", encoding="utf-8")
+    pf = driver_mod._preflight("claude", mcp)
+    assert pf["ok"] is True and "npx 不在 PATH" in pf["mcp"]
+
+
+def test_preflight_event_in_real_run(tmp_path, monkeypatch):
+    """预检接进 run_engagement:事件落账 + 事件流可查。"""
+    _mk_engagement(tmp_path)
+    fake = FakeRunner([(_res(), [], {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=120, max_rounds=1,
+                                   observer_on=False)
+    assert rc == 0
+    rows = [json.loads(l) for l in open(tmp_path / "state" / "auto-log.jsonl",
+                                         encoding="utf-8") if l.strip()]
+    types = [r.get("type") for r in rows]
+    assert "preflight" in types
+    pf = next(r["data"] for r in rows if r.get("type") == "preflight")
+    assert "claude" in pf and "mcp" in pf and pf.get("ok") is True
