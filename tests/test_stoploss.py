@@ -65,3 +65,13 @@ def test_round_cap_dominates_order():
     sl.record_round(facts_delta=0, session_ok=False)
     ok, why = sl.should_stop(2, 0.0)
     assert ok and "会话上限" in why
+
+
+def test_round_cap_unlimited_by_default():
+    """2026-09-04 拍板：轮上限默认不限——预算是主约束，轮数不封顶。"""
+    sl = Stoploss()                                   # max_rounds=None
+    ok, why = sl.should_stop(50, 3600.0)              # 第 50 轮、预算充足 → 不停
+    assert not ok
+    # 预算耗尽仍在轮数很大时生效
+    ok2, why2 = sl.should_stop(50, 0.0)
+    assert ok2 and "预算" in why2

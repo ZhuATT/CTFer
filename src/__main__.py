@@ -399,7 +399,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run = sub.add_parser("run", help="M4：跑一个 engagement（driver 主循环）")
     p_run.add_argument("engagement", help="engagement 目录（三件套所在）")
     p_run.add_argument("--budget", type=float, default=7200, help="总预算秒（默认 7200）")
-    p_run.add_argument("--rounds", type=int, default=6, help="最大轮次（默认 6）")
+    p_run.add_argument("--rounds", type=int, default=None, help="轮上限（默认不限——仅预算与连击止损，2026-09-04 拍板）")
     p_run.add_argument("--dry-run", action="store_true", help="渲染首轮 prompt 不 spawn")
     p_run.add_argument("--stop-on-first-confirmed", action="store_true",
                        help="字面终止A：confirmed 即停待人收割（默认走完 report 阶段）")

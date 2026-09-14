@@ -221,7 +221,7 @@ def _apply_observer_governance(bb, session: dict, round_no: int) -> dict:
 
 
 def run_engagement(engagement_root: str, *, budget_s: float = 7200,
-                   max_rounds: int = 6, stop_on_first_confirmed: bool = False,
+                   max_rounds: int | None = None, stop_on_first_confirmed: bool = False,
                    dry_run: bool = False, provider: str | None = None,
                    observer_on: bool = True) -> int:
     """跑一个 engagement。返回 0 正常 / 2 启动失败 / 1 异常。"""

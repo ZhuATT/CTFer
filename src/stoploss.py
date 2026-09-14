@@ -1,8 +1,8 @@
 """AT1 stoploss —— 四维止损（P4.3，设计§3.7/§7 默认值）。
 
-四维（§7 默认，全可调）：
-  ① 会话上限    max_rounds（默认 6：时间盒阶梯 600/1200/1800 三档×2 循环的合理封顶）
-  ② 活跃预算    budget_left_s ≤ 0（driver 每轮递减）
+四维（2026-09-04 拍板：轮上限默认不限，预算为主约束；全可调）：
+  ① 会话上限    max_rounds（**默认 None=不限**；需要封顶时 --rounds 显式给）
+  ② 活跃预算    budget_left_s ≤ 0（driver 每轮递减——**主约束**）
   ③ 无新事实连击 no_new_facts_streak ≥ 3（连续 N 轮 facts_delta == 0）
   ④ 不可达连击  unreachable_streak ≥ 3（连续 N 轮 worker 会话 error 且零收割）
 
@@ -15,9 +15,9 @@ from __future__ import annotations
 
 
 class Stoploss:
-    def __init__(self, *, max_rounds: int = 6,
+    def __init__(self, *, max_rounds: int | None = None,
                  no_new_facts: int = 3, unreachable: int = 3):
-        self.max_rounds = max_rounds
+        self.max_rounds = max_rounds            # None = 轮上限不限（2026-09-04 拍板：预算为主约束）
         self.no_new_facts_limit = no_new_facts
         self.unreachable_limit = unreachable
         self.no_new_facts_streak = 0
@@ -35,8 +35,8 @@ class Stoploss:
             self.unreachable_streak += 1
 
     def should_stop(self, round_no: int, budget_left_s: float) -> tuple[bool, str]:
-        """四维判定（driver 轮末调用）。返回 (停否, 维度+连击数描述)。"""
-        if round_no >= self.max_rounds:
+        """四维判定（driver 轮末调用）。返回 (停否, 维度+连击数描述)。max_rounds=None 时轮上限维度失效。"""
+        if self.max_rounds is not None and round_no >= self.max_rounds:
             return True, f"会话上限：第 {round_no} 轮 ≥ {self.max_rounds}"
         if budget_left_s <= 0:
             return True, f"预算耗尽：剩余 {budget_left_s:.0f}s"
