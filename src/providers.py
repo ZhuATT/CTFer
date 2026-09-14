@@ -51,7 +51,7 @@ _SOLVER_PRESETS = {
     },
     "glm": {
         "base_url": "https://open.bigmodel.cn/api/anthropic",
-        "model": "glm-5.3",
+        "model": "glm-5.3-flash",
         "small_fast_model": "glm-5.3-flash",
     },
     "glm-1m": {
@@ -219,7 +219,7 @@ class LLMConfig:
 
 
 _VERIFIER_PRESETS = {
-    "deepseek": {"provider": "openai", "base_url": "https://api.deepseek.com/v1", "model": "deepseek-v4-flash"},
+    "deepseek": {"provider": "openai", "base_url": "https://api.deepseek.com", "model": "deepseek-v4-flash"},
     "glm": {"provider": "zai", "base_url": "https://open.bigmodel.cn/api/paas/v4", "model": "glm-5.3-flash"},
     # 讯飞 maas 承载 DeepSeek V4 Pro（OpenAI 兼容 /v2；实测 2026-08-25：Bearer id:secret 整串，
     # developer role 被拒——llm.py 只用 system/user 不受影响；key 放 .secrets.env 不入库）
@@ -232,10 +232,10 @@ _VERIFIER_PRESETS = {
 
 
 def build_verifier_config(solver: "SolverConfig") -> LLMConfig:
-    """门2 verifier：默认与 solver 异构（solver=glm → verifier=DeepSeek 经讯飞 maas，设计§7）。
-    LLM_FALLBACK_* 环境变量配置降级链（如 xfyun 模型故障 → DeepSeek 官方）。"""
+    """门2 verifier/观察者：默认 DeepSeek 官方（与 worker bigmodel glm 异构，防同源争额度；
+    2026-09-04 用户拍板）。LLM_FALLBACK_* 环境变量配置降级链（当前=bigmodel glm-5.3）。"""
     apply_llm_profile()
-    family = "xfyun-glm" if solver.provider.startswith("glm") else "glm"
+    family = "deepseek"
     preset = _VERIFIER_PRESETS.get(family, _VERIFIER_PRESETS["deepseek"])
     provider = (_env("LLM_PROVIDER") or preset["provider"]).lower()
     base = _env("LLM_BASE_URL") or preset["base_url"]

@@ -21,7 +21,7 @@ def test_default_provider_is_glm(monkeypatch):
     cfg = SolverConfig.from_env()
     assert cfg.provider == "glm"
     assert cfg.base_url == "https://open.bigmodel.cn/api/anthropic"
-    assert cfg.model == "glm-5.3"
+    assert cfg.model == "glm-5.3-flash"        # 2026-09-04 用户拍板：worker 降至 flash
 
 
 def test_custom_requires_explicit_base_and_model(monkeypatch):
@@ -59,9 +59,9 @@ def test_anthropic_env_no_credentials_keeps_local_cli_config(monkeypatch):
 
 
 def test_verifier_defaults_heterogeneous_to_solver(monkeypatch):
-    # solver=glm → observer=glm-5.3 全量经讯飞（同模型，走讯飞中转，2026-08-30）
+    # 2026-09-04 拍板：observer=DeepSeek 官方 v4-flash（与 worker bigmodel glm 异构）
     monkeypatch.setenv("AT1_API_KEY", "sk-k1")
     v = build_verifier_config(SolverConfig.from_env())
     assert v.provider == "openai"
-    assert "xf-yun" in v.base_url
-    assert v.model == "xopglm53"
+    assert v.base_url == "https://api.deepseek.com"
+    assert v.model == "deepseek-v4-flash"
