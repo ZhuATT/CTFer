@@ -857,25 +857,29 @@ class Blackboard:
                 item["chain"] = chain_tag(d["chain"])
             lines.append(f"  - {json.dumps(item, ensure_ascii=False)}")
         lines.append("findings:")
-        for f in self.findings[:24]:
+        shown_f, rest_f = self.findings[:24], self.findings[24:]
+        for f in shown_f:
             item = {"id": f.get("id", ""), "sev": f.get("severity") or "-",
                     "endpoint": f.get("endpoint", "")}
             if isinstance(f.get("chain"), dict) and f["chain"].get("rel"):
                 item["chain"] = chain_tag(f["chain"])
             lines.append(f"  - {json.dumps(item, ensure_ascii=False)}")
+        if rest_f:                                   # 静默截断禁止：余量 id 仍是有效引用目标
+            ids = ", ".join(str(f.get("id", "?")) for f in rest_f)
+            lines.append(f"  # …余 {len(rest_f)} 条 findings 未列出（id 仍可引用）: {ids}")
         lines.append("chains:")
-        chains = self._all_chains()
+        chains = [(o, c) for o, c in self._all_chains() if c.get("rel")]
         if not chains:
             lines.append("  []")
         for origin, ch in chains[:_PER_KIND_CAP]:
-            if not ch.get("rel"):
-                continue
             item = {"rel": ch["rel"], "refs": ch.get("refs") or [], "from": origin}
             if self._combines_hot(ch):
                 item["hot"] = "组合路径待试"
             if ch.get("note"):
                 item["note"] = ch["note"]
             lines.append(f"  - {json.dumps(item, ensure_ascii=False)}")
+        if len(chains) > _PER_KIND_CAP:
+            lines.append(f"  # …余 {len(chains) - _PER_KIND_CAP} 条边未列出")
         return "\n".join(lines)
 
     def intel_summary(self) -> str:
