@@ -627,14 +627,15 @@ class Blackboard:
         return {i for i in ids if i}
 
     def _chain_line(self, origin: str, chain: dict, known: set) -> str:
-        """单条 chain 渲染行；悬空引用标注（schema §2.2）。"""
+        """单条 chain 渲染行；悬空引用标注（schema §2.2）。origin 为空时不带来源括号。"""
         note = str(chain.get("note", "")).strip()
+        pref = f"- [{origin}] " if origin else "- "
         if not chain.get("rel"):
-            return f"- [{origin}] {note}" if note else ""
+            return f"{pref}{note}" if note else ""
         refs = list(chain.get("refs") or [])
         dang = [r for r in refs if r not in known]
         tail = f"（悬空引用：{'、'.join(dang)}）" if dang else ""
-        return f"- [{origin}] {chain['rel']} {'、'.join(refs)}{tail}" + (f" — {note}" if note else "")
+        return f"{pref}{chain['rel']} {'、'.join(refs)}{tail}" + (f" — {note}" if note else "")
 
     def _all_chains(self) -> list[tuple[str, dict]]:
         """聚合全部结构化边：挂载式（findings/directions/facts 对象上的 chain）
