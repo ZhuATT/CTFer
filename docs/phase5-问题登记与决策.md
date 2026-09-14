@@ -105,7 +105,7 @@
 
 **首跑目标选择建议**：选**低价值/非生产/测试环境**目标——本轮首跑身负五项新机制首验（DIRECTIONS/chain/观察者三件套/anchor_note/时间盒），本质是带产出的验收跑，别拿高价值目标当小白鼠。真实高价值目标等首跑报告出来、按 T1-T6 指标校准后再上。
 
-**首跑必看清单**（T1-T6，auto-log 可回放）：worker 首动作接/开新 ｜ DIRECTIONS 格式遵循率 ｜ STATE.md 被读率 ｜ observer 方向忽略率 ｜ guard_violation 有无（P3 监控）｜ 判官 reason vs 对账标记对照（P5）｜ 成本与 429。
+**首跑必看清单**（auto-log 可回放）：worker 首动作接/开新 ｜ DIRECTIONS 格式遵循率 ｜ observer 方向忽略率 ｜ guard_violation 有无（P3 监控）｜ 判官 reason vs 对账标记对照（P5）｜ 成本与 429。（~~STATE.md 被读率~~ 已按拍板关闭）
 
 ---
 
