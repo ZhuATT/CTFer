@@ -335,3 +335,46 @@ def test_parser_tracks_last_tool_ts():
     p.feed_line(_assistant([_text("more thinking...")]) + "\n")
     assert p.last_tool_ts == t1
     p.close()
+
+
+def test_controller_kill_is_terminal_no_resume(tmp_path):
+    """P-11 v2：controller_kill 是终态不是 error——续跑梯子不认，被杀会话不复活。
+    （实机翻车现场：watcher 击杀被当成瞬态故障 --resume 复活，worker 满血继续。）"""
+    from src import runner as runner_mod
+    from src.runner import AgentResult, AgentTask
+    calls = []
+
+    def fake_spawn(prompt, workdir, solver, task, **kw):
+        calls.append(1)
+        return AgentResult(session_id="s1", stop_reason="controller_kill",
+                           is_error=False)
+
+    orig = runner_mod.spawn_once
+    runner_mod.spawn_once = fake_spawn
+    try:
+        res = runner_mod.run("p", str(tmp_path), None, AgentTask())
+    finally:
+        runner_mod.spawn_once = orig
+    assert res.stop_reason == "controller_kill"
+    assert len(calls) == 1, "controller_kill 终态不许续跑复活"
+
+
+def test_error_without_label_still_resumes(tmp_path):
+    """无标签的 error（429/5xx 类瞬态）照旧走续跑——标签机制不误伤。"""
+    from src import runner as runner_mod
+    from src.runner import AgentResult, AgentTask
+    calls = []
+
+    def fake_spawn(prompt, workdir, solver, task, **kw):
+        calls.append(1)
+        if len(calls) == 1:
+            return AgentResult(session_id="s1", stop_reason="error", is_error=True)
+        return AgentResult(session_id="s1", stop_reason="end_turn", is_error=False)
+
+    orig = runner_mod.spawn_once
+    runner_mod.spawn_once = fake_spawn
+    try:
+        res = runner_mod.run("p", str(tmp_path), None, AgentTask())
+    finally:
+        runner_mod.spawn_once = orig
+    assert len(calls) == 2 and res.stop_reason == "end_turn"

@@ -403,3 +403,154 @@ def test_full_loop_directions_governance_state_projection(tmp_path, monkeypatch)
     assert "## 方向与图" in state_md and "双账号已备" in state_md
     assert "重验阴性：/old/api" in state_md
     assert "接近成功的尝试" in state_md and "大小写绕过" in state_md
+
+
+def test_observer_runs_on_zero_finding_round(tmp_path, monkeypatch):
+    """P-3 回归（2026-09-14 真实 run 暴露）：0-finding 轮 observe_session 必须照跑，
+    治理三件套（批注/新方向/chains）照常消费——不再与 new_findings 死绑。"""
+    _mk_engagement(tmp_path)
+    fake = FakeRunner([
+        (_res(handoff="已完成：全阴性，嫌疑走 FACTS"), [], {}),   # r1：0 FINDINGS
+        (_res(handoff="已完成：r2"), [], {}),                     # r2：0 FINDINGS
+    ])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+
+    session_calls = []                                   # observe_session 调用计数
+
+    def fake_chat(msgs):
+        u = msgs[-1]["content"]
+        if "请判断以下渗透测试发现" in u:
+            return json.dumps({"is_vulnerability": None, "severity": None, "reason": "不应走到 judge"})
+        session_calls.append(u)
+        return json.dumps({
+            "final_assessments": [],
+            "direction_comments": [
+                {"id": "D-001", "comment": "P-3 回归批注"},
+                {"goal": "观察者建议的零发现轮新方向", "endpoint": "/x", "note": "覆盖盲区"}],
+            "immune_reviews": [], "chains": [],
+            "coverage_gaps": ["/upload 未测"], "effective_patterns": [],
+            "notable_attempts": [], "intel_summary": "观察者在零发现轮运转"})
+
+    import src.llm as llm_mod
+
+    class _FakeLLM:
+        def __init__(self, cfg):
+            pass
+        def chat(self, msgs, **kw):
+            class _R:
+                text = fake_chat(msgs)
+            return _R()
+    monkeypatch.setattr(llm_mod, "LLMClient", _FakeLLM)
+
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=2, observer_on=True)
+    assert rc == 0
+    # 两轮都是 0-finding：每轮都应有 observe_session 调用
+    assert len(session_calls) == 2, f"expect 2 observe_session calls, got {len(session_calls)}"
+
+    import src.board as bb_mod
+    bb = bb_mod.Blackboard(str(tmp_path / ".at1" / "_blackboard.json"))
+    dm = {d.get("id"): d for d in bb.directions}
+    assert dm["D-001"]["comment"] == "P-3 回归批注"                       # 批注挂载
+    assert any(d["goal"] == "观察者建议的零发现轮新方向"                    # 新方向入列
+               and d["source"] == "observer" for d in bb.directions)
+    assert bb.session_intel.get("coverage_gaps") == ["/upload 未测"]       # session_intel 落板
+
+
+def test_skills_src_wired_from_engagement(tmp_path):
+    """P-8 回归：engagement.json 的 skills_src 必须传进 scaffold（技能随工作目录走，
+    不靠 engagement 恰好住在技能树下的地理运气）。"""
+    skills = tmp_path / "myskills" / "hello-skill"
+    skills.mkdir(parents=True)
+    (skills / "SKILL.md").write_text("---\nname: hello-skill\ndescription: t\n---\nx",
+                                     encoding="utf-8")
+    _mk_engagement(tmp_path)
+    eng = json.loads((tmp_path / "engagement.json").read_text(encoding="utf-8"))
+    eng["skills_src"] = str(tmp_path / "myskills")
+    (tmp_path / "engagement.json").write_text(json.dumps(eng, ensure_ascii=False),
+                                              encoding="utf-8")
+    rc = driver_mod.run_engagement(str(tmp_path), dry_run=True)
+    assert rc == 0
+    copied = tmp_path / ".auto" / ".claude" / "skills" / "hello-skill" / "SKILL.md"
+    assert copied.is_file()
+
+
+def test_consume_stop_file_stops_and_kills(tmp_path, monkeypatch):
+    """P-11 v2：_consume_stop_file 命中 stop → 置标志 + 杀进程树 + 文件消费。"""
+    from src import runner as runner_mod
+    ctl = tmp_path / "CONTROL"
+    ctl.write_text(json.dumps({"cmd": "stop", "text": "验收收尾"}), encoding="utf-8")
+    flag = {"hit": False, "text": ""}
+    killed = []
+    monkeypatch.setattr(runner_mod, "kill_process_tree",
+                        lambda proc: killed.append(proc))
+    proc_ref = {"proc": "FAKE_PROC"}
+    assert driver_mod._consume_stop_file(ctl, proc_ref, flag) is True
+    assert flag["hit"] and flag["text"] == "验收收尾"
+    assert killed == ["FAKE_PROC"]
+    assert not ctl.exists()                                   # 文件已消费
+
+
+def test_consume_stop_file_leaves_directive_and_pause(tmp_path):
+    """pause/directive 不被盯梢线程吞掉——留给轮界 poll（语义不变）。"""
+    for cmd in ("directive", "pause"):
+        ctl = tmp_path / "CONTROL"
+        ctl.write_text(json.dumps({"cmd": cmd, "text": "x"}), encoding="utf-8")
+        flag = {"hit": False, "text": ""}
+        assert driver_mod._consume_stop_file(ctl, {"proc": None}, flag) is False
+        assert ctl.exists() and not flag["hit"]
+        ctl.unlink()
+
+
+def test_consume_stop_file_before_attach_race_safe(tmp_path):
+    """Cairn 式 cancel-before-attach：worker 未 spawn（proc_ref 空）也要安全置标志。"""
+    ctl = tmp_path / "CONTROL"
+    ctl.write_text(json.dumps({"cmd": "stop"}), encoding="utf-8")
+    flag = {"hit": False, "text": ""}
+    assert driver_mod._consume_stop_file(ctl, {}, flag) is True   # 空 proc_ref 不炸
+    assert flag["hit"] and not ctl.exists()
+
+
+def test_consume_stop_file_ignores_garbage(tmp_path):
+    ctl = tmp_path / "CONTROL"
+    ctl.write_text("not-json{{", encoding="utf-8")
+    flag = {"hit": False, "text": ""}
+    assert driver_mod._consume_stop_file(ctl, {"proc": None}, flag) is False
+
+
+def test_control_stop_preexisting_prevents_any_spawn(tmp_path, monkeypatch):
+    """停机信号先于 run 存在（cancel-before-attach 全局形态）：一轮都不许开。"""
+    _mk_engagement(tmp_path)
+    (tmp_path / "state" / "CONTROL").write_text(
+        json.dumps({"cmd": "stop", "text": "早于 run"}), encoding="utf-8")
+    fake = FakeRunner([(_res(), [], {}), (_res(), [], {}), (_res(), [], {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=3,
+                                   observer_on=False)
+    assert rc == 0
+    assert len(fake.calls) == 0, "stop 早于 run：一轮都不该 spawn"
+
+
+
+
+def test_kill_process_tree_kills_children():
+    """P-11 v2：taskkill /T 真实树杀——claude 底下的 npx/chrome 孤儿不再残留。"""
+    import os
+    import subprocess
+    import sys
+    import time as _t
+    if os.name != "nt":
+        pytest.skip("Windows 进程组树杀语义")
+    parent = subprocess.Popen(
+        [sys.executable, "-c",
+         "import subprocess,sys,time;"
+         "c=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);"
+         "print(c.pid, flush=True); time.sleep(60)"],
+        stdout=subprocess.PIPE, text=True)
+    child_pid = int(parent.stdout.readline().strip())
+    from src.runner import kill_process_tree
+    kill_process_tree(parent)
+    parent.wait(timeout=10)
+    _t.sleep(1.5)
+    r = subprocess.run(["tasklist", "/FI", f"PID eq {child_pid}"],
+                       capture_output=True, text=True)
+    assert str(child_pid) not in r.stdout, f"孙进程 {child_pid} 未被树杀"

@@ -23,8 +23,11 @@ from urllib.parse import urlsplit
 # （相对或经 ../ 回溯）都是越权。evidence/ 不在禁区——那是 worker 的合法
 # 写入目录（workdir/evidence）。
 # 匹配用非锚定搜索（命令文本里路径在中间）；URL 先剥掉再查（url 路径 /state/ 不是禁区）。
+# 分隔符 [/\\] 双形态（P-5，2026-09-14 真实 run 实锤：PowerShell
+# [IO.File]::AppendAllLines("..\state\log.jsonl",...) 反斜杠写穿禁区 0 告警——
+# 我们的运行平台就是 Windows，正则只认 / 等于对常态失明）。
 _ZONE_PATH_RX = re.compile(
-    r"(?:\.\./)*(?:\.at1|state|notes)/|_(?:blackboard|transcript)\.(?:json|jsonl|bak|tmp)",
+    r"(?:\.\.[/\\])*(?:\.at1|state|notes)[/\\]|_(?:blackboard|transcript)\.(?:json|jsonl|bak|tmp)",
     re.IGNORECASE)
 _URL_STRIP_RX = re.compile(r"https?://\S+", re.IGNORECASE)
 
@@ -38,7 +41,11 @@ _WRITE_TOOL_HINT_RX = re.compile(r">>|>\s*\S|\btouch\b|\btee\b|\bmv\b|\bcp\b|"
                                  r"\brm\b|\bdel\b|\bwrite|\bsave|\bcreate\b|"
                                  r"\bnew-file\b|\bedit\b|"
                                  r"add-content|set-content|out-file|"
-                                 r"copy-item|move-item|remove-item", re.IGNORECASE)
+                                 r"copy-item|move-item|remove-item|"
+                                 # .NET 静态写方法（P-5 实锤第二道缝：[IO.File]::AppendAllLines
+                                 # 不含任何既有写动词，真跑穿区 0 告警的共同根因）
+                                 r"appendall(?:lines|text)|writeall(?:text|lines|bytes)|"
+                                 r"\[io\.file\]|\[system\.io\.file\]", re.IGNORECASE)
 
 
 @dataclass

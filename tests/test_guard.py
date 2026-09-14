@@ -90,3 +90,23 @@ def test_powershell_tool_covered():
     assert not v2.ok and v2.kind == "scope"
     v3 = g.check_tool("PowerShell", {"command": "Add-Content ../state/log.jsonl 'x'"})
     assert not v3.ok and v3.kind == "controller_zone"
+
+
+def test_controller_zone_backslash_forms_rejected():
+    """P-5 回归（2026-09-14 真实 run 实锤）：PowerShell 反斜杠/混合/绝对路径必须命中禁区。"""
+    # 实锤现场原形
+    v = _g().check_tool("PowerShell",
+                        {"command": '[IO.File]::AppendAllLines("..\state\log.jsonl",$logs,$enc)'})
+    assert not v.ok and v.kind == "controller_zone"
+    # 混合分隔符
+    v = _g().check_tool("Bash", {"command": "echo x >> ../state\CONTROL"})
+    assert not v.ok and v.kind == "controller_zone"
+    # 绝对路径
+    v = _g().check_tool("PowerShell", {"command": 'Set-Content "D:\eng\state\CONTROL" x'})
+    assert not v.ok and v.kind == "controller_zone"
+    # .at1 反斜杠
+    v = _g().check_tool("PowerShell", {"command": 'Copy-Item x "..\.at1\_blackboard.json"'})
+    assert not v.ok and v.kind == "controller_zone"
+    # worker 自己的目录不受影响（阴性对照）
+    v = _g().check_tool("Bash", {"command": "echo x >> evidence/log.txt"})
+    assert v.ok

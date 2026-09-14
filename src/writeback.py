@@ -161,7 +161,35 @@ def gen_prior_intel_draft(engagement_root: str, board, stop_reason: str = "") ->
     return out
 
 
-# ── ④ 启动反向读：已确认非漏洞 → immune 播种 ────────────────────────────
+# ── ④ worker 台账搬运（P-6：禁区矛盾修复的控制器半边）─────────────────
+
+def sync_human_ledger(engagement_root: str) -> tuple[bool, str]:
+    """收尾把 .auto/log.jsonl（worker 在自己世界的记账）搬运到协议位置
+    state/log.jsonl。worker 不再被指令派进控制器禁区（CLAUDE.md/prompt 同步改），
+    协议位置由有权写它的控制器补齐。按行内容去重追加（续跑幂等）。"""
+    src = Path(engagement_root) / ".auto" / "log.jsonl"
+    if not src.is_file():
+        return False, "no ledger"
+    lines = [ln for ln in src.read_text(encoding="utf-8", errors="replace").splitlines()
+             if ln.strip()]
+    if not lines:
+        return False, "empty"
+    dst = Path(engagement_root) / "state" / "log.jsonl"
+    existing: set[str] = set()
+    if dst.is_file():
+        existing = {ln.strip() for ln in
+                    dst.read_text(encoding="utf-8", errors="replace").splitlines() if ln.strip()}
+    fresh = [ln for ln in lines if ln.strip() not in existing]
+    if not fresh:
+        return True, "already-synced"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    with dst.open("a", encoding="utf-8") as f:
+        for ln in fresh:
+            f.write(ln + "\n")
+    return True, f"appended {len(fresh)}"
+
+
+# ── ⑤ 启动反向读：已确认非漏洞 → immune 播种 ──────────────────────────
 
 _EP_RX = re.compile(r"(/[A-Za-z0-9_/.{}\-]{2,80})")
 

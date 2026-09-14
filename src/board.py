@@ -442,6 +442,7 @@ class Blackboard:
         - upsert 不删除：worker 漏抄不丢历史（黑板是累积真值；退役用 status=done/blocked）
         返回改动行数（更新+新增）。"""
         changed = 0
+        newly_done: list[dict] = []
         for raw in (incoming or []):
             if not isinstance(raw, dict):
                 continue
@@ -460,7 +461,38 @@ class Blackboard:
                         x.get("id") == nd["id"] for x in self.directions) else self._next_direction_id()
                     self.directions.append(nd)
                 changed += 1
+                if nd.get("status") == "done" and (prev is None or prev.get("status") != "done"):
+                    newly_done.append(nd)
+        # P-4 修复（2026-09-14 真实 run 暴露）：done 且无产出的方向 → 阴性记录升格。
+        # done = worker 做完且该端点没交 FINDINGS → 当时未突破；blocked 不算（暂停≠阴性）。
+        # 档位恒 inferred（未穷尽——兑现 CLAUDE.md"安排低成本重验"的承诺）；
+        # 免疫清单复活后观察者 immune_reviews 才有米下锅。机械判定，零 LLM。
+        for nd in newly_done:
+            ep = self._dep_key(nd.get("endpoint", ""))
+            if not ep:
+                continue
+            produced = False
+            for f in self.findings:
+                if f.get("assessment") == "likely_false_positive":
+                    continue
+                fe = self._dep_key(f.get("endpoint", ""))
+                if fe and (ep in fe or fe in ep):   # 双向子串：方向端点常是 finding 的前缀（host:5000 vs host:5000/v2/x）；宽松取向——宁可漏升格不误标阴性
+                    produced = True        # 该端点有产出（含 uncertain/duplicate）——不是阴性
+                    break
+            if produced:
+                continue
+            self.add_immune(ep,
+                            status=f"{nd.get('id', '')} done：{str(nd.get('note', ''))[:60]}",
+                            confidence="inferred", round_=round_)
         return changed
+
+    @staticmethod
+    def _dep_key(endpoint: str) -> str:
+        """方向/发现端点归一（done→immune 升格的匹配键）：剥 query/尾斜杠/通配 **。"""
+        ep = (endpoint or "").split("?")[0].strip().lower().rstrip("/")
+        while ep.endswith("*"):
+            ep = ep.rstrip("*").rstrip("/")
+        return ep
 
     def set_direction_comment(self, direction_id: str, comment: str) -> bool:
         """观察者批注挂载（G 消费端，B4 接线用）。方向不存在返回 False。"""

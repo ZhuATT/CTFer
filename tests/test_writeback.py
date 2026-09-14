@@ -111,3 +111,29 @@ def test_parse_immune_seeds():
         assert "/api/login" in eps and "/health" in eps
         # 段外内容不进（漏洞表的 /api/login 是 seen 行——只解析列表行，表格行跳过）
         assert all(i["status"] for i in imm)
+
+
+def test_sync_human_ledger_moves_and_dedups(tmp_path):
+    """P-6：.auto/log.jsonl → state/log.jsonl 收尾搬运；去重追加幂等。"""
+    from src.writeback import sync_human_ledger
+    auto = tmp_path / ".auto"
+    (tmp_path / "state").mkdir(parents=True)
+    auto.mkdir()
+    # 无源 → no ledger
+    assert sync_human_ledger(str(tmp_path)) == (False, "no ledger")
+    (auto / "log.jsonl").write_text(
+        '{"ts":"t1","cmd":"curl /x","endpoint":"/x","result":"200"}\n'
+        '{"ts":"t2","cmd":"curl /y","endpoint":"/y","result":"403"}\n', encoding="utf-8")
+    ok, why = sync_human_ledger(str(tmp_path))
+    assert ok and "appended 2" in why
+    dst = (tmp_path / "state" / "log.jsonl").read_text(encoding="utf-8")
+    assert '"cmd":"curl /x"' in dst and '"cmd":"curl /y"' in dst
+    # 续跑：源文件长了一行，旧两行不重复
+    (auto / "log.jsonl").write_text(
+        '{"ts":"t1","cmd":"curl /x","endpoint":"/x","result":"200"}\n'
+        '{"ts":"t2","cmd":"curl /y","endpoint":"/y","result":"403"}\n'
+        '{"ts":"t3","cmd":"curl /z","endpoint":"/z","result":"500"}\n', encoding="utf-8")
+    ok, why = sync_human_ledger(str(tmp_path))
+    assert ok and "appended 1" in why
+    dst = (tmp_path / "state" / "log.jsonl").read_text(encoding="utf-8")
+    assert dst.count('"cmd":"curl /x"') == 1 and '"cmd":"curl /z"' in dst

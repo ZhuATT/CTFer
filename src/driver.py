@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -113,6 +114,43 @@ def _poll_control(engagement_root: Path) -> dict | None:
     except OSError:
         pass
     return data if isinstance(data, dict) else None
+
+
+def _controller_kill(proc) -> None:
+    """P-11 v2：控制器击杀 = 打死因标签再杀进程树。标签让 runner 把这次死亡
+    归为终态（controller_kill），续跑梯子不会把被杀会话当瞬态故障复活。"""
+    if proc is not None:
+        try:
+            proc._controller_kill = True
+        except Exception:
+            pass
+    runner.kill_process_tree(proc)
+
+
+def _consume_stop_file(control_path: Path, proc_ref: dict, flag: dict) -> bool:
+    """P-11 v2：peek CONTROL，仅 stop 即时消费——置标志 + 杀 worker 进程树。
+
+    pause/directive 不动（留给轮界 poll，语义不变）。proc_ref 未挂上（worker 尚未
+    spawn）也安全：只置标志，杀由盯梢线程的竞态防护循环补上（Cairn cancel-before-attach）。
+    模块级纯函数——盯梢线程体与单测共用。
+    """
+    p = Path(control_path)
+    if not p.is_file():
+        return False
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, ValueError):
+        return False
+    if not isinstance(data, dict) or data.get("cmd") != "stop":
+        return False
+    try:
+        p.unlink()
+    except OSError:
+        pass
+    flag["hit"] = True
+    flag["text"] = str(data.get("text", ""))[:200]
+    _controller_kill(proc_ref.get("proc"))
+    return True
 
 
 def _harvest_directions(workdir: Path, bb, round_no: int) -> int:
@@ -251,7 +289,7 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
     # worker 配置隔离：不读本机 ~/.claude/settings.json 的 env 覆盖（实测会劫持
     # 注入的 ANTHROPIC_BASE_URL）。指向控制器区空目录，worker 只吃注入配置。
     os.environ.setdefault("AT1_CLAUDE_CONFIG_DIR", str(pilot / "claude-config"))
-    workdir = scaffold.expand(root, eng)
+    workdir = scaffold.expand(root, eng, skills_src=eng.get("skills_src"))
     bb = board_mod.Blackboard(str(pilot / "_blackboard.json"))
     ev = events_mod.EventWriter(str(root / "state" / "auto-log.jsonl"))
     guard = Guard.from_engagement(eng)
@@ -303,9 +341,41 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
         return 0
 
     rnd = 0
+    # ── P-11 v2（2026-09-14，参照 ARTEX具名取消/Cairn 即时杀）：盯梢线程 ──
+    # 0.5s 轮询 CONTROL，看到 stop 立即杀 worker 进程树并置标志——不再依赖
+    # 心跳/轮界查岗（worker 会话期间 driver 阻塞，查岗粒度太粗，延迟分钟级）。
+    # 停机语义 = drain（收割落盘可续跑），与 ARTEX/Cairn/hxbai 三家一致。
+    stop_requested: dict = {"hit": False, "text": ""}
+    watcher_stop = threading.Event()
+
+    def _control_watcher():
+        while not watcher_stop.is_set():
+            try:
+                _consume_stop_file(root / "state" / "CONTROL",
+                                   proc_ref, stop_requested)
+            except Exception:
+                pass
+            if stop_requested["hit"]:
+                # Cairn 式竞态防护：stop 时 worker 可能尚未 spawn/挂上 proc_ref——
+                # 继续盯到出现为止补杀，防止"信号到早了"漏杀
+                while not watcher_stop.is_set():
+                    pr = proc_ref.get("proc")
+                    if pr is not None:
+                        if pr.poll() is None:
+                            _controller_kill(pr)
+                        break
+                    time.sleep(0.2)
+                return
+            watcher_stop.wait(0.5)
+
+    threading.Thread(target=_control_watcher, daemon=True, name="at1-control-watcher").start()
+
     while True:
         rnd += 1
-        # CONTROL 轮间轮询
+        if stop_requested["hit"]:                # 盯梢线程在轮间消费了 stop
+            stop_reason, exit_code = "control-stop(D)", 0
+            break
+        # CONTROL 轮间轮询（pause/directive 仍走这里；stop 已由盯梢线程即时消费）
         ctl = _poll_control(root)
         if ctl:
             cmd = ctl.get("cmd", "")
@@ -355,14 +425,8 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
                 tool_tail.pop(0)
 
         def on_heartbeat(d, _r=rnd):
+            # P-11 v2：CONTROL 消费已移交盯梢线程（0.5s 粒度）——心跳只报数
             ev.emit("heartbeat", {"round": _r, **d}, round_=_r)
-            # 心跳点 CONTROL 轮询：stop → kill 当前 worker 走优雅停（设计§4.2）
-            c = _poll_control(root)
-            if c and c.get("cmd") == "stop" and proc_ref.get("proc") is not None:
-                try:
-                    proc_ref["proc"].kill()
-                except Exception:
-                    pass
 
         task = runner.AgentTask(on_fact=on_fact, on_heartbeat=on_heartbeat,
                                 transcript_path=str(pilot / "transcript.jsonl"),
@@ -398,47 +462,60 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
             ev.emit("directions_merged", {"round": rnd, "changed": n_dir}, round_=rnd)
 
         verdicts: list[dict] = []
-        if new_findings and observer_on:
-            evidence_texts = {}
-            for f in new_findings:
-                ep = workdir / f.get("evidence", "")
-                if ep.is_file():
-                    evidence_texts[f["id"]] = ep.read_text(encoding="utf-8",
-                                                            errors="replace")
-            # transcript 双向对账（C-5 v2 事实层锚定）→ evidence_verified + param/response 软标记
-            tpath = str(pilot / "transcript.jsonl")
-            for f in new_findings:
-                rep = transcript_check.verify_evidence_detailed(
-                    tpath, evidence_texts.get(f["id"], ""))
-                f["evidence_verified"] = rep["evidence_verified"]
-                if rep["param_verified"] is not None:
-                    f["param_verified"] = rep["param_verified"]
-                    f["param_hits"] = f'{rep["param_hits"]}/{rep["param_total"]}'
-                if rep["response_verified"] is not None:
-                    f["response_verified"] = rep["response_verified"]
-                    f["response_hits"] = f'{rep["response_hits"]}/{rep["response_total"]}'
-
+        session_intel: dict | None = None
+        if observer_on:
+            # P-3 修复（2026-09-14 真实 run 暴露）：observe_session 每轮必跑，不再与
+            # new_findings 死绑——worker 守纪律 0 FINDINGS 的轮，治理三件套照样运转。
+            # judge 部分（noreport 预检 → judge_finding → 合并）仍只在有发现时跑。
             bc_facts = bb.query("business_context")
             ob = Observer(chat_fn=get_chat(),
                           business_context=(bc_facts[0]["value"] if bc_facts else ""))
             try:
-                result = ob.run(findings=new_findings,
-                                evidence_texts=evidence_texts,
-                                previous_confirmed=bb.confirmed_findings(),
-                                board_summary=bb.render()[:2000],
-                                handoff=res.handoff or "",
-                                directions=bb.active_directions(),
-                                chains=[c for _, c in bb._all_chains()])
-                verdicts = result["findings"]
-                if result.get("session_intel"):
-                    bb.update_session_intel(result["session_intel"])
-                    gov = _apply_observer_governance(bb, result["session_intel"], rnd)
-                    if any(gov.values()):
-                        ev.emit("observer_governance", {"round": rnd, **gov}, round_=rnd)
+                if new_findings:
+                    evidence_texts = {}
+                    for f in new_findings:
+                        ep = workdir / f.get("evidence", "")
+                        if ep.is_file():
+                            evidence_texts[f["id"]] = ep.read_text(encoding="utf-8",
+                                                                    errors="replace")
+                    # transcript 双向对账（C-5 v2）→ evidence_verified + 软标记
+                    tpath = str(pilot / "transcript.jsonl")
+                    for f in new_findings:
+                        rep = transcript_check.verify_evidence_detailed(
+                            tpath, evidence_texts.get(f["id"], ""))
+                        f["evidence_verified"] = rep["evidence_verified"]
+                        if rep["param_verified"] is not None:
+                            f["param_verified"] = rep["param_verified"]
+                            f["param_hits"] = f'{rep["param_hits"]}/{rep["param_total"]}'
+                        if rep["response_verified"] is not None:
+                            f["response_verified"] = rep["response_verified"]
+                            f["response_hits"] = f'{rep["response_hits"]}/{rep["response_total"]}'
+                    result = ob.run(findings=new_findings,
+                                    evidence_texts=evidence_texts,
+                                    previous_confirmed=bb.confirmed_findings(),
+                                    board_summary=bb.render()[:2000],
+                                    handoff=res.handoff or "",
+                                    directions=bb.active_directions(),
+                                    chains=[c for _, c in bb._all_chains()])
+                    verdicts = result["findings"]
+                    session_intel = result.get("session_intel")
+                else:
+                    # 0-finding 轮：只做全局观察（判重输入为空数组，专注治理）
+                    session = ob.observe_session(
+                        [], bb.confirmed_findings(), bb.render()[:2000],
+                        res.handoff or "", directions=bb.active_directions(),
+                        chains=[c for _, c in bb._all_chains()])
+                    session_intel = ({k: v for k, v in session.items()
+                                      if k != "final_assessments"} if session else None)
             except Exception as e:                       # 观察者故障不阻塞收割
                 ev.emit("observer_error", {"round": rnd, "error": str(e)[:200]}, round_=rnd)
                 verdicts = [{**f, "assessment": "uncertain",
                              "reason": f"观察者故障：{str(e)[:100]}"} for f in new_findings]
+            if session_intel:
+                bb.update_session_intel(session_intel)
+                gov = _apply_observer_governance(bb, session_intel, rnd)
+                if any(gov.values()):
+                    ev.emit("observer_governance", {"round": rnd, **gov}, round_=rnd)
 
             for f in verdicts:
                 bb.add_finding(f)
@@ -494,15 +571,23 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
             ev.emit("stoploss_trigger", {"round": rnd, "dim": why}, round_=rnd)
             stop_reason, exit_code = f"stoploss(B):{why}", 0
             break
+        if stop_requested["hit"]:                # P-11 v2：轮中被喊停，收割完即收工
+            stop_reason, exit_code = "control-stop(D)", 0
+            break
 
     # ── 收尾 ──
+    watcher_stop.set()                           # 收盯梢线程
+    okl, whl = writeback.sync_human_ledger(str(root))
+    if okl:
+        ev.emit("ledger_synced", {"result": whl}, round_=rnd)
     okr, whr = writeback.refresh_surface_depth(str(root / "state" / "status.md"), bb)
     if not okr:
         ev.emit("surface_parse_fail", {"reason": whr}, round_=rnd)
     writeback.gen_prior_intel_draft(str(root), bb, stop_reason=stop_reason)
     bb.save()
     ev.emit("run_end", {"reason": stop_reason, "rounds": rnd,
-                        "confirmed": len(bb.confirmed_findings())}, round_=rnd)
+                        "confirmed": len(bb.confirmed_findings()),
+                        "stop_text": stop_requested.get("text", "")}, round_=rnd)
     ev.close()
     print(f"[driver] 终止：{stop_reason}；轮次 {rnd}；confirmed {len(bb.confirmed_findings())}")
     return exit_code

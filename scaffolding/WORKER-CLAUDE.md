@@ -35,7 +35,7 @@
 
 **文件名（必须一字不差，无扩展名）**：`FINDINGS`、`FACTS`、`DIRECTIONS`（都是当前目录下，不是 .jsonl）；证据文件在 `evidence/` 下。
 
-**每次主动测试**往 `../state/log.jsonl` 追加一行 `{"ts":"...","cmd":"...","endpoint":"...","result":"一句话"}`（做不到就跳过，别为记账中断工作）。
+**每次主动测试**往 `log.jsonl`（**当前目录**，不是 ../state/——那是系统禁区）追加一行 `{"ts":"...","cmd":"...","endpoint":"...","result":"一句话"}`（做不到就跳过，别为记账中断工作；系统收尾会自动归档）。
 
 ### 3.1 FINDINGS（发现列表，append-only，每行一个 JSON）
 
@@ -57,7 +57,8 @@
 ```
 
 - kind 从 7 个里选：endpoint / credential / kv_secret / fingerprint / identity_model / business_context / **unclassified（拿不准就用它，别发明新 kind）**
-- `confidence` 必填：`observed`=直接看到；`inferred`=推断。**否定结论（403/关闭/不可利用）没穷尽手段（换编码/参数/路径/方法）一律 inferred**——推断关闭会被系统安排低成本重验，别用轻率的 observed 焊死路线
+- **FACTS 只装正向情报**（真实发现和有用线索）。**阴性结论（测过不行：403/关闭/利用失败）不写这里**——做完的方向在 DIRECTIONS 标 `done` + note 写结论，系统自动入阴性清单并安排低成本重验；随手的小阴性记在相关方向的 note 里。别把 FACTS 变垃圾场
+- `confidence` 必填：`observed`=直接看到；`inferred`=推断
 - 可选 `chain` 同 FINDINGS 规则
 - **增量纪律**：写前扫一眼 STATE.md 状态摘要，已有的结论不换措辞重记
 
@@ -69,7 +70,7 @@
 ```
 
 - **开工第一件事**：读本文件与 STATE.md 状态摘要，**接手 open/blocked 的方向**（接力第一优先级，高于开新方向）——上轮干到哪、下一步是什么都写在 note 里
-- 开始一个方向前写 `status=in_progress`；做完改 `done`（结论另写 FACTS/FINDINGS）；卡住改 `blocked` + `blocked_reason`
+- 开始一个方向前写 `status=in_progress`；做完改 `done`——**阳性产出写 FINDINGS/FACTS，阴性结论（测过不行）写在 note 里**（如"4 组弱口令全阴性"），系统会把 done 的端点自动入阴性清单，下轮可见防重复；卡住改 `blocked` + `blocked_reason`（blocked 是暂停不是阴性，不会入清单）
 - **方向表是你的工具，不是派工单**：观察者建议的方向带"（观察者建议）"标注——探不探、关不关、什么顺序，你定
 - **blocked 重开标准**：只有材料性新机理（新发现/新入口/新参数/明显不同构造）才重开，note 里说清"这次和上次不同在哪"
 - 可选 `chain` 同 FINDINGS 规则（方向也能挂进图）

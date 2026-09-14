@@ -118,10 +118,12 @@ def test_worker_contract_texts(tmp_path):
               "identity_model", "business_context", "unclassified"):
         assert k in txt
     assert "observed" in txt and "inferred" in txt              # confidence 二值语义进纪律层
-    assert "没穷尽手段" in txt                                   # 否定结论门槛
+    assert "只装正向情报" in txt                                 # P-4：FACTS 语义收紧（阴性不进 FACTS）
+    assert "不写这里" in txt                                     # P-4：阴性结论改走 DIRECTIONS done
     # DIRECTIONS 契约：开工先读 + 生命周期 + 自主权话术
     assert "接手 open/blocked" in txt and "高于开新方向" in txt
     assert "in_progress" in txt and "blocked_reason" in txt
+    assert "阴性清单" in txt                                     # P-4：done+note → 系统阴性清单
     assert "不是派工单" in txt                                   # 自主权（接单员化缓解 G-2）
     # D 三条
     assert "材料性新机理" in txt                                 # DEC-5 重开标准
@@ -151,3 +153,20 @@ def test_state_md_readonly_declared(tmp_path):
     wd = expand(tmp_path, eng)
     txt = (wd / "CLAUDE.md").read_text(encoding="utf-8")
     assert "STATE.md 是系统投影" in txt and "只读" in txt
+
+
+def test_worker_contract_no_zone_ledger_instruction(tmp_path):
+    """P-6 回归：纪律层/侦察手册不得再把 worker 派进控制器禁区记账。"""
+    _mk_engagement(tmp_path)
+    eng = load_engagement(tmp_path)
+    wd = expand(tmp_path, eng)
+    txt = (wd / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "../state/log.jsonl" not in txt          # 旧越界指令已移除
+    assert "当前目录" in txt and "log.jsonl" in txt  # 台账在 worker 世界
+    from src.prompt import render_round_prompt
+    from src.board import Blackboard
+    import json as _json
+    bb = Blackboard()
+    p = render_round_prompt(bb, round_=1)
+    assert "state/log.jsonl" not in p               # 侦察手册同步改
+    assert "log.jsonl" in p

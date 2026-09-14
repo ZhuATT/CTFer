@@ -488,3 +488,54 @@ def test_combines_hot_marking():
     # 非 combines 边 → 不标
     b.add_chains([{"rel": "same_root", "refs": ["F-001", "D-001"], "note": "n"}], round_=2)
     assert b.render().count("⚡组合路径待试") == 1
+
+
+def test_merge_directions_done_promotes_immune():
+    """P-4 修复（2026-09-14）：done 且无产出的方向 → 阴性记录（immune）升格。"""
+    bb = Blackboard()
+    bb.add_direction({"id": "D-001", "goal": "9098 弱口令",
+                      "endpoint": "/api/user/login", "status": "in_progress",
+                      "note": "测弱口令"}, source="worker", round_=1)
+    # in_progress → done 且无 finding → 升格 immune（inferred 档）
+    bb.merge_directions([{"id": "D-001", "goal": "9098 弱口令",
+                          "endpoint": "/api/user/login", "status": "done",
+                          "note": "4 组弱口令全阴性"}], round_=2)
+    imm = [i for i in bb.immune if i["endpoint"] == "/api/user/login"]
+    assert len(imm) == 1 and imm[0]["confidence"] == "inferred"
+    assert "D-001 done" in imm[0]["status"] and "全阴性" in imm[0]["status"]
+
+    # 幂等：重复 merge 同一 done 行（prev 已是 done）不重复入
+    bb.merge_directions([{"id": "D-001", "goal": "9098 弱口令",
+                          "endpoint": "/api/user/login", "status": "done",
+                          "note": "4 组弱口令全阴性"}], round_=3)
+    assert sum(1 for i in bb.immune if i["endpoint"] == "/api/user/login") == 1
+
+    # blocked 不升格（暂停≠阴性）
+    bb.merge_directions([{"id": "D-002", "goal": "Druid", "endpoint": "/druid/**",
+                          "status": "blocked", "blocked_reason": "需会话"}], round_=3)
+    assert not any(i["endpoint"] == "/druid" for i in bb.immune)
+
+
+def test_merge_directions_done_with_finding_no_immune():
+    """done 但同端点有产出（confirmed/uncertain/duplicate）→ 不是阴性，不升格。"""
+    bb = Blackboard()
+    bb.add_direction({"id": "D-001", "goal": "打 registry", "endpoint": "172.20.9.26:5000",
+                      "status": "in_progress", "note": "x"}, source="worker", round_=1)
+    bb.add_finding({"id": "F-001", "endpoint": "172.20.9.26:5000/v2/_catalog",
+                    "summary": "未授权", "assessment": "confirmed", "severity": "high",
+                    "evidence": "e.md", "reason": "r", "round": 1})
+    bb.merge_directions([{"id": "D-001", "goal": "打 registry", "endpoint": "172.20.9.26:5000",
+                          "status": "done", "note": "拿到未授权访问"}], round_=2)
+    # 5000 端点方向 done 但端点有 finding（前缀匹配）→ 不入 immune
+    assert not any("5000" in i["endpoint"] for i in bb.immune)
+
+    # likely_false_positive 不算产出——done 无真产出仍升格
+    bb2 = Blackboard()
+    bb2.add_direction({"id": "D-001", "goal": "g", "endpoint": "/x",
+                       "status": "in_progress", "note": ""}, source="worker", round_=1)
+    bb2.add_finding({"id": "F-001", "endpoint": "/x", "summary": "s",
+                     "assessment": "likely_false_positive", "severity": None,
+                     "evidence": "e.md", "reason": "r", "round": 1})
+    bb2.merge_directions([{"id": "D-001", "goal": "g", "endpoint": "/x",
+                           "status": "done", "note": "纯现象被拒"}], round_=2)
+    assert any(i["endpoint"] == "/x" for i in bb2.immune)

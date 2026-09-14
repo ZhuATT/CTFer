@@ -23,6 +23,9 @@ MANUALS: dict[str, str] = {
 {"kind":"business_context","value":"这是XX平台，XX行为是正常业务","evidence":"..."} 进 FACTS。
 
 操作序列（按序执行）：
+0. **先调 WaitForMcpServers 工具（timeout 填 30000）**——headless 会话里 MCP 服务器
+   是异步启动的，浏览器工具（browser_*）要等它返回 ready 才出现；返回失败/超时
+   → 本轮无浏览器，直接从第 2 步 curl 起步，别卡在这一步。
 1. 浏览器侦察四步（Playwright MCP）：
    browser_navigate → 目标 URL
    browser_snapshot → 页面结构
@@ -33,8 +36,8 @@ MANUALS: dict[str, str] = {
    产物 out/<host>-<时间戳>.md：端点→漏洞类路由、密钥、sink——读完把要点写进 FACTS
 3. 资产分诊（端点 >20 时）：按指纹分组 → 每组测一个代表 → 挑 3-8 个高价值
    （有身份语义 / 有对象 ID 参数 / 可写操作）；CDN、静态资源、文档域名跳过
-4. 记账：每个功能面在 status.md 攻击面表加一行（| 端点 | seen | 测过什么 |）；
-   每次主动测试往 state/log.jsonl 追加一行 {ts,cmd,endpoint,result摘要}
+4. 记账：每次主动测试往当前目录 `log.jsonl` 追加一行 {ts,cmd,endpoint,result摘要}
+   （攻击面表由系统自动维护——端点/指纹入库 + 状态投影，你不用碰 status.md）
 
 实战纪律：
 - 同一方向连续 5 次失败 → 切换方向，不死磕

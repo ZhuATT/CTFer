@@ -33,7 +33,8 @@ _LEDGER_HEADERS = {
     "FACTS": (
         "# 每行一条结论（JSONL）。字段：kind（endpoint/credential/kv_secret/fingerprint/\n"
         "# identity_model/business_context/unclassified 拿不准就用它）/value/confidence/evidence。\n"
-        "# confidence：observed=直接看到；inferred=推断（否定结论没穷尽手段一律 inferred）。可选 chain 同 FINDINGS。\n"
+        "# 只写真实发现和有用线索；阴性结论（测过不行）不写这里——做完的方向在 DIRECTIONS 标 done+note。\n"
+        "# confidence：observed=直接看到；inferred=推断。可选 chain 同 FINDINGS。\n"
         "# 例：{\"kind\":\"unclassified\",\"value\":\"config.js 有内部端点表\",\"confidence\":\"inferred\",\"evidence\":\"curl\"}\n"
     ),
     "DIRECTIONS": (
@@ -41,6 +42,7 @@ _LEDGER_HEADERS = {
         "# note/round，blocked 加 blocked_reason，可选 chain 同 FINDINGS。\n"
         "# 例：{\"id\":\"D-001\",\"goal\":\"验证 /api/x idor\",\"endpoint\":\"/api/x\",\"status\":\"open\",\"note\":\"下一步...\",\"round\":1}\n"
         "# 开工第一件事：接手 open/blocked 方向（接力第一优先级）。重开 blocked 需材料性新机理（详见 CLAUDE.md §3.3）。\n"
+        "# 方向做完是死的 → done + note 写阴性结论（如\"4组弱口令全阴性\"）——系统自动入阴性清单，下轮可见防重复。\n"
     ),
 }
 

@@ -60,3 +60,13 @@ def test_first_round_no_handoff():
     b = Blackboard()
     p = render_round_prompt(b)
     assert "（首轮，无上一轮交接）" in p
+
+
+def test_recon_manual_waits_for_mcp():
+    """P-7 回归（2026-09-14 实测根因）：-p 模式 MCP 异步启动，模型不调
+    WaitForMcpServers 就永远见不到 browser_* 工具——手册必须教这一步。"""
+    from src.board import Blackboard
+    p = render_round_prompt(Blackboard(), round_=1)
+    assert "WaitForMcpServers" in p                 # 等待指令在侦察手册
+    assert "30000" in p                             # timeout 给够
+    assert "curl 起步" in p                         # 失败降级路径明确

@@ -328,6 +328,27 @@ def _sanitize_env(solver: SolverConfig) -> dict:
     return env
 
 
+def kill_process_tree(proc) -> None:
+    """杀 worker 整棵进程树（P-11 v2，参照 Cairn _terminate：先宽限后强杀）。
+
+    claude CLI 底下挂着 npx MCP、浏览器子进程——单 proc.kill() 会留孤儿树。
+    Windows 用 taskkill /T（进程组语义）；POSIX 退化 proc.kill()。
+    """
+    if proc is None or proc.poll() is not None:
+        return
+    if os.name == "nt":
+        try:
+            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                           capture_output=True, timeout=10)
+            return
+        except Exception:
+            pass
+    try:
+        proc.kill()
+    except Exception:
+        pass
+
+
 def _build_argv(claude_bin: str, solver: SolverConfig, max_turns: int,
                 resume_session_id: str | None) -> list[str]:
     argv = [
@@ -462,7 +483,11 @@ def spawn_once(
     parser.close()
 
     res = parser.to_result()
-    if timed_out:
+    if getattr(proc, "_controller_kill", False):
+        # P-11 v2：控制器击杀（watcher 秒停）=【终态】不是错误——会话即死不复活
+        #（ARTEX/Cairn/hxbai 三家同款语义；续跑 = 新 worker 从盘上状态接力，run 层面的事）
+        res.stop_reason = "controller_kill"
+    elif timed_out:
         # 时间盒耗尽是【终态】不是错误：走 Handoff 收割（可能没有 → M2 代码合成兜底）
         res.stop_reason = "timeout"
     elif not parser.turns and proc.returncode not in (0, None):
@@ -500,7 +525,7 @@ def run(
         res = spawn_once(cur_prompt, workdir, solver, task,
                          time_box_s=time_box_s, max_turns=max_turns,
                          claude_bin=claude_bin, resume_session_id=resume_id)
-        # 正常终态（含时间盒耗尽）→ 直接返回
+        # 正常终态（含时间盒耗尽/控制器击杀 controller_kill）→ 直接返回
         if not res.is_error:
             res.resumes = attempt          # 计数记在返回的这份上，不是被丢弃的错误份上
             return res
