@@ -350,7 +350,8 @@ def kill_process_tree(proc) -> None:
 
 
 def _build_argv(claude_bin: str, solver: SolverConfig, max_turns: int,
-                resume_session_id: str | None) -> list[str]:
+                resume_session_id: str | None,
+                mcp_config: str | None = None) -> list[str]:
     argv = [
         claude_bin, "-p",
         "--output-format", "stream-json",
@@ -359,6 +360,11 @@ def _build_argv(claude_bin: str, solver: SolverConfig, max_turns: int,
         "--max-turns", str(max_turns),
         "--model", solver.model,
     ]
+    if mcp_config:
+        # U-1（2026-09-14）：MCP 世界只认 scaffold 写的 .auto/.mcp.json——
+        # 关掉父目录链/用户级的继承通道（实验证实 CLI 会逐级合并祖先 .mcp.json，
+        # worker 能力随目录地理漂移：usc-fresh 捡到 tavily、usc-jiuye 干净）
+        argv += ["--strict-mcp-config", "--mcp-config", mcp_config]
     if resume_session_id:
         argv += ["--resume", resume_session_id]
     return argv
@@ -382,7 +388,11 @@ def spawn_once(
     box = time_box_s if time_box_s is not None else solver.session_seconds
     os.makedirs(workdir, exist_ok=True)
 
-    argv = _build_argv(binary, solver, mt, resume_session_id)
+    # U-1：MCP 唯一来源=workdir 的 .mcp.json（scaffold 每次确定性重写）；文件缺失则
+    # 不加 strict（自测/旧路径无此文件，行为不变）
+    local_mcp = os.path.join(workdir, ".mcp.json")
+    argv = _build_argv(binary, solver, mt, resume_session_id,
+                       mcp_config=local_mcp if os.path.isfile(local_mcp) else None)
     env = _sanitize_env(solver)
     parser = StreamParser(task)
 

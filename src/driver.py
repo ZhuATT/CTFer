@@ -326,7 +326,9 @@ def run_engagement(engagement_root: str, *, budget_s: float = 7200,
     # worker 配置隔离：不读本机 ~/.claude/settings.json 的 env 覆盖（实测会劫持
     # 注入的 ANTHROPIC_BASE_URL）。指向控制器区空目录，worker 只吃注入配置。
     os.environ.setdefault("AT1_CLAUDE_CONFIG_DIR", str(pilot / "claude-config"))
-    workdir = scaffold.expand(root, eng, skills_src=eng.get("skills_src"))
+    # U-1 同源：skills 供给也确定性化——engagement.json 显式值 > 全局默认(AT1_SKILLS_SRC) > 无
+    skills_src = eng.get("skills_src") or os.getenv("AT1_SKILLS_SRC") or None
+    workdir = scaffold.expand(root, eng, skills_src=skills_src)
     bb = board_mod.Blackboard(str(pilot / "_blackboard.json"))
     ev = events_mod.EventWriter(str(root / "state" / "auto-log.jsonl"))
     guard = Guard.from_engagement(eng)

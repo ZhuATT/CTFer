@@ -607,3 +607,16 @@ def test_preflight_event_in_real_run(tmp_path, monkeypatch):
     assert "preflight" in types
     pf = next(r["data"] for r in rows if r.get("type") == "preflight")
     assert "claude" in pf and "mcp" in pf and pf.get("ok") is True
+
+
+def test_skills_src_env_fallback(tmp_path, monkeypatch):
+    """U-1 同源：engagement.json 没写 skills_src 时，AT1_SKILLS_SRC 全局默认兜底。"""
+    skills = tmp_path / "globalskills" / "g-skill"
+    skills.mkdir(parents=True)
+    (skills / "SKILL.md").write_text("---\nname: g-skill\ndescription: t\n---\nx",
+                                     encoding="utf-8")
+    _mk_engagement(tmp_path)                     # 故意不写 skills_src
+    monkeypatch.setenv("AT1_SKILLS_SRC", str(tmp_path / "globalskills"))
+    rc = driver_mod.run_engagement(str(tmp_path), dry_run=True)
+    assert rc == 0
+    assert (tmp_path / ".auto" / ".claude" / "skills" / "g-skill" / "SKILL.md").is_file()

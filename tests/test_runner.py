@@ -378,3 +378,18 @@ def test_error_without_label_still_resumes(tmp_path):
     finally:
         runner_mod.spawn_once = orig
     assert len(calls) == 2 and res.stop_reason == "end_turn"
+
+
+def test_build_argv_strict_mcp_config():
+    """U-1：给 mcp_config 时 argv 带 strict 双旗；不给则不带（自测/旧路径行为不变）。"""
+    from src import runner as runner_mod
+    from src.providers import SolverConfig
+    solver = SolverConfig(provider="glm", base_url="https://x", api_key="k",
+                          model="m", small_fast_model="m", max_turns=5,
+                          session_seconds=60, reasoning=False)
+    argv = runner_mod._build_argv("claude", solver, 5, None,
+                                  mcp_config=r"D:\eng\.auto\.mcp.json")
+    i = argv.index("--strict-mcp-config")
+    assert argv[i + 1] == "--mcp-config" and argv[i + 2].endswith(".mcp.json")
+    argv2 = runner_mod._build_argv("claude", solver, 5, None, mcp_config=None)
+    assert "--strict-mcp-config" not in argv2 and "--mcp-config" not in argv2
