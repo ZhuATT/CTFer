@@ -26,12 +26,13 @@
     "edges": [ {src, rel, dst, origin, note, round} ... ]
   },
   "bookkeeping": {
-    "offsets":   { "facts": n, "findings": n, "directions": n },   // 三账本收割偏移
+    "offsets":   { "facts": n, "findings": n, … },   // 账本收割偏移(directions 已废 A17③;hints 等自由扩展,批2 起)
     // stage/history 已废(2026-09-17,A12:阶段体系退役,"图就是阶段")
     "goal":      { "text": "…", "updated_round": n },  // 任务级 goal(S6):人写/控制台中途可改;worker <Stop> 自停锚点
     "handoff":   "上一轮 worker 交接叙事",
-    "config":    { "endpoint_n": 15 },
-    "intel":     [ { "round": n, "text": "证词" } ]                  // 观察者证词(按轮)
+    "config":    { … },                                // 自由扩展;endpoint_n 随 stage 机死无消费者(A12)
+    "intel":     [ { "round": n, "text": "证词" } ],   // 观察者证词(按轮)
+    "guide":     { "round": n, "text": "下一轮引导全文" }  // A17 guide 行收割落点(批2 落 blackboard.schema.json)
   }
 }
 ```
@@ -46,7 +47,7 @@
 | immune[](存储) | **删除** → 阴性视图(派生,§5) |
 | chains[](边库) | edges[](动词词表更新,§4) |
 | session_intel(观察者输出存储) | **删除** → OBSERVER 直接收割成节点/边/comment |
-| verified(影子计数) | **删除**(check_goal 直数 findings) |
+| verified(影子计数) | **删除**(check_goal 已随 stage 机死,T1.5;判停三角=预算/人工停/worker Stop) |
 | ledger.tried/background(分母流水) | **删除**——分母知识不进图,进投影"端点分组"节(controller 从收割元数据渲染) |
 | handoff / goal / config / offsets | bookkeeping 节 |
 
@@ -165,10 +166,12 @@
 
 | 视图 | 公式 | 消费者 |
 |---|---|---|
-| **阴性视图** | `intent.state=done 且 yields 边为空` ∪ `finding.state=dismissed 且 reason 含攻击路径` | 下一轮 worker("别再试")/ 观察者(immune_reviews 替代:建议 retest 只针对 confirmed 态的推断项) |
+| **阴性视图** | `intent.state=done 且 yields 边为空` ∪ `finding.state=dismissed`(已裁 09-18:判掉的全部印——判假/判重/硬拒都是"别再交同样姿势"的阴性知识;原"reason 含攻击路径"过滤语义不明,废除) | 下一轮 worker("别再试")/ 观察者(immune_reviews 替代:建议 retest 只针对 confirmed 态的推断项) |
 | **端点视图** | group by endpoint | 谱系渲染/观察者同端点历史语境/未测面统计 |
 | **谱系视图** | 每节点 parentsOf(指入边源)+ yieldsOf(指出边目标) | STATE.md 谱系节/观察者投影/M5 |
 | **未测面视图** | 出现过的 endpoint − 有 intent/finding 覆盖的 endpoint | prompt 摘要(路标)/判停分母 |
+
+> **注(09-18,已拍板)**:阴性视图公式修订为 `finding.state=dismissed`(全部印),原"reason 含攻击路径"过滤废除——见上表。批 1 实现与本公式一致。
 
 ---
 
@@ -189,7 +192,7 @@ add_edge(src, rel, dst, origin, note=?, round)              # 建边((src,rel,ds
 **配方 0:run 启动播种**(开跑前一次)
 | 来源 | 操作 |
 |---|---|
-| prior-intel 情报条目(种子文件,人写节点 JSON) | create_node(fact, confirmed, origin=user) |
+| prior-intel 情报条目(人写知识行:prose 行或 JSON 节点) | create_node(fact, confirmed, origin=user) |
 | status.md 漏洞表(人拍板) | create_node(finding, confirmed, origin=user) |
 
 **配方 1:轮末收割**(worker 日志蒸馏,每轮一次)
@@ -261,7 +264,7 @@ add_edge(src, rel, dst, origin, note=?, round)              # 建边((src,rel,ds
 
 - **双读者**:worker(执行手册:重点读方向谱系+阴性)/ 观察者(观察手册:重点读新发现+谱系连线)——各手册写明重点节。
 - **一轮两刷**:配方 1 后刷第一版(观察者读,含 proposed 态新发现)→ 配方 2 后刷第二版(下一轮 worker 读,含 verdict/批注)。
-- **防注入**:六节全部 untrusted nonce 包裹(v2 机制沿用)。
+- **防注入**:~~六节全部 untrusted nonce 包裹(v2 机制沿用)~~ **已裁 A20(09-18):本阶段不包裹,`untrusted.py` 保留作升级路径**。
 - **不受目录地理影响**:投影从 blackboard.json 渲染,来源唯一。
 
 ---

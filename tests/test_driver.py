@@ -613,3 +613,117 @@ def test_skills_src_env_fallback(tmp_path, monkeypatch):
     rc = driver_mod.run_engagement(str(tmp_path), dry_run=True)
     assert rc == 0
     assert (tmp_path / ".auto" / ".claude" / "skills" / "g-skill" / "SKILL.md").is_file()
+
+
+def test_seed_prior_intel_facts_confirmed(tmp_path):
+    """配方 0（schema §6.2）：prior-intel 人写知识行播成 fact confirmed（origin=user）。"""
+    from src import board as board_mod
+    (tmp_path / "notes").mkdir(parents=True)
+    (tmp_path / "notes" / "prior-intel.md").write_text(
+        "# 前置情报\n- 9098 是奕云CaaS 登录面\n> 4 月的情报时效衰减严重，一切以现场实测为准\n", encoding="utf-8")
+    bb = board_mod.Blackboard()
+    driver_mod._seed_from_engagement(tmp_path, bb)
+    facts = bb.nodes("fact")
+    assert len(facts) == 2                                  # 引用行剥前缀后两条都入
+    assert all(f["state"] == "confirmed" for f in facts)
+    assert all(f["origin"] == "user" for f in facts)
+
+
+# ── 批 2：STOP 接线 / noreport 前置 / hints 队列 / usc 回放 ──────────────
+
+def test_worker_stop_valid_terminates(tmp_path, monkeypatch):
+    """A18：有效 Stop（引现存 F-xxx）→ 收割落盘后整个 run 终止。"""
+    _mk_engagement(tmp_path)
+    fake = FakeRunner([
+        (_res(stop_text="目标达成：registry 未授权已确认，引 F-001"),
+         [{"id": "F-001", "endpoint": "/a", "evidence": "evidence/a.md", "summary": "越权读取"}],
+         {"a.md": "curl /a 响应 13800138000"}),
+    ])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=3,
+                                   observer_on=False)
+    assert rc == 0 and len(fake.calls) == 1
+    evs = [json.loads(l) for l in
+           (tmp_path / "state" / "auto-log.jsonl").read_text(encoding="utf-8").splitlines()
+           if l.strip()]
+    assert any(e["type"] == "worker_stop" for e in evs)
+    assert any(e["type"] == "run_end" and e["data"]["reason"] == "worker-stop(C)" for e in evs)
+
+
+def test_worker_stop_invalid_continues(tmp_path, monkeypatch):
+    """无引证的 Stop 无效 → stop_invalid 事件 + 继续下一轮（防偷懒护栏）。"""
+    _mk_engagement(tmp_path)
+    fake = FakeRunner([(_res(stop_text="目标达成"), [], {}), (_res(), [], {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=2,
+                                   observer_on=False)
+    assert rc == 0 and len(fake.calls) == 2
+    evs = [json.loads(l) for l in
+           (tmp_path / "state" / "auto-log.jsonl").read_text(encoding="utf-8").splitlines()
+           if l.strip()]
+    assert any(e["type"] == "stop_invalid" for e in evs)
+    assert not any(e["type"] == "worker_stop" for e in evs)
+
+
+def test_noreport_hard_reject_at_harvest(tmp_path, monkeypatch):
+    """T2.6：硬拒条目节点照建即 dismissed+事件，不进观察者；豁免样本放行。"""
+    _mk_engagement(tmp_path)
+    fake = FakeRunner([
+        (_res(), [{"id": "F-001", "endpoint": "/static/main.js.map",
+                   "evidence": "evidence/m.md", "summary": "sourcemap 文件可下载"},
+                  {"id": "F-002", "endpoint": "/api/x", "evidence": "evidence/x.md",
+                   "summary": "越权读取他人订单含手机号"}],
+         {"m.md": "GET /static/main.js.map 200", "x.md": "curl /api/x 响应含 13800138000"}),
+    ])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=300, max_rounds=1,
+                                   observer_on=False)
+    assert rc == 0
+    from src import board as board_mod
+    bb = board_mod.Blackboard(str(tmp_path / ".at1" / "blackboard.json"))
+    assert bb.node("F-001")["state"] == "dismissed"
+    assert "硬拒" in bb.node("F-001")["payload"]["reason"]
+    assert bb.node("F-002")["state"] == "proposed"
+    evs = [json.loads(l) for l in
+           (tmp_path / "state" / "auto-log.jsonl").read_text(encoding="utf-8").splitlines()
+           if l.strip()]
+    assert any(e["type"] == "hard_rejected" and e["data"]["id"] == "F-001" for e in evs)
+
+
+def test_hints_queue_harvested_into_prompt_once(tmp_path, monkeypatch):
+    """T2.8：hints.jsonl 按偏移收割→下轮【人工指示】→偏移推进不重复。"""
+    _mk_engagement(tmp_path)
+    (tmp_path / ".at1" / "control").mkdir(parents=True)
+    (tmp_path / ".at1" / "control" / "hints.jsonl").write_text(
+        json.dumps({"ts": "t", "text": "重点看支付回调"}, ensure_ascii=False) + "\n",
+        encoding="utf-8")
+    fake = FakeRunner([(_res(), [], {}), (_res(), [], {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=2,
+                                   observer_on=False)
+    assert rc == 0
+    p1 = fake.calls[0]["prompt"]
+    assert "重点看支付回调" in p1.split("【人工指示】")[-1]
+    assert "重点看支付回调" not in fake.calls[1]["prompt"]
+
+
+def test_usc_fresh_ledger_harvest_replay(tmp_path):
+    """T2.2 验收：usc-fresh 真账本收割回放（真数据不入库，skipif 不在本机）。"""
+    import shutil as _sh
+    src_dir = Path(__file__).parent / "../../engagements/usc-fresh/.auto"
+    if not (src_dir / "FINDINGS").is_file():
+        pytest.skip("usc-fresh 真账本不在本机")
+    wd = tmp_path / ".auto"
+    wd.mkdir(parents=True)
+    _sh.copy(src_dir / "FINDINGS", wd / "FINDINGS")
+    if (src_dir / "FACTS").is_file():
+        _sh.copy(src_dir / "FACTS", wd / "FACTS")
+    from src import board as board_mod, harvest as harvest_mod
+    bb = board_mod.Blackboard()
+    created = driver_mod._harvest_findings(wd, bb, 1)
+    facts_lines, _ = harvest_mod.diff_new_lines(str(wd / "FACTS"), 0)
+    n_facts = harvest_mod.facts_to_nodes(bb, facts_lines, round_=1)
+    assert len(created) >= 1
+    assert any(n["id"] == "F-001" for n in created)
+    assert n_facts >= 1
+    assert bb.node("F-001")["state"] == "proposed"

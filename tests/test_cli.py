@@ -39,3 +39,42 @@ def test_run_failfast_without_engagement(tmp_path):
     """run 子命令的拒启路径（不 spawn、不碰网络）。"""
     rc = main(["run", str(tmp_path)])
     assert rc == 2
+
+
+def test_control_shells_hint_goalset_stop(tmp_path):
+    """A24 CLI 壳：hint/goal-set/stop 写盘，机制零新造。"""
+    rc = main(["hint", str(tmp_path), "重点看支付回调"])
+    assert rc == 0
+    h = (tmp_path / ".at1" / "control" / "hints.jsonl").read_text(encoding="utf-8")
+    assert "支付回调" in h
+    rc = main(["goal-set", str(tmp_path), "拿到域管权限"])
+    assert rc == 0
+    from src.board import Blackboard
+    bb = Blackboard(str(tmp_path / ".at1" / "blackboard.json"))
+    assert bb.goal["text"] == "拿到域管权限"
+    (tmp_path / "state").mkdir()
+    rc = main(["stop", str(tmp_path), "验收收尾"])
+    assert rc == 0
+    ctl = json.loads((tmp_path / "state" / "CONTROL").read_text(encoding="utf-8"))
+    assert ctl == {"cmd": "stop", "text": "验收收尾"}
+
+
+def test_watch_renders_batch2_events(tmp_path, capsys):
+    """批 2 新事件在 watch 渲染不炸（回放全量）。"""
+    log = tmp_path / "state" / "auto-log.jsonl"
+    log.parent.mkdir(parents=True)
+    rows = [
+        {"type": "worker_stop", "round": 1, "data": {"kind": "achieved", "refs": ["F-001"], "head": "达成"}},
+        {"type": "stop_invalid", "round": 1, "data": {"head": "没引证"}},
+        {"type": "hard_rejected", "round": 1, "data": {"id": "F-9", "category": "sourcemap", "reason": "r"}},
+        {"type": "hint_injected", "round": 1, "data": {"count": 1}},
+        {"type": "reports_promoted", "round": 1, "data": {"count": 2}},
+        {"type": "resume", "data": {"nodes": 5}},
+        {"type": "observer_recipe2", "round": 1, "data": {"verdict": 2}},
+    ]
+    log.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n",
+                   encoding="utf-8")
+    rc = main(["watch", str(tmp_path), "--once", "--all"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "worker-stop" in out and "stop 无效" in out and "硬拒" in out and "resume" in out

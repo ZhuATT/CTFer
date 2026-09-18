@@ -37,6 +37,17 @@ EVENT_TYPES = frozenset({
     "preflight",              # 启动预检结果（claude/mcp 可用性，2026-09-14）
     "observer_governance",    # 观察者治理消费（comments/new_directions/retests/chains 计数）
     "facts_verified",         # 被动事实轮窗复现抽验（checked/downgraded/restored，治理批#2）
+    # 批 2 新增（v3 配方 2/判停三角/A24 控制面）
+    "worker_stop",            # worker <Stop> 有效终判（kind: achieved/exhausted + refs）
+    "stop_invalid",           # <Stop> 无效（无引证/引证不存在）——继续下一轮
+    "resume",                 # 续跑（启动时黑板非空，offsets 续收）
+    "hard_rejected",          # noreport 检察官硬拒（节点建即 dismissed，T2.6）
+    "hint_injected",          # 留言队列收割注入【人工指示】（T2.8/A24）
+    "guide_injected",         # OBSERVER guide 行收割落 bookkeeping（stdin 注入=T4.1）
+    "observer_parse_fail",    # OBSERVER 非法行进隔离区（schema §7）
+    "observer_recipe2",       # 配方 2 收割计数（verdict/edge/comment/intent/intel/guide）
+    "reports_promoted",       # confirmed 报告晋升人工面 reports\（schema §6.2）
+    "board_legacy_archived",  # v2 旧板归档改名（已裁 09-18：不做内容迁移）
 })
 
 # 脱敏键名匹配：cookie/token/secret/authorization/credential/password/api_key。

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 from pathlib import Path
 
 _ANCHORS = ("## 漏洞表", "## 攻击面", "## 已确认非漏洞", "## 阻断项")
@@ -159,6 +160,32 @@ def gen_prior_intel_draft(engagement_root: str, board, stop_reason: str = "") ->
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(parts) + "\n", encoding="utf-8")
     return out
+
+
+# ── ③.5 报告晋升（配方 2：confirmed 报告 → 人工面）─────────────────────
+
+def promote_reports(engagement_root: str, board) -> int:
+    """confirmed 的报告 `.auto\\reports\\F-xxx.md` → 人工面 `reports\\`（schema §6.2）。
+    批 2 交付函数；真实激活依赖批 3（T3.2/T3.3 报告制度+目录）。幂等：已存在不覆盖。"""
+    src_dir = Path(engagement_root) / ".auto" / "reports"
+    if not src_dir.is_dir():
+        return 0
+    dst_dir = Path(engagement_root) / "reports"
+    n = 0
+    for f in board.confirmed_findings():
+        rep = str(f["payload"].get("report", "")).strip()
+        name = os.path.basename(rep.replace("\\", "/")) if rep else ""
+        if not name:
+            continue
+        src = src_dir / name
+        if not src.is_file():
+            continue
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        dst = dst_dir / name
+        if not dst.exists():
+            shutil.copyfile(src, dst)
+            n += 1
+    return n
 
 
 # ── ④ worker 台账搬运（P-6：禁区矛盾修复的控制器半边）─────────────────

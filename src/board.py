@@ -353,16 +353,20 @@ class Blackboard:
                                     "updated_round": int(round)}
 
     def parse_stop(self, text: str) -> Optional[dict]:
-        """解析 <Stop>…</Stop>（A18 双理由自停）。
+        """解析含 <Stop>…</Stop> 标记的原文；无标记 → None（不是停机尝试）。"""
+        if not text:
+            return None
+        m = re.search(r"<Stop>(.*?)</Stop>", str(text), re.DOTALL | re.IGNORECASE)
+        if not m:
+            return None
+        return self.validate_stop_content(m.group(1).strip())
+
+    def validate_stop_content(self, content: str) -> Optional[dict]:
+        """校验已抽取的 Stop 内容（runner.extract_stop 的产物，A18 双理由自停）。
         - 达成型：必须引证现存 finding id（F-xxx），无引证/引证不存在 → None（无效）
         - 测尽型（内容含"测尽"）：理由 ≥6 字即可，无需引证
         返回 {"kind": "achieved"|"exhausted", "reason", "refs":[有效 F-xxx]} 或 None。"""
-        if not text:
-            return None
-        m = re.search(r"<Stop>(.*?)</Stop>", str(text), re.DOTALL)
-        if not m:
-            return None
-        content = m.group(1).strip()
+        content = (content or "").strip()
         if not content:
             return None
         refs = []

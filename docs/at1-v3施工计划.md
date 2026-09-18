@@ -3,7 +3,7 @@
 > **依据**:`图与黑板v3设计.md`(定稿+§五 A17 修订)/`at1-黑板schema.md` v3.0(S1-S7 已落文)/`prompt-全文汇编.md`(v3 定稿,A1-A22)/`中期真实环境测试文档.md`(P-1~P-11 修复史与实机教训)。
 > **代码基线**:commit `22ff975`(U-1),219 测试绿,19 模块 4637 行。
 > **原则**:直接 v3 大版本无过渡步(Q-7);文件存储不上 SQL(触发条件挂起);**测试红线=每阶段完成时全绿**;git 管回滚。
-> **进度(09-18)**:**批 1 竣工并已 commit+push(commit `45d7491`)**——P0 全部(T0.1-T0.4)+P1 全部(T1.1-T1.6)+T2.1/T2.5 批 1 部分,203 测试全绿;执行细节=`at1-v3批1-图核心落地计划.md`(含 UED-A~D 拍板记录)。批 2=P2 剩余(T2.2 终态/T2.3 七类行/T2.4 六节投影/T2.6/T2.7/T2.8)。
+> **进度(09-18)**:**批 1 已 commit(`45d7491`);批 2 已竣工并 commit 推送**——批 1=P0 全部+P1 全部+T2.1/T2.5;批 2=P2 全部余量(T2.2 STOP 接线/T2.3 七类行/T2.4 六节投影+两刷/T2.6 noreport/T2.7 events/T2.8 hints+CLI),223 测试全绿,dry-run CLI 全链路目检过;执行细节=`at1-v3批2-收割投影终态落地计划.md`+`at1-v3批2-施工执行单.md`。下一批=批 3(P3 worker 模板+P4 stdin 三块终态,prompt 在此合龙)。
 
 ---
 
@@ -122,13 +122,13 @@ P3 worker 模板(纯文本,与 P1 并行) → P4 stdin(prompt.py,依赖 P3 模�
 | # | 任务 | 锚点 | 验收 | 决策 |
 |---|---|---|---|---|
 | T2.1 | 配方0 播种:prior-intel/status.md 漏洞表→节点(confirmed,origin=user);`parse_immune_from_status` 改播种 | writeback:197 | usc-fresh 播种回放 ✅09-18 批1(三源播种落地:情报行/漏洞表/非漏洞表→done intent;"usc-fresh 播种回放"项随迁移裁取消) | schema §6 |
-| T2.2 | 配方1 轮末收割:FINDINGS(报告指针+chain 声明边+endpoint 兜底 yields)/FACTS(evidence 透传)/**HANDOFF→bookkeeping(读者=观察者)/STOP 抽取→TERMINAL**;DIRECTIONS 行废;**harvest.py 合成交接机制删(A19——观察者自己读磁盘)** | `_harvest_findings:52` 改;`_harvest_directions:193/_handoff_unfinished_to_directions:215` 删;harvest.py 合成函数删 | usc 增量账本收割回放;被杀轮不产合成 Handoff | S7/A19 |
-| T2.3 | 配方2 观察者收割:七类行(verdict[noreport 前置]/edge[same_root 正主 dismiss/supersedes 状态迁移]/comment/intent[spawns]/intel/**guide→下一轮注入队列**);报告晋升;非法行隔离区 | `_apply_observer_governance:251` 重写 | 七类行单测+隔离区事件 | S7/A17 |
-| T2.4 | STATE.md v3 渲染:**头部第一行=计数行**;六节(任务概要含 goal/方向谱系/阴性/端点分组/全局认知含画像/Handoff 原文+报告索引);方向 cap+溢出行;一轮两刷(收割后/观察者后) | `_render_state_projection:235` 重写 | schema §8 对照;usc 渲染目检 | A16/S6/A19 |
+| T2.2 | 配方1 轮末收割:FINDINGS(报告指针+chain 声明边+endpoint 兜底 yields)/FACTS(evidence 透传)/**HANDOFF→bookkeeping(读者=观察者)/STOP 抽取→TERMINAL**;DIRECTIONS 行废;**harvest.py 合成交接机制删(A19——观察者自己读磁盘)** | `_harvest_findings:52` 改;`_harvest_directions:193/_handoff_unfinished_to_directions:215` 删;harvest.py 合成函数删 | usc 增量账本收割回放;被杀轮不产合成 Handoff ✅09-18(收割半随批1;STOP 接线随批2;usc 真账本回放真跑) | S7/A19 |
+| T2.3 | 配方2 观察者收割:七类行(verdict[noreport 前置]/edge[same_root 正主 dismiss/supersedes 状态迁移]/comment/intent[spawns]/intel/**guide→下一轮注入队列**);报告晋升;非法行隔离区 | `_apply_observer_governance:251` 重写 | 七类行单测+隔离区事件 ✅09-18(observer_harvest.py+10 测;driver 钩子 P5 激活;晋升函数就绪激活等批3) | S7/A17 |
+| T2.4 | STATE.md v3 渲染:**头部第一行=计数行**;六节(任务概要含 goal/方向谱系/阴性/端点分组/全局认知含画像/Handoff 原文+报告索引);方向 cap+溢出行;一轮两刷(收割后/观察者后) | `_render_state_projection:235` 重写 | schema §8 对照;usc 渲染目检 ✅09-18(计数行+八节+两刷;刷1 为 P5 预铺) | A16/S6/A19 |
 | T2.5 | writeback:三件保留;immune→阴性视图化;报告晋升 .auto\reports→reports\;ledger_synced 保留 | writeback.py 改造 | usc 收尾三件+晋升 e2e ✅09-18 批1(三件+阴性视图化/global 桶认知;报告晋升依赖配方2,随批 2/P5) | §七 |
-| T2.6 | noreport 接入:硬拒条目 verdict 不受理,收割器直接 dismissed | harvest/driver | 现象类样本走 dismissed | 拍板(代码检察官) |
-| T2.7 | events 扩展:stop/resume/guide_injected/observer_parse_fail | events.py | watch 回放可见 | §七 |
-| T2.8 | **留言队列**(A24):`.at1/control/hints.jsonl` 追加式(带 ts);driver 按偏移收割(同三账本 offsets 模式)→下轮【运行提示】人工指示项;CLI `hint` 子命令 | driver/prompt 装配 | 队列收割单测(追加→下轮必达→偏移推进) | A24 |
+| T2.6 | noreport 接入:硬拒条目 verdict 不受理,收割器直接 dismissed | harvest/driver | 现象类样本走 dismissed ✅09-18(收割时建节点即 dismissed+事件+剔除观察者输入) | 拍板(代码检察官) |
+| T2.7 | events 扩展:stop/resume/guide_injected/observer_parse_fail | events.py | watch 回放可见 ✅09-18(白名单注册 10 新类型+watch 分支) | §七 |
+| T2.8 | **留言队列**(A24):`.at1/control/hints.jsonl` 追加式(带 ts);driver 按偏移收割(同三账本 offsets 模式)→下轮【运行提示】人工指示项;CLI `hint` 子命令 | driver/prompt 装配 | 队列收割单测(追加→下轮必达→偏移推进) ✅09-18(hints+CLI 四壳;【运行提示】终态措辞随批3) | A24 |
 
 ### P3 worker 模板(3 件,可与 P1 并行)
 

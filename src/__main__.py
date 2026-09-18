@@ -287,6 +287,46 @@ def cmd_run(args: argparse.Namespace) -> int:
         observer_on=not args.no_observer)
 
 
+def cmd_hint(args: argparse.Namespace) -> int:
+    """A24：给下一轮 worker 留言（追加 .at1/control/hints.jsonl，轮界注入【人工指示】）。"""
+    import datetime
+    ctl = Path(args.engagement) / ".at1" / "control"
+    ctl.mkdir(parents=True, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    with (ctl / "hints.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"ts": ts, "text": args.text}, ensure_ascii=False) + "\n")
+    print(f"[hint] 已追加 → {ctl / 'hints.jsonl'}（下轮开工注入）")
+    return 0
+
+
+def cmd_goal_set(args: argparse.Namespace) -> int:
+    """A24：写 bookkeeping.goal（任务目标，worker <Stop> 自停锚点，中途可改）。"""
+    from . import board as board_mod
+    root = Path(args.engagement)
+    bb = board_mod.Blackboard(str(root / ".at1" / "blackboard.json"))
+    bb.set_goal(args.text)
+    bb.save()
+    print(f"[goal-set] 目标已写：{args.text[:80]}")
+    return 0
+
+
+def cmd_stop(args: argparse.Namespace) -> int:
+    """A24：停机（P-11 语义原样=暂停：杀树/盘上全留/重跑 run 续收）。"""
+    root = Path(args.engagement)
+    (root / "state").mkdir(parents=True, exist_ok=True)
+    (root / "state" / "CONTROL").write_text(
+        json.dumps({"cmd": "stop", "text": (args.text or "")[:200]}), encoding="utf-8")
+    print("[stop] CONTROL 已写——盯梢线程 0.5s 内杀 worker 树（已落盘数据全留）")
+    return 0
+
+
+def cmd_resume(args: argparse.Namespace) -> int:
+    """A24：resume = 重跑 run（黑板 offsets 续收），无独立机制。"""
+    print("[resume] resume = 重跑 `python -m src run <engagement>`——"
+          "黑板 offsets 续收，已确认发现不丢（A24：无独立暂停态）")
+    return 0
+
+
 def cmd_watch(args: argparse.Namespace) -> int:
     """M4：tail auto-log.jsonl 渲染彩色一行式（isatty 才着色）。"""
     import time
@@ -336,9 +376,17 @@ def cmd_watch(args: argparse.Namespace) -> int:
         if t == "run_end":
             return f"{base} {C['green']}■■ run_end {d.get('reason')} confirmed={d.get('confirmed')}{C['off']}"
         if t in ("fact_added",):
-            return f"{base} + fact {d.get('tool')} new={d.get('new')}"
-        if t in ("handoff_harvested", "directive_injected", "observer_error",
-                 "surface_parse_fail", "immune_added"):
+            return f"{base} + fact {d.get('tool') or 'ledger'} new={d.get('new')}"
+        if t == "worker_stop":
+            return f"{base} {C['green']}■ worker-stop {d.get('kind')} refs={','.join(d.get('refs', []))} {str(d.get('head', ''))[:50]}{C['off']}"
+        if t == "stop_invalid":
+            return f"{base} {C['yellow']}✗ stop 无效 {str(d.get('head', ''))[:50]}{C['off']}"
+        if t == "hard_rejected":
+            return f"{base} {C['yellow']}✗ 硬拒[{d.get('category')}] {d.get('id')} {str(d.get('reason', ''))[:60]}{C['off']}"
+        if t == "observer_parse_fail":
+            return f"{base} {C['yellow']}⚠ OBSERVER 解析失败 {d.get('count')} 行{C['off']}"
+        if t in ("hint_injected", "guide_injected", "reports_promoted", "resume",
+                 "board_legacy_archived", "observer_recipe2"):
             return f"{base} {t} {str(d)[:90]}"
         return f"{base} {t}"
 
@@ -398,6 +446,24 @@ def main(argv: list[str] | None = None) -> int:
     p_w.add_argument("--all", action="store_true", help="回放全量（默认只看新增）")
     p_w.add_argument("--once", action="store_true", help="读完现有内容即退出（不跟随）")
     p_w.set_defaults(fn=cmd_watch)
+
+    p_hint = sub.add_parser("hint", help="A24：给下一轮 worker 留言（轮界注入人工指示）")
+    p_hint.add_argument("engagement", help="engagement 目录")
+    p_hint.add_argument("text", help="留言内容")
+    p_hint.set_defaults(fn=cmd_hint)
+
+    p_goal = sub.add_parser("goal-set", help="A24：写任务目标（bookkeeping.goal，Stop 锚点）")
+    p_goal.add_argument("engagement", help="engagement 目录")
+    p_goal.add_argument("text", help="目标文本")
+    p_goal.set_defaults(fn=cmd_goal_set)
+
+    p_stop = sub.add_parser("stop", help="A24：停机（P-11 语义=暂停，盘上全留）")
+    p_stop.add_argument("engagement", help="engagement 目录")
+    p_stop.add_argument("text", nargs="?", default="", help="停机备注（可选）")
+    p_stop.set_defaults(fn=cmd_stop)
+
+    p_res = sub.add_parser("resume", help="A24：续跑说明（=重跑 run，offsets 续收）")
+    p_res.set_defaults(fn=cmd_resume)
 
     args = ap.parse_args(argv)
     if getattr(args, "provider", None):

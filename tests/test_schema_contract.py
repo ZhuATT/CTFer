@@ -49,6 +49,7 @@ def _full_board() -> Blackboard:
     b.set_goal("目标", round=2)
     b.record_handoff("交接")
     b.add_intel("证词", 2)
+    b.bookkeeping["guide"] = {"round": 2, "text": "主攻 /search；备选 /admin；自由探索照常"}
     b.offsets["facts"] = 5
     b.bookkeeping["config"]["endpoint_n"] = 15
     return b

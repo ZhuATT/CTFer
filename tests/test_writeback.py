@@ -133,6 +133,27 @@ def test_parse_immune_seeds():
         assert all(i["status"] for i in imm)
 
 
+def test_promote_reports(tmp_path):
+    """配方 2 报告晋升：confirmed 报告 .auto/reports → reports；dismissed 不升；幂等。"""
+    from src.writeback import promote_reports
+    auto = tmp_path / ".auto" / "reports"
+    auto.mkdir(parents=True)
+    (auto / "F-001.md").write_text("# 报告", encoding="utf-8")
+    (auto / "F-002.md").write_text("# 被拒报告", encoding="utf-8")
+    bb = Blackboard()
+    f = bb.create_node("finding", {"summary": "s", "report": "reports/F-001.md"},
+                       origin="worker", round=1, id="F-001")
+    bb.update_node(f, state="confirmed")
+    f2 = bb.create_node("finding", {"summary": "t", "report": "reports/F-002.md"},
+                        origin="worker", round=1, id="F-002")
+    bb.update_node(f2, state="dismissed")
+    n = promote_reports(str(tmp_path), bb)
+    assert n == 1
+    assert (tmp_path / "reports" / "F-001.md").read_text(encoding="utf-8") == "# 报告"
+    assert not (tmp_path / "reports" / "F-002.md").exists()
+    assert promote_reports(str(tmp_path), bb) == 0          # 幂等
+
+
 def test_sync_human_ledger_moves_and_dedups(tmp_path):
     """P-6：.auto/log.jsonl → state/log.jsonl 收尾搬运；去重追加幂等。"""
     from src.writeback import sync_human_ledger

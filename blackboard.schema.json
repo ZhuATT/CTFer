@@ -41,6 +41,15 @@
             },
             "additionalProperties": false
           }
+        },
+        "guide": {
+          "type": "object",
+          "required": ["round", "text"],
+          "properties": {
+            "round": {"type": "integer"},
+            "text": {"type": "string"}
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

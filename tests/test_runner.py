@@ -393,3 +393,15 @@ def test_build_argv_strict_mcp_config():
     assert argv[i + 1] == "--mcp-config" and argv[i + 2].endswith(".mcp.json")
     argv2 = runner_mod._build_argv("claude", solver, 5, None, mcp_config=None)
     assert "--strict-mcp-config" not in argv2 and "--mcp-config" not in argv2
+
+
+# ── A18:Stop 抽取(与 Handoff 同路径) ─────────────────────────────────────
+
+def test_extract_stop_basic_and_absent():
+    from src.runner import extract_stop
+    assert extract_stop("前文\n<Stop>目标达成：引 F-001</Stop>\n后文") == "目标达成：引 F-001"
+    assert extract_stop("<stop>小写标签也吃</stop>") == "小写标签也吃"
+    assert extract_stop("没有标记的普通回复") == ""
+    assert extract_stop("") == ""
+    # 多个标记:search 取第一个(re.search 语义——与 Handoff 行为一致)
+    assert extract_stop("<Stop>测尽：无新增面</Stop><Stop>第二个</Stop>") == "测尽：无新增面"

@@ -25,6 +25,7 @@ from typing import Callable, Optional
 from .providers import SolverConfig
 
 _HANDOFF_RX = re.compile(r"<Handoff>(.*?)</Handoff>", re.IGNORECASE | re.DOTALL)
+_STOP_RX = re.compile(r"<Stop>(.*?)</Stop>", re.IGNORECASE | re.DOTALL)
 _FINAL_RX = re.compile(r"<FinalAnswer>(.*?)</FinalAnswer>", re.IGNORECASE | re.DOTALL)
 
 # thinking 进度事件短路（phase3.5 §六：实测 98.8% 流量是 system/thinking_tokens，
@@ -62,6 +63,12 @@ def extract_handoff(text: str) -> str:
     return m.group(1).strip() if m else ""
 
 
+def extract_stop(text: str) -> str:
+    """A18:worker 自停信号 <Stop>…</Stop>(与 Handoff 同路径抽取)。有效性验证在 board.parse_stop。"""
+    m = _STOP_RX.search(text or "")
+    return m.group(1).strip() if m else ""
+
+
 def extract_final_answer(text: str) -> str:
     m = _FINAL_RX.search(text or "")
     return m.group(1).strip() if m else ""
@@ -92,6 +99,7 @@ class AgentResult:
     tokens: int = 0
     total_cost_usd: float = 0.0
     handoff: str = ""
+    stop_text: str = ""          # A18:<Stop> 原文(有效性由 board.parse_stop 判)
     final_text: str = ""
     final_answer: str = ""
     is_error: bool = False
@@ -273,6 +281,14 @@ class StreamParser:
                 return h
         return ""
 
+    def harvest_stop(self) -> str:
+        """A18:<Stop> 抽取——与 harvest_handoff 同路径(逆序扫)。"""
+        for text in [self.final_text] + list(reversed(self.assistant_texts)):
+            s = extract_stop(text)
+            if s:
+                return s
+        return ""
+
     def to_result(self, resumes: int = 0) -> AgentResult:
         res = AgentResult(
             session_id=self.session_id,
@@ -281,6 +297,7 @@ class StreamParser:
             tokens=self.tokens,
             total_cost_usd=self.total_cost_usd,
             handoff=self.harvest_handoff(),
+            stop_text=self.harvest_stop(),
             final_text=self.final_text,
             final_answer=extract_final_answer(self.final_text),
             is_error=self.is_error,
