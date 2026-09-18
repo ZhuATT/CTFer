@@ -87,6 +87,7 @@ driver 循环(controller 代码,常驻)
 | A21 | **长时后台任务=三层纪律+环境槽,不复活中央注册表**(ledger.background 死透):①worker 手册——长任务**脱离启动**(Windows=Start-Process,非 Start-Job)+输出写工作目录 `bg-*.log`(首行记命令+启动时间)+交接必提;②观察者手册——轮末扫工作目录 `bg-*.log` 遗留,写进引导提醒;③**{env_bg} 渲染槽**(可插拔环境条款:当前=Windows Start-Process 纪律;将来 WSL/容器化→换 Cairn 同款 tmux 条款——命名会话+交接说清会话名;依据:Cairn 跨轮 tmux 成立的前提是常驻容器,Windows 原生无 tmux,WSL 可装但架构不变只换槽内容)。**stdin【后台任务】块删**(无注册表喂它,文件+交接+引导已覆盖);【运行提示】=人工指示独占,空则整块消失(N3-2 定稿) |
 | A22 | N6 定稿:distill-report 产出规范加守门条款——**新沉淀 skill 的 description 必须触发条件式书写("Load when..." 收尾),不得写成标题式**(现有 26 个抽查已合规);依据 A7:砍静态路由表后 description 即路由系统本身 |
 | A23 | **模型通道定稿(09-18)**:worker=glm-5.3-flash,观察者=glm-5.3,**同 baseurl/AK(bigmodel)**;**双角色 model/baseurl/ak 均可配置**(配置文件先行,控制台将来可改);**transcript_check.py 整文件删除**——消费者(confidence/衰减/anchor_note)全死,noreport 不依赖,A17 实测重放替代字节对账 | 施工计划 T5.2/P5.3/模块表/llm+providers 行 |
+| A24 | **控制面=两原子四操作**(09-18,参考 ARTEX Pause/Resume/add_task_hint+Cairn 项目状态):原子=①写状态文件②杀/起进程;操作=goal-set(写 bookkeeping.goal)/hint-add(追加 `.at1/control/hints.jsonl` 队列,带 ts,driver 按偏移收割进下轮【运行提示】人工指示——ARTEX add_task_hint 同构)/stop(P-11 语义原样=「暂停」:杀树/盘上全留/终态)/resume(=重跑 `python -m src run`,黑板 offsets 续收——已存在)。**不引入独立"暂停态"**:AT1 控制器无常驻内存状态,盘即真相,杀 run=暂停/重跑=续跑/Stop=停机是同一机制的三个视图(比 ARTEX 常驻服务器简单一个量级,v2 已实测)。**三人工输入通道**:hint(开工指示,engagement.json→CLAUDE.md {hint} 槽,每轮在场)/goal(任务目标,bookkeeping,Stop 锚点,中途可改)/留言(轮边界注入,恰在上轮结束后下轮开工前;worker 干活中不可插入——SteerWork 式中途插话=U-5 升级项不做)。CLI 子命令先做壳,**M5 UI=同四函数的图形壳,零机制差** | 施工计划 T1.5/T2.8/__main__ |
 
 **已消解**:Q1(A12)/Q2·Q4(A16)/Q5(A15)/Q3(A19)/N1(A15)/N2(A17+A19)。
 

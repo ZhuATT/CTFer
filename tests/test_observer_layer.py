@@ -1,99 +1,71 @@
-"""A1 黑板观察层测试：findings/session_intel/business_context 存储渲染 + goal 链新判据。"""
+"""观察层 v3：观察者 verdict → finding 节点状态迁移（driver 翻译层）。
 
-from src.board import Blackboard, KINDS
-from src.prompt import render_round_prompt
+v2 的 findings/session_intel/verified 存储、business_context 等 fact_kind、
+stage 判停已死（A12/A13/A16/A17/A19）——旧用例随结构报废。
+P5 观察者 -p 重写后本文件扩为 OBSERVER 七类行契约测试（T6.2）。
+"""
 
-
-def _mk_finding(id="F-001", endpoint="/search", summary="SQL注入",
-                assessment="confirmed", severity="high", reason="...", round=1):
-    return {"id": id, "endpoint": endpoint, "summary": summary,
-            "assessment": assessment, "severity": severity,
-            "reason": reason, "evidence": "evidence/x.md", "round": round}
+from src import driver as driver_mod
+from src.board import Blackboard
 
 
-def test_business_context_in_kinds():
-    assert "business_context" in KINDS
-
-
-def test_add_finding_and_confirmed_render():
+def _mk_with_finding():
     b = Blackboard()
-    b.add_finding(_mk_finding())
-    assert len(b.findings) == 1
-    assert b.confirmed_findings()[0]["id"] == "F-001"
-    # verified 计数自动同步
-    assert b.verified["confirmed"] == 1
-    r = b.render()
-    assert "已确认发现" in r and "/search" in r and "SQL注入" in r and "high" in r
+    b.create_node("finding", {"summary": "批量读他人订单"}, origin="worker",
+                  round=1, id="F-001")
+    return b
 
 
-def test_add_finding_overwrite_same_id():
+def test_verdict_confirms_proposed():
+    b = _mk_with_finding()
+    ok, nid = driver_mod._apply_verdict(
+        b, {"id": "F-001", "assessment": "confirmed", "severity": "high",
+            "reason": "越权读取成立"})
+    assert ok and nid == "F-001"
+    n = b.node("F-001")
+    assert n["state"] == "confirmed"
+    assert n["payload"]["severity"] == "high"
+    assert "越权" in n["payload"]["reason"]
+    assert len(b.confirmed_findings()) == 1
+
+
+def test_verdict_dismissed_and_duplicate_map_to_dismissed():
+    b = _mk_with_finding()
+    ok, _ = driver_mod._apply_verdict(
+        b, {"id": "F-001", "assessment": "likely_false_positive",
+            "reason": "buyer=userA 属设计内"})
+    assert ok and b.node("F-001")["state"] == "dismissed"
+    assert any(r["id"] == "F-001" for r in b.negative_view())   # 落阴性视图
+
+    b2 = _mk_with_finding()
+    b2.create_node("finding", {"summary": "同根因第二条"}, origin="worker",
+                   round=2, id="F-002")
+    driver_mod._apply_verdict(b2, {"id": "F-002", "assessment": "duplicate",
+                                   "reason": "并入 F-001"})
+    assert b2.node("F-002")["state"] == "dismissed"
+
+
+def test_verdict_uncertain_keeps_proposed():
+    b = _mk_with_finding()
+    ok, _ = driver_mod._apply_verdict(
+        b, {"id": "F-001", "assessment": "uncertain", "reason": "证据不足"})
+    assert ok
+    assert b.node("F-001")["state"] == "proposed"               # 只补 reason 不迁移
+    assert b.node("F-001")["payload"]["reason"] == "证据不足"
+
+
+def test_verdict_cannot_flip_confirmed():
+    """不变量 3：confirmed 不可被观察者翻案（历史修正走 superseded/人工）。"""
+    b = _mk_with_finding()
+    driver_mod._apply_verdict(b, {"id": "F-001", "assessment": "confirmed"})
+    ok, _ = driver_mod._apply_verdict(
+        b, {"id": "F-001", "assessment": "likely_false_positive", "reason": "翻案尝试"})
+    assert ok is False
+    assert b.node("F-001")["state"] == "confirmed"
+
+
+def test_verdict_missing_node_is_noop():
     b = Blackboard()
-    b.add_finding(_mk_finding(assessment="confirmed"))
-    b.add_finding(_mk_finding(assessment="uncertain"))    # 重新评估 → 覆盖
-    assert len(b.findings) == 1                            # 不重复
-    assert b.verified["confirmed"] == 0                    # 计数更新
-    assert b.verified["tentative"] == 1
-
-
-def test_false_positive_render():
-    b = Blackboard()
-    b.add_finding(_mk_finding(id="F-002", assessment="likely_false_positive",
-                              severity=None, reason="buyer=userA 属设计内"))
-    r = b.render()
-    assert "已否决模式" in r and "buyer=userA" in r
-    assert b.false_positive_findings()[0]["id"] == "F-002"
-
-
-def test_duplicate_assessment():
-    b = Blackboard()
-    b.add_finding(_mk_finding(id="F-001", assessment="confirmed"))
-    b.add_finding(_mk_finding(id="F-005", assessment="duplicate",
-                              reason="与 F-001 同根因"))
-    assert len(b.confirmed_findings()) == 1               # duplicate 不算 confirmed
-    assert len(b.false_positive_findings()) == 1          # duplicate 进已否决段
-    assert b.verified["confirmed"] == 1
-
-
-def test_session_intel_observer_voice_moved_to_directions():
-    """G 块：旧 suggestions 独立段废除（并入 direction_comments → 方向层，source=observer）；
-    notable_attempts 有了消费者（"接近成功的尝试"段，09-03 审计裁决 Q1）。"""
-    b = Blackboard()
-    b.update_session_intel({
-        "coverage_gaps": ["/api/order/detail 未测"],
-        "effective_patterns": ["id 遍历有效"],
-        "suggestions": ["address/update 有写入语义值得关注"],
-        "notable_attempts": ["试了路径穿越但只试了 /etc/passwd"],
-        "intel_summary": "目标对 id 遍历无防护",
-        "round": 2})
-    r = b.render()
-    assert "观察者建议" not in r                      # 旧独立段已废（G 落地）
-    assert "接近成功的尝试" in r and "路径穿越" in r    # notable_attempts 接了消费者
-    # intel_summary 在交接段
-    assert b.intel_summary() == "目标对 id 遍历无防护"
-
-
-def test_intel_summary_in_prompt_relay():
-    b = Blackboard()
-    b.record_handoff("我测了搜索面", "model")
-    b.update_session_intel({"intel_summary": "admin 可匿名写入", "round": 1})
-    p = render_round_prompt(b)
-    assert "我测了搜索面" in p and "观察者情报" in p and "admin 可匿名写入" in p
-
-
-def test_goal_chain_reads_findings():
-    b = Blackboard()
-    b.goal["stage"] = "exploit"
-    assert b.check_goal() != "report"                     # 无 confirmed → 不推进
-    b.add_finding(_mk_finding(assessment="confirmed"))
-    assert b.check_goal() == "report"                     # 有 confirmed → 推进
-
-
-def test_session_intel_roundtrip():
-    b = Blackboard("/tmp/test_board_obs.json")
-    b.add_finding(_mk_finding())
-    b.update_session_intel({"suggestions": ["x"], "intel_summary": "y", "round": 1})
-    b.save()
-    b2 = Blackboard("/tmp/test_board_obs.json")
-    assert len(b2.findings) == 1 and b2.findings[0]["assessment"] == "confirmed"
-    assert b2.session_intel.get("suggestions") == ["x"]
-    assert b2.verified["confirmed"] == 1                  # 派生计数也恢复了
+    ok, _ = driver_mod._apply_verdict(
+        b, {"id": "F-999", "assessment": "confirmed", "reason": "r"})
+    assert ok is False

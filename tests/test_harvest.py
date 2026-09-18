@@ -1,9 +1,8 @@
-"""harvest 单测：diff 幂等 + Handoff 合成要素。"""
-
-from pathlib import Path
+"""harvest 单测：diff 幂等 + 配方 1 代写（账本行→节点/声明照抄/endpoint 兜底）。"""
 
 from src.board import Blackboard
-from src.harvest import diff_new_lines, synthesize_handoff
+from src.harvest import (auto_link, diff_new_lines, facts_to_nodes,
+                         finding_to_node)
 
 
 def test_diff_idempotent_and_incremental(tmp_path):
@@ -31,29 +30,65 @@ def test_diff_missing_file():
     assert diff_new_lines("Z:/nope/F", 0) == ([], 0)
 
 
-def test_synthesize_handoff_contains_essentials():
+def test_facts_to_nodes_basic_and_tolerant():
+    """FACTS 行 → fact 节点（配方 1）：BOM/坏行宽容；fact_kind 字段丢弃；计数只算新建。"""
     b = Blackboard()
-    for i in range(8):
-        b.add_fact("endpoint", f"/api/e{i}", round_=1)
-    b.observe("Bash", {"command": "curl -s https://t/a"}, "x", round_=1)
-    b.observe("Bash", {"command": "curl -s https://t/a"}, "x", round_=2)
-    b.observe("Bash", {"command": "curl -s https://t/a"}, "x", round_=2)
-    b.ledger["background"].append({"id": 1, "desc": "js-intel config.js", "status": "pending"})
-
-    class FakeTE:
-        tool, args = "Read", {"file_path": "intel.txt"}
-        output = "备注：本轮标记 marker=at1-abc123\nGET https://t/api/x 200"
-
-    txt = synthesize_handoff(b, [FakeTE()])
-    assert "代码合成交接" in txt
-    assert "/api/e7" in txt                       # 最近事实
-    assert "curl -s https://t/a（×3）" in txt     # 高频命令
-    assert "js-intel config.js" in txt            # 未完成后台任务
-    assert "intel.txt" in txt                     # 尾部工具调用（命令/参数）
-    assert "marker=at1-abc123" in txt             # ★输出摘录——被杀前的观测要接力下去
-    assert "不含原会话意图" in txt                 # 诚实声明
+    lines = [
+        '﻿{"value":"身份由 cticket 派生","evidence":"ev1","kind":"identity_model"}',  # BOM + v2 kind 丢弃
+        "垃圾行",
+        '{"value":"目标无 WAF","endpoint":"/api/x"}',
+        '{"value":"目标无 WAF","endpoint":"/api/x"}',          # 重复 → 去重不计数
+        '{"evidence":"没值"}',
+    ]
+    n = facts_to_nodes(b, lines, round_=3)
+    assert n == 2
+    vals = sorted(b.fact_values())
+    assert vals == ["目标无 WAF", "身份由 cticket 派生"]
+    assert b.nodes("fact")[0]["payload"].get("kind") is None   # fact_kind 不入 v3
 
 
-def test_synthesize_empty_board():
-    txt = synthesize_handoff(Blackboard())
-    assert "黑板无新事实" in txt
+def test_finding_to_node_and_chain_declaration():
+    """FINDINGS 行 → finding 节点：report 指针透传；worker chain 声明照抄成边。"""
+    b = Blackboard()
+    d = b.create_node("intent", {"goal": "打 registry"}, endpoint="h:5000",
+                      origin="worker", round=1)
+    row = {"id": "F-001", "endpoint": "h:5000/v2/_catalog", "evidence": "evidence/r.md",
+           "summary": "匿名枚举", "report": "reports/F-001.md",
+           "chain": {"rel": "derived_from", "refs": ["D-001"], "note": "由方向派生"}}
+    nid = finding_to_node(b, row, round_=2)
+    assert nid == "F-001"
+    node = b.node(nid)
+    assert node["state"] == "proposed"
+    assert node["payload"]["report"] == "reports/F-001.md"
+    edges = b.edges(src=nid)
+    assert len(edges) == 1 and edges[0]["rel"] == "derived_from" and edges[0]["dst"] == d
+    assert edges[0]["origin"] == "worker"                       # 声明优先
+
+
+def test_auto_link_endpoint_fallback_only_when_undeclared():
+    """兜底只在无人声明时（不变量 4）：有声明边的节点不补线。"""
+    b = Blackboard()
+    d = b.create_node("intent", {"goal": "9098 面"}, endpoint="h:9098",
+                      origin="worker", round=1)
+    # 无声明 fact → 兜底 sources
+    t = b.create_node("fact", {"value": "Shiro 站点"}, endpoint="h:9098/api",
+                      origin="worker", round=2)
+    assert auto_link(b, t, round_=2) == 1
+    assert b.edges(src=t)[0]["rel"] == "sources" and b.edges(src=t)[0]["dst"] == d
+    # 有声明 finding → 不补
+    f = b.create_node("finding", {"summary": "未授权"}, endpoint="h:9098/admin",
+                      origin="worker", round=2)
+    b.add_edge(d, "yields", f, origin="worker", round=2)
+    assert auto_link(b, f, round_=2) == 0
+    assert len(b.edges(dst=f)) == 1                             # 只有声明边
+    # done 方向不接兜底
+    b.update_node(d, state="done")
+    t2 = b.create_node("fact", {"value": "新线索"}, endpoint="h:9098/x",
+                       origin="worker", round=3)
+    assert auto_link(b, t2, round_=3) == 0
+
+
+def test_synthesize_handoff_gone():
+    """A19：合成交接机制死——模块不再提供 synthesize_handoff。"""
+    import src.harvest as h
+    assert not hasattr(h, "synthesize_handoff")

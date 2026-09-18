@@ -1,23 +1,31 @@
-"""prompt 单测：9 段顺序 / 内容来源 / directive 开关。"""
+"""prompt 单测（批 1 残版）：三段顺序 / 内容来源 / directive 开关。
+
+终态三块（引导/运行提示/简报）= T4.1/P4；本批断言残版契约：
+摘要（board.summarize）+ 路由提示（全图 fact 值扫描，S4）+ 人工指示。
+v2 已死段不再出现：序言/阶段手册/指令/交接/重复命令告警/后台任务。
+"""
+
+from pathlib import Path
 
 from src.board import Blackboard
 from src.prompt import _SEGMENT_MARKS, render_round_prompt
 
+_SKILL = Path(__file__).parent / "../../.claude/skills/recon-methodology/SKILL.md"
+
 
 def _board():
     b = Blackboard()
-    b.add_fact("endpoint", "/api/x")
-    b.add_fact("fingerprint", "nginx/1.18.0")
-    b.observe("Bash", {"command": "curl -s https://t/a"}, "GET https://t/a 200", round_=1)
-    b.observe("Bash", {"command": "curl -s https://t/a"}, "x", round_=1)
-    b.observe("Bash", {"command": "curl -s https://t/a"}, "x", round_=1)
-    b.record_handoff("已完成侦察首屏；未竟：POST 类接口", "model")
+    b.create_node("fact", {"value": "nginx/1.18.0 反代"}, origin="worker", round=1)
+    b.create_node("fact", {"value": "身份由 cticket 派生"}, origin="worker", round=1)
+    d = b.create_node("intent", {"goal": "验证 idor", "note": "下一步换 A 重放"},
+                      endpoint="/api/o", origin="worker", round=1)
+    assert d == "D-001"
+    b.record_handoff("已完成侦察首屏")
     return b
 
 
-def test_nine_segments_in_fixed_order():
+def test_three_segments_in_fixed_order():
     p = render_round_prompt(_board(), round_=2)
-    # 段头 = 标记+换行（正文里提到标记词不算——手册 v2 曾撞过）
     pos = [p.find(m + "\n") for m in _SEGMENT_MARKS]
     assert all(x >= 0 for x in pos), pos
     assert pos == sorted(pos)                       # 顺序固定
@@ -26,47 +34,48 @@ def test_nine_segments_in_fixed_order():
 def test_segment_sources():
     b = _board()
     p = render_round_prompt(b, round_=2)
-    # 段2 = 当前阶段手册（recon）
-    assert "侦察拓面" in p.split("【指令】")[0]
-    # 段3 = plan_directive（阶段/出口/轮次）
-    assert "阶段=recon" in p and "第 2 轮" in p
-    # 段4 = 状态摘要（DEC-9/E：紧凑摘要 + 引导读 STATE.md；事实全量不在 prompt）
-    assert "untrusted_data" in p and "状态摘要" in p
+    # 段1 = 状态摘要（board.summarize：轮次/计数/待接方向/引读 STATE.md）
+    assert "第 2 轮" in p and "待接方向" in p and "D-001" in p
     assert "STATE.md" in p
-    assert "未测面 1 个（目标：清零）" in p
-    # 段5 = 上一轮交接
-    assert "已完成侦察首屏" in p
-    # 段6 = tried≥3 告警
-    assert "已 ×3" in p and "勿重跑" in p
-    # 段8 = 指纹提示
+    # 段2 = 路由提示（全图 fact 值扫描——nginx fact 命中 web-advanced 行）
     assert "nginx" in p.split("【提示】")[1].split("【人工指示】")[0]
-    # 段9 无 directive
+    # 段3 = 人工指示（无 directive → 占位）
     assert p.rstrip().endswith("（无）")
 
 
-def test_directive_reaches_segment_nine():
+def test_dead_segments_absent():
+    """v3 砍掉的段（A6/A12/A15/A19/A20/A21）不得复活。"""
+    p = render_round_prompt(_board(), round_=2)
+    for dead in ("【序言】", "【阶段手册】", "【指令】", "【上一轮交接】",
+                 "【重复命令告警】", "【后台任务】", "阶段=", "出口判据"):
+        assert dead not in p
+
+
+def test_directive_reaches_segment_three():
     p = render_round_prompt(_board(), directive="重点看支付回调", round_=3)
     assert "重点看支付回调" in p.split("【人工指示】")[1]
 
 
-def test_stage_switches_manual():
-    b = _board()
-    b.goal["stage"] = "identity"
-    p = render_round_prompt(b)
-    assert "身份模型" in p and "侦察拓面" not in p
+def test_handoff_not_in_stdin():
+    """A19：Handoff 住 STATE.md，不进 stdin。"""
+    p = render_round_prompt(_board(), round_=2)
+    assert "已完成侦察首屏" not in p
 
 
-def test_first_round_no_handoff():
+def test_route_scans_all_fact_values():
+    """S4/A13：路由燃料=全图 fact 值扫描（不再按 kind=fingerprint 查）。"""
     b = Blackboard()
-    p = render_round_prompt(b)
-    assert "（首轮，无上一轮交接）" in p
+    b.create_node("fact", {"value": "识别为 tomcat 容器"}, origin="worker", round=1)
+    p = render_round_prompt(b, round_=1)
+    assert "injection-sqli" in p                    # 非 fingerprint kind 也命中
 
 
-def test_recon_manual_waits_for_mcp():
-    """P-7 回归（2026-09-14 实测根因）：-p 模式 MCP 异步启动，模型不调
-    WaitForMcpServers 就永远见不到 browser_* 工具——手册必须教这一步。"""
-    from src.board import Blackboard
-    p = render_round_prompt(Blackboard(), round_=1)
-    assert "WaitForMcpServers" in p                 # 等待指令在侦察手册
-    assert "30000" in p                             # timeout 给够
-    assert "curl 起步" in p                         # 失败降级路径明确
+def test_wait_for_mcp_teaching_lives_in_skill():
+    """P-7 回归：手册①死后，WaitForMcpServers 教学必须迁进 recon-methodology
+    skill（T0.3）——丢了它浏览器侦察就废。skill 不在仓库内,缺席即跳过。"""
+    if not _SKILL.is_file():
+        import pytest
+        pytest.skip("recon-methodology skill 不在本机（P0 迁移后生效）")
+    txt = _SKILL.read_text(encoding="utf-8")
+    assert "WaitForMcpServers" in txt
+    assert "30000" in txt

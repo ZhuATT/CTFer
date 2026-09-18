@@ -1,11 +1,13 @@
-"""AT1 harvest —— 轮末收割：FINDINGS/FACTS 增量 diff + Handoff 代码合成兜底。
+"""AT1 harvest —— 轮末收割辅助（配方 1：worker 账本行 → 图节点，schema §6.2）。
 
-设计§3.6 ④：会话结束后 driver 用 diff_new_lines 取新增行（offset 记在黑板），
-被杀会话没有模型版 <Handoff> 时用 synthesize_handoff 拼降级交接（origin=synthesized）。
+v3：A19 后合成交接机制死（观察者自己读磁盘），本模块收敛为配方 1 的代写函数——
+controller 独占三原子，账本行在这里翻译成 create_node/add_edge。
+兜底原则（schema §4.1）：worker 声明优先，auto_link 只在节点无任何边时机械补线。
 """
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Optional
 
@@ -34,37 +36,110 @@ def diff_new_lines(path: str, offset: int = 0) -> tuple[list[str], int]:
     return lines, offset + last_nl + 1
 
 
-def synthesize_handoff(board, tool_events_tail: Optional[list] = None) -> str:
-    """被杀会话的代码合成交接（降级品：只有磁盘状态能告诉下一轮的东西）。
+# ── 账本行 → 节点（配方 1 代写） ─────────────────────────────────────────
 
-    素材：最近事实（按 ts 尾部）+ tried 高频命令 + 未完成后台任务。
-    不含任何"我本想干什么"——那是模型版 Handoff 独有的，合成版诚实承认没有。
-    """
-    parts: list[str] = ["【代码合成交接——会话未正常结束，以下由控制器从磁盘状态拼出】"]
+def _dep_key(endpoint: str) -> str:
+    """端点归一（兜底匹配键）：剥 query/尾斜杠/通配 **。"""
+    ep = (endpoint or "").split("?")[0].strip().lower().rstrip("/")
+    while ep.endswith("*"):
+        ep = ep.rstrip("*").rstrip("/")
+    return ep
 
-    recent = board.query()[-6:] if board.query() else []
-    if recent:
-        parts.append("最近入库事实：\n" + "\n".join(
-            f"- [{f['kind']}] {f['value'][:100]}" for f in recent))
-    else:
-        parts.append("黑板无新事实（会话可能死在起步阶段）。")
 
-    tried = sorted(board.ledger.get("tried", {}).items(), key=lambda x: -x[1])[:5]
-    if tried:
-        parts.append("高频命令（≥2 次的可能已有结论，勿盲目重跑）：\n" + "\n".join(
-            f"- {cmd[:100]}（×{n}）" for cmd, n in tried if n >= 2))
+def _endpoint_match(a: str, b: str) -> bool:
+    ka, kb = _dep_key(a), _dep_key(b)
+    if not ka or not kb:
+        return False
+    return ka in kb or kb in ka   # 双向子串：方向端点常是产出的前缀（host:5000 vs host:5000/v2/x）
 
-    pending = [b for b in board.ledger.get("background", []) if b.get("status") != "done"]
-    if pending:
-        parts.append("未完成后台任务（开工先检查）：\n" + "\n".join(
-            f"- #{b.get('id')} {b.get('desc', '')}" for b in pending))
 
-    if tool_events_tail:
-        # 尾部调用带输出摘录——被杀前最后看到的观测是下一轮最需要的东西
-        #（实测教训：只记命令不记输出，marker 这类活在下落里的信息就接不上力）
-        parts.append("会话尾部工具调用（最后 3 次，含输出摘录）：\n" + "\n".join(
-            f"- {t.tool} {str(t.args.get('command') or t.args)[:60]} → {t.output[:160]}"
-            for t in tool_events_tail[-3:]))
+def _declare_chain(bb, node_id: str, chain, *, round_: int) -> int:
+    """worker 账本行 chain 声明照抄成边（声明优先，schema §4.1）。
+    v2 形 {rel,refs,note}：derived_from/same_root 两动词可照抄；其余（v2 combines
+    已死、v3 spawns 归观察者）丢弃。返回新建边数。"""
+    if not isinstance(chain, dict):
+        return 0
+    rel = chain.get("rel")
+    if rel not in ("derived_from", "same_root"):
+        return 0
+    refs = chain.get("refs") if isinstance(chain.get("refs"), list) else []
+    note = str(chain.get("note", ""))[:300]
+    n = 0
+    for r in refs:
+        r = str(r).strip()
+        if r and r != node_id and bb.add_edge(node_id, rel, r, origin="worker",
+                                              note=note, round=round_):
+            n += 1
+    return n
 
-    parts.append("注意：本交接不含原会话意图——发现与上述状态冲突时以磁盘为准，谨慎重做。")
-    return "\n\n".join(parts)
+
+def auto_link(bb, node_id: str, *, round_: int) -> int:
+    """endpoint 兜底（schema §4.1：声明优先，节点已有任何边 → 不动）。
+    fact → 同端点在途 intent 补 sources；finding → 同端点在途 intent 补 yields。"""
+    node = bb.node(node_id)
+    if node is None or node["endpoint"] == "global":
+        return 0
+    if bb.edges(src=node_id) or bb.edges(dst=node_id):
+        return 0                                   # 兜底只在无人声明时（不变量 4）
+    n = 0
+    for it in bb.nodes("intent"):
+        if it["state"] == "done":
+            continue
+        if _endpoint_match(node["endpoint"], it["endpoint"]):
+            if node["kind"] == "fact":
+                src, dst, rel = node_id, it["id"], "sources"
+            else:
+                src, dst, rel = it["id"], node_id, "yields"
+            if bb.add_edge(src, rel, dst, origin="controller",
+                           note="endpoint 兜底", round=round_):
+                n += 1
+    return n
+
+
+def finding_to_node(bb, row: dict, *, round_: int) -> Optional[str]:
+    """FINDINGS 行 → finding 节点（proposed 起步；report 指针透传；
+    worker 自报 id 冲突由 board 重编号）。返回节点 id；无效行 None。"""
+    if not isinstance(row, dict):
+        return None
+    summary = str(row.get("summary", "")).strip()
+    endpoint = str(row.get("endpoint", "")).strip()
+    if not summary or not endpoint:
+        return None
+    nid = bb.create_node(
+        "finding",
+        {"summary": summary, "report": str(row.get("report", "")),
+         "evidence": str(row.get("evidence", "")), "severity": str(row.get("severity") or "")},
+        endpoint=endpoint, origin="worker", round=round_,
+        id=str(row.get("id", "")).strip() or None)
+    _declare_chain(bb, nid, row.get("chain"), round_=round_)
+    auto_link(bb, nid, round_=round_)
+    return nid
+
+
+def facts_to_nodes(bb, lines, *, round_: int) -> int:
+    """FACTS 行 → fact 节点（配方 1 FACTS 半边）。宽容 BOM/空白/坏行；
+    value 必填；行上的 fact_kind 字段丢弃（v3 无类别）。返回新建行数。"""
+    n = 0
+    for line in lines or []:
+        line = line.strip().lstrip("﻿").strip()
+        if not line:
+            continue
+        try:
+            d = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if not isinstance(d, dict):
+            continue
+        value = str(d.get("value", "")).strip()
+        if not value:
+            continue
+        before = len(bb.graph["nodes"])
+        nid = bb.create_node("fact",
+                             {"value": value, "evidence": str(d.get("evidence", ""))},
+                             endpoint=str(d.get("endpoint", "")).strip() or "global",
+                             origin="worker", round=round_)
+        _declare_chain(bb, nid, d.get("chain"), round_=round_)
+        auto_link(bb, nid, round_=round_)
+        if len(bb.graph["nodes"]) > before:
+            n += 1
+    return n

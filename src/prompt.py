@@ -1,161 +1,34 @@
-"""AT1 prompt —— 阶段手册 + 每轮 prompt 渲染（纯 Python 确定性拼接，无 LLM）。
+"""AT1 prompt —— 每轮 stdin 渲染（批 1 残版；三块终态=引导/运行提示/简报，T4.1/P4）。
 
-设计§3.5：9 段固定顺序组装；同一黑板状态渲染结果逐字节相同。
-四份手册 M4 定稿（P4.7）：recon 经 A4 实战验证；identity/exploit/report 按
-观察者架构新契约写全（利用标注段/白话 evidence/4 字段 FINDINGS）。
+v3 已砍：序言(A6)/阶段手册(A12)/指令(A15)/plan_directive(A15)/交接段(A19——
+Handoff 住 STATE.md 不进 stdin)/重复命令告警(A20)/后台任务块(A21)。
+保留：紧凑摘要（board.summarize，四视图现算）/路由提示（全图 fact 值扫描，S4——
+不再按 kind=fingerprint 查）/人工指示。防注入唯一战线=STATE.md（A19/A20）。
 """
 
 from __future__ import annotations
 
 from typing import Optional
 
-PREAMBLE = """【方法论序言——固定不变】
-你在执行一次授权黑盒渗透测试。方法论：现象是路标，结果是终点——只追求结果类发现
-（越权/注入/RCE/凭证泄露），现象类信号（CORS/sourcemap/指纹/裸 instance-id）记录
-后当侦察弹药继续深挖，不作为发现提交。没有可复现 PoC 的东西不存在。
-每轮你都是全新会话：黑板状态和上一轮交接在下方，这是你对任务的全部记忆来源。"""
-
-MANUALS: dict[str, str] = {
-    "recon": """【阶段手册① 侦察拓面】
-铁律：不做浏览器侦察，不准开始 curl。
-目标：攻击面摸清并沉淀进黑板（端点/指纹自动入库；结论写 FACTS）。
-额外任务：识别目标业务类型（电商/社交/SaaS/内部系统），写一条
-{"kind":"business_context","value":"这是XX平台，XX行为是正常业务","evidence":"..."} 进 FACTS。
-
-操作序列（按序执行）：
-0. **先调 WaitForMcpServers 工具（timeout 填 30000）**——headless 会话里 MCP 服务器
-   是异步启动的，浏览器工具（browser_*）要等它返回 ready 才出现；返回失败/超时
-   → 本轮无浏览器，直接从第 2 步 curl 起步，别卡在这一步。
-1. 浏览器侦察四步（Playwright MCP）：
-   browser_navigate → 目标 URL
-   browser_snapshot → 页面结构
-   browser_network_requests(filter:"/api|xhr|fetch/") → 真实 API
-   browser_click 有目的地点击功能区 → 再捕获一轮
-2. JS 蒸馏（js-intel，本地 Chrome，无需 playwright install）：
-   node D:/Downloads/hacker/script/js-intel/src/index.js --url <URL> --storage-state storage-state.json
-   产物 out/<host>-<时间戳>.md：端点→漏洞类路由、密钥、sink——读完把要点写进 FACTS
-3. 资产分诊（端点 >20 时）：按指纹分组 → 每组测一个代表 → 挑 3-8 个高价值
-   （有身份语义 / 有对象 ID 参数 / 可写操作）；CDN、静态资源、文档域名跳过
-4. 记账：每次主动测试往当前目录 `log.jsonl` 追加一行 {ts,cmd,endpoint,result摘要}
-   （攻击面表由系统自动维护——端点/指纹入库 + 状态投影，你不用碰 status.md）
-
-实战纪律：
-- 同一方向连续 5 次失败 → 切换方向，不死磕
-- cookie 统一存 evidence/cookies.txt，命令里引用文件，不裸拼长串
-- 动手前先看状态区的阴性记录与已否决模式，规划时跳过已试过的同姿势（换姿势不受限）；同一命令不跑第三遍
-- 现象（CORS/sourcemap/指纹）只记录当弹药，继续挖到结果类发现
-出口判据见指令行——达标即进下一阶段，不恋战。""",
-
-    "identity": """【阶段手册② 身份模型】
-目标：搞清"服务端到底认谁"。结论必须写成 FACTS 行：
-{"kind":"identity_model","value":"…","evidence":"…"}（engagement 级唯一，重报覆盖）。
-
-三条路依次做实验（每条都把完整请求响应落进 evidence/）：
-1. cookie 摘除：逐个摘掉 httpOnly cookie 重放同一请求，看登录态变化
-   → 掉登录态的那个就是身份派生源
-2. 客户端身份注入对调：请求里的 userId / X-User-Id / spidertoken 类字段，
-   把 A 的值换成 B 的重放 → 服务端认了 = 注入可越权；忽略 = 摆设（也是重要结论）
-3. 签名/token 强制性：摘掉签名头或签名参数重放
-   → 还能成功 = 签名非强制（风控软校验的常见形态）
-
-若【上一轮交接】或前置情报里带有平台形态参考，优先按它设计实验
-（参考是假设不是答案，三个实验仍要做全）。
-出口：黑板出现 identity_model（含三项实验结论）→ 进 exploit。""",
-
-    "exploit": """【阶段手册③ 深挖闭环】
-目标：把疑似变成确认的结果类发现（越权/注入/未授权访问/凭证泄露）。
-
-怎么选方向——开工先读 STATE.md（本目录，系统每轮投影），再看三个标记段：
-- "已确认发现"：同端点同根因**勿重交**（系统会判 duplicate）
-- "未测面"清单与"方向与图"（方向表含观察者建议方向，带标注）：**最高优先级**——
-  优先挑有对象 ID 参数（?id=/detail/update）或身份语义或可写操作的；
-  这些是覆盖缺口，本轮就该补齐
-- "阴性记录"（实测关闭/推断关闭两档）+"已否决模式"：同姿势已试过是关的，
-  换姿势/新线索不受限；"推断关闭"有新材料可低成本重验
-
-**越权（IDOR）是必做清单**，不止是可选方向：多数站点的核心风险在越权。
-若未测面存在对象级端点（订单详情/地址/用户资料等），按以下闭环**完整跑**：
-1. 建双账号：找到登录/注册接口，分别取得 userA、userB 的会话凭证（存 evidence/cookies.txt）
-2. 对象枚举：userB 登录取一个真实对象（如 order?id=8823 返回 B 的手机号 139…）
-3. 身份对调：换 userA 凭证重放同一请求 → 响应里 B 的标记是否还在？
-   → 还在 = 越权成立，立即写 evidence+FINDINGS
-4. 写操作同法：userA 改 B 的地址 → 用读接口复查值真的变了（读回验证）
-5. 响应 diff：A/B 凭证两次响应逐字段比——差异字段才是发现
-
-攻击闭环四步（每候选跑全）：
-1. 对象枚举：相邻 ID/时间戳/UUID 的可预测性——连续取 3 个样本看规律
-2. 身份对调：A 的身份访问 B 的对象（A/B 凭证见 evidence/cookies.txt），
-   marker 从 B 的正常响应取（手机号/用户名等），换 A 凭证重放看 marker 是否还在
-3. 响应 diff：两次响应逐字段比——差异字段才是发现，相同部分不算
-4. 写操作必须读回：改完立刻用读接口复查值真的变了，才算写入成立
-
-每发现当场两件事（不等会话结束）：
-- evidence/ 白话文件（请求响应关键原文，别编造别省略关键行）
-- FINDINGS 追加一行（4 字段）
-
-纪律：同一方向连续 5 次失败换方向；低价值现象是路标不是终点，
-同一根因换个输入形状 often 出真结果。""",
-
-    "report": """【阶段手册④ 报告产出】
-目标：把黑板上的确认结果整理成 report.md 草稿（写到本目录上一级的 report.md，
-即 <engagement>/report.md——用绝对路径或 ../report.md）。
-
-取数三源（都在 STATE.md 与状态摘要，不要凭记忆编）：
-1. "已确认发现"段 → 报告主体
-2. "阴性记录"+"已否决模式"段 → "已确认非漏洞"章节（有价值的阴性结论）
-3. FACTS 里的身份模型/业务上下文 → 测试方法章节
-
-每条报告项的结构（同根因合并成一条，不拆水）：
-- 标题：一句话说清影响（攻击者能做什么）
-- 等级：高（凭证/PII组合/写入）/ 中（单字段PII）/ 低（非敏感状态）
-- 端点与复现步骤：完整请求（含凭证位置说明）+ 响应关键行 + evidence 文件引用
-- 影响：能拿到的具体数据/能执行的具体操作
-
-阴性结论写成"已确认非漏洞"：endpoint + 为什么不是（403/设计内/影响归零）+ 测过的姿势。
-
-格式要求：Markdown；开头一页摘要（发现数/等级分布/覆盖度）；
-不虚报没确认的东西；草稿状态标注"待人复核"。""",
-}
-
-# 第 8 段 hints：指纹关键词 → skill 路由行（设计§3.5.2 第 5 段路由表的渲染子集）
+# 路由提示（A7/S4：燃料=全图 fact 值扫描；命中措辞 T4.2 改直接指令式）
 _HINT_ROUTES = (
-    ("spring|java|tomcat|jboss", "Java 系中间件 → 路由表 injection-sqli / injection-deser 行"),
-    ("php", "PHP → 路由表 crypto-attacks（松散比较）/ injection-xss 行"),
-    ("node|express", "Node → 路由表 injection-deser（原型污染）/ api-all 行"),
-    ("nginx", "nginx 反代 → 路由表 web-advanced（缓存/绕过）行"),
-    ("asp|\.net|iis", ".NET → 路由表 injection-deser（ViewState）/ auth-token 行"),
+    ("spring|java|tomcat|jboss", "Java 系中间件 → 加载 injection-sqli / injection-deser skill"),
+    ("php", "PHP → 加载 crypto-attacks（松散比较）/ injection-xss skill"),
+    ("node|express", "Node → 加载 injection-deser（原型污染）/ api-all skill"),
+    ("nginx", "nginx 反代 → 加载 web-advanced（缓存/绕过）skill"),
+    ("asp|\\.net|iis", ".NET → 加载 injection-deser（ViewState）/ auth-token skill"),
 )
 
-_SEGMENT_MARKS = ("【序言】", "【阶段手册】", "【指令】", "【状态】",
-                  "【上一轮交接】", "【重复命令告警】", "【后台任务】", "【提示】", "【人工指示】")
+_SEGMENT_MARKS = ("【状态摘要】", "【提示】", "【人工指示】")
 
 
-def render_round_prompt(board, directive: Optional[str] = None, *, round_: int = 0,
-                        tested_endpoints: set | None = None) -> str:
-    """9 段固定顺序。确定性：同黑板两次调用逐字节相同（nonce 例外——untrusted 防注入需随机）。
-    tested_endpoints 传入时 → board.render 在状态区后插入"未测面"段（覆盖对账，中期审核①②）。"""
+def render_round_prompt(board, directive: Optional[str] = None, *, round_: int = 0) -> str:
+    """批 1 残版：摘要 + 路由提示 + 人工指示。确定性：同黑板两次调用逐字节相同。"""
     segs: list[str] = []
-    segs.append(PREAMBLE)
-    segs.append(MANUALS.get(board.goal.get("stage", "recon"), MANUALS["recon"]))
-    segs.append(board.plan_directive(round_=round_))
-    # DEC-9/E：prompt 只进紧凑摘要（必含待接方向列表——保底到达），全文在 workdir/STATE.md
-    segs.append(board.render_summary(tested_endpoints=tested_endpoints))
-    relay = board.handoff if board.handoff else "（首轮，无上一轮交接）"
-    intel = board.intel_summary()
-    if intel:
-        relay += f"\n\n[观察者情报] {intel}"
-    segs.append(relay)
-    tried = sorted(board.ledger.get("tried", {}).items(), key=lambda x: -x[1])
-    hot = [(c, n) for c, n in tried if n >= 3][:5]
-    segs.append("\n".join(f"- {c[:100]}（已 ×{n}，勿重跑）" for c, n in hot)
-                if hot else "（无高频重复命令）")
-    bg = board.ledger.get("background", [])
-    segs.append("\n".join(f"- #{b.get('id')} {b.get('desc','')} [{b.get('status','?')}]"
-                          for b in bg) if bg else "（无后台任务）")
-    fp_text = " ".join(f["value"] for f in board.query("fingerprint"))
+    segs.append(board.summarize(round_=round_))
+    fp_text = " ".join(board.fact_values()).lower()
     hints = [txt for pat, txt in _HINT_ROUTES
-             if pat.split("|")[0].lower() in fp_text.lower()
-             or any(k.lower() in fp_text.lower() for k in pat.split("|"))]
+             if any(k.lower() in fp_text for k in pat.split("|"))]
     segs.append("\n".join(f"- {h}" for h in hints) if hints else "（暂无路由提示）")
     segs.append(directive if directive else "（无）")
     return "\n\n".join(f"{mark}\n{seg}" for mark, seg in zip(_SEGMENT_MARKS, segs))

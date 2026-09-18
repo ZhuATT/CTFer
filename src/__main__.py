@@ -49,25 +49,18 @@ def _relay(args: argparse.Namespace) -> int:
 
     fact_count = [0]
     killed = [False]
-    te_tail: list = []          # 尾部工具事件（合成 Handoff 的输出摘录素材）
 
     def on_fact(t):
-        n = bb.observe(t.tool, t.args, t.output, round_=1)
-        if n:
-            fact_count[0] += n
-        te_tail.append(t)
-        if len(te_tail) > 5:
-            te_tail.pop(0)
-        ev.emit("fact_added", {"tool": t.tool, "new_facts": n}, round_=1)
+        ev.emit("fact_added", {"tool": t.tool, "out_head": t.output[:80]}, round_=1)
 
     def on_spawn(proc):
         if not kill_mode:
             return
 
-        def watch():                       # 条件杀：≥1 条事实 且 运行 ≥8s（phase2 风险表★）
+        def watch():                       # 条件杀：运行 ≥8s（v3 无被动事实计数，时间盒判据）
             t0 = time.time()
             while proc.poll() is None:
-                if fact_count[0] >= 1 and time.time() - t0 >= 8:
+                if time.time() - t0 >= 8:
                     proc.kill()
                     killed[0] = True
                     break
@@ -98,22 +91,19 @@ def _relay(args: argparse.Namespace) -> int:
                             "tokens": res.tokens, "session_id": res.session_id,
                             "killed": killed[0]}, round_=1)
 
-    # ── 收割：Handoff 双路 + FACTS diff ──
-    if res.handoff:
-        bb.record_handoff(res.handoff, "model")
-    else:
-        bb.record_handoff(harvest.synthesize_handoff(bb, te_tail), "synthesized")
-    ev.emit("handoff_harvested", {"origin": bb.handoff_origin, "killed": killed[0],
-                                  "head": bb.handoff[:60]}, round_=1)
+    # ── 收割：Handoff（A19：合成交接死，被杀轮置空）+ FACTS → 节点 ──
+    bb.record_handoff(res.handoff or "")
+    ev.emit("handoff_harvested", {"origin": "model" if res.handoff else "none",
+                                  "killed": killed[0], "head": bb.handoff[:60]}, round_=1)
     fact_lines, _ = harvest.diff_new_lines(str(workdir / "FACTS"), 0)
-    n_reported = bb.ingest_facts(fact_lines, round_=1)
+    n_reported = harvest.facts_to_nodes(bb, fact_lines, round_=1)
     bb.save()
 
     prompt2 = prompt_mod.render_round_prompt(bb, round_=2)
     prompt2_full = prompt2 + (
         "\n\n【第 2 轮任务】找到本轮的 marker 值（形如 at1-十六进制），把它原样写入当前目录 "
-        "answer.txt（只写 marker 本身）。查找顺序：上方【状态】的 identity_model → "
-        "【上一轮交接】→ 都没有则读当前目录 intel.txt 里的『备注』行。\n"
+        "answer.txt（只写 marker 本身）。查找顺序：当前目录 STATE.md 的『全局认知/发现』节 → "
+        "都没有则读当前目录 intel.txt 里的『备注』行。\n"
         "完成后在最终回复里原样输出：<Handoff>第2轮完成</Handoff>\n")
 
     ev.emit("session_start", {"round": 2}, round_=2)
@@ -132,26 +122,21 @@ def _relay(args: argparse.Namespace) -> int:
 
     checks = [
         (f"round1 会话返回（stop={res.stop_reason}, turns={res.turns}）", True),
-        ("round1 事实实时入库（observe）", fact_count[0] >= 1),
-        (f"Handoff 收割（origin={bb.handoff_origin}）", bool(bb.handoff)),
+        (f"Handoff 置录（origin={'model' if res.handoff else 'none'}）",
+         bool(bb.handoff) if not kill_mode else bb.handoff == ""),
     ]
     if kill_mode:
-        # 被杀场景：会话死在中途，显式通道没走完是【预期】——验的是合成兜底与接力
+        # 被杀场景：会话死在中途，显式通道没走完是【预期】——验的是置空交接与接力
         checks += [
-            ("prompt2 第5段为代码合成交接", "代码合成交接" in prompt2),
+            ("被杀轮 Handoff 置空（观察者读盘替代合成）", bb.handoff == ""),
             (f"被杀于 FACTS 上报前（显式通道未走完，n={n_reported}）", True),
         ]
     else:
         checks += [
-            (f"FACTS 上报入板（{n_reported} 条）", n_reported >= 1),
-            ("prompt2 第4段含 marker（identity_model 渲染）",
-             marker in prompt2.split("【状态】")[-1].split("【上一轮交接】")[0]),
+            (f"FACTS 上报入图（{n_reported} 条）", n_reported >= 1),
+            ("prompt2 渲染含状态摘要段", "【状态摘要】" in prompt2),
         ]
     checks += [
-        ("prompt2 第5段（交接）含 marker 或为合成交接",
-         marker in prompt2.split("【上一轮交接】")[-1].split("【重复命令告警】")[0]
-         or bb.handoff_origin == "synthesized"),
-        ("prompt2 含端点事实（Graph State）", "/api/" in prompt2),
         ("round2 answer.txt 含 marker（接力成立）", ans_ok),
         (f"transcript 两轮累计可读（{t_lines} 行）", t_lines > 0),
     ]
@@ -166,8 +151,8 @@ def _relay(args: argparse.Namespace) -> int:
             mandatory_fail = True
         print(f"  [{mark}] {name}")
     print(f"\n[result] r1 stop={res.stop_reason} tokens={res.tokens} | "
-          f"r2 stop={res2.stop_reason} tokens={res2.tokens} | facts={fact_count[0]} | "
-          f"handoff_origin={bb.handoff_origin}")
+          f"r2 stop={res2.stop_reason} tokens={res2.tokens} | "
+          f"nodes={len(bb.graph['nodes'])} | handoff_origin={'model' if res.handoff else 'none'}")
     if res.error:
         print(f"[result] r1 error: {res.error[:120]}")
 

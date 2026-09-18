@@ -1,130 +1,147 @@
 {
   "$id": "at1-blackboard",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AT1 黑板结构契约（board.py 的活契约——字段/类型/枚举的机器真相；语义见 docs/at1-黑板schema.md）",
+  "title": "AT1 黑板结构契约 v3（board.py 的活契约——字段/类型/枚举的机器真相；语义见 docs/at1-黑板schema.md）",
   "type": "object",
-  "required": ["facts", "immune", "findings", "directions", "chains", "session_intel",
-               "handoff", "goal", "ledger", "verified", "config", "offsets"],
+  "required": ["graph", "bookkeeping"],
   "properties": {
-    "facts": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["kind", "value", "confidence", "provenance", "ts", "round"],
-        "not": {"required": ["conf"]},
-        "properties": {
-          "kind": {"enum": ["endpoint", "credential", "kv_secret", "fingerprint",
-                            "identity_model", "business_context", "unclassified"]},
-          "value": {"type": "string", "minLength": 1},
-          "confidence": {"enum": ["observed", "inferred"]},
-          "provenance": {"type": "string"},
-          "ts": {"type": "string"},
-          "round": {"type": "integer"},
-          "last_verified_round": {"type": "integer"},
-          "chain": {"$ref": "#/$defs/chain"}
-        },
-        "additionalProperties": false
-      }
-    },
-    "immune": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["endpoint", "since_round", "confidence"],
-        "properties": {
-          "endpoint": {"type": "string"},
-          "status": {"type": "string"},
-          "since_round": {"type": "integer"},
-          "confidence": {"enum": ["observed", "inferred"]},
-          "klass": {}
-        },
-        "additionalProperties": false
-      }
-    },
-    "findings": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["id", "endpoint", "summary", "assessment", "round"],
-        "properties": {
-          "id": {"type": "string", "pattern": "^F-[A-Za-z0-9\\-]+$"},
-          "endpoint": {"type": "string"},
-          "summary": {"type": "string"},
-          "assessment": {"enum": ["confirmed", "likely_false_positive", "uncertain", "duplicate"]},
-          "severity": {"enum": ["high", "medium", "low", null]},
-          "reason": {"type": "string"},
-          "evidence": {"type": "string"},
-          "round": {"type": "integer"},
-          "evidence_verified": {"type": "boolean"},
-          "param_verified": {"type": "boolean"},
-          "response_verified": {"type": "boolean"},
-          "param_hits": {"type": "string"},
-          "response_hits": {"type": "string"},
-          "chain": {"$ref": "#/$defs/chain"}
-        },
-        "additionalProperties": false
-      }
-    },
-    "directions": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["id", "goal", "status", "source", "round", "comment"],
-        "properties": {
-          "id": {"type": "string", "pattern": "^D-[A-Za-z0-9\\-]+$"},
-          "goal": {"type": "string", "minLength": 1},
-          "endpoint": {"type": "string"},
-          "status": {"enum": ["open", "in_progress", "blocked", "done"]},
-          "note": {"type": "string"},
-          "blocked_reason": {"type": "string"},
-          "chain": {"$ref": "#/$defs/chain"},
-          "comment": {"type": "string"},
-          "source": {"enum": ["worker", "observer"]},
-          "round": {"type": "integer"}
-        },
-        "additionalProperties": false
-      }
-    },
-    "chains": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["rel", "refs", "origin", "round"],
-        "properties": {
-          "rel": {"enum": ["derived_from", "combines", "same_root"]},
-          "refs": {"type": "array", "minItems": 1,
-                    "items": {"type": "string", "pattern": "^[FD]-[A-Za-z0-9\\-]+$"}},
-          "note": {"type": "string"},
-          "origin": {"enum": ["worker", "observer"]},
-          "round": {"type": "integer"}
-        },
-        "additionalProperties": false
-      }
-    },
-    "session_intel": {"type": "object", "additionalProperties": true},
-    "handoff": {"type": "string"},
-    "handoff_origin": {"type": "string"},
-    "goal": {"type": "object", "additionalProperties": true},
-    "ledger": {"type": "object", "additionalProperties": true},
-    "verified": {
+    "graph": {
       "type": "object",
-      "required": ["confirmed", "tentative"],
+      "required": ["nodes", "edges"],
       "properties": {
-        "confirmed": {"type": "integer"},
-        "tentative": {"type": "integer"}
+        "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+        "edges": {"type": "array", "items": {"$ref": "#/$defs/edge"}}
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
-    "config": {"type": "object", "additionalProperties": true},
-    "offsets": {"type": "object", "additionalProperties": true}
-  },
-  "$defs": {
-    "chain": {
+    "bookkeeping": {
       "type": "object",
+      "required": ["offsets", "goal", "handoff", "config", "intel"],
       "properties": {
-        "rel": {"enum": ["derived_from", "combines", "same_root"]},
-        "refs": {"type": "array", "items": {"type": "string", "pattern": "^[FD]-[A-Za-z0-9\\-]+$"}},
-        "note": {"type": "string"}
+        "offsets": {"type": "object", "additionalProperties": true},
+        "goal": {
+          "type": "object",
+          "required": ["text", "updated_round"],
+          "properties": {
+            "text": {"type": "string"},
+            "updated_round": {"type": "integer"}
+          },
+          "additionalProperties": false
+        },
+        "handoff": {"type": "string"},
+        "config": {"type": "object", "additionalProperties": true},
+        "intel": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["round", "text"],
+            "properties": {
+              "round": {"type": "integer"},
+              "text": {"type": "string"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "node": {
+      "oneOf": [
+        {"$ref": "#/$defs/intentNode"},
+        {"$ref": "#/$defs/findingNode"},
+        {"$ref": "#/$defs/factNode"}
+      ]
+    },
+    "intentNode": {
+      "type": "object",
+      "required": ["id", "kind", "state", "payload", "endpoint", "origin", "round", "updated_at"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^D-[A-Za-z0-9\\-]+$"},
+        "kind": {"enum": ["intent"]},
+        "state": {"enum": ["open", "in_progress", "done", "blocked"]},
+        "payload": {"$ref": "#/$defs/intentPayload"},
+        "endpoint": {"type": "string"},
+        "origin": {"enum": ["worker", "controller", "observer", "user"]},
+        "round": {"type": "integer"},
+        "updated_at": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "findingNode": {
+      "type": "object",
+      "required": ["id", "kind", "state", "payload", "endpoint", "origin", "round", "updated_at"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^F-[A-Za-z0-9\\-]+$"},
+        "kind": {"enum": ["finding"]},
+        "state": {"enum": ["proposed", "confirmed", "dismissed"]},
+        "payload": {"$ref": "#/$defs/findingPayload"},
+        "endpoint": {"type": "string"},
+        "origin": {"enum": ["worker", "controller", "observer", "user"]},
+        "round": {"type": "integer"},
+        "updated_at": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "factNode": {
+      "type": "object",
+      "required": ["id", "kind", "state", "payload", "endpoint", "origin", "round", "updated_at"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^T-[A-Za-z0-9\\-]+$"},
+        "kind": {"enum": ["fact"]},
+        "state": {"enum": ["proposed", "confirmed", "dismissed", "superseded"]},
+        "payload": {"$ref": "#/$defs/factPayload"},
+        "endpoint": {"type": "string"},
+        "origin": {"enum": ["worker", "controller", "observer", "user"]},
+        "round": {"type": "integer"},
+        "updated_at": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "intentPayload": {
+      "type": "object",
+      "required": ["goal"],
+      "properties": {
+        "goal": {"type": "string", "minLength": 1},
+        "note": {"type": "string"},
+        "comment": {"type": "string"},
+        "blocked_reason": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "findingPayload": {
+      "type": "object",
+      "required": ["summary"],
+      "properties": {
+        "summary": {"type": "string", "minLength": 1},
+        "report": {"type": "string"},
+        "evidence": {"type": "string"},
+        "severity": {"enum": ["high", "medium", "low", "none"]},
+        "reason": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "factPayload": {
+      "type": "object",
+      "required": ["value"],
+      "properties": {
+        "value": {"type": "string", "minLength": 1},
+        "evidence": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "edge": {
+      "type": "object",
+      "required": ["src", "rel", "dst", "origin", "round"],
+      "properties": {
+        "src": {"type": "string", "pattern": "^[DFT]-[A-Za-z0-9\\-]+$"},
+        "rel": {"enum": ["sources", "yields", "derived_from", "spawns", "same_root", "supersedes"]},
+        "dst": {"type": "string", "pattern": "^[DFT]-[A-Za-z0-9\\-]+$"},
+        "origin": {"enum": ["worker", "observer", "controller"]},
+        "note": {"type": "string"},
+        "round": {"type": "integer"}
       },
       "additionalProperties": false
     }

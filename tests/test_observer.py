@@ -99,7 +99,7 @@ def test_business_context_default():
 
 
 def test_board_integration():
-    """A1+A2 集成：观察者输出直入黑板。"""
+    """观察者输出 → 图（v3：verdict 迁移 + intel 追加；driver 翻译层同路径）。"""
     from src.board import Blackboard
     obs, _ = _mk_observer([
         '{"is_vulnerability": true, "severity": "high", "reason": "test"}',
@@ -112,18 +112,19 @@ def test_board_integration():
         findings=[{"id": "F-1", "endpoint": "/e", "summary": "s"}],
         evidence_texts={"F-1": "ev"}, previous_confirmed=[],
         board_summary="", handoff="")
-    # 入板
+    # 入图：finding 节点 proposed → verdict confirmed；证词入 bookkeeping.intel
     b = Blackboard()
+    b.create_node("finding", {"summary": "s"}, endpoint="/e", origin="worker",
+                  round=1, id="F-1")
+    from src.driver import _apply_verdict
     for f in result["findings"]:
-        b.add_finding(f)
-    b.update_session_intel(result["session_intel"])
-    # 渲染验证
-    r = b.render()
-    assert "已确认发现" in r and "/e" in r
-    # G 块：旧 suggestions 独立段废除——建议改经 direction_comments 入方向层（source=observer）
-    assert "观察者建议" not in r
-    assert b.intel_summary() == "z"
-    assert b.verified["confirmed"] == 1
+        ok, _ = _apply_verdict(b, f)
+        assert ok
+    b.add_intel(result["session_intel"]["intel_summary"], 1)
+    # 消费验证
+    assert b.confirmed_findings()[0]["id"] == "F-1"
+    assert b.bookkeeping["intel"][-1]["text"] == "z"
+    assert "已确认发现 1 条" in b.summarize(1)
 
 
 # ── phase5 B4：C-2 防注入 / G 三件套 / G-1 截断 / 消费端 ──────────────────
@@ -183,21 +184,37 @@ def test_governance_truncates_new_directions_at_three():
         {"goal": f"方向{i}", "endpoint": f"/api/{i}"} for i in range(6)]}
     out = _apply_observer_governance(bb, session, round_no=1)
     assert out["new_directions"] == 3
-    assert sum(1 for d in bb.directions if d["source"] == "observer") == 3
+    assert sum(1 for d in bb.nodes("intent") if d["origin"] == "observer") == 3
 
 
 def test_governance_comment_and_retest():
     from src.driver import _apply_observer_governance
     from src.board import Blackboard
     bb = Blackboard()
-    bb.add_direction({"id": "D-001", "goal": "g", "status": "blocked"}, round_=1)
+    d1 = bb.create_node("intent", {"goal": "g"}, origin="worker", round=1, id="D-001")
+    bb.update_node(d1, state="blocked")
     session = {"direction_comments": [{"id": "D-001", "comment": "建议转向"}],
                "immune_reviews": [{"endpoint": "/api/old", "verdict": "retest", "reason": "只试过一次403"},
                                    {"endpoint": "/api/old", "verdict": "retest", "reason": "重复"}]}
     out = _apply_observer_governance(bb, session, round_no=2)
     assert out["comments"] == 1
-    dm = {d["id"]: d for d in bb.directions}
-    assert dm["D-001"]["comment"] == "建议转向"
-    retest = [d for d in bb.directions if d["goal"].startswith("重验阴性：")]
-    assert len(retest) == 1 and retest[0]["source"] == "observer"   # 同口子不重复开
+    assert bb.node("D-001")["payload"]["comment"] == "建议转向"
+    retest = [d for d in bb.nodes("intent")
+              if d["payload"]["goal"].startswith("重验阴性：")]
+    assert len(retest) == 1 and retest[0]["origin"] == "observer"   # 同口子不重复开
     assert retest[0]["endpoint"] == "/api/old"
+
+
+def test_governance_chains_split_to_edges():
+    """观察者 v2 refs 串形 chains → 两两拆对成边（批 1 翻译层）。"""
+    from src.driver import _apply_observer_governance
+    from src.board import Blackboard
+    bb = Blackboard()
+    bb.create_node("finding", {"summary": "a"}, origin="worker", round=1, id="F-001")
+    bb.create_node("finding", {"summary": "b"}, origin="worker", round=1, id="F-002")
+    session = {"chains": [{"rel": "same_root", "refs": ["F-001", "F-002"],
+                           "note": "判重顺产"}]}
+    out = _apply_observer_governance(bb, session, round_no=2)
+    assert out["chains"] == 1
+    e = bb.edges(rel="same_root")[0]
+    assert (e["src"], e["dst"], e["origin"]) == ("F-001", "F-002", "observer")

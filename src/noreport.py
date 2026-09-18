@@ -27,8 +27,13 @@ from __future__ import annotations
 
 import re
 
-# 正则同源（phase3 §1.2 原则）：凭证形状与 board 抽取共用一份定义
-from .board import _CRED_RXS
+# 凭证形状（v2 与 board 抽取同源；v3 被动抽取死，此处为唯一定义——只做实害豁免判据）
+_CRED_RXS = (
+    re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),                        # AWS 固定前缀
+    re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),                            # sk- 类（发行方命名约定）
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),                   # PEM 块头
+    re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}"),  # JWT 三段
+)
 
 # ── 实害豁免：命中任一 → 永不硬拒 ─────────────────────────────────────────
 _PHONE_RX = re.compile(r"\b1[3-9]\d{9}\b")                       # 中国手机号（PII 信号）

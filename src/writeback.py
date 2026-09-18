@@ -77,18 +77,18 @@ def _ep_key(endpoint: str) -> str:
 
 
 def refresh_surface_depth(status_path: str, board) -> tuple[bool, str]:
-    """攻击面段深度列：confirmed 覆盖→deep / uncertain→tested / 事实→seen。
+    """攻击面段深度列：confirmed 覆盖→deep / 其余 finding 覆盖→tested / 节点端点→seen。
     深度只升不降（deep 不被 seen 覆盖）。"""
     path = Path(status_path)
     text = _read(path)
     if "## 攻击面" not in text:
         return False, "status.md 缺锚点 ## 攻击面（宽容跳过）"
 
-    deep_eps = {_ep_key(f.get("endpoint", "")) for f in board.confirmed_findings()}
-    tested_eps = {_ep_key(f.get("endpoint", ""))
-                  for f in board.findings if f.get("assessment") in ("uncertain", "duplicate")}
-    seen_eps = {_ep_key(f.get("value", "").lstrip("GET POST PUT DELETE PATCH "))
-                for f in board.query("endpoint")}
+    deep_eps = {_ep_key(f["endpoint"]) for f in board.confirmed_findings()}
+    tested_eps = {_ep_key(f["endpoint"]) for f in board.nodes("finding")
+                  if f["state"] != "confirmed"}
+    seen_eps = {_ep_key(n["endpoint"]) for n in board.graph["nodes"]
+                if n["endpoint"] and n["endpoint"] != "global"}
     seen_eps.discard("")
 
     lines = text.splitlines()
@@ -130,30 +130,30 @@ def gen_prior_intel_draft(engagement_root: str, board, stop_reason: str = "") ->
     cf = board.confirmed_findings()
     if cf:
         parts.append("## 已确认发现")
-        parts += [f"- {f.get('id')} {_ep_key(f.get('endpoint',''))}：{f.get('summary','')}"
-                  f"（{f.get('severity','?')}）" for f in cf]
-    for f in board.query("identity_model"):
-        parts += ["", "## 身份模型结论", f"- {f['value']}"]
-    if board.immune:
-        parts += ["", "## 免疫清单（阴性记录）"]
-        parts += [f"- {i.get('endpoint')}（{i.get('status') or '?'}）" for i in board.immune]
-    si = board.session_intel or {}
-    if si.get("coverage_gaps"):
-        parts += ["", "## 未测面/覆盖缺口"] + [f"- {g}" for g in si["coverage_gaps"]]
-    if si.get("effective_patterns"):
-        parts += ["", "## 有效模式"] + [f"- {p}" for p in si["effective_patterns"]]
-    if si.get("intel_summary"):
-        parts += ["", "## 情报摘要", si["intel_summary"]]
-    # 硬拒清单（上线前自检新增）：noreport 代码硬拒是终裁无人复核——收尾必须
-    # 给人过目，误杀的链式发现从这里捞回来（auto-log claim_verdict 有全量）
-    hard_rejected = [f for f in board.findings
-                     if f.get("assessment") == "likely_false_positive"
-                     and str(f.get("reason", "")).startswith("硬拒")]
+        parts += [f"- {f['id']} {_ep_key(f['endpoint'])}：{f['payload'].get('summary','')}"
+                  f"（{f['payload'].get('severity','?')}）" for f in cf]
+    global_facts = board.nodes("fact", endpoint="global")
+    if global_facts:
+        parts += ["", "## 全局认知（身份模型/画像/业务形态）"]
+        parts += [f"- {n['payload'].get('value','')}" for n in global_facts]
+    neg = board.negative_view()
+    if neg:
+        parts += ["", "## 阴性清单（已试未突破/已否决）"]
+        parts += [f"- {r['endpoint']}：{str(r['reason'])[:100]}" for r in neg]
+    un = board.untested_surface()
+    if un:
+        parts += ["", "## 未测面/覆盖缺口"] + [f"- {e}" for e in un]
+    for it in board.bookkeeping.get("intel", []):
+        parts += ["", f"## 观察者证词（第 {it.get('round', '?')} 轮）", it.get("text", "")]
+    # 硬拒清单：noreport 代码硬拒是终裁无人复核——收尾必须给人过目，
+    # 误杀的链式发现从这里捞回来（auto-log claim_verdict 有全量）
+    hard_rejected = [f for f in board.nodes("finding", state="dismissed")
+                     if str(f["payload"].get("reason", "")).startswith("硬拒")]
     if hard_rejected:
         parts += ["", "## 硬拒清单（代码判定非漏洞——请人工抽查是否误杀）"]
-        parts += [f"- {f.get('id')} {f.get('endpoint')}：{str(f.get('reason',''))[:100]}"
+        parts += [f"- {f['id']} {f['endpoint']}：{str(f['payload'].get('reason',''))[:100]}"
                   for f in hard_rejected]
-    parts += ["", "## 待跟进", f"- 交接：{(board.handoff or '（无）')[:400]}"]
+    parts += ["", "## 待跟进", f"- 交接：{(board.bookkeeping.get('handoff') or '（无）')[:400]}"]
 
     out = Path(engagement_root) / "notes" / "prior-intel-draft.md"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -189,9 +189,37 @@ def sync_human_ledger(engagement_root: str) -> tuple[bool, str]:
     return True, f"appended {len(fresh)}"
 
 
-# ── ⑤ 启动反向读：已确认非漏洞 → immune 播种 ──────────────────────────
+# ── ⑤ 启动反向读：status.md → 配方 0 播种素材 ─────────────────────────
 
 _EP_RX = re.compile(r"(/[A-Za-z0-9_/.{}\-]{2,80})")
+_SEV_FROM_ZH = {"高": "high", "中": "medium", "低": "low"}
+
+
+def parse_status_findings(status_path: str) -> list[dict]:
+    """读"## 漏洞表"行 → 播种 finding 素材（配方 0：人拍板，origin=user）。
+    表形 | ID | 等级 | 标题 | 证据 |（append_status_row 写入形）。"""
+    text = _read(status_path)
+    if "## 漏洞表" not in text:
+        return []
+    out: list[dict] = []
+    in_seg = False
+    for ln in text.splitlines():
+        s = ln.strip()
+        if s.startswith("##"):
+            if in_seg:
+                break
+            in_seg = s == "## 漏洞表"
+            continue
+        if in_seg and s.startswith("|") and "---" not in s:
+            cells = [c.strip() for c in s.strip("|").split("|")]
+            if len(cells) >= 4 and cells[0] and cells[0] != "ID":
+                m = _EP_RX.search(cells[2] + " " + cells[3])
+                out.append({"id": cells[0],
+                            "severity": _SEV_FROM_ZH.get(cells[1], "medium"),
+                            "summary": cells[2],
+                            "endpoint": m.group(1) if m else "",
+                            "evidence": cells[3]})
+    return out
 
 
 def parse_immune_from_status(status_path: str) -> list[dict]:

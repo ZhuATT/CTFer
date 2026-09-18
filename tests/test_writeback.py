@@ -1,8 +1,9 @@
-"""writeback 单测（P4.6）：表尾追加幂等 / 深度刷新只升不降 / draft 生成 / immune 反向读。"""
+"""writeback 单测（P4.6）：表尾追加幂等 / 深度刷新只升不降 / draft 生成 / 配方0 反向读。"""
 
 from src.board import Blackboard
 from src.writeback import (append_status_row, gen_prior_intel_draft,
-                           parse_immune_from_status, refresh_surface_depth)
+                           parse_immune_from_status, parse_status_findings,
+                           refresh_surface_depth)
 
 _STATUS = """# Status
 
@@ -63,8 +64,9 @@ def test_append_missing_anchor_fails_gracefully(tmp_path):
 def test_refresh_depth_only_upgrades(tmp_path):
     p = _status(tmp_path)
     bb = Blackboard()
-    bb.add_finding({"id": "F-1", "endpoint": "/search", "summary": "sqli",
-                    "assessment": "confirmed", "severity": "high", "round": 1})
+    f = bb.create_node("finding", {"summary": "sqli", "severity": "high"},
+                       endpoint="/search", origin="worker", round=1)
+    bb.update_node(f, state="confirmed")
     ok, why = refresh_surface_depth(p, bb)
     assert ok
     txt = open(p, encoding="utf-8").read()
@@ -86,19 +88,37 @@ def test_refresh_missing_anchor_tolerant(tmp_path):
 
 def test_draft_generation(tmp_path):
     bb = Blackboard()
-    bb.add_finding({"id": "F-1", "endpoint": "/search", "summary": "sqli",
-                    "assessment": "confirmed", "severity": "high", "round": 1})
-    bb.add_fact("identity_model", "身份靠cookie派生", provenance="evidence/identity.md")
-    bb.add_immune("/api/login", status="403")
-    bb.update_session_intel({"coverage_gaps": ["/api/order 未测"],
-                             "effective_patterns": ["id 遍历有效"],
-                             "suggestions": [], "notable_attempts": [],
-                             "intel_summary": "目标无 WAF"})
-    bb.record_handoff("已完成：侦察；未竟：idor 面", "model")
+    f = bb.create_node("finding", {"summary": "sqli", "severity": "high",
+                                   "evidence": "evidence/s.md"},
+                       endpoint="/search", origin="worker", round=1)
+    bb.update_node(f, state="confirmed")
+    bb.create_node("fact", {"value": "身份靠cookie派生", "evidence": "evidence/identity.md"},
+                   origin="worker", round=1)                    # global 桶
+    d = bb.create_node("intent", {"goal": "[已确认非漏洞] /api/login",
+                                  "note": "403"}, endpoint="/api/login",
+                       origin="user", round=0)
+    bb.update_node(d, state="done")                             # → 阴性视图
+    bb.create_node("fact", {"value": "线索"}, endpoint="/api/order",
+                   origin="worker", round=1)                    # 未测面
+    bb.add_intel("目标无 WAF", 1)
+    bb.record_handoff("已完成：侦察；未竟：idor 面")
     out = gen_prior_intel_draft(str(tmp_path), bb, stop_reason="预算耗尽")
     txt = out.read_text(encoding="utf-8")
-    assert "预算耗尽" in txt and "F-1" in txt and "身份靠cookie派生" in txt
-    assert "/api/login" in txt and "/api/order 未测" in txt and "未竟：idor 面" in txt
+    assert "预算耗尽" in txt and "F-001" in txt and "身份靠cookie派生" in txt
+    assert "/api/login" in txt and "/api/order" in txt and "未竟：idor 面" in txt
+    assert "目标无 WAF" in txt
+
+
+def test_parse_status_findings_seeds():
+    """配方 0：漏洞表行 → finding 播种素材（人拍板,origin=user）。"""
+    import tempfile, os
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "status.md")
+        open(p, "w", encoding="utf-8").write(_STATUS)
+        rows = parse_status_findings(p)
+        assert len(rows) == 1
+        assert rows[0]["id"] == "F-old" and rows[0]["severity"] == "high"
+        assert rows[0]["summary"] == "旧发现" and "old.md" in rows[0]["evidence"]
 
 
 def test_parse_immune_seeds():

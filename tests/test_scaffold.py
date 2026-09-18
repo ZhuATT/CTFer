@@ -168,5 +168,5 @@ def test_worker_contract_no_zone_ledger_instruction(tmp_path):
     import json as _json
     bb = Blackboard()
     p = render_round_prompt(bb, round_=1)
-    assert "state/log.jsonl" not in p               # 侦察手册同步改
-    assert "log.jsonl" in p
+    assert "state/log.jsonl" not in p               # 越界指令不得经任何段复活
+    assert "log.jsonl" not in p                     # v3：手册死(A12)，台账教学只在 CLAUDE.md

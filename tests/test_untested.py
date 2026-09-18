@@ -1,64 +1,43 @@
-"""覆盖对账单测（中期审核附录①②）+ 引号路径 query 修复。"""
+"""未测面视图单测（schema §5：出现过的 endpoint − 有 intent/finding 覆盖的 endpoint）。"""
 
-import re as _re
-
-from src.board import Blackboard, _extract_facts
-from src.untrusted import untrusted_block
+from src.board import Blackboard
 
 
-def _mk_board():
+def test_untested_basic():
     b = Blackboard()
-    b.add_fact("endpoint", "GET /api/order/detail?id=8823", round_=1)
-    b.add_fact("endpoint", "/api/address/update", round_=1)
-    b.add_fact("endpoint", "/search", round_=1)
-    b.add_fact("credential", "AKIAFAKEFAKEFAKEFAKE")
-    return b
+    b.create_node("fact", {"value": "v1"}, endpoint="/api/a", origin="worker", round=1)
+    b.create_node("fact", {"value": "v2"}, endpoint="/api/b", origin="worker", round=1)
+    b.create_node("intent", {"goal": "测 search"}, endpoint="/search", origin="worker", round=1)
+    assert set(b.untested_surface()) == {"/api/a", "/api/b"}
 
 
-def test_untested_surface_reconciliation():
-    b = _mk_board()
-    tested = {"/search"}                                            # sqli 测过了
-    un = b.untested_surface(tested)
-    eps = [u["endpoint"] for u in un]
-    assert "/api/address/update" in eps                             # 未测 → 出现在清单
-    # method+query 归一化后对上：GET /api/order/detail?id=8823 → /api/order/detail
-    assert any("/api/order/detail" in e for e in eps)
-    assert not any("/search" == e for e in un)                      # 已测不出现在清单
-
-
-def test_untested_surface_substring_match():
+def test_untested_finding_counts_as_covered():
     b = Blackboard()
-    b.add_fact("endpoint", "/api/order/detail", round_=1)
-    un = b.untested_surface({"/api/order/detail?id=8823"})          # 测的是带 query 版
-    assert un == []                                                 # 子串对上→算已测
+    b.create_node("fact", {"value": "v"}, endpoint="/api/c", origin="worker", round=1)
+    b.create_node("finding", {"summary": "s"}, endpoint="/api/c", origin="worker", round=2)
+    assert b.untested_surface() == []
 
 
-def test_render_untested_section():
-    b = _mk_board()
-    r = b.render(tested_endpoints={"/search"})
-    assert "未测面" in r and "探不探你定" in r
-    assert "/api/address/update" in r
-    # 顺序（schema §5 三层）：结论层（未测面 → 阴性）在前，分母层最后
-    i_un = r.find("未测面")
-    i_cred = r.find("[credential]")
-    b.add_immune("/admin/userList", round_=1, status="403")
-    r2 = b.render(tested_endpoints={"/search"})
-    i_imm = r2.find("阴性记录")
-    assert 0 < i_un < i_imm < i_cred
-    # 已测端点不出现在未测面
-    assert "/search" not in r2.split("未测面")[1].split("阴性记录")[0].replace("/search", "X") or True
+def test_untested_dismissed_finding_still_covers():
+    """dismissed finding 也是"测过"——不回未测面（回阴性视图）。"""
+    b = Blackboard()
+    b.create_node("fact", {"value": "v"}, endpoint="/api/d", origin="worker", round=1)
+    f = b.create_node("finding", {"summary": "s", "reason": "r"}, endpoint="/api/d",
+                      origin="worker", round=2)
+    b.update_node(f, state="dismissed")
+    assert b.untested_surface() == []
+    assert any(r["id"] == f for r in b.negative_view())
 
 
-def test_render_untested_empty_when_all_tested():
-    b = _mk_board()
-    r = b.render(tested_endpoints={"/api/order/detail", "/api/address/update", "/search"})
-    assert "未测面" not in r
+def test_global_bucket_not_in_surface():
+    b = Blackboard()
+    b.create_node("fact", {"value": "目标画像：xx"}, origin="worker", round=1)
+    assert b.untested_surface() == []
 
 
-def test_quoted_path_with_query():
-    # 中期审核④ bug 修复：orders:"/api/order/detail?id=" —— 带 query 的引号路径入库
-    js = 'const API={orders:"/api/order/detail?id=",addr:"/api/address/update"};'
-    facts = _extract_facts(js)
-    eps = [v for k, v in facts if k == "endpoint"]
-    assert "/api/order/detail?id=" in eps or "/api/order/detail" in eps
-    assert "/api/address/update" in eps
+def test_endpoint_normalized_dedupe():
+    """同 endpoint 多节点只出现一次。"""
+    b = Blackboard()
+    b.create_node("fact", {"value": "v1"}, endpoint="/api/e", origin="worker", round=1)
+    b.create_node("fact", {"value": "v2"}, endpoint="/api/e", origin="worker", round=2)
+    assert b.untested_surface() == ["/api/e"]
