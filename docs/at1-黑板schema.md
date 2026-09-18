@@ -1,292 +1,287 @@
-# AT1 共享黑板 Schema 定稿（v2.1，正式契约）
+# AT1 共享黑板 Schema v3.0(定稿候选)
 
-> **性质**：黑板的形式/字段/内容的**完整契约**。2026-09-04 由 `phase4-黑板schema.md`（v2，2026-08-31）晋升——决策板 v3 七块（A-G）全部拍板后按裁定同步四处（conf 删除 / directions.chain / tested 语义 / 渲染细节），同步处以决策板拍板附注为准。
-> **架构前提**：串行单 worker 轮次接力（每轮一个全新会话）。v2 并发（scheduler）时的升级路径见 §9。
-> **上游文档**：`phase4-决策板.md`（决策与附注）｜施工：`phase5-落地施工单.md`。
+> **性质**:黑板与图的**完整字段契约**。v3.0 是大版本——图从"黑板的装饰字段"升格为协作面本体,黑板分裂为**写入面(日志,不变)**与**协作面(图,重构)**。
+> **设计论证**:`图与黑板v3设计.md`(四家参考对比 + 多轮讨论记录)。
+> **状态**:定稿候选。拍板 1/2 已定,字段经消费者审计(28→23,砍 6:confidence/source/verified/primary/killed/created_at)。**定稿后写施工计划,未动代码。**
 
 ---
 
-## 0. 设计原则（五条，字段的取舍全从这里推导）
+## 0. 设计原则(五条,字段取舍全从这里推导)
 
-1. **三层分离**：分母层（被动抽取的形状，"有什么"）/ 结论层（worker 显式上报的语义，"什么是真的"）/ **方向层（"正在做什么/没做完什么"）**。图适合结论层和方向层，不适合分母层——分母是噪声索引，不是知识。
-2. **每个字段必须有一个机械消费者**。没有消费者的字段是死重（v1 审计：conf 半死、provenance 全死）。接线或废弃，二选一。
-3. **worker 写语义，控制器写 bookkeeping**。worker 交 kind/value/confidence（它刚做完实验，分类在信息最全处）；id/round/provenance/ts 由控制器补。
-4. **接力信息在过程中落盘**（发现即落盘的推广）：方向对象工作中途就写文件，被时间盒杀死也不丢——Handoff 从"唯一接力棒"降级为"叙事补充"。
-5. **单向阀不变**：worker 永远不碰 `.at1/`（黑板原始区），只写 workdir 文件；控制器收割入板；worker 读到的永远是渲染投影（prompt 状态区 / STATE.md）。
+1. **两层分家**:写入面(日志)= worker 的 append-only 账本,worker 只写这层;图(协作面)= 知识的唯一事实源,controller 从日志蒸馏。worker 永不直接写图。
+2. **判断权与记录权分离**:关系的判断权在 **worker 声明**(写入时它知道上下文)与**观察者**(全局审视)手里;controller 是记录员 + 机械兜底(endpoint 匹配),不做语义判断。
+3. **每个字段必须有一个实名消费者**。答不出"谁读它"的字段不进 schema(v3 审计砍 6:confidence/source/verified/primary/killed/created_at)。
+4. **节点不删、边不删**:一切消亡都是状态(superseded/dismissed/killed),历史完整,当前态靠视图。
+5. **单向阀不变**:worker 永不碰 `.at1/`(graph 所在地),只写 workdir 账本;一切消费读投影(STATE.md)。
 
 ---
 
 ## 1. 顶层结构总览
 
 ```json
+// .at1/blackboard.json —— 唯一源文件,两节分立
 {
-  "facts":         {"<kind>:<value>": {fact…}},     // 分母层 + 结论层（扁平 dict，保持）
-  "findings":      [{finding…}],                      // 观察者标注后的发现
-  "immune":        [{immune…}],                       // 阴性记录（含置信度）
-  "directions":    [{direction…}],                    // 方向（接力的一等公民）
-  "session_intel": {…},                               // 观察者会话观察
-  "handoff":       "叙事文本（降级）",
-  "goal":          {"stage": "…", "history": […]},
-  "ledger":        {"tried": {…}, "background": […]},
-  "verified":      {"confirmed": n, "tentative": n},  // 派生计数（影子，保留）
-  "config":        {"endpoint_n": 15},
-  "offsets":       {…}                                // 收割记账
+  "graph": {
+    "nodes": [ {intent | finding | fact} ... ],
+    "edges": [ {src, rel, dst, origin, note, round} ... ]
+  },
+  "bookkeeping": {
+    "offsets":   { "facts": n, "findings": n, "directions": n },   // 三账本收割偏移
+    // stage/history 已废(2026-09-17,A12:阶段体系退役,"图就是阶段")
+    "goal":      { "text": "…", "updated_round": n },  // 任务级 goal(S6):人写/控制台中途可改;worker <Stop> 自停锚点
+    "handoff":   "上一轮 worker 交接叙事",
+    "config":    { "endpoint_n": 15 },
+    "intel":     [ { "round": n, "text": "证词" } ]                  // 观察者证词(按轮)
+  }
 }
 ```
 
+**v2 → v3 容器映射**:
+
+| v2 | v3 去向 |
+|---|---|
+| facts[](kind:value 扁平账) | nodes[kind=fact](获得 id/状态/可连边) |
+| findings[] | nodes[kind=finding] |
+| directions[] | nodes[kind=intent] |
+| immune[](存储) | **删除** → 阴性视图(派生,§5) |
+| chains[](边库) | edges[](动词词表更新,§4) |
+| session_intel(观察者输出存储) | **删除** → OBSERVER 直接收割成节点/边/comment |
+| verified(影子计数) | **删除**(check_goal 直数 findings) |
+| ledger.tried/background(分母流水) | **删除**——分母知识不进图,进投影"端点分组"节(controller 从收割元数据渲染) |
+| handoff / goal / config / offsets | bookkeeping 节 |
+
+**报废清单**:被动抽取的四套 kind 正则(_CRED_RXS/_FP_HDR_RX/_KV_RX 等)——fact_kind 取消后无消费者;机械窗口衰减——过期检验移交观察者语义质检(§6 配方 C)。
+
 ---
 
-## 2. 逐对象 Schema
+## 2. 节点公共字段(全部 kind 共有,7 个)
 
-### 2.1 facts（分母层 + 结论层，扁平 dict 保持）
-
-**键**：`"<kind>:<value.lower()[:120]>"`（去重键，同键高置信覆盖——保持现状）
-
-| 字段 | 类型 | 谁写 | 谁读 | 语义 | 状态 |
+| 字段 | 类型 | 谁写 | 谁读 | 语义 | 备注 |
 |---|---|---|---|---|---|
-| kind | str ∈ KINDS | worker（显式）/ 控制器（被动） | 全部机械消费者 | 路由键（§2.1.1） | 保留 |
-| value | str | 同上 | 全部 | 事实内容 | 保留 |
-| confidence | **"observed" \| "inferred"** | worker（显式事实）；被动抽取固定 "observed"（直接看到） | `render`（阴性分档）、DEC-3 决策 | observed=直接看到；inferred=推断。**否定结论默认 inferred**，穷尽手段才 observed | ★ 决策货币（worker 缺省时控制器默认 inferred） |
-| conf | — | — | — | **已物理删除**（09-03 审计裁决：三个活消费全是排序、零决策门；排序改 `(confidence, ts)`） | 删除 |
-| provenance | str | 控制器（"round{n} {tool}: {cmd}" 或 FACTS 的 evidence 字段） | `verify_fact`（重验，v2 接线）；追溯审计 | 这条事实从哪来 | 接线（D3） |
-| round | int | 控制器 | untested 显示"第几轮发现"；时间线 | 产生轮次 | 保留 |
-| ts | str | 控制器 | 排序 (confidence, ts) | 时间戳 | 保留（bookkeeping） |
+| id | str "D-001"/"F-001"/"T-001" | controller(create_node 时按 kind 发) | 全部 | 类型前缀可读;边端点;去重键 | worker 账本自报 id 冲突 → 重编号 `F-R{round}-{orig}`(v2 机制沿用) |
+| kind | str ∈ intent/finding/fact | controller | 状态机分发/渲染/视图 | 节点种类 | |
+| state | str(kind 各自状态机,§3) | controller(按账本/观察者判定迁移) | 判停/视图/渲染 | 生命周期 | 迁移规则见 §3 各表 |
+| endpoint | str(host[:port][/path]) 或 "global" | controller(worker 账本带则透传) | 端点视图/yields·derived_from 兜底匹配 | **一等锚定键**——"这个端点上发生过什么" | 无端点知识标 "global" 旁挂 |
+| origin | str ∈ worker/controller/observer/user | controller(按产出源设) | 渲染(观察者建议标签)/G-1 上限/审计 | 谁产出这个节点 | **吸收 v2 intent.source**(重复字段,已砍) |
+| round | int | controller | 事实新鲜度显示/writeback 表行/审计 | 产生轮次 | 衰减窗口维度的残留消费(§6 配方 C 后仅剩显示+审计) |
+| updated_at | str | controller | M5 显示/调试 | 最后变更时间 | 唯一时间戳(created_at 已砍:round+updated_at 足够) |
 
-#### 2.1.1 KINDS 菜单 v2（7 个，D1 精化①）
+**节点不删**:一切消亡都是状态迁移。
 
-| kind | 层 | 语义 | 主要写者 | 主要消费者 |
+---
+
+## 3. 三种 kind 的 payload 与状态机
+
+### 3.1 intent(方向,接力的一等公民)——payload 4 字段
+
+| 字段 | 类型 | 谁写 | 谁读 | 语义 |
 |---|---|---|---|---|
-| `endpoint` | 分母 | 端点形状 | **被动抽取**（显式也可） | untested 分母、check_goal 计数 |
-| `credential` | 分母 | 凭证形状（AKIA/sk-/JWT/PEM） | 被动抽取 | noreport 实害豁免、渲染 |
-| `kv_secret` | 分母 | KV 秘密形状 | 被动抽取 | 渲染 |
-| `fingerprint` | 分母 | 中间件指纹 | 被动抽取 | hints 路由 |
-| `identity_model` | **结论** | 身份模型结论（engagement 级唯一，重报覆盖） | **worker 显式** | check_goal（identity→exploit 出口） |
-| `business_context` | **结论** | 业务上下文 | **worker 显式** | 观察者 prompt（设计内行为判断） |
-| `unclassified` | 结论兜底 | worker 拿不准 kind 时的落点；**未知 kind 映射到此，不静默丢弃**（D1 精化②） | worker | 渲染（低优先级）、人工复核 |
+| goal | str | worker / 观察者 | 渲染主体/判停 | 方向要达成什么 |
+| note | str | worker(接力笔记)/ 观察者 | 下一轮 worker | 工作笔记:"干到哪/下一步/依赖谁" |
+| comment | str | controller(代写观察者 comment 行) | 下一轮 worker(STATE.md comment 列) | 观察者批注——P-3 介入通道 |
+| blocked_reason | str | worker / 观察者 | 渲染/state=blocked 时必填 | 卡住的機理 |
 
-**D2 定位声明**：分母层四类 = 覆盖度分母 + 盲区兜底（"worker 忘了报的，被动不丢"），**不承担语义权威**；语义结论只认显式层。被动抽取的 confidence 恒 observed（直接看到）。
+**状态机**:`open → in_progress → done / blocked`;`killed` 状态已砍(YAGNI,U-5 落地时再加)。
 
-### 2.2 findings（一处保持 + chain 边字段）
+**状态迁移谁触发**:
+- open → in_progress:worker 账本声明(接手)
+- → done / blocked:worker 账本声明
+- 批注(comment):controller 代写观察者
+- 阴性判定:**不存储**——done 且 yields 边为空 = 阴性(派生视图公式,§5)
+
+### 3.2 finding(发现)——payload 5 字段
+
+**定义(2026-09-16 拍板)**:finding = **一条被验证的攻击断言**("攻击者可以做到 X"),X 是成果不是动作。切分问句:"这是同一个'我能做到 X'吗?" 链完整性检验:"删掉中间任何一步,断言还成立吗?"(不成立=同一条链;成立=独立 finding)。链式 finding 按链的终点定级。
+**产审分离**:worker 写报告(总结验证 + 串 fact 成链,`.auto\reports\`),观察者**审报告**(准确性/业务语境/src标准 对照)——干活的和审查的不能是同一上下文。
+
+| 字段 | 类型 | 谁写 | 谁读 | 语义 |
+|---|---|---|---|---|
+| summary | str | worker(报告标题行) | 渲染/M5/漏洞表 | 发现一句话 |
+| **report** | str | **worker** | **观察者(审查输入)/人工/对账** | 报告指针(`reports/F-xxx.md` 单洞 或 `reports/chain-xxx.md` 链式)——finding 阶段的交付物:漏洞描述/触发条件/攻击动机/实际影响/业务语境判断(对照 src标准)/链路(谱系引用)/严重度评级(引标准原文)/复现要点(引 evidence) |
+| evidence | str | worker | **观察者判定输入/对账** | 证据文件路径(evidence/ 下,原始实现记录) |
+| severity | str ∈ high/medium/low/none | controller(代写观察者审查) | 漏洞表/M5 | 严重度——**观察者按 src标准 条款核定**(worker 可自评,最终以审查为准) |
+| reason | str | controller(代写观察者审查) | 漏洞表/审计 | **审查意见**(含标准条款依据)——非 worker 论证(论证在报告里) |
+
+**状态机**:`proposed → confirmed / dismissed`。
+
+**状态迁移谁触发**:
+- proposed:收割时初始态(worker 交了报告,待审)
+- → confirmed / dismissed:**仅观察者审查报告后**(§6 配方 C)——controller/worker 不可迁移;**已 confirmed 不可翻案**(历史修正走 superseded/人工)
+- dismissed 的两种含义(由 reason 区分):判假(无威胁/业务语境不构成,如"批量读公开评价——信息本身公开可见")/ 判重(并入正主,配 same_root 边,§4 正主规则)
+- **报告晋升**:confirmed 的报告由 controller 从 `.auto\reports\` 晋升人工面 `reports\`(人/M5 消费);dismissed 报告留观察者工作台审计
+
+**v3 砍**:`confidence`——与 state 重复(发现的真伪由状态机回答,衰减不作用于发现);v2 本无此字段,v3 草稿误带,审计砍。
+
+### 3.3 fact(事实/线索)——payload 2 字段
+
+| 字段 | 类型 | 谁写 | 谁读 | 语义 |
+|---|---|---|---|---|
+| value | str | worker | 渲染主键/端点分组 | **可利用的漏洞线索或信息**,紧凑一句话 |
+| evidence | str | worker | 观察者质检输入/追溯 | 细节指针(evidence/ 文件或命令输出) |
+
+**状态机**:`proposed → confirmed / dismissed`;`confirmed → superseded`。
+
+**状态迁移谁触发**:
+- proposed:收割时初始态(worker 写入的线索,未质检)
+- → confirmed / dismissed:**仅观察者轮末质检**(§6 配方 C)——质检员角色:真线索转 confirmed,叙事垃圾/错误线索 dismissed(用户拍板:质量关卡从写入时挪到审查时)
+- confirmed → superseded:收割到矛盾新事实 + 观察者 supersedes 判定(旧事实不删,标被取代)
+- confirmed → dismissed(过时):观察者质检判"已过时且无替代"(无替代时直接 dismissed + reason,替代存在时走 superseded)
+
+**v3 砍**:
+- `fact_kind`(七种分类)——用户拍板取消分类本体;七种词表退役存档:v2 §2.1.1。
+- ~~背景知识(fingerprint/端点存在性/业务上下文)不进图~~ → **准入判据重写(2026-09-17,A13)**:fact = **对攻击真有效的知识**——可利用线索/攻击方向/影响打法定型的认知(身份模型/WAF 指纹/目标画像均入图);**无类别禁区**,质量由两道已有闸把守(worker 写入判断 + 观察者轮末质检 dismissed)。**唯一排除:端点存在性**——收割元数据自动渲染端点分组视图,手写=双记(防重复,非类别禁令)。废除依据:原枚举与设计文档 §四"business_context 旁挂 global"同日自相矛盾,且断绝 skill 路由的指纹燃料(fingerprint 回图,路由改扫全图 fact 值)。
+- `confidence`(observed/inferred)——worker 自报标签砍(最终裁判是观察者,自我申报无必要);机械窗口衰减砍(34/74 窗口偏差,实机证伪);过期检验移交观察者质检(上文)。**v2 的衰减货币退役**;v2 凭证冻结/结论跳过等例外规则随机械衰减一并退役。
+
+---
+
+## 4. 边(关系,记录员模型)
 
 | 字段 | 类型 | 谁写 | 语义 |
 |---|---|---|---|
-| id | str | worker（冲突时控制器重编号 `F-R{r}-{orig}`） | 发现标识 |
-| endpoint / summary | str | worker | 定位 + 一句话定性 |
-| evidence | str | worker（相对 workdir 路径） | 证据文件引用 |
-| round | int | worker/控制器 | 提交轮次 |
-| **chain** | {rel, refs[], note} 可选 | **worker**（发现时最知关联） | **结构化图边**（见下） |
-| assessment | confirmed/likely_false_positive/uncertain/duplicate | **观察者**（noreport 终审类为控制器） | 判定 |
-| severity | high/medium/low/null | 观察者 | 严重度 |
-| reason | str | 观察者/控制器（硬拒格式"硬拒·{cat}：…"） | 判定理由（writeback 硬拒清单按此前缀识别） |
-| evidence_verified | bool | **控制器**（transcript_check 双向对账，C-5 v2） | 证据锚定硬判定：请求路径在账；**参数与响应关键串双侧全空 → false（编造形态）** |
-| param_verified / response_verified | bool，可选 | **控制器**（同上） | 软标记：参数值/响应高信号 token 部分未在账（None=无可对账项）——如实渲染进判官 prompt 加权，不硬杀 |
+| src / dst | 节点 id | controller(按判定记录) | 关系两端 |
+| rel | str,六动词 | — | 关系类型(下表) |
+| origin | str(worker/observer/controller) | controller(按判定源设) | 谁决定的这条关系 |
+| note | str(可选) | 决定者 | 语境 |
+| round | int | controller | 建边轮次 |
 
-**chain 边规格**（ARTEX 边模型适配——worker 传引用，系统拥有词汇表）：
+**边不删、不重写**;same_root/supersedes 的"方向即语义"约定见下表。
 
-```json
-"chain": {"rel": "derived_from", "refs": ["F-001"], "note": "SQL调试页反射，同根因"}
-"chain": {"rel": "combines", "refs": ["F-002", "D-003"], "note": "SSRF+redis凭证=可组合RCE路径，值得试"}
-```
-- **rel ∈ 系统固定枚举**（worker 不发明边类型）：`derived_from`（派生）/ `combines`（可组合）/ `same_root`（同根因）
-- **refs = id 数组**（F-xxx / D-xxx 任意混合）——机器直接连节点（M5 前端画边零解析），多父可表达
-- **note** = 自然语言细节，worker/人读，画边忽略
-- **ingest 校验**（控制器执行）：rel ∉ 枚举 → 降级 note-only（refs 丢弃）；refs 悬空 → 保留，渲染标"（悬空引用）"；**v1 refs 只认 F-/D- 前缀**——facts 无 id，fact→fact 边不做（想连链的观察升格成 finding 或 direction 再连；事后补边走 FACTS 挂 chain / 观察者判重顺产 same_root 两条通道）
-- FACTS 行、DIRECTIONS 行（§2.4）同样支持可选 chain 字段（同规格）
+### 4.1 六动词表
 
-**不变量**：同 id 覆盖（观察者重评更新）；硬拒不可被会话级翻案（方案 A）；chain 随 finding 原样透传观察者不删改。
-
-### 2.3 immune（阴性记录，DEC-3 接线）
-
-| 字段 | 类型 | 谁写 | 语义 | 状态 |
+| rel | 语义 | 方向约定 | **谁决定**(判断) | controller |
 |---|---|---|---|---|
-| endpoint | str | 控制器（403 检测）/ status.md 反向读 | 关了的口子 | 保留 |
-| status | str | 同上 | 结果标记（403/设计内…） | 保留 |
-| since_round | int | 控制器 | 轮次 | 保留 |
-| confidence | "observed"\|"inferred" | worker（经 FACTS）/ 控制器默认（**缺省 inferred**） | **实测关闭 vs 推断关闭** | ★ 同端点重复登记：observed 可升档（inferred→observed），**永不降档** |
+| `sources` | 线索支撑方向(依据/弹药) | T/F → intent | worker 写线索时声明"指向 D-xxx" / 观察者补线 / controller endpoint 兜底(无人声明时) | 记录员 |
+| `yields` | 方向产出了发现/事实 | intent → F/T | worker 交产出时声明 / 观察者补判 | 记录员;无人声明时 endpoint 兜底 |
+| `derived_from` | 本节点派生自某节点(因果谱系) | 新 → 旧 | worker 声明优先 / 观察者补非显然者 | 记录员;同上兜底 |
+| `spawns` | 节点催生了新方向 | F/T → intent | **观察者/用户** | 记录员 |
+| `same_root` | 同根因(**正主 = dst**) | 非正主 → 正主 | **观察者**(连线时标注正主;缺失回退先到优先) | 记录员 + 机械 dismiss 非正主 |
+| `supersedes` | 新事实取代旧事实 | 新 → 旧 | **观察者** | 记录员 |
 
-**渲染语义（DEC-3 落点）**：observed → "实测关闭（重开需材料性新机理）"；inferred → "推断关闭·未穷尽（可低成本重验）"——弱化阻断力，解"轻率否定焊死路线"。
-
-### 2.4 directions（★ 方向层，D5 轻量版）
-
-**为什么**：Handoff 是有损接力，被杀场景（代码合成兜底）连"我本想干什么"都没有——A4/P4.9 漏 idor 的第三层病灶。方向对象让"进行中的工作"成为过程中落盘的一等公民。
-
-| 字段 | 类型 | 谁写 | 语义 |
-|---|---|---|---|
-| id | str | worker（D-001…；冲突重编号同 findings 规则） | 方向标识 |
-| goal | str | worker / 观察者（建议入列，source=observer） | 一句话目标（"用 A/B 对调验证 /api/order/detail idor 读"） |
-| endpoint | str，可选 | worker | 关联端点——**计入 tested 集合，仅 in_progress/blocked/done；open 不计**（还没动手的不算测过，未测面清单必须能看见计划面） |
-| status | open / in_progress / blocked / done | **worker**（编辑 DIRECTIONS 文件更新） | 生命周期 |
-| note | str | worker | 接力上下文：测到哪 / 卡在哪 / 下一步具体做什么 |
-| blocked_reason | str（blocked 时） | worker | 卡住原因（配合 DEC-5 重开标准） |
-| **chain** | {rel, refs[], note} 可选 | worker | 结构化图边，同 §2.2 规格（方向可作为边的起点） |
-| **comment** | str | **driver**（观察者 direction_comments 消费） | 观察者批注（"已blocked两轮建议转向"）；STATE.md 批注列；**worker 整表重写不清除** |
-| source | worker / observer | 写入者 | 来源（渲染带"（观察者建议）"标注） |
-| round | int | 控制器 | 创建/最后更新轮次 |
-
-**生命周期**：worker 开工先读 open/blocked 方向 → 接着干（in_progress）→ done（写结论进 FACTS/FINDINGS）或 blocked（写 reason）。观察者每轮的建议自动追加 source=observer 的 open 方向（**每轮截断 3 条**，见 §2.5）。**合并语义（upsert 不删除）**：DIRECTIONS 文件是 worker 眼中的当前状态，driver 轮末按 id 全量合并——worker 文件的 status/内容优先；observer 方向不被 worker 碰则保留；comment 字段由控制器维护，worker 重写不清除；**worker 文件漏抄的方向一律保留**（黑板是累积真值，退役只能显式 status=done/blocked）。
-
-**渲染位置与排序**：prompt 状态区**方向层置顶**（G-2：source 标注 + "探不探你定"段头 + DIRECTIONS_CAP=12 超限降计数行）+ 指令行计数 + STATE.md 全文。置顶排序 **in_progress 最先**（干到一半的接力价值最高）→ open → blocked；render_summary 待接列表同序（cap 8，**必含 in_progress**）。
-
-### 2.5 session_intel / handoff / goal / ledger / verified / config / offsets
-
-| 对象 | 变化 |
-|---|---|
-| session_intel | **观察者 v2（决策 G）**——原五字段基础上：① 加 **`chains: [{rel, refs, note}]`**（与 worker 的 chain 同形状；duplicate 判定顺产 same_root 边）② 加 **`direction_comments`**（方向治理，原 suggestions 并入：带 id=对既有方向批注；带 goal=建议新方向，**解析端每轮截断 3 条**）③ 加 **`immune_reviews`**（否定复核：只留 retest，endorse 改值权已砍——谁实测谁标 observed，观察者不进环境无实测权）。**输入扩展**：session prompt 加 directions 全表+已有 chains。**原则不变**：无工具/轮间/建议不指挥/不关闭方向（关闭权在 worker）。`notable_attempts` 接消费者（STATE.md"接近成功的尝试"段）。`coverage_gaps`/`effective_patterns` 当前无渲染消费者——留观察者迭代时处理（G-4 已知事项） |
-| handoff | **降级**：只写叙事总结（已完成概览/关键判断），"未竟"段废弃（directions 接管）；旧格式"未竟"段 driver best-effort 提为 directions；被杀时合成兜底照旧（它的缺陷由 directions 补） |
-| goal | 不变（stage/history + 轮次兜底） |
-| ledger | 不变（tried 计数 / background） |
-| verified | 保持派生影子（由 findings 计数） |
-| offsets | 保持（findings_ids_map / facts）；directions 合并为 id 全量 upsert，**免 offset 记账** |
+**拒绝泛化 `related`**(Cairn/ARTEX 同款立场):"有关联"是零信息量关系——任何两节点都能扯上关系。关联的三种真实形态:共同支撑(sources)、因果谱系(derived_from)、同端点共位(端点分组隐式表达,不需要边)。
 
 ---
 
-## 3. 生产端契约（worker 写什么文件、什么格式、什么纪律）
+## 5. 派生视图(零存储,查询时现算)
 
-### 3.1 FINDINGS（不变 + DEC-4 纪律）
-
-```json
-{"id":"F-001","endpoint":"/search","evidence":"evidence/sql-test.md","summary":"单引号返回SQL报错","round":1,"chain":{"rel":"derived_from","refs":["F-004"],"note":"同调试页"}}
-```
-纪律（DEC-4 上报门槛，C-1）：只有**真实触发过**、拿到可复现证据才写；版本/CVE 匹配、"看起来可注入"、漏洞库推断**不算**——触发不了的嫌疑写 FACTS（confidence=inferred）。
-
-### 3.2 FACTS（D1-B 契约）
-
-```json
-{"kind":"identity_model","value":"身份靠 httpOnly cticket 派生，客户端 userId 注入被忽略","confidence":"observed","evidence":"evidence/identity-tests.md"}
-{"kind":"business_context","value":"电商平台，订单手机号是敏感数据","confidence":"observed","evidence":"首页"}
-{"kind":"unclassified","value":"https://cdn.example.com/config.json 里有内部端点列表","confidence":"inferred","evidence":"curl 输出"}
-```
-纪律：
-- kind 从 7 个菜单选，**拿不准用 unclassified**（不许发明新 kind；未知 kind 控制器映射到 unclassified，不丢弃）；**缺 confidence 时控制器默认 inferred**
-- **增量纪律**（ARTEX/Cairn 双印证）：写之前扫一眼状态区/STATE.md 已有事实，只写新结论，不换措辞重记
-- **否定结论门槛**（DEC-3）：手段没穷尽（换编码/参数/路径/方法）一律 confidence=inferred；宁可 inferred 让系统复核，不用轻率 observed 焊死路线
-- **即时写**（DEC-8）：得出结论立刻写，别攒到会话末——被杀即丢
-- 可选 `chain` 字段（§2.2 同规格）
-
-### 3.3 DIRECTIONS（★）
-
-```json
-{"id":"D-001","goal":"验证 /api/order/detail idor 读","endpoint":"/api/order/detail","status":"in_progress","note":"双账号已拿到(cookies.txt)；B 的订单 id=8823；下一步：换 A 的 cookie 重放看手机号是否还在","round":1}
-{"id":"D-002","goal":"admin 面写入验证读回","endpoint":"/admin/config/update","status":"blocked","blocked_reason":"写接口需要 X-CSRF 头，未找到获取方式","round":2}
-```
-纪律：
-- 开工先读：**接手上轮 open/blocked 的方向**（接力第一优先级，高于开新方向）；**方向表是你的工具不是派工单**——关闭/转向/无视由你定（观察者建议带"（观察者建议）"标注，探不探你定）
-- 开始一个方向前写一行 status=in_progress；做完改 done（结论另写 FACTS/FINDINGS）；卡住改 blocked + reason
-- blocked 的重开标准（DEC-5）：只有材料性新机理（新发现/新入口/新参数/明显不同构造）才重开，note 里说清"这次和上次不同在哪"
-- 文件小，重写整文件更新状态即可；可选 chain 字段（§2.2 同规格）
-
-### 3.4 其它 workdir 文件（不变）
-
-evidence/（白话+请求响应原文；中间产物一律写 workdir 不写 /tmp——DEC-6）、cookies.txt、`../state/log.jsonl` 记账。
-
----
-
-## 4. 消费端契约（谁读什么）
-
-| 消费者 | 读 | 用途 |
+| 视图 | 公式 | 消费者 |
 |---|---|---|
-| `check_goal` | facts(kind=endpoint/fingerprint/identity_model 计数)、findings(assessment) | 阶段推进 + 轮次兜底（不变量⑦） |
-| `untested_surface` | facts(endpoint) − **tested 集合** | DEC-2 计数 + STATE.md 清单。**tested = findings 端点 ∪ immune 端点 ∪ directions 端点（仅 in_progress/blocked/done）** |
-| `render` / STATE.md 投影 | facts（按层分优先级）、immune（按 confidence 分档）、directions（置顶 open/in_progress/blocked + comment 列）、findings 标注（含 chain）、session_intel | DEC-9：摘要进 prompt，全文进 `.auto/STATE.md` |
-| `plan_directive` | untested 计数、directions open 计数 | DEC-2："未测面 N 个；进行中方向 M 个" |
-| 观察者 | business_context、findings、evidence、**directions 全表 + 已有 chains**、黑板摘要 | 判定 + 三件套输出（§2.5） |
-| `noreport` | finding + evidence | reject/suspect/pass（不变量⑨） |
-| `transcript_check` | evidence 锚点 | evidence_verified |
-| `writeback` | confirmed findings、immune | status.md 表尾追加 / prior-intel-draft（含硬拒清单） |
-| `verify_fact`（v2 接线） | provenance | 事实重验/追溯（confidence 规则：未复现 observed→inferred；凭证 provenance 冻结） |
+| **阴性视图** | `intent.state=done 且 yields 边为空` ∪ `finding.state=dismissed 且 reason 含攻击路径` | 下一轮 worker("别再试")/ 观察者(immune_reviews 替代:建议 retest 只针对 confirmed 态的推断项) |
+| **端点视图** | group by endpoint | 谱系渲染/观察者同端点历史语境/未测面统计 |
+| **谱系视图** | 每节点 parentsOf(指入边源)+ yieldsOf(指出边目标) | STATE.md 谱系节/观察者投影/M5 |
+| **未测面视图** | 出现过的 endpoint − 有 intent/finding 覆盖的 endpoint | prompt 摘要(路标)/判停分母 |
 
 ---
 
-## 5. 渲染优先级 v2（三层替代原单列表）
+## 6. 写图操作(三原子操作 + 三配方 + 六不变量)
 
-```
-① 方向层（置顶）：open/in_progress/blocked directions（source 标注 + comment 列 + chain 标注）
-   + 段头"方向是接力上下文不是命令——接手优先于开新方向，关闭/转向/无视你定"
-② 结论层：identity_model > business_context > findings 标注 > 阴性记录（observed 在前，inferred 弱化）
-③ 分母层：credential > kv_secret > endpoint > fingerprint（cap 裁剪只发生在这层）
-```
+### 6.1 原子操作(controller 独占调用权)
 
-### 5.1 STATE.md 投影格式（E-1：图层 YAML + 其余 markdown）
-
-**三视图模型**（同一份图的三个视图）：`DIRECTIONS 文件` = worker 眼中的图（自己维护的工作状态）；`STATE.md` = 系统投影的图（driver 每轮覆盖写，轮内篡改活不过轮界）；`_blackboard.json` = 存储的图（M5 前端读它画图）。
-
-```
-STATE.md 结构:
-  ## 方向与图（YAML 块——Cairn 式，id 可见/边自然表达；nonce 包裹）
-  ```yaml
-  directions:
-    - {id: D-001, status: in_progress, endpoint: /api/order/detail, goal: 验证idor读, note: ...}
-    - {id: D-002, status: blocked, endpoint: /admin/config/update, blocked: 需X-CSRF头,
-       source: 观察者建议, comment: 已blocked两轮, chain: "combines F-002"}
-  findings:
-    - {id: F-001, sev: high, endpoint: /search, chain: "derived_from F-004 (调试页反射)"}
-  chains:
-    - {rel: combines, refs: [F-002, D-003], note: SSRF+redis凭证=RCE路径}
-  ```
-  ## 阴性记录（分档）/ 事实清单 / 接近成功的尝试（notable_attempts）/ 观察者批注（markdown）
+```python
+create_node(kind, payload, endpoint, origin, round) -> id   # 按 kind 发 id
+update_node(id, state=?, payload_patch=?, comment=?)        # 状态迁移/批注
+add_edge(src, rel, dst, origin, note=?, round)              # 建边((src,rel,dst) 去重)
 ```
 
-为什么图层 YAML、分母层不进 YAML：① chain 引用契约要求 worker **看到** F-xxx/D-xxx（YAML 里 id 是一等列）；② 引用/边在 YAML 自然表达；③ 图层小（策展层）不膨胀，分母层（endpoint×50）进 YAML 是灾难。nonce 包裹策略与现 markdown 段一致。
+**谁调用**:仅 controller。worker/观察者通过账本/OBSERVER 间接表达意愿,controller 代写。
 
----
+### 6.2 三配方(写图时机)
 
-## 6. v1 → v2 迁移
-
-| 项 | 迁移规则 |
+**配方 0:run 启动播种**(开跑前一次)
+| 来源 | 操作 |
 |---|---|
-| conf float | **加载时读旧值推断 confidence（≥0.8→observed、否则→inferred）后丢弃浮点——物理删除，不保留** |
-| 免疫记录 | 无 confidence 的旧记录 → inferred（保守：可重验） |
-| directions | 空表起步；首轮 CLAUDE.md 教学后 worker 自然开始写 |
-| KINDS | 加 unclassified；旧板无需动（无该 kind 的 facts 就是不存在） |
-| handoff | 旧格式仍可解析（"未竟"段若有，driver 尝试提为 directions——best effort，不强求） |
+| prior-intel 情报条目(种子文件,人写节点 JSON) | create_node(fact, confirmed, origin=user) |
+| status.md 漏洞表(人拍板) | create_node(finding, confirmed, origin=user) |
 
----
-
-## 7. 本定稿吸收的决策映射
-
-| 决策 | 落在 |
+**配方 1:轮末收割**(worker 日志蒸馏,每轮一次)
+| 账本 | 操作 |
 |---|---|
-| D1（B+三精化） | §2.1.1 菜单 + §3.2 契约 + ingest 映射 |
-| D2（被动=分母） | §2.1.1 分层声明 |
-| D3（字段接线） | §2.1 confidence/provenance + §2.3 + §4 消费表 |
-| D5 轻量版（directions） | §2.4 + §3.3 |
-| chain 结构化边（09-03 升级） | §2.2 + §2.4（directions.chain，A 附注1）+ §2.5 + §5.1 |
-| DEC-2/3/4/5/6/8 | §3.1/3.2/3.3 纪律 + §4 |
-| DEC-9（STATE.md） | §4 渲染行 + §5.1 |
-| 09-03 审计裁决 Q1/Q2/Q3 | notable_attempts 接消费者（§2.5）/ conf 删除（§2.1/§6）/ immune_reviews 砍 endorse（§2.5） |
-| 2026-09-04 拍板附注 | A-1/2/3（§2.2/§2.4）、B-1/2（§2.1/§2.3/§6）、G-1/2（§2.4/§2.5/§5.1） |
+| FINDINGS 新行 | create_node(finding, proposed) → report 指针透传 payload → worker chain 声明照抄 add_edge → 无人声明则 endpoint 兜底 yields |
+| FACTS 新行 | create_node(fact, proposed) → evidence 透传 → worker chain 声明照抄 |
+| ~~DIRECTIONS 新行/变更~~ | **已废(A17③)**:worker 不再写方向账本,intent 由观察者 intent 行经配方2 创建 |
+| HANDOFF / STOP 抽取 | `<Handoff>` → bookkeeping.handoff(读者=观察者,A19);grep `<Stop>`(达成须引 F-xxx,不引无效)→ TERMINAL(A18) |
+
+**配方 2:观察者收割**(OBSERVER 判断书 → 图,观察者会话后一次;verdict = 对 worker 报告的审查结论)
+| OBSERVER 行 | 操作 |
+|---|---|
+| verdict | update_node(finding: proposed→confirmed/dismissed + severity/reason)——severity/reason 为**审查意见**(对照 src标准),worker 论证在报告 |
+| edge(same_root) | add_edge + update_node(非正主 → dismissed,"并入正主") |
+| edge(supersedes) | update_node(旧 fact → superseded) + add_edge |
+| comment | update_node(intent.comment) |
+| intent | create_node(intent, open, origin=observer) + add_edge(spawns) |
+| intel | bookkeeping.intel 追加 |
+| **报告晋升** | confirmed 的报告由 controller 从 `.auto\reports\` 晋升人工面 `reports\` |
+
+**0-finding 轮**:配方 2 只跑 intel/comment/intent 行——观察者每轮必跑(轮间质检不与发现死绑)。
+
+### 6.3 六不变量(违反即 bug)
+
+1. worker/观察者永不直接调用三操作——只通过账本/OBSERVER 间接表达,controller 代写(每次写带 round+origin,可审计)
+2. 节点不删、边不删——一切消亡都是状态
+3. 观察者 verdict 仅作用于 **proposed**——confirmed 不可被 LLM 翻案(历史修正走 superseded/人工)
+4. 兜底只在无人声明时——声明的关系永远优先于 endpoint 机械匹配
+5. 去重:node 按 (kind, endpoint, 归一化内容);edge 按 (src, rel, dst)
+6. worker 自报 id 与图冲突 → 重编号 `F-R{round}-{orig}`
 
 ---
 
-## 8. 明确不进 v2（推迟/不做，防过度设计）
+## 7. OBSERVER 行契约(Q-2 定稿)
 
-| 项 | 理由 | 归宿 |
+观察者输出 `.observer/OBSERVER`,JSONL,**七类行**(A17/A19 增 guide);controller 收割器机械执行,格式非法行进隔离区并记 `observer_parse_fail` 事件。**verdict = 对 worker 报告的审查结论**(产审分离:worker 写报告,观察者审查;判定材料 = 报告 + evidence + 图投影 + src标准 按业务路由)。
+
+```json
+{"t":"verdict", "id":"F-002", "state":"confirmed", "severity":"high", "reason":"_catalog 匿名可达,按通用 SRC 标准=高危;业务语境无减损"}
+{"t":"verdict", "id":"F-003", "state":"dismissed", "reason":"批量读公开评价——信息本身公开可见,按 XX 标准 X 条不构成漏洞"}
+{"t":"edge",    "rel":"same_root",  "src":"F-004", "dst":"F-002", "primary":"F-002", "note":"同端点同根因"}
+{"t":"edge",    "rel":"supersedes", "src":"T-009", "dst":"T-003", "note":"9月实测取代4月情报"}
+{"t":"comment", "id":"D-002", "text":"已blocked两轮无新机理,建议转向"}
+{"t":"intent",  "goal":"拉取 k8s 基建镜像层挖凭证", "endpoint":"...:5000", "note":"从 F-001 延伸", "from":"F-001"}
+{"t":"intel",   "text":"5000 的 Registry 是全局最大突破口"}
+{"t":"guide",   "text":"主攻 /user/findpwd 验证码复用验证(T-012);备选:附件面(D-008);自由探索照常——新线索追到 fact 级"}
+```
+
+- `primary` 字段:正主 id(拍板2=B);收割器校验 primary ∈ {src,dst},缺失/非法 → 回退先到优先(confirmed 最早者)。
+- `intent.from`:spawns 边的源节点(可选;缺省无 spawns 边)。
+- `intel` 必填:缺失 → 收割器记警告事件(不阻塞,但质检报告可见)。
+- `guide` 行(A17):下一轮 worker 的引导 prompt 全文,controller 机械注入 stdin 开场块;**引用图内容只节点 id+转述,禁贴目标响应原文(A19——stdin 零目标文本的保证)**;形态=主攻+备选次序+自由探索许可。
+- noreport 硬拒条目:verdict 不受理(维持 v2 代码检察官原则),收割器直接 dismissed。
+- **src标准 路由**:观察手册规定"按 mission 业务类型选标准文件 + Grep 关键节",不全量读;覆盖不到的业务退化到四步影响框架(有则参照,无则不拒判)。
+
+---
+
+## 8. 投影 STATE.md(唯一投影,一轮两刷)
+
+| 节 | 内容 | 数据源 |
 |---|---|---|
-| from_/derived_from 边（图结构） | provenance 字段已覆盖追溯；边是查询增强 | v2 图化（§9） |
-| domain→site→endpoint 层级 | 子串匹配缺陷用 directions.endpoint + 精确归一化缓解 | v2 图化 |
-| facts 加 id（fact→fact 边） | 无边就不需要节点 id（键即身份）；联系升格 finding/direction 再连 | v2 图化 |
-| KINDS 扩 subdomain/service/port | 分母层 endpoint 够用 | 需要时再加（走 unclassified 过渡） |
-| conf 由 worker 写浮点 | 人因风险（worker 乱填），改 confidence 二值枚举 | 已定：枚举 |
+| 任务概要 | **goal 文本(S6)** + mission 精要 + 人类已确认发现(漏洞表) | bookkeeping.goal + engagement.json + status.md |
+| 方向谱系 | 每方向:状态 + parentsOf + yieldsOf + comment(观察者批注列) | 谱系视图 |
+| 阴性视图 | 两列表:死因(done 无产出 reason / dismissed reason)| 阴性视图 |
+| 端点分组 | group by endpoint:该端点上的方向/发现/事实一览 | 端点视图 |
+| 全局认知 | identity_model / **目标画像**(前缀"目标画像:"全图唯一,更新=追加新版+旧版走 supersedes,A14) / global 桶 | nodes(endpoint=global) |
+| worker 本轮报告 | Handoff 原文 | bookkeeping.handoff |
+
+- **双读者**:worker(执行手册:重点读方向谱系+阴性)/ 观察者(观察手册:重点读新发现+谱系连线)——各手册写明重点节。
+- **一轮两刷**:配方 1 后刷第一版(观察者读,含 proposed 态新发现)→ 配方 2 后刷第二版(下一轮 worker 读,含 verdict/批注)。
+- **防注入**:六节全部 untrusted nonce 包裹(v2 机制沿用)。
+- **不受目录地理影响**:投影从 blackboard.json 渲染,来源唯一。
 
 ---
 
-## 9. 图的第一消费者：M5 前端图视图 + v2 并发升级路径
+## 9. v2→v3 概念映射速查
 
-**M5 图视图**（前端控制台必须有，参照 ARTEX"探索链路"力导向图）：
-
-| 图要素 | 数据（本 schema 已齐） |
+| v2 概念 | v3 归宿 |
 |---|---|
-| 节点 | findings（id + severity 着色）、directions（id + status 着色：open/blocked/done）、endpoint facts（未测面暗色） |
-| 边 | **chain 的 rel 为边类型（分色：derived_from/combines/same_root）、refs 为边两端**；direction.endpoint 为节点→资产锚 |
-| 数据通道 | 工作台直接读 `_blackboard.json`（JSON 原生），与 YAML 图层共用同一节点/边模型 |
-
-**A 块落地后数据即齐，M5 不需要等 v2 全图化。**
-
-**v2 并发升级路径**（scheduler 触发时的迁移预告）：
-
-directions 天然前向兼容：并发时代它升级为可认领 intent（加 claim/heartbeat/concluded 字段——Cairn 模式）；facts/findings 加 id 与边表（**chain 结构 → exploration_edges 同款 (src, rel, dst) 表，机械迁移**；provenance → 来源边）；分母层保持扁平索引不图化。**现在做的所有字段都为此留了门。**
+| facts 账本(分母+结论) | 写入面不变;图侧 = fact 节点(可利用线索)+ 投影端点分组节(背景) |
+| immune 阴性清单 | 阴性视图(派生) |
+| chains 边库 | edges[](动词表更新:same_root/supersedes/derived_from 保留,+sources/yields/spawns) |
+| confidence(observed/inferred) | 删除(worker 自报砍 + 机械衰减砍)→ 过期检验 = 观察者质检 |
+| session_intel | OBSERVER 直接收割 |
+| 被动抽取四正则 | 报废(分母知识进投影端点分组节) |
+| verified 影子计数 | 删除(check_goal 直数) |
+| intent.source | node.origin 吸收 |
+| 试探性 STATE.md 渲染 | 谱系渲染(§8) |
 
 ---
 
-*晋升记录：v2.1（2026-09-04）由 phase4-黑板schema.md v2 晋升，按决策板拍板附注同步四处（conf 删除/directions.chain/tested 语义/G 渲染细节）。施工执行：`phase5-落地施工单.md`。*
-*v2.1.1（2026-09-04）：施工期实施细则回写四处——immune 升档规则（observed 可升永不降）/directions 合并 upsert 不删除（漏抄保留）/渲染排序（in_progress 最先+DIRECTIONS_CAP=12+summary 待接含 in_progress）/offsets 免 directions 记账。契约=代码核对基准：实跑字段集与 §2 字段表逐一一致。*
+## 10. SQL 触发条件(挂起,非本 schema 范围)
+
+存储保持文件(blackboard.json)。以下任一条件发生 → 图与 runs 入 SQLite(nodes/edges/runs/events 四表,ARTEX/Cairn 同构):多 run 真并行 / M5 出现文件扫不动的跨 run 查询 / 单图节点数大到 JSON 全量加载卡顿。
