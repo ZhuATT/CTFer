@@ -288,3 +288,42 @@ add_edge(src, rel, dst, origin, note=?, round)              # 建边((src,rel,ds
 ## 10. SQL 触发条件(挂起,非本 schema 范围)
 
 存储保持文件(blackboard.json)。以下任一条件发生 → 图与 runs 入 SQLite(nodes/edges/runs/events 四表,ARTEX/Cairn 同构):多 run 真并行 / M5 出现文件扫不动的跨 run 查询 / 单图节点数大到 JSON 全量加载卡顿。
+
+---
+
+## 11. engagement.json 契约(开工配置——独立文件,非黑板结构;归档于此因同属开工期契约)
+
+> **性质**:engagement.json 是**任务委托书**——开工前人填(UI 时代=前端表单),写完冻结,系统只读。与黑板(blackboard.json)生命周期相反:委托书静态、黑板每轮生长。结构权威=本节+`scaffold.load_engagement`(两者同 commit 改)。
+> **知识归图,不归这里**:背景情报→`notes/prior-intel.md`(配方 0 播种进图);完成标准→`goal`(播种进 bookkeeping,STATE.md 轮轮投影);静态注意事项→`hint`。本文件不再有 mission 字段(已裁 09-19:与图重合)。
+
+```json
+{
+  "target": "172.20.9.26（fresh.usc.edu.cn，内网地址公网侧可达）",
+  "date": "2026-09-14",
+  "goal": "拿到一个可确认的未授权访问",
+  "hint": "证书自签，curl 记得 -k",
+  "scope": {
+    "allow": ["172.20.9.26", "fresh.usc.edu.cn"],
+    "deny": []
+  },
+  "skills_src": "D:\\Downloads\\hacker\\.claude\\skills",
+  "credentials": {
+    "storage_state": "relative/or/absolute/path.json"
+  }
+}
+```
+
+| 字段 | 必填 | 类型 | 谁读 | 语义 |
+|---|---|---|---|---|
+| target | **是**(缺/空→拒启) | str | 手册{target}槽/guard | 打谁 |
+| goal | **是**(缺/空→拒启) | str | 启动播种 bookkeeping.goal(**仅 goal 空时;续跑不覆盖**)/STATE 任务概要轮轮投影/<Stop>达成锚点 | **完成标准,一句可判定的话**("拿到 X"——出现确认 F-xxx 即达成);别写不可判定的("测透") |
+| hint | **字段必填**(值可空串=无指示) | str | 手册{hint}槽(空渲染"（无）"),每轮在场 | 开工静态指示——开局就该知道的事(区别于 hints 队列=跑后插话) |
+| scope | 否(缺→不拒启,guard 目标拦截停用,禁区/自毁护栏保留,记 scope_missing 警告;生产建议始终填) | {allow[],deny[]} | guard 拦截 | 授权边界——UI 时代由前端负责边界交互 |
+| date | 否 | str | 审计 | 委托日期 |
+| skills_src | 否(缺→AT1_SKILLS_SRC env 兜底,再缺→无 skills) | path | scaffold 拷进 .auto/.claude/skills | 攻击方法论库来源 |
+| credentials.storage_state | 否 | path | scaffold 拷成 .auto/storage-state.json | 登录态(有鉴权目标时) |
+
+- **知识/目标/注意事项三分流**(已裁 09-19):情报写 prior-intel(进图)、完成标准写 goal(进簿记+投影)、静态须知写 hint(进手册)——engagement.json 不存知识(mission 字段废除,防与图重合)。
+- **goal 播种规矩**:仅 bookkeeping.goal 为空时播(首跑);goal-set 改过的目标不被 engagement 覆盖(A24:中途可改)。
+- **fail-fast 三件**(09-19 拍板:target/goal/hint 必填):target 空/goal 空/缺 hint 字段 → 拒启。旧委托书(usc-fresh)缺此二字段,复测前需补写(不做自动兼容,Q-7)。
+- **scope 可选的代价**(明示):无 allow 时 worker 对任意目标自由行动(仅剩禁区/自毁护栏)——单操作者可接受,UI 层负责引导填边界。

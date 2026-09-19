@@ -1,34 +1,33 @@
-"""AT1 prompt —— 每轮 stdin 渲染（批 1 残版；三块终态=引导/运行提示/简报，T4.1/P4）。
+"""AT1 prompt —— 每轮 stdin 三块终态（汇编 §二；T4.1/T4.3 定稿）。
 
-v3 已砍：序言(A6)/阶段手册(A12)/指令(A15)/plan_directive(A15)/交接段(A19——
-Handoff 住 STATE.md 不进 stdin)/重复命令告警(A20)/后台任务块(A21)。
-保留：紧凑摘要（board.summarize，四视图现算）/路由提示（全图 fact 值扫描，S4——
-不再按 kind=fingerprint 查）/人工指示。防注入唯一战线=STATE.md（A19/A20）。
+【引导】观察者 guide 原文（bookkeeping.guide，批 2 收割落簿记；块缺席=无事）——
+**是建议不是命令**（worker 手册 §1 同款教学）。
+【运行提示】人工指示独占（hints 队列聚合/CONTROL directive；空则整块消失，N3-2）。
+【简报】轮次/预算/时间盒/身份 + 判层指路——常驻。
+
+已死段不再出现：序言(A6)/阶段手册(A12)/指令(A15)/状态摘要(A16)/交接(A19)/
+重复命令告警(A20)/后台任务块(A21)/路由提示(09-19 裁：A7 原生发现，关键词表取消)。
+防注入唯一战线=STATE.md（A19/A20）。
 """
 
 from __future__ import annotations
 
 from typing import Optional
 
-# 路由提示（A7/S4：燃料=全图 fact 值扫描；命中措辞 T4.2 改直接指令式）
-_HINT_ROUTES = (
-    ("spring|java|tomcat|jboss", "Java 系中间件 → 加载 injection-sqli / injection-deser skill"),
-    ("php", "PHP → 加载 crypto-attacks（松散比较）/ injection-xss skill"),
-    ("node|express", "Node → 加载 injection-deser（原型污染）/ api-all skill"),
-    ("nginx", "nginx 反代 → 加载 web-advanced（缓存/绕过）skill"),
-    ("asp|\\.net|iis", ".NET → 加载 injection-deser（ViewState）/ auth-token skill"),
-)
-
-_SEGMENT_MARKS = ("【状态摘要】", "【提示】", "【人工指示】")
+_SEGMENT_MARKS = ("【引导】", "【运行提示】", "【简报】")
 
 
-def render_round_prompt(board, directive: Optional[str] = None, *, round_: int = 0) -> str:
-    """批 1 残版：摘要 + 路由提示 + 人工指示。确定性：同黑板两次调用逐字节相同。"""
+def render_round_prompt(board, directive: Optional[str] = None, *,
+                        round_: int = 0, brief: str = "") -> str:
+    """stdin 三块装配。guide/directive 缺席各自整块消失；简报常驻。
+    brief 正文由 driver 组装（预算/时间盒/身份是运行期数据），本函数只加块壳
+    与判层指路。确定性：同输入两次调用逐字节相同。"""
     segs: list[str] = []
-    segs.append(board.summarize(round_=round_))
-    fp_text = " ".join(board.fact_values()).lower()
-    hints = [txt for pat, txt in _HINT_ROUTES
-             if any(k.lower() in fp_text for k in pat.split("|"))]
-    segs.append("\n".join(f"- {h}" for h in hints) if hints else "（暂无路由提示）")
-    segs.append(directive if directive else "（无）")
-    return "\n\n".join(f"{mark}\n{seg}" for mark, seg in zip(_SEGMENT_MARKS, segs))
+    guide = (board.bookkeeping.get("guide") or {}).get("text", "").strip()
+    if guide:
+        segs.append(f"【引导】\n{guide}")
+    if directive:
+        segs.append(f"【运行提示】\n{directive}")
+    tail = "判层规则见 CLAUDE.md §2，输出格式见 FORMATS.md——写盘前必读。"
+    segs.append(f"【简报】\n{(brief or f'第 {round_} 轮').strip()}\n{tail}")
+    return "\n\n".join(segs)

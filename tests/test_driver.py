@@ -14,6 +14,7 @@ def _mk_engagement(root: Path, *, target="https://example.com", allow=None, deny
     (root / "notes").mkdir(parents=True, exist_ok=True)
     (root / "engagement.json").write_text(json.dumps({
         "target": target, "mission": "测试", "date": "2026-08-30",
+        "goal": "拿到一个可确认的未授权访问", "hint": "",
         "scope": {"allow": allow or ["example.com"], "deny": deny or []},
         "credentials": {},
     }), encoding="utf-8")
@@ -66,7 +67,7 @@ def _env(monkeypatch):
     monkeypatch.setenv("AT1_API_KEY", "sk-test-1234567890")
 
 
-def test_failfast_missing_pieces(tmp_path):
+def test_failfast_missing_pieces(tmp_path, monkeypatch):
     # 无 engagement.json
     assert driver_mod.run_engagement(str(tmp_path)) == 2
     # 有 engagement 但缺 status.md
@@ -74,14 +75,23 @@ def test_failfast_missing_pieces(tmp_path):
         json.dumps({"target": "https://x.com", "mission": "m",
                     "scope": {"allow": ["x.com"], "deny": []}}), encoding="utf-8")
     assert driver_mod.run_engagement(str(tmp_path)) == 2
-    # scope.allow 空
+    # scope.allow 空 → 不再拒启（§11 scope 可选化）；mock runner 防 spawn，验 scope_missing 事件
     (tmp_path / "state").mkdir()
     (tmp_path / "state" / "status.md").write_text("## 漏洞表\n", encoding="utf-8")
     (tmp_path / "notes").mkdir()
     (tmp_path / "notes" / "prior-intel.md").write_text("x", encoding="utf-8")
     (tmp_path / "engagement.json").write_text(
-        json.dumps({"target": "https://x.com", "scope": {"allow": []}}), encoding="utf-8")
-    assert driver_mod.run_engagement(str(tmp_path)) == 2
+        json.dumps({"target": "https://x.com", "goal": "拿到确认漏洞", "hint": "",
+                    "scope": {"allow": []}}), encoding="utf-8")
+    fake = FakeRunner([(_res(), [], {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=60, max_rounds=1,
+                                   observer_on=False)
+    assert rc == 0 and len(fake.calls) == 1
+    evs = [json.loads(l) for l in
+           (tmp_path / "state" / "auto-log.jsonl").read_text(encoding="utf-8").splitlines()
+           if l.strip()]
+    assert any(e["type"] == "scope_missing" for e in evs)
 
 
 def test_two_rounds_confirmed_flow(tmp_path, monkeypatch):
@@ -127,8 +137,10 @@ def test_two_rounds_confirmed_flow(tmp_path, monkeypatch):
     assert "F-001" in st
     # prior-intel-draft 生成
     assert (tmp_path / "notes" / "prior-intel-draft.md").is_file()
-    # 轮 2 prompt 含已确认发现段（render 的确认渲染）
-    assert "已确认发现" in fake.calls[1]["prompt"]
+    # 轮 2 prompt 三块终态（A16：摘要死——已确认发现在 STATE.md，不进 stdin）
+    p2 = fake.calls[1]["prompt"]
+    assert "【简报】" in p2 and "已确认发现" not in p2
+    assert "【引导】" not in p2                       # 观察者未产出 guide（P5 前）
 
 
 def test_control_stop_between_rounds(tmp_path, monkeypatch):
@@ -208,8 +220,8 @@ def test_dry_run_renders_prompt(tmp_path):
     p = tmp_path / "state" / "dry-run-prompt.md"
     assert p.is_file()
     txt = p.read_text(encoding="utf-8")
-    assert "【状态摘要】" in txt and "【人工指示】" in txt
-    assert "任务简报" in txt and "example.com" in txt
+    assert "【简报】" in txt and "example.com" in txt
+    assert "【简报】" in txt and "example.com" in txt
 
 
 def test_harvest_findings_id_dedup_across_rewrites_and_variants(tmp_path):
@@ -288,7 +300,7 @@ def test_dry_run_writes_state_md(tmp_path, monkeypatch):
     import json as _json
     from src import driver as drv
     (tmp_path / "engagement.json").write_text(_json.dumps({
-        "target": "https://example.com", "mission": "m",
+        "target": "https://example.com", "mission": "m", "goal": "拿到确认漏洞", "hint": "",
         "scope": {"allow": ["example.com"]}}), encoding="utf-8")
     (tmp_path / "state").mkdir()
     (tmp_path / "state" / "status.md").write_text("# v\n", encoding="utf-8")
@@ -382,10 +394,10 @@ def test_full_loop_harvest_governance_state_projection(tmp_path, monkeypatch):
     assert any(n["payload"]["value"] == "电商平台，评价公开可见"
                for n in bb.nodes("fact"))                            # FACTS → fact 节点
     assert bb.bookkeeping["intel"]                                   # 观察者证词落簿记
-    # r2 prompt 投影断言（FakeRunner 捕获的第二份 prompt）
+    # r2 prompt 断言（三块终态：摘要死 A16——方向细节在 STATE.md；本轮无留言→运行提示块消失 N3-2）
     p2 = fake.calls[1]["prompt"]
-    assert "待接方向" in p2 and "D-001" in p2
-    assert "（观察者建议）" in p2
+    assert "【引导】" not in p2                       # P5 前无 guide 产出
+    assert "【运行提示】" not in p2 and "【简报】" in p2
     # STATE.md 落盘且含批注/阴性/Handoff
     state_md = (tmp_path / ".auto" / "STATE.md").read_text(encoding="utf-8")
     assert "双账号已备" in state_md
@@ -691,7 +703,7 @@ def test_noreport_hard_reject_at_harvest(tmp_path, monkeypatch):
 
 
 def test_hints_queue_harvested_into_prompt_once(tmp_path, monkeypatch):
-    """T2.8：hints.jsonl 按偏移收割→下轮【人工指示】→偏移推进不重复。"""
+    """T2.8：hints.jsonl 按偏移收割→下轮【运行提示】→偏移推进不重复。"""
     _mk_engagement(tmp_path)
     (tmp_path / ".at1" / "control").mkdir(parents=True)
     (tmp_path / ".at1" / "control" / "hints.jsonl").write_text(
@@ -703,7 +715,7 @@ def test_hints_queue_harvested_into_prompt_once(tmp_path, monkeypatch):
                                    observer_on=False)
     assert rc == 0
     p1 = fake.calls[0]["prompt"]
-    assert "重点看支付回调" in p1.split("【人工指示】")[-1]
+    assert "重点看支付回调" in p1.split("【运行提示】")[-1]
     assert "重点看支付回调" not in fake.calls[1]["prompt"]
 
 

@@ -92,3 +92,26 @@ def test_synthesize_handoff_gone():
     """A19：合成交接机制死——模块不再提供 synthesize_handoff。"""
     import src.harvest as h
     assert not hasattr(h, "synthesize_handoff")
+
+
+def test_chain_three_verbs_directions():
+    """FORMATS 三动词方向（schema §4.1）：derived_from 本条→ref；sources 本条(F/T)→D；
+    yields D→本条（翻边）；same_root 判重归观察者——worker 声明不受理。"""
+    bb = Blackboard()
+    d = bb.create_node("intent", {"goal": "打 registry"}, endpoint="h:5000",
+                       origin="worker", round=1)
+    row1 = {"id": "F-001", "endpoint": "h:5000/v2", "evidence": "e1.md", "summary": "匿名枚举",
+            "chain": {"rel": "sources", "refs": ["D-001"], "note": "线索支撑方向"}}
+    nid1 = finding_to_node(bb, row1, round_=2)
+    e1 = bb.edges(src=nid1, rel="sources")
+    assert e1 and e1[0]["dst"] == "D-001" and e1[0]["origin"] == "worker"
+    row2 = {"id": "F-002", "endpoint": "h:5000/v2/x", "evidence": "e2.md", "summary": "拉取镜像",
+            "chain": {"rel": "yields", "refs": ["D-001"]}}
+    nid2 = finding_to_node(bb, row2, round_=3)
+    e2 = bb.edges(rel="yields", dst=nid2)
+    assert e2 and e2[0]["src"] == "D-001"                # yields 翻边：D→F
+    row3 = {"id": "F-003", "endpoint": "h:5000/v2/y", "evidence": "e3.md", "summary": "同根因",
+            "chain": {"rel": "same_root", "refs": ["F-001"]}}
+    nid3 = finding_to_node(bb, row3, round_=3)
+    assert not bb.edges(src=nid3, rel="same_root") and not bb.edges(dst=nid3, rel="same_root")
+    assert bb.node(nid3)["state"] == "proposed"      # 声明不受理；auto_link 兜底边另行存在是合法的

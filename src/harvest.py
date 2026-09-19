@@ -54,21 +54,30 @@ def _endpoint_match(a: str, b: str) -> bool:
 
 
 def _declare_chain(bb, node_id: str, chain, *, round_: int) -> int:
-    """worker 账本行 chain 声明照抄成边（声明优先，schema §4.1）。
-    v2 形 {rel,refs,note}：derived_from/same_root 两动词可照抄；其余（v2 combines
-    已死、v3 spawns 归观察者）丢弃。返回新建边数。"""
+    """worker 账本行 chain 声明照抄成边（FORMATS 三动词，方向按 schema §4.1）：
+    - derived_from：本条 → ref（派生自）
+    - sources：本条(F/T) → ref(D-xxx)（线索支撑方向）
+    - yields：ref(D-xxx) → 本条（产出源自方向——方向相反，翻边）
+    same_root 判重归观察者裁（FORMATS 禁令），worker 声明不受理。返回新建边数。"""
     if not isinstance(chain, dict):
         return 0
     rel = chain.get("rel")
-    if rel not in ("derived_from", "same_root"):
+    if rel not in ("derived_from", "sources", "yields"):
         return 0
     refs = chain.get("refs") if isinstance(chain.get("refs"), list) else []
     note = str(chain.get("note", ""))[:300]
     n = 0
     for r in refs:
         r = str(r).strip()
-        if r and r != node_id and bb.add_edge(node_id, rel, r, origin="worker",
-                                              note=note, round=round_):
+        if not r or r == node_id:
+            continue
+        if rel == "yields":
+            ok = bb.add_edge(r, "yields", node_id, origin="worker",
+                             note=note, round=round_)
+        else:
+            ok = bb.add_edge(node_id, rel, r, origin="worker",
+                             note=note, round=round_)
+        if ok:
             n += 1
     return n
 

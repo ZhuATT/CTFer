@@ -1,172 +1,174 @@
-"""scaffold 展开单测（P4.1）。"""
+"""scaffold v3 单测：三槽渲染自簿记 / 播种规矩(§11) / 一致性锁 / workdir 展开。
+
+T3.4 一致性锁（ARTEX/Cairn 之长取其锁）：汇编 §3.1/§3.2 定稿段与 scaffolding
+落位文件**逐字一致**——漂移即红（改手册必须两边同 commit）。
+"""
 
 import json
+from pathlib import Path
 
-from src.scaffold import expand, load_engagement
+import pytest
 
+from src import scaffold
+from src.board import Blackboard
 
-def _mk_engagement(root, *, deny=None, storage_state=None):
-    (root / "engagement.json").write_text(json.dumps({
-        "target": "https://example.com", "mission": "授权测试",
-        "date": "2026-08-30",
-        "scope": {"allow": ["example.com", "*.example.com"], "deny": deny or []},
-        "credentials": ({"storage_state": storage_state} if storage_state else {}),
-    }), encoding="utf-8")
-
-
-def test_expand_creates_full_workdir(tmp_path):
-    _mk_engagement(tmp_path)
-    eng = load_engagement(tmp_path)
-    wd = expand(tmp_path, eng)
-    assert (wd / "CLAUDE.md").is_file()          # 落位名是 CLAUDE.md（CLI 自动加载）
-    assert (wd / ".mcp.json").is_file()
-    assert (wd / "FINDINGS").is_file() and (wd / "FACTS").is_file()
-    assert (wd / "evidence").is_dir()
-    txt = (wd / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "https://example.com" in txt and "授权测试" in txt
-    assert "example.com" in txt and "*.example.com" in txt
+REPO = Path(__file__).resolve().parent.parent
+_MANUAL_HEADER = ("### 3.1 WORKER-CLAUDE.md 全文(定稿 09-18,施工原样落位 scaffolding/;"
+                  "渲染槽 {target}/{hint}/{env_bg})")
+_FORMATS_HEADER = "### 3.2 FORMATS.md 全文(定稿 09-18,施工原样落位 scaffolding/)"
 
 
-def test_expand_renders_deny_list(tmp_path):
-    _mk_engagement(tmp_path, deny=["admin.example.com"])
-    eng = load_engagement(tmp_path)
-    wd = expand(tmp_path, eng)
-    txt = (wd / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "admin.example.com" in txt
+def _eng(**kw) -> dict:
+    base = {"target": "https://example.com", "goal": "拿到一个可确认的未授权访问",
+            "hint": "证书自签记得 -k",
+            "scope": {"allow": ["example.com"], "deny": []}, "credentials": {}}
+    base.update(kw)
+    return base
 
 
-def test_expand_idempotent_preserves_ledgers(tmp_path):
-    """幂等：二次展开不覆盖已有 FINDINGS/evidence（发现即落盘保证）。"""
-    _mk_engagement(tmp_path)
-    eng = load_engagement(tmp_path)
-    wd = expand(tmp_path, eng)
-    (wd / "FINDINGS").write_text('{"id":"F-001"}\n', encoding="utf-8")
-    (wd / "evidence" / "x.md").write_text("ev", encoding="utf-8")
-    expand(tmp_path, eng)
-    assert '{"id":"F-001"}' in (wd / "FINDINGS").read_text(encoding="utf-8")
-    assert (wd / "evidence" / "x.md").is_file()
+# ── 一致性锁（T3.4） ──────────────────────────────────────────────────────
+
+def _assembly_section(header: str) -> str:
+    doc = (REPO / "docs" / "prompt-全文汇编.md").read_text(encoding="utf-8")
+    lines = doc.split("\n")
+    i = lines.index(header)
+    j = i + 1
+    while lines[j].strip() == "":
+        j += 1
+    assert lines[j] == "````markdown", f"汇编围栏形态漂移：{lines[j]!r}"
+    k = j + 1
+    out = []
+    while lines[k] != "````":
+        out.append(lines[k])
+        k += 1
+    return "\n".join(out)
 
 
-def test_expand_copies_storage_state(tmp_path):
-    ss = tmp_path / "storage-states" / "example.json"
-    ss.parent.mkdir()
-    ss.write_text('{"cookies":[]}', encoding="utf-8")
-    _mk_engagement(tmp_path, storage_state="storage-states/example.json")
-    eng = load_engagement(tmp_path)
-    wd = expand(tmp_path, eng)
-    assert json.loads((wd / "storage-state.json").read_text(encoding="utf-8")) == {"cookies": []}
+def test_assembly_lock_manual():
+    """锁③a：汇编 §3.1 定稿段 ↔ scaffolding/WORKER-CLAUDE.md 逐字一致。"""
+    locked = _assembly_section(_MANUAL_HEADER)
+    live = (REPO / "scaffolding" / "WORKER-CLAUDE.md").read_text(encoding="utf-8")
+    assert locked == live
 
 
-def test_expand_skills_optional(tmp_path):
-    _mk_engagement(tmp_path)
-    eng = load_engagement(tmp_path)
-    src = tmp_path / "skills_src"
-    (src / "api-all").mkdir(parents=True)
-    (src / "api-all" / "SKILL.md").write_text("x", encoding="utf-8")
-    wd = expand(tmp_path, eng, skills_src=src)
-    assert (wd / ".claude" / "skills" / "api-all" / "SKILL.md").is_file()
-    # 不给 skills_src → 不建目录，路由表降级
-    e2 = tmp_path / "e2"
-    e2.mkdir()
-    _mk_engagement(e2)
-    wd2 = expand(e2, load_engagement(e2))
-    assert not (wd2 / ".claude").exists()
+def test_assembly_lock_formats():
+    """锁③b：汇编 §3.2 定稿段 ↔ scaffolding/FORMATS.md 逐字一致。"""
+    locked = _assembly_section(_FORMATS_HEADER)
+    live = (REPO / "scaffolding" / "FORMATS.md").read_text(encoding="utf-8")
+    assert locked == live
 
 
-def test_load_engagement_fail_fast(tmp_path):
-    # 缺文件
-    try:
-        load_engagement(tmp_path)
-        assert False, "应拒启"
-    except FileNotFoundError:
-        pass
-    # 缺 scope.allow
-    (tmp_path / "engagement.json").write_text(
-        json.dumps({"target": "https://x.com"}), encoding="utf-8")
-    try:
-        load_engagement(tmp_path)
-        assert False, "应拒启"
-    except ValueError as e:
-        assert "allow" in str(e)
+def test_template_slots_exact():
+    """锁①：模板三槽齐全；被裁的 v2 槽（allow/deny_list/mission/tools_root）不得复活。"""
+    tmpl = (REPO / "scaffolding" / "WORKER-CLAUDE.md").read_text(encoding="utf-8")
+    for slot in ("{target}", "{hint}", "{env_bg}"):
+        assert slot in tmpl
+    for dead in ("{allow}", "{deny_list}", "{mission}", "{tools_root}"):
+        assert dead not in tmpl
 
 
-# ── phase5 B2：三账本注释头 + 新契约文本 ─────────────────────────────────
+# ── 播种（schema §11） ───────────────────────────────────────────────────
 
-def test_ledger_files_created_with_headers(tmp_path):
-    _mk_engagement(tmp_path)
-    eng = load_engagement(tmp_path)
-    wd = expand(tmp_path, eng)
-    for name in ("FINDINGS", "FACTS", "DIRECTIONS"):
-        p = wd / name
-        assert p.is_file(), name
-        txt = p.read_text(encoding="utf-8")
-        assert txt.startswith("#"), f"{name} 缺注释头"
-        assert "{" in txt          # 含 JSON 格式示例
-
-
-def test_worker_contract_texts(tmp_path):
-    """B2 契约断言：C-1 上报门槛 / 7-kind+confidence / DIRECTIONS 生命周期 / D 三条。"""
-    _mk_engagement(tmp_path)
-    eng = load_engagement(tmp_path)
-    wd = expand(tmp_path, eng)
-    txt = (wd / "CLAUDE.md").read_text(encoding="utf-8")
-    # C-1 上报硬门槛
-    assert "真实触发过" in txt and "可复现证据" in txt
-    assert "漏洞库推断" in txt and "inferred" in txt
-    # FACTS：7 kind 菜单 + confidence 语义 + 否定门槛
-    for k in ("endpoint", "credential", "kv_secret", "fingerprint",
-              "identity_model", "business_context", "unclassified"):
-        assert k in txt
-    assert "observed" in txt and "inferred" in txt              # confidence 二值语义进纪律层
-    assert "只装正向情报" in txt                                 # P-4：FACTS 语义收紧（阴性不进 FACTS）
-    assert "不写这里" in txt                                     # P-4：阴性结论改走 DIRECTIONS done
-    # DIRECTIONS 契约：开工先读 + 生命周期 + 自主权话术
-    assert "接手 open/blocked" in txt and "高于开新方向" in txt
-    assert "in_progress" in txt and "blocked_reason" in txt
-    assert "阴性清单" in txt                                     # P-4：done+note → 系统阴性清单
-    assert "不是派工单" in txt                                   # 自主权（接单员化缓解 G-2）
-    # D 三条
-    assert "材料性新机理" in txt                                 # DEC-5 重开标准
-    assert "不写 /tmp" in txt                                    # DEC-6
-    assert "立刻写" in txt                                       # DEC-8 即时写
-    # chain 契约（A-1）
-    assert "derived_from" in txt and "same_root" in txt and "combines" in txt
-    assert "F-xxx/D-xxx" in txt or "F-/D-" in txt.replace("只能指 F-/D-", "F-xxx/D-xxx")
-
-
-def test_ledger_headers_idempotent(tmp_path):
-    _mk_engagement(tmp_path)
-    eng = load_engagement(tmp_path)
-    wd = expand(tmp_path, eng)
-    (wd / "DIRECTIONS").write_text('{"id":"D-001","goal":"已有方向","status":"open","round":1}\n',
-                                   encoding="utf-8")
-    expand(tmp_path, eng)                                        # 二次展开
-    t = (wd / "DIRECTIONS").read_text(encoding="utf-8")
-    assert '{"id":"D-001"}' not in t and "已有方向" in t         # 已有内容不被注释头覆盖
-    assert not t.startswith("#")                                 # 不重复盖头
-
-
-def test_state_md_readonly_declared(tmp_path):
-    """治理批#4：STATE.md 只读声明进纪律层。"""
-    _mk_engagement(tmp_path)
-    eng = load_engagement(tmp_path)
-    wd = expand(tmp_path, eng)
-    txt = (wd / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "STATE.md 是系统投影" in txt and "只读" in txt
-
-
-def test_worker_contract_no_zone_ledger_instruction(tmp_path):
-    """P-6 回归：纪律层/侦察手册不得再把 worker 派进控制器禁区记账。"""
-    _mk_engagement(tmp_path)
-    eng = load_engagement(tmp_path)
-    wd = expand(tmp_path, eng)
-    txt = (wd / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "../state/log.jsonl" not in txt          # 旧越界指令已移除
-    assert "当前目录" in txt and "log.jsonl" in txt  # 台账在 worker 世界
-    from src.prompt import render_round_prompt
-    from src.board import Blackboard
-    import json as _json
+def test_seed_engagement_empty_fill_and_no_overwrite():
+    """target/goal/hint 空则播；续跑已有值不覆盖；scope 每次覆盖。"""
     bb = Blackboard()
-    p = render_round_prompt(bb, round_=1)
-    assert "state/log.jsonl" not in p               # 越界指令不得经任何段复活
-    assert "log.jsonl" not in p                     # v3：手册死(A12)，台账教学只在 CLAUDE.md
+    scaffold.seed_engagement(_eng(goal="拿到域管", hint="证书自签"), bb)
+    assert bb.bookkeeping["target"] == "https://example.com"
+    assert bb.goal["text"] == "拿到域管"
+    assert bb.bookkeeping["hint"] == "证书自签"
+    # 续跑：goal-set 改过的目标 / 已有 hint 不被 engagement 冲掉
+    bb.set_goal("新的完成标准", round=3)
+    bb.bookkeeping["hint"] = "运行中改的指示"
+    scaffold.seed_engagement(_eng(goal="旧目标", hint="旧指示"), bb)
+    assert bb.goal["text"] == "新的完成标准"
+    assert bb.bookkeeping["hint"] == "运行中改的指示"
+    # scope：每次覆盖（边界以最新委托为准）
+    bb.bookkeeping["scope"] = {"allow": ["old"]}
+    scaffold.seed_engagement(_eng(scope={"allow": ["new"]}), bb)
+    assert bb.bookkeeping["scope"]["allow"] == ["new"]
+
+
+def test_load_engagement_requires_goal_and_hint(tmp_path):
+    """§11 必填三件：target/goal 非空 + hint 字段在场——缺一拒启（hint 值可空串）。"""
+    (tmp_path / "engagement.json").write_text(
+        json.dumps({"target": "x", "goal": "g"}), encoding="utf-8")           # 缺 hint
+    with pytest.raises(ValueError, match="hint"):
+        scaffold.load_engagement(tmp_path)
+    (tmp_path / "engagement.json").write_text(
+        json.dumps({"target": "x", "hint": ""}), encoding="utf-8")            # 缺 goal
+    with pytest.raises(ValueError, match="goal"):
+        scaffold.load_engagement(tmp_path)
+    (tmp_path / "engagement.json").write_text(
+        json.dumps({"target": "x", "goal": "g", "hint": ""}), encoding="utf-8")  # hint 空串合法
+    assert scaffold.load_engagement(tmp_path)["target"] == "x"
+
+
+# ── workdir 展开 ─────────────────────────────────────────────────────────
+
+def test_expand_renders_from_bookkeeping(tmp_path):
+    """槽值从黑板簿记取（运行时唯一真相），渲染产物零残留槽。"""
+    bb = Blackboard()
+    scaffold.seed_engagement(_eng(hint="证书自签记得 -k"), bb)
+    wd = scaffold.expand(tmp_path, _eng(), bb)
+    claude = (wd / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "https://example.com" in claude
+    assert "证书自签记得 -k" in claude
+    assert "Start-Process" in claude and "bg-*.log" in claude   # {env_bg} 注入
+    for leftover in ("{target}", "{hint}", "{env_bg}", "{"):
+        assert leftover not in claude               # 锁②：渲染零残留槽
+    assert "旧 mission 字段已废" not in claude       # mission 字段废除
+
+
+def test_expand_creates_full_workdir_v3(tmp_path):
+    _mk = Blackboard()
+    scaffold.seed_engagement(_eng(), _mk)
+    wd = scaffold.expand(tmp_path, _eng(), _mk)
+    for name in ("CLAUDE.md", "FORMATS.md", ".mcp.json", "FINDINGS", "FACTS",
+                 "evidence", "reports", "src标准"):
+        assert (wd / name).exists(), name
+    assert not (wd / "DIRECTIONS").exists()         # A17③：写面退役，不预创建
+    assert "FORMATS.md" in (wd / "FINDINGS").read_text(encoding="utf-8")
+    assert "DIRECTIONS" not in (wd / "FINDINGS").read_text(encoding="utf-8")
+    fmt = (wd / "FORMATS.md").read_text(encoding="utf-8")
+    assert "derived_from|sources|yields" in fmt          # chain 三动词教学
+    assert "不归你声明" in fmt                            # same_root 判重归观察者（禁令句在）
+
+
+def test_expand_cleans_legacy_direactions(tmp_path):
+    """旧 engagement 遗留 DIRECTIONS 文件——展开时清理（防误导新会话）。"""
+    wd = tmp_path / ".auto"
+    wd.mkdir(parents=True)
+    (wd / "DIRECTIONS").write_text('{"id":"D-001","goal":"旧方向"}\n', encoding="utf-8")
+    bb = Blackboard()
+    scaffold.seed_engagement(_eng(), bb)
+    scaffold.expand(tmp_path, _eng(), bb)
+    assert not (wd / "DIRECTIONS").exists()
+
+
+# ── fail-fast（§11：只剩 target） ────────────────────────────────────────
+
+def test_load_engagement_failfast_target_only(tmp_path):
+    (tmp_path / "engagement.json").write_text(
+        json.dumps({"target": "x", "goal": "g", "hint": ""}), encoding="utf-8")   # 无 scope/goal 外字段——不炸
+    eng = scaffold.load_engagement(tmp_path)
+    assert eng["target"] == "x"
+    (tmp_path / "engagement.json").write_text(
+        json.dumps({"mission": "没有 target"}), encoding="utf-8")
+    with pytest.raises(ValueError):
+        scaffold.load_engagement(tmp_path)
+
+
+# ── 原有保留行为 ─────────────────────────────────────────────────────────
+
+def test_expand_copies_skills_and_credentials(tmp_path):
+    skills = tmp_path / "myskills" / "hello-skill"
+    skills.mkdir(parents=True)
+    (skills / "SKILL.md").write_text("---\nname: hello-skill\ndescription: t\n---\nx",
+                                     encoding="utf-8")
+    (tmp_path / "cred.json").write_text("{}", encoding="utf-8")
+    eng = _eng(credentials={"storage_state": "cred.json"})
+    bb = Blackboard()
+    scaffold.seed_engagement(eng, bb)
+    wd = scaffold.expand(tmp_path, eng, bb, skills_src=str(tmp_path / "myskills"))
+    assert (wd / ".claude" / "skills" / "hello-skill" / "SKILL.md").is_file()
+    assert (wd / "storage-state.json").read_text(encoding="utf-8") == "{}"

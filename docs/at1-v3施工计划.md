@@ -3,7 +3,7 @@
 > **依据**:`图与黑板v3设计.md`(定稿+§五 A17 修订)/`at1-黑板schema.md` v3.0(S1-S7 已落文)/`prompt-全文汇编.md`(v3 定稿,A1-A22)/`中期真实环境测试文档.md`(P-1~P-11 修复史与实机教训)。
 > **代码基线**:commit `22ff975`(U-1),219 测试绿,19 模块 4637 行。
 > **原则**:直接 v3 大版本无过渡步(Q-7);文件存储不上 SQL(触发条件挂起);**测试红线=每阶段完成时全绿**;git 管回滚。
-> **进度(09-18)**:**批 1 已 commit(`45d7491`);批 2 已竣工并 commit 推送**——批 1=P0 全部+P1 全部+T2.1/T2.5;批 2=P2 全部余量(T2.2 STOP 接线/T2.3 七类行/T2.4 六节投影+两刷/T2.6 noreport/T2.7 events/T2.8 hints+CLI),223 测试全绿,dry-run CLI 全链路目检过;执行细节=`at1-v3批2-收割投影终态落地计划.md`+`at1-v3批2-施工执行单.md`。下一批=批 3(P3 worker 模板+P4 stdin 三块终态,prompt 在此合龙)。
+> **进度(09-19)**:**批 1(`45d7491`)/批 2(`6c3d02a`)已 commit;批 3 已竣工并 commit 推送**——批 3=P3+P4(worker 手册 v3 定稿落位/FORMATS/scaffold 播种+槽渲染/prompt 三块终态/一致性锁/chain 三动词/mission 废除+scope 可选化),223 测试全绿,dry-run 三块终态目检过;**真轮验收自此解锁**。执行细节=`at1-v3批3-计划.md`+`at1-v3批3-施工执行单.md`;手册定稿=汇编 §3.1-§3.3。下一批=批 4(P5 观察者:-p 同构+OBSERVER-MANUAL+七类行激活)。
 
 ---
 
@@ -134,17 +134,17 @@ P3 worker 模板(纯文本,与 P1 并行) → P4 stdin(prompt.py,依赖 P3 模�
 
 | # | 任务 | 文件 | 验收 | 决策 |
 |---|---|---|---|---|
-| T3.1 | WORKER-CLAUDE.md 六节:身份开工({target}/{hint},铁律,Read STATE.md 第一件事,图空冷启动,**{env_bg} 长任务纪律**)/判层契约(**A2 三层+A4"宁可多开方向不轻交发现"+A5 无兜底**+画像指引)/写盘义务(FORMATS 必读+log.jsonl 记账[P-6 纪律保留])/干活规则(探透判定+自由条款+探索义务三出口+**<Stop> 信号格式**)/台账纪律/写操作约束;**{tools_root} 环境槽**(js-intel 路径) | `scaffolding/WORKER-CLAUDE.md` | 渲染产物无 v2 残留词;六节齐 | A1-A6/A15/A16/A18/A21 |
-| T3.2 | FORMATS.md:FINDINGS/FACTS 行格式(A2 三层正反例:报错→方向/语法可控→T/拖出数据→F)/报告模板(单洞+链式八段)/画像纪律(前缀唯一/追加不换写);**无 DIRECTIONS 节** | `scaffolding/FORMATS.md`(新) | 示例全合 A2 判层 | A2/A8/A10/A14 |
-| T3.3 | scaffold 扩展:双手册+FORMATS 每轮重写(防篡改)/reports\ 与 .observer\ 目录/私有区路径对齐 v3/新槽渲染/**engagement.json 字段映射**:goal 初值(→bookkeeping.goal 播种)+hint 字段(→{hint} 槽);**scope.allow/deny 保留(guard 燃料)仅停 prompt 渲染**;fail-fast 校验保留 | `src/scaffold.py` | dry-run 渲染产物检查;guard 用旧 engagement 照常工作 | A1/A8/A17/A24 |
+| T3.1 | WORKER-CLAUDE.md 六节:身份开工({target}/{hint},铁律,Read STATE.md 第一件事,图空冷启动,**{env_bg} 长任务纪律**)/判层契约(**A2 三层+A4"宁可多开方向不轻交发现"+A5 无兜底**+画像指引)/写盘义务(FORMATS 必读+log.jsonl 记账[P-6 纪律保留])/干活规则(探透判定+自由条款+探索义务三出口+**<Stop> 信号格式**)/台账纪律/写操作约束;**{tools_root} 环境槽**(js-intel 路径) | `scaffolding/WORKER-CLAUDE.md` | 渲染产物无 v2 残留词;六节齐 ✅09-19(定稿=汇编 §3.1 已落位;tools 路径直写拍板) | A1-A6/A15/A16/A18/A21 |
+| T3.2 | FORMATS.md:FINDINGS/FACTS 行格式(A2 三层正反例:报错→方向/语法可控→T/拖出数据→F)/报告模板(单洞+链式八段)/画像纪律(前缀唯一/追加不换写);**无 DIRECTIONS 节** | `scaffolding/FORMATS.md`(新) | 示例全合 A2 判层 ✅09-19(定稿=汇编 §3.2 已落位;chain 三动词教学) | A2/A8/A10/A14 |
+| T3.3 | scaffold 扩展:双手册+FORMATS 每轮重写(防篡改)/reports\ 与 .observer\ 目录/私有区路径对齐 v3/新槽渲染/**engagement.json 字段映射**:goal 初值(→bookkeeping.goal 播种)+hint 字段(→{hint} 槽);**scope.allow/deny 保留(guard 燃料)仅停 prompt 渲染**;fail-fast 校验保留 | `src/scaffold.py` | dry-run 渲染产物检查;guard 用旧 engagement 照常工作 ✅09-19(播种函数/mission 废除/scope 可选化/一致性锁;§11 权威) | A1/A8/A17/A24 |
 
 ### P4 stdin 装配(3 件)
 
 | # | 任务 | 锚点 | 验收 | 决策 |
 |---|---|---|---|---|
-| T4.1 | render_round_prompt 三块化:【引导】(guide 注入)/【运行提示】(人工指示独占,空则消失)/简报;删 PREAMBLE/MANUALS/九段标记/plan_directive/render_summary 调用/重复告警段 | `prompt.py` 重写 | 渲染恰三块;空态块消失 | A6/A12/A15/A16/A19/A20 |
-| T4.2 | 路由三信号:燃料=**全图 fact 值扫描**(替代 query("fingerprint"))/覆盖缺口(未测面含对象级端点→auth-access)/图空(facts 空→recon-methodology);措辞直接指令式 | `_HINT_ROUTES` 重写 | 三信号单测(usc 指纹回放命中) | A7/A13/S4/N5 |
-| T4.3 | 简报尾巴:判层指引(CLAUDE.md/FORMATS 指路),去"发现即提交" | `_brief:365` | 渲染检查 | A4 |
+| T4.1 | render_round_prompt 三块化:【引导】(guide 注入)/【运行提示】(人工指示独占,空则消失)/简报;删 PREAMBLE/MANUALS/九段标记/plan_directive/render_summary 调用/重复告警段 | `prompt.py` 重写 | 渲染恰三块;空态块消失 ✅09-19 | A6/A12/A15/A16/A19/A20 |
+| T4.2 | ~~路由三信号~~ **已裁(09-19)取消**——A7 定"路由=skill description 原生发现",关键词匹配是判断者越权;手册资料地图+skill 原生 description 即路由 | `_HINT_ROUTES` 删 | ~~三信号单测~~ 取消(批2 残版路由已删) ✅09-19 | A7/A13/S4/N5 |
+| T4.3 | 简报尾巴:判层指引(CLAUDE.md/FORMATS 指路),去"发现即提交" | `_brief:365` | 渲染检查 ✅09-19(判层指路入简报块壳) | A4 |
 
 ### P5 观察者(3 件)
 
@@ -191,3 +191,15 @@ P3 worker 模板(纯文本,与 P1 并行) → P4 stdin(prompt.py,依赖 P3 模�
 worker:新 CLAUDE.md/FORMATS.md/三块 stdin;观察者:OBSERVER-MANUAL/七类行/-p 同构;图:nodes-edges 容器/迁移脚本/四视图/Stop-TERMINAL/goal;投影:STATE.md v3 一轮两刷;写回:晋升+视图化;skills:四迁移件;测试:全量绿+十二项 dry-run 记录+中期回填。
 
 **开工顺序**:T0(P0)与 T1.1-T1.2(P1)并行起步;首件交付=图容器+活契约(一切的地基;~~迁移脚本~~已裁 09-18)。
+
+---
+
+## M5 待办(09-19 记录:server+UI 一起做,时机在批 4/P6 之后)
+
+- **形态**:薄 HTTP 壳——包 CLI 现有磁盘函数(写簿记/写 CONTROL/tail 事件流),**盘即真相不变**;不学 Cairn 的 DB 后端(SQL 三触发条件挂起)
+- **安全**:token 认证+访问控制(渗透战果+控制命令不可裸暴露)
+- **并发写协调**:server 写 goal/hint 与 driver 每轮 save 黑板碰撞——需文件锁或原子写协议(真工程量,主因)
+- **无 UI 的 server 价值≈0**:server 为前端供数,与 UI 绑定交付
+- **前置已备**:批 3"运行时只认 bookkeeping"改造=server 地基(前端表单写簿记与 engagement 播种同一条路)
+- **附加**:TaskTemplate 式模板复用(ARTEX 同款:可复用任务预设 {name,description,goal})
+- **拒启前端化(用户 09-19 要求)**:开工校验失败要在 UI 表单上体现——scaffold.EngagementError 已带 field 属性(backend 直接映射到表单字段);M5 表单必填项=target/goal(非空)+hint(字段必填值可空)

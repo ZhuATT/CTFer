@@ -48,6 +48,7 @@ EVENT_TYPES = frozenset({
     "observer_recipe2",       # 配方 2 收割计数（verdict/edge/comment/intent/intel/guide）
     "reports_promoted",       # confirmed 报告晋升人工面 reports\（schema §6.2）
     "board_legacy_archived",  # v2 旧板归档改名（已裁 09-18：不做内容迁移）
+    "scope_missing",          # engagement 无授权清单——guard 目标拦截停用（禁区/自毁保留）
 })
 
 # 脱敏键名匹配：cookie/token/secret/authorization/credential/password/api_key。
