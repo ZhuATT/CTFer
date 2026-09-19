@@ -25,7 +25,6 @@ EVENT_TYPES = frozenset({
     "handoff_harvested",
     "finding_confirmed",
     "goal_eval_start", "goal_eval_end",
-    "surface_parse_fail",
     # M4 新增（driver）
     "guard_violation",        # guard 实时检测命中（kind: scope/controller_zone/self_destruct）
     "directive_injected",     # CONTROL directive 已注入下一轮 prompt
@@ -33,7 +32,6 @@ EVENT_TYPES = frozenset({
     # phase5 新增（schema v2.1 方向层/观察者 v2）
     "directions_merged",      # DIRECTIONS 轮末收割合并（changed 行数）
     "directions_from_handoff",  # 旧格式 Handoff 未竟段提取为方向（added 条数）
-    "ledger_synced",          # 收尾：.auto/log.jsonl → state/log.jsonl 搬运（P-6）
     "preflight",              # 启动预检结果（claude/mcp 可用性，2026-09-14）
     "observer_governance",    # 观察者治理消费（comments/new_directions/retests/chains 计数）
     "facts_verified",         # 被动事实轮窗复现抽验（checked/downgraded/restored，治理批#2）
@@ -43,11 +41,13 @@ EVENT_TYPES = frozenset({
     "resume",                 # 续跑（启动时黑板非空，offsets 续收）
     "hard_rejected",          # noreport 检察官硬拒（节点建即 dismissed，T2.6）
     "hint_injected",          # 留言队列收割注入【人工指示】（T2.8/A24）
-    "guide_injected",         # OBSERVER guide 行收割落 bookkeeping（stdin 注入=T4.1）
+    "guide_injected",         # 【引导】块注入（来源=STATE.md“## 下轮建议”节抽取，批3fix）
     "observer_parse_fail",    # OBSERVER 非法行进隔离区（schema §7）
-    "observer_recipe2",       # 配方 2 收割计数（verdict/edge/comment/intent/intel/guide）
-    "reports_promoted",       # confirmed 报告晋升人工面 reports\（schema §6.2）
     "board_legacy_archived",  # v2 旧板归档改名（已裁 09-18：不做内容迁移）
+    "observer_applied",       # 执行器入图计数（五操作各条数+dedup_existing）
+    "observer_session_end",   # 观察者 -p 会话结束（计量：tokens/cost/turns）
+    "observer_empty_retry",   # 空产出防线：判断书缺失/坏/空 → 重试一次（stage: retry/exhausted）
+    "state_fallback",         # 观察者未写 STATE.md → controller 兜底极简计数（R6）
     "scope_missing",          # engagement 无授权清单——guard 目标拦截停用（禁区/自毁保留）
 })
 

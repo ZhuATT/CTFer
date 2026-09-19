@@ -1,5 +1,13 @@
 # AT1 共享黑板 Schema v3.0(定稿候选)
 
+> ⚠️ **批3fix 修订块(2026-09-19,权威)——本文下述条款按此覆盖,未列条目不变:**
+> 1. **写入面退役**:worker 不再写 append-only 账本(FINDINGS/FACTS JSONL)——改**文件夹化一条一文件**(`facts/`/`findings/`/`evidence/`,格式自由)。§0 原则 1"worker 只写日志层/controller 蒸馏"**废**。
+> 2. **图唯一写手=观察者**(经执行器 observer_harvest v2 前身判断书),**controller 不再是记录员**;`origin` 仅存来源标记,无行为特权(user 不再"人拍板")。
+> 3. **proposed 待审态消亡**:入图即终态。finding 仅 `confirmed/dismissed`(终态写死,不可迁移);fact 为 `confirmed/dismissed/superseded`(仅画像前缀机械换代)。§2/§3 状态机中的 proposed 段**废**。
+> 4. **配方 0/1/2 重写**:配方 0 只种一条画像 fact(R5);配方 1 账本收割**死**(目录级 diff 替代);配方 2 七类行**升级为判断书五操作**(add_fact/add_finding/add_intent/set_state/add_edge——协议权威=`contracts/OBSERVER-INTERFACE.md`)。
+> 5. **§8 投影 STATE.md 条款废**:STATE.md 降为观察者可选产物(进度总结+"## 下轮建议"节),controller 只留兜底极简计数;"双读者/一轮两刷"**废**;status.md 退役(人工面并入 STATE.md)。
+> 6. **机器可执行契约以 `contracts/blackboard.schema.json` 为准**(本文档为语义参照;两者冲突时 JSON Schema + 实现为准)。
+>
 > **性质**:黑板与图的**完整字段契约**。v3.0 是大版本——图从"黑板的装饰字段"升格为协作面本体,黑板分裂为**写入面(日志,不变)**与**协作面(图,重构)**。
 > **设计论证**:`图与黑板v3设计.md`(四家参考对比 + 多轮讨论记录)。
 > **状态**:定稿候选。拍板 1/2 已定,字段经消费者审计(28→23,砍 6:confidence/source/verified/primary/killed/created_at)。**定稿后写施工计划,未动代码。**

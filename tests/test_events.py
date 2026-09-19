@@ -30,8 +30,17 @@ def test_event_types_registry_has_design_set():
     for t in ("run_start", "run_end", "session_start", "session_end", "heartbeat",
               "fact_added", "immune_added", "claim_submitted", "claim_verdict",
               "gate_pass", "gate_fail", "finding_confirmed", "stoploss_trigger",
-              "handoff_harvested", "surface_parse_fail"):
+              "handoff_harvested",
+              "observer_applied", "observer_session_end", "observer_empty_retry",
+              "state_fallback"):
         assert t in EVENT_TYPES
+
+
+def test_event_types_retired_gone():
+    """批3fix：writeback/旧投影链死亡——其事件类型从注册表除名。"""
+    for dead in ("ledger_synced", "reports_promoted", "surface_parse_fail",
+                 "observer_recipe2"):
+        assert dead not in EVENT_TYPES
 
 
 def test_writer_appends_jsonl_and_redacts(tmp_path):

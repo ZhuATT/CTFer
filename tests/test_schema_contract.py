@@ -12,7 +12,7 @@ import pytest
 
 from src.board import Blackboard
 
-SCHEMA = json.load(open("blackboard.schema.json", encoding="utf-8"))
+SCHEMA = json.load(open("contracts/blackboard.schema.json", encoding="utf-8"))
 
 
 def _full_board() -> Blackboard:
@@ -108,6 +108,16 @@ def test_negative_wrong_id_prefix_rejected():
     snap = _bare()
     snap["graph"]["nodes"].append({"id": "X-001", "kind": "fact", "state": "proposed",
                                    "payload": {"value": "v"}, "endpoint": "global",
+                                   "origin": "worker", "round": 1, "updated_at": "t"})
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(snap, SCHEMA)
+
+
+def test_negative_proposed_state_rejected():
+    """R2：proposed 待审态消亡（无生产者）——图里出现即契约红。"""
+    snap = _bare()
+    snap["graph"]["nodes"].append({"id": "F-001", "kind": "finding", "state": "proposed",
+                                   "payload": {"summary": "s"}, "endpoint": "h",
                                    "origin": "worker", "round": 1, "updated_at": "t"})
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(snap, SCHEMA)

@@ -1,147 +1,179 @@
-"""配方 2 单测:OBSERVER 七类行 → 图(schema §7/§6.2)。"""
+"""observer_harvest v2 单测（批3fix F6）：判断书执行器——五操作/拒收矩阵/幂等/receipts。
+
+协议=contracts/OBSERVER-INTERFACE.md。图唯一写手=观察者（经本执行器），
+入图即终态（R2）：finding 终态写死、fact 仅 confirmed→superseded。
+"""
 
 import json
 
+import pytest
+
+from src import observer_harvest as oh
 from src.board import Blackboard
-from src.observer_harvest import apply_observer_lines
 
 
-def _mk_graph() -> Blackboard:
+def _apply(bb, ops, *, round=1, noreport_rejects=()):
+    doc = {"round": round, "operations": ops}
+    return oh.apply_judgment(bb, doc, round=round, root=None,
+                             noreport_rejects=set(noreport_rejects))
+
+
+def test_add_fact_basic_and_fields():
     bb = Blackboard()
-    bb.create_node("intent", {"goal": "打 registry"}, endpoint="h:5000",
-                   origin="worker", round=1, id="D-001")
-    bb.create_node("finding", {"summary": "未授权枚举"},
-                   endpoint="h:5000/v2/_catalog", origin="worker", round=2, id="F-001")
-    bb.create_node("finding", {"summary": "匿名拉取"},
-                   endpoint="h:5000/v2", origin="worker", round=2, id="F-002")
-    return bb
+    r = _apply(bb, [{"op": "add_fact", "summary": "身份锚是 customsid session",
+                     "evidence": "facts/auth.md", "endpoint": "/api/login"}])
+    assert r["applied"] == 1 and r["rejects"] == []
+    n = bb.node("T-001")
+    assert n["state"] == "confirmed" and n["origin"] == "observer"
+    assert n["payload"]["value"] == "身份锚是 customsid session"
+    assert n["payload"]["evidence"] == "facts/auth.md"
 
 
-def _lines(*objs) -> list[str]:
-    return [json.dumps(o, ensure_ascii=False) for o in objs]
+def test_add_fact_missing_required_rejected():
+    bb = Blackboard()
+    r = _apply(bb, [{"op": "add_fact", "summary": "没证据"},
+                    {"op": "add_fact", "evidence": "e"}])
+    assert r["applied"] == 0
+    assert len(r["rejects"]) == 2                     # 缺 summary/evidence 各一
+    assert bb.nodes("fact") == []
 
 
-def test_verdict_confirms_and_dismisses():
-    bb = _mk_graph()
-    r = apply_observer_lines(bb, _lines(
-        {"t": "verdict", "id": "F-001", "state": "confirmed", "severity": "high", "reason": "成立"},
-        {"t": "verdict", "id": "F-002", "state": "dismissed", "reason": "并入 F-001"}), round=3)
-    assert bb.node("F-001")["state"] == "confirmed"
-    assert bb.node("F-001")["payload"]["severity"] == "high"
-    assert bb.node("F-002")["state"] == "dismissed"
-    assert r["counts"]["verdict"] == 2
-
-
-def test_verdict_skip_hard_rejected_and_no_flip():
-    """硬拒 id 不受理(T2.6 前置);confirmed 不可翻案(不变量 3)。"""
-    bb = _mk_graph()
-    bb.update_node("F-001", state="confirmed")
-    r = apply_observer_lines(bb, _lines(
-        {"t": "verdict", "id": "F-002", "state": "confirmed", "reason": "x"},
-        {"t": "verdict", "id": "F-001", "state": "dismissed", "reason": "翻案尝试"}), round=3,
-        rejected_ids={"F-002"})
-    assert r["counts"]["verdict_skip_rejected"] == 1
-    assert bb.node("F-002")["state"] == "proposed"          # 不受理=不动
-    assert bb.node("F-001")["state"] == "confirmed"
-    assert r["counts"]["verdict_illegal"] == 1
-
-
-def test_verdict_bad_state_rejected():
-    bb = _mk_graph()
-    r = apply_observer_lines(bb, _lines(
-        {"t": "verdict", "id": "F-001", "state": "killed", "reason": "r"}), round=3)
-    assert len(r["rejects"]) == 1                           # 非法 state=结构非法进隔离区
-    assert bb.node("F-001")["state"] == "proposed"
-
-
-def test_same_root_primary_at_src_flips_edge():
-    """primary=src → 翻转:边=非正主→正主(schema §4.1);非正主机械 dismissed。"""
-    bb = _mk_graph()
-    apply_observer_lines(bb, _lines(
-        {"t": "edge", "rel": "same_root", "src": "F-002", "dst": "F-001",
-         "primary": "F-002", "note": "正主是拉取"}), round=3)
-    e = bb.edges(rel="same_root")[0]
-    assert (e["src"], e["dst"]) == ("F-001", "F-002")
-    assert bb.node("F-001")["state"] == "dismissed"
-    assert "F-002" in bb.node("F-001")["payload"]["reason"]
-    assert bb.node("F-002")["state"] == "proposed"          # 正主不受影响
-
-
-def test_same_root_primary_missing_falls_back_confirmed_first():
-    """primary 缺失 → 先到优先:confirmed 最早者为正主(schema §7)。"""
-    bb = _mk_graph()
-    bb.update_node("F-001", state="confirmed")
-    apply_observer_lines(bb, _lines(
-        {"t": "edge", "rel": "same_root", "src": "F-001", "dst": "F-002"}), round=3)
-    e = bb.edges(rel="same_root")[0]
-    assert (e["src"], e["dst"]) == ("F-002", "F-001")       # 正主=F-001 → 翻转
-    assert bb.node("F-002")["state"] == "dismissed"
-    assert bb.node("F-001")["state"] == "confirmed"
-
-
-def test_same_root_primary_conflict_keeps_confirmed_with_warning():
-    """非正主已 confirmed → 保持不翻案(不变量 3),只记警告。"""
-    bb = _mk_graph()
-    bb.update_node("F-001", state="confirmed")
-    r = apply_observer_lines(bb, _lines(
-        {"t": "edge", "rel": "same_root", "src": "F-001", "dst": "F-002",
-         "primary": "F-002"}), round=3)
-    assert bb.node("F-001")["state"] == "confirmed"         # 不变量 3 拒绝
-    assert any("不翻案" in w for w in r["counts"]["warnings"])
-
-
-def test_supersedes_migrates_only_confirmed():
-    bb = _mk_graph()
-    t_old = bb.create_node("fact", {"value": "旧情报:1200 Eureka 开放"}, origin="user", round=0)
-    bb.update_node(t_old, state="confirmed")
-    t_new = bb.create_node("fact", {"value": "实测:1200 已关闭"}, origin="worker", round=3)
-    bb.update_node(t_new, state="confirmed")
-    apply_observer_lines(bb, _lines(
-        {"t": "edge", "rel": "supersedes", "src": t_new, "dst": t_old,
-         "note": "9月实测取代4月情报"}), round=3)
-    assert bb.node(t_old)["state"] == "superseded"
-    # proposed fact 不可被取代(不变量:仅 confirmed→superseded)
-    t_p = bb.create_node("fact", {"value": "未确认线索"}, origin="worker", round=3)
-    r = apply_observer_lines(bb, _lines(
-        {"t": "edge", "rel": "supersedes", "src": t_new, "dst": t_p}), round=4)
-    assert bb.node(t_p)["state"] == "proposed"
-    assert any("不可迁移" in w for w in r["counts"]["warnings"])
-
-
-def test_comment_intent_intel_guide():
-    bb = _mk_graph()
-    r = apply_observer_lines(bb, _lines(
-        {"t": "comment", "id": "D-001", "text": "已 blocked 两轮,建议转向"},
-        {"t": "intent", "goal": "挖 k8s 镜像层凭证", "endpoint": "h:5000",
-         "note": "延伸", "from": "F-001"},
-        {"t": "intel", "text": "5000 是全局最大突破口"},
-        {"t": "guide", "text": "主攻镜像层;备选 Druid;自由探索照常"}), round=3)
-    assert bb.node("D-001")["payload"]["comment"] == "已 blocked 两轮,建议转向"
-    obs_intents = [n for n in bb.nodes("intent") if n["origin"] == "observer"]
-    assert len(obs_intents) == 1
-    assert any(e["rel"] == "spawns" and e["src"] == "F-001" and e["dst"] == obs_intents[0]["id"]
-               for e in bb.edges())
-    assert bb.bookkeeping["intel"][-1]["text"] == "5000 是全局最大突破口"
-    assert bb.bookkeeping["guide"]["text"].startswith("主攻镜像层")
-    assert (r["counts"]["comment"], r["counts"]["intent"],
-            r["counts"]["intel"], r["counts"]["guide"]) == (1, 1, 1, 1)
-
-
-def test_malformed_lines_isolated():
-    bb = _mk_graph()
-    raw = ['{"t":"verdict","id":"F-001"}',      # 缺 state → 结构非法
-           "纯垃圾行",
-           '{"t":"unknown"}',
-           '[1,2]',
-           '{"t":"edge","rel":"same_root"}']    # 缺 src/dst → 结构非法
-    r = apply_observer_lines(bb, raw, round=3)
-    assert len(r["rejects"]) == 5
+def test_add_fact_dangling_ref_is_advisory():
+    """ref 是建议性连线——指向不存在的节点不拒收，只是不连边（与强制字段区分）。"""
+    bb = Blackboard()
+    r = _apply(bb, [{"op": "add_fact", "summary": "x", "evidence": "e",
+                     "ref": "T-999"}])
+    assert r["applied"] == 1 and r["rejects"] == []
     assert bb.graph["edges"] == []
 
 
-def test_zero_finding_round_semantics():
-    """0-finding 轮:intel/comment/intent 行照常消费(schema §6.2 配方2 尾注)。"""
+def test_add_fact_dedup_existing_idempotent():
     bb = Blackboard()
-    r = apply_observer_lines(bb, _lines(
-        {"t": "intel", "text": "全局观察证词"}), round=1)
-    assert r["counts"]["intel"] == 1 and not r["rejects"]
+    r1 = _apply(bb, [{"op": "add_fact", "summary": "WAF=宝塔", "evidence": "e"}])
+    r2 = _apply(bb, [{"op": "add_fact", "summary": "  waf=宝塔  ", "evidence": "e2"}])
+    assert r1["applied"] == 1
+    assert r2["counts"]["dedup_existing"] == 1        # 幂等：返回已有 id
+    assert len(bb.nodes("fact")) == 1
+
+
+def test_add_fact_picture_prefix_auto_supersede():
+    bb = Blackboard()
+    _apply(bb, [{"op": "add_fact", "summary": "目标画像：旧版画像", "evidence": "e"}])
+    r = _apply(bb, [{"op": "add_fact", "summary": "目标画像：新版画像", "evidence": "e2"}])
+    assert r["applied"] == 1
+    states = {n["payload"]["value"]: n["state"] for n in bb.nodes("fact")}
+    assert states["目标画像：旧版画像"] == "superseded"
+    assert states["目标画像：新版画像"] == "confirmed"
+    assert any(e["rel"] == "supersedes" for e in bb.graph["edges"])
+
+
+def test_add_finding_requires_report_and_reason():
+    bb = Blackboard()
+    r = _apply(bb, [{"op": "add_finding", "summary": "s"}])            # 缺 report/severity/reason
+    assert r["applied"] == 0 and len(r["rejects"]) == 1
+    r2 = _apply(bb, [{"op": "add_finding", "summary": "越权读取",
+                      "report": "findings/idor.md", "severity": "high",
+                      "reason": "IDOR 实证"}])
+    assert r2["applied"] == 1
+    n = bb.node("F-001")
+    assert n["state"] == "confirmed"                   # result 默认 confirmed
+    assert n["payload"]["report"] == "findings/idor.md"
+
+
+def test_add_finding_dismissed_goes_negative():
+    bb = Blackboard()
+    _apply(bb, [{"op": "add_finding", "summary": "疑似 sourcemap",
+                 "report": "findings/sm.md", "severity": "low",
+                 "reason": "形状即现象", "result": "dismissed"}])
+    assert bb.node("F-001")["state"] == "dismissed"
+    assert any(r["id"] == "F-001" for r in bb.negative_view())
+
+
+def test_add_finding_noreport_reject():
+    bb = Blackboard()
+    r = _apply(bb, [{"op": "add_finding", "summary": "sourcemap 可下载",
+                     "report": "findings/main.js.map.md", "severity": "low",
+                     "reason": "x"}], noreport_rejects=("findings/main.js.map.md",))
+    assert r["applied"] == 0 and len(r["rejects"]) == 1
+    assert "noreport" in r["rejects"][0]["error"]
+
+
+def test_add_intent_and_set_state_lifecycle():
+    bb = Blackboard()
+    r = _apply(bb, [
+        {"op": "add_intent", "goal": "验证 authc 面越权", "note": "F-001 同型", "ref": None},
+        {"op": "set_state", "id": "D-001", "state": "in_progress", "reason": "开工"},
+        {"op": "set_state", "id": "D-001", "state": "blocked", "reason": "若获得 admin 凭证可重试"},
+    ])
+    assert r["applied"] == 3
+    d = bb.node("D-001")
+    assert d["state"] == "blocked" and d["payload"]["blocked_reason"]
+    # fact 终态写死：set_state 对 fact 拒收
+    _apply(bb, [{"op": "add_fact", "summary": "x", "evidence": "e"}])
+    r2 = _apply(bb, [{"op": "set_state", "id": "T-001", "state": "done", "reason": "r"}])
+    assert r2["applied"] == 0
+
+
+def test_set_state_blocked_requires_condition():
+    bb = Blackboard()
+    _apply(bb, [{"op": "add_intent", "goal": "g"}])
+    r = _apply(bb, [{"op": "set_state", "id": "D-001", "state": "blocked", "reason": ""}])
+    assert r["applied"] == 0 and "可检验" in r["rejects"][0]["error"]
+
+
+def test_add_edge_six_verbs_and_dedup():
+    bb = Blackboard()
+    _apply(bb, [
+        {"op": "add_fact", "summary": "线索 A", "evidence": "e"},
+        {"op": "add_fact", "summary": "线索 B", "evidence": "e2"},
+        {"op": "add_intent", "goal": "组合打点"},
+    ])
+    r = _apply(bb, [
+        {"op": "add_edge", "src": "T-001", "rel": "sources", "dst": "D-001", "note": "支撑"},
+        {"op": "add_edge", "src": "T-001", "rel": "sources", "dst": "D-001", "note": "重复"},
+    ])
+    assert r["applied"] == 1 and r["counts"]["dedup_existing"] == 1   # 重复边幂等吸收
+    assert len(bb.graph["edges"]) == 1
+    bad = _apply(bb, [{"op": "add_edge", "src": "T-001", "rel": "combines",
+                       "dst": "D-001", "note": "v2 死动词"}])
+    assert bad["applied"] == 0 and "rel 非法" in bad["rejects"][0]["error"]
+
+
+def test_ref_auto_edge_semantics():
+    """ref 连线语义表：fact→intent = sources；intent→finding = spawns。"""
+    bb = Blackboard()
+    _apply(bb, [{"op": "add_intent", "goal": "authc 越权面"}])                 # D-001
+    _apply(bb, [{"op": "add_fact", "summary": "roles 无归属校验",
+                 "evidence": "facts/roles.md", "ref": "D-001"}])              # D-001 yields T-001
+    assert any(e["src"] == "D-001" and e["rel"] == "yields" and e["dst"] == "T-001"
+               for e in bb.graph["edges"])
+    _apply(bb, [{"op": "add_finding", "summary": "越权读取", "report": "findings/x.md",
+                 "severity": "high", "reason": "r"}])                          # F-001
+    _apply(bb, [{"op": "add_intent", "goal": "同型端点排查", "ref": "F-001"}])  # D-002 spawns 自 F-001
+    assert any(e["src"] == "F-001" and e["rel"] == "spawns" and e["dst"] == "D-002"
+               for e in bb.graph["edges"])
+
+
+def test_judgment_book_malformed_tolerated():
+    bb = Blackboard()
+    r = oh.apply_judgment(bb, {"round": 1}, round=1, root=None)          # 无 operations
+    assert r["applied"] == 0 and r["rejects"]
+    r2 = oh.apply_judgment(bb, "not a dict", round=1, root=None)
+    assert r2["applied"] == 0
+
+
+def test_receipts_written(tmp_path):
+    bb = Blackboard()
+    r = _apply(bb, [{"op": "add_fact", "summary": "x", "evidence": "e"}], round=3)
+    r["receipts"] and oh._write_receipts(tmp_path, r["receipts"])
+    log = tmp_path / ".at1" / "interface_log.jsonl"
+    rows = [json.loads(l) for l in log.read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert rows and rows[0]["op"] == "add_fact" and rows[0]["status"] == "applied"
+
+
+def test_write_rejects_appends(tmp_path):
+    oh.write_rejects(tmp_path, [{"index": 0, "error": "x"}], round=2)
+    oh.write_rejects(tmp_path, [{"index": 1, "error": "y"}], round=3)
+    p = tmp_path / ".observer" / "OBSERVER.rejects"
+    lines = [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert len(lines) == 2 and {r["round"] for r in lines} == {2, 3}

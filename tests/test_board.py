@@ -20,8 +20,8 @@ def test_create_node_basic_and_ids():
                       origin="worker", round=1)
     assert (d, f, t) == ("D-001", "F-001", "T-001")
     assert b.node(d)["state"] == "open"
-    assert b.node(f)["state"] == "proposed"
-    assert b.node(t)["state"] == "proposed"
+    assert b.node(f)["state"] == "confirmed"            # R2：入图即终态
+    assert b.node(t)["state"] == "confirmed"
     assert b.node(d)["endpoint"] == "172.20.9.26:5000"
     assert b.node(t)["endpoint"] == "global"            # 缺省旁挂
     with pytest.raises(ValueError):
@@ -30,6 +30,8 @@ def test_create_node_basic_and_ids():
         b.create_node("fact", {"value": "x"}, origin="attacker")
     with pytest.raises(ValueError):
         b.create_node("fact", {"evidence": "没值"}, origin="worker")  # 必填缺失
+    with pytest.raises(ValueError):
+        b.create_node("fact", {"value": "x"}, origin="worker", state="proposed")  # R2：proposed 消亡
 
 
 def test_create_node_dedup_key():
@@ -54,27 +56,28 @@ def test_create_node_worker_id_conflict_renumber():
     assert nid2 == "T-002"                              # 非本前缀自报 → 顺位发号
 
 
-def test_update_node_verdict_only_from_proposed():
-    """不变量 3：verdict 仅作用 proposed；confirmed 不可被翻案。"""
+def test_update_node_finding_terminal_immutable():
+    """R2 终版：finding 终态写死——confirmed/dismissed 均不可迁移（翻案=加新节点）。"""
     b = Blackboard()
     f = b.create_node("finding", {"summary": "s"}, origin="worker", round=1)
-    assert b.update_node(f, state="confirmed",
-                         payload_patch={"severity": "high", "reason": "r"}) is True
+    assert b.update_node(f, payload_patch={"severity": "high", "reason": "r"}) is True
     assert b.update_node(f, state="dismissed") is False
     assert b.node(f)["state"] == "confirmed"
-    f2 = b.create_node("finding", {"summary": "s2"}, origin="worker", round=1)
-    b.update_node(f2, state="dismissed", payload_patch={"reason": "判假"})
+    f2 = b.create_node("finding", {"summary": "s2", "reason": "判假"},
+                       origin="worker", round=1, state="dismissed")
     assert b.update_node(f2, state="confirmed") is False
+    assert b.node(f2)["state"] == "dismissed"
     assert b.update_node(f, state="killed") is False     # 非法 state
     assert b.update_node("F-999", state="confirmed") is False
 
 
 def test_update_node_fact_superseded_only_from_confirmed():
     b = Blackboard()
-    t = b.create_node("fact", {"value": "v"}, origin="worker", round=1)
-    assert b.update_node(t, state="superseded") is False
-    b.update_node(t, state="confirmed")
+    t = b.create_node("fact", {"value": "v"}, origin="worker", round=1)   # 直落 confirmed
     assert b.update_node(t, state="superseded") is True
+    t2 = b.create_node("fact", {"value": "v2"}, origin="worker", round=1,
+                       state="dismissed")
+    assert b.update_node(t2, state="superseded") is False
 
 
 def test_update_node_intent_transitions_and_comment():
@@ -127,8 +130,7 @@ def _seed_graph() -> tuple[Blackboard, dict]:
                               endpoint="h:5000/v2/_catalog", origin="worker", round=2)
     b.add_edge(ids["d1"], "yields", ids["f1"], origin="worker", note="声明", round=2)
     ids["f2"] = b.create_node("finding", {"summary": "批量读公开评价", "reason": "信息本身公开可见"},
-                              endpoint="h:80", origin="worker", round=2)
-    b.update_node(ids["f2"], state="dismissed")
+                              endpoint="h:80", origin="worker", round=2, state="dismissed")
     ids["t1"] = b.create_node("fact", {"value": "Shiro 站点"},
                               endpoint="h:9098", origin="worker", round=1)
     ids["t2"] = b.create_node("fact", {"value": "目标画像：内网 JVM 厂站"},

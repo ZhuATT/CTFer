@@ -26,8 +26,12 @@ from urllib.parse import urlsplit
 # 分隔符 [/\\] 双形态（P-5，2026-09-14 真实 run 实锤：PowerShell
 # [IO.File]::AppendAllLines("..\state\log.jsonl",...) 反斜杠写穿禁区 0 告警——
 # 我们的运行平台就是 Windows，正则只认 / 等于对常态失明）。
+# 禁区（批3fix R3 终版）：.at1/.observer/state/notes 禁写；.at1 与 notes 对 worker
+# 可读（读检测不存在——guard 只判写）。.observer 是观察者工作台，worker 完全禁入。
 _ZONE_PATH_RX = re.compile(
-    r"(?:\.\.[/\\])*(?:\.at1|state|notes)[/\\]|_(?:blackboard|transcript)\.(?:json|jsonl|bak|tmp)",
+    r"(?:\.\.[/\\])*(?:\.at1|\.observer|state|notes)[/\\]"
+    r"|_(?:blackboard|transcript|interface_log)\.(?:json|jsonl|bak|tmp)"
+    r"|OBSERVER\.(?:json|rejects)",
     re.IGNORECASE)
 _URL_STRIP_RX = re.compile(r"https?://\S+", re.IGNORECASE)
 
@@ -67,7 +71,9 @@ class Guard:
     @staticmethod
     def _host_of(url: str) -> str:
         try:
-            return (urlsplit(url).hostname or "").lower()
+            # P1（批3fix）：剥掉命令串粘连的标点尾巴（实测 PowerShell 命令
+            # "https://h.example';" → hostname 带引号分号 → scope 误报 12 次/轮）
+            return (urlsplit(url).hostname or "").lower().strip("'\";:,.()（）")
         except ValueError:
             return ""
 
@@ -110,9 +116,9 @@ class Guard:
             if _ZONE_PATH_RX.search(cmd_sanitized) and _WRITE_TOOL_HINT_RX.search(cmd_sanitized):
                 return GuardVerdict(False, "controller_zone",
                                     f"疑似写控制器区/协议文件：{cmd[:120]}")
-            # 命令里的 curl/wget URL 走 scope
+            # 命令里的 curl/wget URL 走 scope（匹配尾巴带引号/分号先剥——P1）
             for m in _URL_STRIP_RX.finditer(cmd):
-                v = self.check_url(m.group(0))
+                v = self.check_url(m.group(0).rstrip("\"';,，。)）]"))
                 if not v.ok:
                     return v
         # ② URL 类参数（MCP playwright / WebFetch 的 url 参数）

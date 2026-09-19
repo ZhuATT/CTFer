@@ -8,7 +8,6 @@
 import json
 
 from src.noreport import check
-from src.observer import Observer
 
 
 def _f(summary, endpoint="/x", **kw):
@@ -90,64 +89,3 @@ def test_plain_server_header_in_evidence_pass():
     r = check(_f("endpoint returns interesting JSON with admin data", endpoint="/api/cfg"),
               evidence_text="HTTP/1.1 200 OK\nServer: nginx/1.20.1\nX-Powered-By: Flask\n{\"admin\":true}")
     assert r["verdict"] == "pass"
-
-
-# ── Observer 接线（方案 A） ───────────────────────────────────────────────
-
-def _mock_chat(resp_by_call=None):
-    calls = []
-
-    def chat(msgs):
-        calls.append(msgs)
-        if resp_by_call:
-            return resp_by_call[min(len(calls) - 1, len(resp_by_call) - 1)]
-        return json.dumps({"is_vulnerability": True, "severity": "high", "reason": "mock"})
-
-    return chat, calls
-
-
-def test_observer_reject_skips_judge_and_cannot_be_overridden():
-    # 终审条目不进 judge LLM，且会话级 confirmed 不能翻案
-    session_resp = json.dumps({
-        "final_assessments": [{"id": "F-001", "assessment": "confirmed",
-                               "severity": "high", "reason": "llm 试图翻案"}],
-        "coverage_gaps": [], "effective_patterns": [], "suggestions": [],
-        "notable_attempts": [], "intel_summary": "x"})
-    chat, calls = _mock_chat([json.dumps({"is_vulnerability": True, "severity": "high",
-                                          "reason": "judge ok"}),
-                              session_resp])
-    ob = Observer(chat_fn=chat)
-    result = ob.run(
-        findings=[_f("app.js.map 泄露源码映射", endpoint="/static/app.js.map"),
-                  _f("idor: A reads B order", endpoint="/api/order", id="F-002")],
-        evidence_texts={"F-002": "phone 13800138000 of userB"},
-        previous_confirmed=[], board_summary="", handoff="")
-    judge_calls = [c for c in calls if "待审发现" in c[1]["content"]]
-    assert len(judge_calls) == 1                     # 终审条目没进 judge
-    by_id = {f["id"]: f for f in result["findings"]}
-    assert by_id["F-001"]["assessment"] == "likely_false_positive"
-    assert "硬拒·sourcemap" in by_id["F-001"]["reason"]
-    assert by_id["F-002"]["assessment"] == "confirmed"
-
-
-def test_observer_suspect_gets_precheck_and_can_be_acquitted():
-    """公诉注入 judge prompt；证据充分时观察者可翻案（方案 A 核心行为）。"""
-    chat, calls = _mock_chat()      # judge 恒返回 true（证据充分翻案）
-    session_resp = json.dumps({
-        "final_assessments": [], "coverage_gaps": [], "effective_patterns": [],
-        "suggestions": [], "notable_attempts": [], "intel_summary": "x"})
-    chat2, calls2 = _mock_chat([json.dumps({"is_vulnerability": True, "severity": "high",
-                                            "reason": "证据显示实际数据泄露，翻案"}),
-                                session_resp])
-    ob = Observer(chat_fn=chat2)
-    result = ob.run(
-        findings=[_f("CORS 配置为 * 任意源可读", endpoint="/api/data")],
-        evidence_texts={"F-001": "Access-Control-Allow-Origin: *"},
-        previous_confirmed=[], board_summary="", handoff="")
-    # judge 被调用且 prompt 含公诉意见
-    judge_calls = [c for c in calls2 if "待审发现" in c[1]["content"]]
-    assert len(judge_calls) == 1
-    assert "检察官公诉" in judge_calls[0][1]["content"]
-    assert "cors_wildcard" in judge_calls[0][1]["content"]
-    # 观察者按证据判 true → confirmed（翻案成功）
-    assert result["findings"][0]["assessment"] == "confirmed"

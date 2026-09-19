@@ -1,15 +1,15 @@
-"""AT1 scaffold —— workdir 模板展开（v3）。
+"""AT1 scaffold —— workdir 模板展开（批3fix：单层化，R1/R7 终版）。
 
-<engagement>/.auto/ 展开：CLAUDE.md（WORKER-CLAUDE.md 渲染，槽值从黑板簿记取——
-运行时唯一真相=bookkeeping，engagement.json 只是 CLI 时代的播种源之一，M5 前端
-表单写簿记走同一条路）+ FORMATS.md（每轮重写防篡改）+ .mcp.json + FINDINGS/FACTS
-预创建（指路头）+ evidence/ + reports/ + src标准/。
+<engagement>/ 根=worker cwd（.auto/ 取消）。展开物：
+CLAUDE.md（WORKER-CLAUDE.md 渲染，槽值从黑板簿记取——运行时唯一真相=bookkeeping）
++ .mcp.json + facts//findings//evidence/ 预创建（一条一文件写盘面，R1）
++ src标准/ + storage-state 注入 + skills 复制。
+FORMATS.md 退役（格式自由，判层语义在手册）；status.md 退役（R6/R7）；
+FINDINGS/FACTS 大账本取消（图 id + 观察者 STATE.md 即索引）。
 
 播种（schema §11）：target/goal/hint 空则播进 bookkeeping（续跑不覆盖）；
-scope 每次覆盖（边界以最新委托为准）。mission 字段已废（09-19：与图重合）。
-DIRECTIONS 写面退役（A17③）：不预创建、遗留旧文件清理。
-
-文本定稿=prompt-全文汇编.md §3.1/§3.2；本模块与汇编的一致性由 test_scaffold 锁定。
+scope 每次覆盖（边界以最新委托为准）。
+文本定稿=prompt-全文汇编.md §3.1；本模块与汇编的一致性由 test_scaffold 锁定。
 """
 
 from __future__ import annotations
@@ -28,12 +28,6 @@ _ENV_BG = (
     "它随会话死）；输出重定向到当前目录 bg-*.log，首行记命令与启动时间；"
     "交接必提在跑的后台任务（文件名+在干什么）。轮末系统会扫 bg-*.log 遗留并提醒下轮。"
 )
-
-# 账本指路头（幂等：只在文件不存在时写入；格式细节在 FORMATS.md，头只指路）
-_LEDGER_HEADERS = {
-    "FINDINGS": "# 每行一条发现（JSONL，append-only）——格式/三层判层正反例/报告要求：写盘前必读同目录 FORMATS.md。\n",
-    "FACTS": "# 每行一条知识（JSONL，append-only，只写对攻击真有效的线索）——格式与不写清单：见 FORMATS.md。\n",
-}
 
 
 def seed_engagement(eng: dict, bb) -> None:
@@ -69,29 +63,20 @@ def _render_worker_claude(bb) -> str:
 
 def expand(engagement_root: str | os.PathLike, eng: dict, bb, *,
            skills_src: str | os.PathLike | None = None) -> Path:
-    """展开 workdir（<engagement>/.auto/）。返回 workdir 路径。bb 必传——
+    """展开 workdir（<engagement> 根——单层化 R7）。返回 workdir 路径。bb 必传——
     槽值从黑板簿记取（运行时唯一真相），调用方须先 seed_engagement。"""
-    workdir = Path(engagement_root) / ".auto"
-    workdir.mkdir(parents=True, exist_ok=True)
-    (workdir / "evidence").mkdir(exist_ok=True)
-    (workdir / "reports").mkdir(exist_ok=True)
+    workdir = Path(engagement_root)
+    for sub in ("facts", "findings", "evidence"):
+        (workdir / sub).mkdir(parents=True, exist_ok=True)
 
-    # 纪律层（每轮重写）+ 格式层（每轮重写防篡改）+ MCP
+    # 纪律层（每轮重写）+ MCP
     (workdir / "CLAUDE.md").write_text(_render_worker_claude(bb), encoding="utf-8")
-    (workdir / "FORMATS.md").write_text(
-        (_TEMPLATE_DIR / "FORMATS.md").read_text(encoding="utf-8"), encoding="utf-8")
     shutil.copyfile(_TEMPLATE_DIR / ".mcp.json", workdir / ".mcp.json")
 
-    # A17③：DIRECTIONS 写面退役——不预创建；旧 engagement 遗留文件清理（防误导新会话）
+    # A17③：DIRECTIONS 写面退役——不预创建；遗留旧文件清理（防误导新会话）
     legacy = workdir / "DIRECTIONS"
     if legacy.exists():
         legacy.unlink()
-
-    # 账本：预创建指路头（幂等）
-    for name, header in _LEDGER_HEADERS.items():
-        p = workdir / name
-        if not p.exists():
-            p.write_text(header, encoding="utf-8")
 
     # src标准（判定标尺库，设计§6.5：worker 写报告自愿参照）——资料地图指针的实体
     if _STANDARDS_DIR.is_dir():
@@ -100,7 +85,7 @@ def expand(engagement_root: str | os.PathLike, eng: dict, bb, *,
             shutil.rmtree(dst)
         shutil.copytree(_STANDARDS_DIR, dst)
 
-    # 身份注入：engagement.json credentials.storage_state → workdir/storage-state.json
+    # 身份注入：engagement.json credentials.storage_state → 根/storage-state.json
     cred = eng.get("credentials", {}) or {}
     src_state = cred.get("storage_state")
     if src_state:

@@ -30,8 +30,10 @@ EDGE_ORIGINS = ("worker", "observer", "controller")
 NODE_ORIGINS = ("worker", "controller", "observer", "user")
 
 INTENT_STATES = ("open", "in_progress", "done", "blocked")
-FINDING_STATES = ("proposed", "confirmed", "dismissed")
-FACT_STATES = ("proposed", "confirmed", "dismissed", "superseded")
+# R2 终版（批3fix）：proposed 待审态消亡——图唯一写手=观察者（经执行器），入图即终态。
+# "confirmed 不可翻案"保留：跨轮翻案只能加新节点替代（画像前缀自动换代），不能改旧节点。
+FINDING_STATES = ("confirmed", "dismissed")
+FACT_STATES = ("confirmed", "dismissed", "superseded")
 STATES = {"intent": INTENT_STATES, "finding": FINDING_STATES, "fact": FACT_STATES}
 
 # payload 白名单（schema §3；写入口滤未知键——快照 additionalProperties:false 的执行半边）
@@ -136,10 +138,12 @@ class Blackboard:
 
     # ── 三原子操作（schema §6.1，controller 独占） ─────────────────────
     def create_node(self, kind: str, payload: dict, *, endpoint: str = "global",
-                    origin: str, round: int = 0, id: str | None = None) -> str:
+                    origin: str, round: int = 0, id: str | None = None,
+                    state: str | None = None) -> str:
         """建节点并发号（D-###/F-###/T-###）。去重键 (kind, endpoint, 归一化内容)
         命中 → 幂等返回已有 id（不变量 5）。worker 自报 id 冲突 → 重编号
-        `{prefix}-R{round}-{orig}`（不变量 6），再冲突 → 顺位新号。"""
+        `{prefix}-R{round}-{orig}`（不变量 6），再冲突 → 顺位新号。
+        state：显式终态（R2 入图即终态——缺省 intent=open / finding|fact=confirmed）。"""
         if kind not in KINDS:
             raise ValueError(f"非法 kind：{kind}")
         if origin not in NODE_ORIGINS:
@@ -148,6 +152,8 @@ class Blackboard:
         if not payload.get(_PAYLOAD_REQUIRED[kind]):
             raise ValueError(f"{kind} payload 缺必填 {_PAYLOAD_REQUIRED[kind]}")
         endpoint = str(endpoint or "global").strip() or "global"
+        if state is not None and state not in STATES[kind]:
+            raise ValueError(f"非法 {kind} state：{state}")
         with self._lock:
             key = (kind, _norm_text(endpoint), _norm_text(payload[_PAYLOAD_REQUIRED[kind]]))
             for n in self.graph["nodes"]:
@@ -155,7 +161,8 @@ class Blackboard:
                         _norm_text(n["payload"].get(_PAYLOAD_REQUIRED[kind], ""))) == key:
                     return n["id"]                        # 幂等：同内容不重复建
             nid = self._alloc_id(kind, id, round)
-            node = {"id": nid, "kind": kind, "state": self._initial_state(kind),
+            node = {"id": nid, "kind": kind,
+                    "state": state or self._initial_state(kind),
                     "payload": payload, "endpoint": endpoint, "origin": origin,
                     "round": int(round), "updated_at": _now_iso()}
             self.graph["nodes"].append(node)
@@ -163,9 +170,9 @@ class Blackboard:
 
     def update_node(self, id: str, *, state: str | None = None,
                     payload_patch: dict | None = None, comment: str | None = None) -> bool:
-        """状态迁移 / payload 补丁 / 观察者批注。机械不变量：
-        - finding/fact → confirmed/dismissed 仅从 proposed（verdict 不翻案，不变量 3）
-        - fact → superseded 仅从 confirmed"""
+        """状态迁移 / payload 补丁 / 观察者批注。机械不变量（R2 终版）：
+        - finding：终态写死，不允许任何状态迁移（翻案=加新节点替代）
+        - fact：仅 confirmed → superseded（画像前缀机械换代）"""
         with self._lock:
             node = self._get(id)
             if node is None:
@@ -175,11 +182,11 @@ class Blackboard:
                 if state not in STATES[kind]:
                     return False
                 if state != node["state"]:
-                    if kind in ("finding", "fact") and state in ("confirmed", "dismissed") \
-                            and node["state"] != "proposed":
-                        return False                    # 不变量 3
-                    if kind == "fact" and state == "superseded" and node["state"] != "confirmed":
-                        return False
+                    if kind == "finding":
+                        return False                    # 终态写死（R2）
+                    if kind == "fact" and not (state == "superseded"
+                                               and node["state"] == "confirmed"):
+                        return False                    # fact 仅 confirmed→superseded
                 node["state"] = state
             if payload_patch:
                 node["payload"].update(self._sanitize_payload(kind, payload_patch))
@@ -207,7 +214,7 @@ class Blackboard:
     # ── 三原子内部件 ───────────────────────────────────────────────────
     @staticmethod
     def _initial_state(kind: str) -> str:
-        return {"intent": "open", "finding": "proposed", "fact": "proposed"}[kind]
+        return {"intent": "open", "finding": "confirmed", "fact": "confirmed"}[kind]
 
     def _alloc_id(self, kind: str, hint: str | None, round: int) -> str:
         prefix = KIND_PREFIX[kind]

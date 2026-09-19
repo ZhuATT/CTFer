@@ -23,8 +23,7 @@ def test_untested_dismissed_finding_still_covers():
     b = Blackboard()
     b.create_node("fact", {"value": "v"}, endpoint="/api/d", origin="worker", round=1)
     f = b.create_node("finding", {"summary": "s", "reason": "r"}, endpoint="/api/d",
-                      origin="worker", round=2)
-    b.update_node(f, state="dismissed")
+                      origin="worker", round=2, state="dismissed")
     assert b.untested_surface() == []
     assert any(r["id"] == f for r in b.negative_view())
 

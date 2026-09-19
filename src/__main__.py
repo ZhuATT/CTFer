@@ -17,16 +17,16 @@ from pathlib import Path
 def _relay(args: argparse.Namespace) -> int:
     """M2 验收 demo：双会话接力（--relay）/ 被杀接力（--relay-kill）。"""
     from . import board as board_mod
-    from . import events, harvest
+    from . import events
     from . import prompt as prompt_mod
     from . import runner
     from .providers import SolverConfig
 
     kill_mode = args.relay_kill
     root = Path(tempfile.mkdtemp(prefix="at1-relay-"))
-    workdir, pilot, state = root / ".auto", root / ".at1", root / "state"
-    for d in (workdir, pilot, state):
-        d.mkdir(parents=True)
+    workdir, pilot, state = root, root / ".at1", root / "state"   # 批3fix 单层化：根=worker cwd
+    for d in (workdir, pilot, state, workdir / "facts"):
+        d.mkdir(parents=True, exist_ok=True)
 
     marker = "at1-" + secrets.token_hex(8)
     intel = (
@@ -40,7 +40,7 @@ def _relay(args: argparse.Namespace) -> int:
     )
     (workdir / "intel.txt").write_text(intel, encoding="utf-8")
 
-    bb = board_mod.Blackboard(str(pilot / "_blackboard.json"))
+    bb = board_mod.Blackboard(str(pilot / "blackboard.json"))
     ev = events.EventWriter(str(state / "auto-log.jsonl"))
     os.environ.setdefault("AT1_PROVIDER", "glm")
     solver = SolverConfig.from_env()
@@ -74,10 +74,10 @@ def _relay(args: argparse.Namespace) -> int:
         "【第 1 轮任务——侦察起步】\n"
         "1. 用 Read 工具读取当前目录 intel.txt 的完整内容。\n"
         "2. 用 Bash 执行：type intel.txt\n"
-        "3. 用 Bash 原样执行下面这条命令（>> 是追加，勿改写）：\n"
-        f"echo '{{\"kind\":\"identity_model\",\"value\":\"身份结论：合成靶，marker={marker}\",\"evidence\":\"intel.txt\"}}' >> FACTS\n"
+        "3. 把身份结论写进 facts/identity.md（写盘面约定：facts/ 一条一文件）：\n"
+        f"echo '身份结论：合成靶，marker={marker}（证据：intel.txt）' > facts/identity.md\n"
         "4. 在最终回复里原样输出（含标签，marker 必须原样出现）：\n"
-        f"<Handoff>已完成：intel.txt 读取、FACTS 已上报。未竟事项：POST /api/order/create 未测（401）。marker={marker}</Handoff>\n"
+        f"<Handoff>已完成：intel.txt 读取、facts/identity.md 已落盘。未竟事项：POST /api/order/create 未测（401）。marker={marker}</Handoff>\n"
     )
 
     ev.emit("run_start", {"mode": "relay-kill" if kill_mode else "relay",
@@ -91,12 +91,15 @@ def _relay(args: argparse.Namespace) -> int:
                             "tokens": res.tokens, "session_id": res.session_id,
                             "killed": killed[0]}, round_=1)
 
-    # ── 收割：Handoff（A19：合成交接死，被杀轮置空）+ FACTS → 节点 ──
+    # ── 交接（A19：合成交接死，被杀轮置空）+ 写盘面确认（批3fix：账本死，facts/ 目录即产出）──
     bb.record_handoff(res.handoff or "")
     ev.emit("handoff_harvested", {"origin": "model" if res.handoff else "none",
-                                  "killed": killed[0], "head": bb.handoff[:60]}, round_=1)
-    fact_lines, _ = harvest.diff_new_lines(str(workdir / "FACTS"), 0)
-    n_reported = harvest.facts_to_nodes(bb, fact_lines, round_=1)
+                                  "killed": killed[0],
+                                  "head": bb.bookkeeping["handoff"][:60]}, round_=1)
+    n_reported = 1 if (workdir / "facts" / "identity.md").is_file() else 0
+    bb.create_node("fact", {"value": f"身份结论：合成靶（marker={marker}）",
+                            "evidence": "facts/identity.md"},
+                   origin="worker", round=1) if n_reported else None
     bb.save()
 
     prompt2 = prompt_mod.render_round_prompt(bb, round_=2)
@@ -120,21 +123,22 @@ def _relay(args: argparse.Namespace) -> int:
     t_lines = sum(1 for _ in (pilot / "transcript.jsonl").open(encoding="utf-8", errors="replace")) \
         if (pilot / "transcript.jsonl").exists() else 0
 
+    handoff = bb.bookkeeping["handoff"]
     checks = [
         (f"round1 会话返回（stop={res.stop_reason}, turns={res.turns}）", True),
         (f"Handoff 置录（origin={'model' if res.handoff else 'none'}）",
-         bool(bb.handoff) if not kill_mode else bb.handoff == ""),
+         bool(handoff) if not kill_mode else handoff == ""),
     ]
     if kill_mode:
         # 被杀场景：会话死在中途，显式通道没走完是【预期】——验的是置空交接与接力
         checks += [
-            ("被杀轮 Handoff 置空（观察者读盘替代合成）", bb.handoff == ""),
-            (f"被杀于 FACTS 上报前（显式通道未走完，n={n_reported}）", True),
+            ("被杀轮 Handoff 置空（观察者读盘替代合成）", handoff == ""),
+            (f"被杀于 facts/ 写盘前（显式通道未走完，n={n_reported}）", True),
         ]
     else:
         checks += [
-            (f"FACTS 上报入图（{n_reported} 条）", n_reported >= 1),
-            ("prompt2 渲染含状态摘要段", "【状态摘要】" in prompt2),
+            (f"facts/ 写盘入图（{n_reported} 条）", n_reported >= 1),
+            ("prompt2 渲染三块终态（简报常驻）", "【简报】" in prompt2),
         ]
     checks += [
         ("round2 answer.txt 含 marker（接力成立）", ans_ok),
@@ -170,12 +174,12 @@ def cmd_selftest(args: argparse.Namespace) -> int:
     from .providers import SolverConfig
 
     root = Path(tempfile.mkdtemp(prefix="at1-selftest-"))   # 英文路径，避开编码坑
-    workdir = root / ".auto"          # worker 的世界（cwd）
-    pilot = root / ".at1"           # 控制器区（worker 禁写；M4 起 guard 强制）
+    workdir = root                    # worker 的世界（cwd；批3fix 单层化）
+    pilot = root / ".at1"             # 控制器区（worker 禁写可读；guard 强制）
     state = root / "state"
-    workdir.mkdir(parents=True)
-    pilot.mkdir(parents=True)
-    state.mkdir(parents=True)
+    workdir.mkdir(parents=True, exist_ok=True)
+    pilot.mkdir(parents=True, exist_ok=True)
+    state.mkdir(parents=True, exist_ok=True)
 
     marker = "at1-" + secrets.token_hex(8)
     (workdir / "hello.txt").write_text(f"marker={marker}\n", encoding="utf-8")
@@ -384,9 +388,22 @@ def cmd_watch(args: argparse.Namespace) -> int:
         if t == "hard_rejected":
             return f"{base} {C['yellow']}✗ 硬拒[{d.get('category')}] {d.get('id')} {str(d.get('reason', ''))[:60]}{C['off']}"
         if t == "observer_parse_fail":
-            return f"{base} {C['yellow']}⚠ OBSERVER 解析失败 {d.get('count')} 行{C['off']}"
-        if t in ("hint_injected", "guide_injected", "reports_promoted", "resume",
-                 "board_legacy_archived", "observer_recipe2"):
+            return f"{base} {C['yellow']}⚠ 判断书坏条 {d.get('count')} 条（隔离区）{C['off']}"
+        if t == "observer_applied":
+            ops = " ".join(f"{k}={v}" for k, v in d.items()
+                           if isinstance(v, int) and v and k not in ("round",))
+            return f"{base} {C['green']}◆ 观察者入图 {ops or '（无操作）'}{C['off']}"
+        if t == "observer_session_end":
+            return f"{base} {C['dim']}○ 观察者会话结束{C['off']}"
+        if t == "observer_empty_retry":
+            stage = d.get("stage")
+            mark = C['yellow'] if stage == "retry" else C['red']
+            txt = "空产出重试" if stage == "retry" else "空产出告警（重试仍空）"
+            return f"{base} {mark}⚠ {txt}{C['off']}"
+        if t == "state_fallback":
+            return f"{base} {C['dim']}· STATE 兜底计数（观察者未写）{C['off']}"
+        if t in ("hint_injected", "guide_injected", "resume",
+                 "board_legacy_archived"):
             return f"{base} {t} {str(d)[:90]}"
         return f"{base} {t}"
 
@@ -432,7 +449,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p_run = sub.add_parser("run", help="M4：跑一个 engagement（driver 主循环）")
     p_run.add_argument("engagement", help="engagement 目录（三件套所在）")
-    p_run.add_argument("--budget", type=float, default=7200, help="总预算秒（默认 7200）")
+    p_run.add_argument("--budget", type=float, default=None,
+                       help="总预算秒（默认不设——判停靠 worker Stop/人工 stop/止损；09-19 拍板）")
     p_run.add_argument("--rounds", type=int, default=None, help="轮上限（默认不限——仅预算与连击止损，2026-09-04 拍板）")
     p_run.add_argument("--dry-run", action="store_true", help="渲染首轮 prompt 不 spawn")
     p_run.add_argument("--stop-on-first-confirmed", action="store_true",

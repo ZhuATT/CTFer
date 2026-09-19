@@ -1,146 +1,258 @@
-"""AT1 observer_harvest —— 配方 2:OBSERVER 七类行 → 图(schema §7)。
+"""AT1 observer_harvest v2 —— 判断书执行器（批3fix F6；协议=contracts/OBSERVER-INTERFACE.md）。
 
-观察者(-p 进程,P5 上车)把判断书写进 `.observer/OBSERVER`(JSONL,七类行);
-controller 收割器机械执行本模块的翻译——**它决定,系统记录**,每次写入带 round+origin。
-- 不变量 3(verdict 仅作用 proposed、confirmed 不可翻案)由 board.update_node 机械兜底;
-- noreport 硬拒条目 verdict 不受理(`rejected_ids` 前置闭环,T2.6);
-- 结构非法行(坏 JSON/未知 t/必填缺失)进 rejects——调用方落
-  `.observer/OBSERVER.rejects` + `observer_parse_fail` 事件;
-- 语义未生效(节点不存在/不变量拒绝)记 warnings,不阻塞。
+观察者（-p 进程）终态写 `.observer/OBSERVER.json`（五操作）；本模块是协议唯一服务端：
+逐条校验（schema/未知 id/终态翻案/noreport/查重）→ board 三原子入图 →
+receipt 落 `.at1/interface_log.jsonl`；坏条进 `.observer/OBSERVER.rejects` 不拖累整份。
 
-批 2 交付解析器+单测先行;激活=P5(observer.py 重写后产出 OBSERVER 文件)。
+图唯一写手=观察者（经本执行器），入图即终态（R2）：finding 终态写死、
+fact 仅 confirmed→superseded（画像前缀机械换代）。它决定，系统记录。
 """
 
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
-_SEVEN_TYPES = ("verdict", "edge", "comment", "intent", "intel", "guide")
-_VERDICT_STATES = ("confirmed", "dismissed")
+OPS = ("add_fact", "add_finding", "add_intent", "set_state", "add_edge")
+_RELS = ("sources", "yields", "derived_from", "spawns", "same_root", "supersedes")
+_INTENT_STATES = ("open", "in_progress", "done", "blocked")
+_SEVERITIES = ("high", "medium", "low", "none")
+_RESULTS = ("confirmed", "dismissed")
+_PICTURE_PREFIX = "目标画像"
 
 
-def apply_observer_lines(bb, lines, *, round: int,
-                         rejected_ids: set | None = None) -> dict:
-    """OBSERVER JSONL 行 → 图操作(配方 2,schema §6.2/§7)。
-    返回 {"counts": {...}, "rejects": [结构非法行原文]}。"""
-    rejected_ids = rejected_ids or set()
-    counts = {"verdict": 0, "verdict_skip_rejected": 0, "verdict_illegal": 0,
-              "edge": 0, "dismissed_by_primary": 0, "comment": 0,
-              "intent": 0, "intel": 0, "guide": 0, "warnings": []}
-    rejects: list[str] = []
-    for raw in lines or []:
-        line = raw.strip().lstrip("﻿").strip()
-        if not line:
+def _dep_key(endpoint: str) -> str:
+    """端点归一（兜底匹配键）：剥 query/尾斜杠/通配 **。"""
+    ep = (endpoint or "").split("?")[0].strip().lower().rstrip("/")
+    while ep.endswith("*"):
+        ep = ep.rstrip("*").rstrip("/")
+    return ep
+
+
+def _endpoint_match(a: str, b: str) -> bool:
+    ka, kb = _dep_key(a), _dep_key(b)
+    if not ka or not kb:
+        return False
+    return ka in kb or kb in ka   # 双向子串：方向端点常是产出的前缀
+
+
+def _auto_link(bb, node_id: str, *, round: int) -> int:
+    """endpoint 兜底（schema §4.1：节点已有任何边 → 不动）。
+    fact → 同端点在途 intent 补 sources；finding → 同端点在途 intent 补 yields。"""
+    node = bb.node(node_id)
+    if node is None or node["endpoint"] == "global":
+        return 0
+    if bb.edges(src=node_id) or bb.edges(dst=node_id):
+        return 0
+    n = 0
+    for it in bb.nodes("intent"):
+        if it["state"] == "done":
+            continue
+        if _endpoint_match(node["endpoint"], it["endpoint"]):
+            if node["kind"] == "fact":
+                src, dst, rel = node_id, it["id"], "sources"
+            else:
+                src, dst, rel = it["id"], node_id, "yields"
+            if bb.add_edge(src, rel, dst, origin="controller",
+                           note="endpoint 兜底", round=round):
+                n += 1
+    return n
+
+
+def _ref_edge(bb, node_id: str, ref, *, round: int) -> int:
+    """ref 自动连边（六动词语义表，schema §4.1）：
+    - 方向 ref 线索（intent→fact/finding）：sources——线索支撑方向
+    - 发现/事实 ref 方向（fact/finding→intent）：yields——方向产出该产出
+    - 方向 ref 发现（intent→finding）：spawns——发现催生了新方向
+    - 产出 ref 产出（fact/finding→fact/finding）：derived_from——本条派生自
+    指向不存在的节点是建议性失配：不连边、不报错（ref 非强制字段）。"""
+    r = str(ref or "").strip()
+    if not r or r == node_id:
+        return 0
+    node = bb.node(node_id)
+    target = bb.node(r)
+    if node is None or target is None:
+        return 0
+    nk, tk = node["kind"], target["kind"]
+    if nk == "intent" and tk == "finding":
+        rel, src, dst = "spawns", r, node_id        # 发现催生方向
+    elif nk == "intent" and tk == "fact":
+        rel, src, dst = "sources", node_id, r       # 线索支撑方向
+    elif nk in ("fact", "finding") and tk == "intent":
+        rel, src, dst = "yields", r, node_id        # 方向产出该产出
+    elif nk == "intent" and tk == "intent":
+        rel, src, dst = "spawns", r, node_id
+    else:
+        rel, src, dst = "derived_from", node_id, r
+    return 1 if bb.add_edge(src, rel, dst, origin="observer",
+                            note="ref 自动连线", round=round) else 0
+
+
+def _swap_picture(bb, node_id: str, *, round: int) -> int:
+    """画像前缀机械换代：新 fact 摘要带"目标画像"前缀 → 旧画像 fact 标 superseded
+    并连 supersedes 边（R2：翻案=加新节点替代）。返回换代数。"""
+    node = bb.node(node_id)
+    if node is None or not str(node["payload"].get("value", "")).startswith(_PICTURE_PREFIX):
+        return 0
+    n = 0
+    for other in bb.nodes("fact"):
+        if other["id"] == node_id or other["state"] != "confirmed":
+            continue
+        if str(other["payload"].get("value", "")).startswith(_PICTURE_PREFIX):
+            if (bb.add_edge(node_id, "supersedes", other["id"], origin="observer",
+                            note="画像换代", round=round)
+                    and bb.update_node(other["id"], state="superseded")):
+                n += 1
+    return n
+
+
+def _op_add_fact(bb, op, *, round, noreport_rejects):
+    summary = str(op.get("summary", "")).strip()
+    evidence = str(op.get("evidence", "")).strip()
+    if not summary or not evidence:
+        return "rejected", {}, "add_fact 缺必填 summary/evidence"
+    endpoint = str(op.get("endpoint", "")).strip() or "global"
+    before = {n["id"] for n in bb.graph["nodes"]}
+    nid = bb.create_node("fact", {"value": summary[:500], "evidence": evidence[:200]},
+                         endpoint=endpoint, origin="observer", round=round)
+    status = "existing" if nid in before else "applied"
+    edges = _ref_edge(bb, nid, op.get("ref"), round=round) + _auto_link(bb, nid, round=round)
+    edges += _swap_picture(bb, nid, round=round)
+    return status, {"id": nid, "edges": edges}, None
+
+
+def _op_add_finding(bb, op, *, round, noreport_rejects):
+    summary = str(op.get("summary", "")).strip()
+    report = str(op.get("report", "")).replace("\\", "/").strip()
+    severity = str(op.get("severity", "")).strip()
+    reason = str(op.get("reason", "")).strip()
+    if not summary or not report or not severity or not reason:
+        return "rejected", {}, "add_finding 缺必填 summary/report/severity/reason"
+    if severity not in _SEVERITIES:
+        return "rejected", {}, f"severity 非法：{severity}"
+    result = str(op.get("result", "")).strip() or "confirmed"
+    if result not in _RESULTS:
+        return "rejected", {}, f"result 非法：{result}"
+    if report in set(noreport_rejects or ()):
+        return "rejected", {}, f"noreport 硬拒命中：{report}"
+    endpoint = str(op.get("endpoint", "")).strip() or "global"
+    before = {n["id"] for n in bb.graph["nodes"]}
+    nid = bb.create_node("finding", {"summary": summary[:300], "report": report[:200],
+                                     "severity": severity, "reason": reason[:500]},
+                         endpoint=endpoint, origin="observer", round=round, state=result)
+    status = "existing" if nid in before else "applied"
+    edges = _ref_edge(bb, nid, op.get("ref"), round=round) + _auto_link(bb, nid, round=round)
+    return status, {"id": nid, "edges": edges}, None
+
+
+def _op_add_intent(bb, op, *, round, noreport_rejects):
+    goal = str(op.get("goal", "")).strip()
+    note = str(op.get("note", "")).strip()
+    if not goal:
+        return "rejected", {}, "add_intent 缺必填 goal"
+    endpoint = str(op.get("endpoint", "")).strip() or "global"
+    nid = bb.create_node("intent", {"goal": goal[:200], "note": note[:500]},
+                         endpoint=endpoint, origin="observer", round=round)
+    edges = _ref_edge(bb, nid, op.get("ref"), round=round)
+    return "applied", {"id": nid, "edges": edges}, None
+
+
+def _op_set_state(bb, op, *, round, noreport_rejects):
+    nid = str(op.get("id", "")).strip()
+    state = str(op.get("state", "")).strip()
+    reason = str(op.get("reason", "")).strip()
+    node = bb.node(nid)
+    if node is None:
+        return "rejected", {}, f"set_state 目标不存在：{nid}"
+    if node["kind"] != "intent":
+        return "rejected", {}, f"set_state 仅作用 intent（{nid} 是 {node['kind']} 终态写死）"
+    if state not in _INTENT_STATES:
+        return "rejected", {}, f"state 非法：{state}"
+    if state == "blocked" and not reason:
+        return "rejected", {}, "blocked 必带可检验条件（A11）"
+    patch = {"blocked_reason": reason[:300]} if state == "blocked" else {"note": reason[:500]}
+    ok = bb.update_node(nid, state=state, payload_patch=patch)
+    return ("applied" if ok else "rejected"), {"id": nid}, None if ok else "迁移未生效"
+
+
+def _op_add_edge(bb, op, *, round, noreport_rejects):
+    src = str(op.get("src", "")).strip()
+    dst = str(op.get("dst", "")).strip()
+    rel = str(op.get("rel", "")).strip()
+    note = str(op.get("note", "")).strip()[:300]
+    if not src or not dst:
+        return "rejected", {}, "add_edge 缺 src/dst"
+    if rel not in _RELS:
+        return "rejected", {}, f"rel 非法：{rel}（六动词）"
+    if bb.node(src) is None or bb.node(dst) is None:
+        return "rejected", {}, f"端点节点不存在：{src}/{dst}"
+    if not bb.add_edge(src, rel, dst, origin="observer", note=note, round=round):
+        return "existing", {"src": src, "rel": rel, "dst": dst}, None   # 声明优先
+    if rel == "supersedes":
+        dup = bb.node(dst)
+        if dup is not None and dup["kind"] == "fact" and dup["state"] == "confirmed":
+            bb.update_node(dst, state="superseded")
+    return "applied", {"src": src, "rel": rel, "dst": dst}, None
+
+
+_HANDLERS = {"add_fact": _op_add_fact, "add_finding": _op_add_finding,
+             "add_intent": _op_add_intent, "set_state": _op_set_state,
+             "add_edge": _op_add_edge}
+
+
+def apply_judgment(bb, doc, *, round: int, root: Path,
+                   noreport_rejects=()) -> dict:
+    """判断书 → 图（协议唯一服务端）。返回 {"counts","rejects","receipts","applied"}。
+    逐条 best-effort：坏条进 rejects（落 .observer/OBSERVER.rejects），不拖累整份；
+    每条成功落 receipt（.at1/interface_log.jsonl）。"""
+    counts = {op: 0 for op in OPS}
+    counts["dedup_existing"] = 0
+    applied = 0                                  # 真落笔数（幂等撞键的 existing 不计）
+    rejects: list[dict] = []
+    receipts: list[dict] = []
+    ops = doc.get("operations") if isinstance(doc, dict) else None
+    if not isinstance(ops, list):
+        return {"counts": counts, "rejects": [{"error": "operations 缺失或非数组"}],
+                "receipts": [], "applied": 0}
+    for i, op in enumerate(ops):
+        if not isinstance(op, dict) or op.get("op") not in OPS:
+            rejects.append({"index": i, "error": "未知 op 或非对象", "raw": str(op)[:200]})
             continue
         try:
-            d = json.loads(line)
-        except (json.JSONDecodeError, ValueError):
-            rejects.append(raw)
+            status, info, err = _HANDLERS[op["op"]](bb, op, round=round,
+                                                    noreport_rejects=noreport_rejects)
+        except Exception as e:                       # 单条异常不拖垮整份
+            status, info, err = "rejected", {}, f"执行器异常：{e}"
+        if status == "rejected":
+            rejects.append({"index": i, "op": op.get("op"), "error": err})
             continue
-        if not isinstance(d, dict) or d.get("t") not in _SEVEN_TYPES:
-            rejects.append(raw)
-            continue
-        t = d["t"]
-        if t == "verdict":
-            _apply_verdict(bb, d, counts, rejects, rejected_ids)
-        elif t == "edge":
-            _apply_edge(bb, d, counts, rejects, round)
-        elif t == "comment":
-            if str(d.get("id", "")).strip() and bb.update_node(
-                    str(d["id"]), comment=str(d.get("text", ""))):
-                counts["comment"] += 1
-            else:
-                counts["warnings"].append(f"comment 目标不存在:{d.get('id')}")
-        elif t == "intent":
-            nid = bb.create_node("intent",
-                                 {"goal": str(d.get("goal", "")),
-                                  "note": str(d.get("note", ""))},
-                                 endpoint=str(d.get("endpoint", "")) or "global",
-                                 origin="observer", round=round)
-            counts["intent"] += 1
-            src = str(d.get("from", "")).strip()
-            if src:
-                bb.add_edge(src, "spawns", nid, origin="observer",
-                            note="观察者立向", round=round)
-        elif t == "intel":
-            text = str(d.get("text", "")).strip()
-            if text:
-                bb.add_intel(text, round)
-                counts["intel"] += 1
-            else:
-                counts["warnings"].append("intel 缺 text(必填)")
-        elif t == "guide":
-            text = str(d.get("text", "")).strip()
-            if text:
-                bb.bookkeeping["guide"] = {"round": int(round), "text": text[:2000]}
-                counts["guide"] += 1
-            else:
-                counts["warnings"].append("guide 缺 text")
-    return {"counts": counts, "rejects": rejects}
-
-
-def _apply_verdict(bb, d, counts, rejects, rejected_ids) -> None:
-    """verdict 行:审查结论。硬拒 id 不受理;不变量 3 由 board 兜底。"""
-    nid = str(d.get("id", "")).strip()
-    state = d.get("state")
-    if not nid or state not in _VERDICT_STATES:
-        rejects.append(json.dumps(d, ensure_ascii=False))
-        return
-    if nid in rejected_ids:
-        counts["verdict_skip_rejected"] += 1
-        return
-    patch = {"reason": str(d.get("reason", ""))[:500]}
-    if d.get("severity"):
-        patch["severity"] = str(d["severity"])
-    if bb.update_node(nid, state=state, payload_patch=patch):
-        counts["verdict"] += 1
-    else:
-        counts["verdict_illegal"] += 1
-        counts["warnings"].append(f"verdict 未生效:{nid}(不存在或非 proposed——不可翻案)")
-
-
-def _primary_fallback(bb, a: str, b: str) -> str:
-    """先到优先(schema §7):confirmed 最早者为正主;无 confirmed 取 round 最早;再并列取 a。"""
-    def rank(nid: str):
-        n = bb.node(nid)
-        if n is None:
-            return (1, 999_999, nid)
-        return (0 if n["state"] == "confirmed" else 1, n.get("round", 0), nid)
-    return a if rank(a) <= rank(b) else b
-
-
-def _apply_edge(bb, d, counts, rejects, round: int) -> None:
-    rel = d.get("rel")
-    src, dst = str(d.get("src", "")).strip(), str(d.get("dst", "")).strip()
-    note = str(d.get("note", ""))[:300]
-    if not src or not dst:
-        rejects.append(json.dumps(d, ensure_ascii=False))
-        return
-    if rel == "same_root":
-        # 正主规则(拍板2=B):primary∈{src,dst} → 正主=primary;缺失/非法 → 先到优先。
-        # 边方向=非正主→正主(schema §4.1)——primary 指向 src 时翻转。
-        primary = str(d.get("primary", "")).strip()
-        if primary not in (src, dst):
-            primary = _primary_fallback(bb, src, dst)
-        if primary == src:
-            src, dst = dst, src
-        if bb.add_edge(src, "same_root", dst, origin="observer", note=note, round=round):
-            counts["edge"] += 1
-        dup = bb.node(src)
-        if dup is not None and dup["state"] == "proposed":
-            if bb.update_node(src, state="dismissed",
-                              payload_patch={"reason": f"并入正主 {dst}"}):
-                counts["dismissed_by_primary"] += 1
-        elif dup is not None and dup["state"] == "confirmed":
-            counts["warnings"].append(f"非正主 {src} 已 confirmed,保持不翻案(不变量 3)")
-    elif rel == "supersedes":
-        if bb.add_edge(src, "supersedes", dst, origin="observer", note=note, round=round):
-            counts["edge"] += 1
-        if not bb.update_node(dst, state="superseded"):
-            counts["warnings"].append(f"supersedes 目标不可迁移:{dst}(仅 confirmed 可被取代)")
-    else:
-        # sources/yields/derived_from/spawns:观察者补线(§4.1 观察者决定权内),平铺 add_edge
-        if bb.add_edge(src, str(rel), dst, origin="observer", note=note, round=round):
-            counts["edge"] += 1
+        counts[op["op"]] += 1
+        if status == "existing":
+            counts["dedup_existing"] += 1
         else:
-            counts["warnings"].append(f"边已存在(声明优先):{src}-{rel}->{dst}")
+            applied += 1
+        receipts.append({"ts_round": round, "op": op.get("op"), "status": status, **info})
+    _write_receipts(root, receipts)
+    return {"counts": counts, "rejects": rejects, "receipts": receipts,
+            "applied": applied}
+
+
+def _write_receipts(root, receipts: list[dict]) -> None:
+    if not receipts or root is None:
+        return
+    p = Path(root) / ".at1" / "interface_log.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a", encoding="utf-8") as f:
+        for r in receipts:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+
+def write_rejects(root, rejects: list[dict], *, round: int) -> None:
+    """坏条隔离区（追加式）。"""
+    if not rejects or root is None:
+        return
+    p = Path(root) / ".observer" / "OBSERVER.rejects"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a", encoding="utf-8") as f:
+        for r in rejects:
+            f.write(json.dumps({"round": round, **r}, ensure_ascii=False) + "\n")

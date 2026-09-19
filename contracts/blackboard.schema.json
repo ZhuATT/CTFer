@@ -85,7 +85,7 @@
       "properties": {
         "id": {"type": "string", "pattern": "^F-[A-Za-z0-9\\-]+$"},
         "kind": {"enum": ["finding"]},
-        "state": {"enum": ["proposed", "confirmed", "dismissed"]},
+        "state": {"enum": ["confirmed", "dismissed"]},
         "payload": {"$ref": "#/$defs/findingPayload"},
         "endpoint": {"type": "string"},
         "origin": {"enum": ["worker", "controller", "observer", "user"]},
@@ -100,7 +100,7 @@
       "properties": {
         "id": {"type": "string", "pattern": "^T-[A-Za-z0-9\\-]+$"},
         "kind": {"enum": ["fact"]},
-        "state": {"enum": ["proposed", "confirmed", "dismissed", "superseded"]},
+        "state": {"enum": ["confirmed", "dismissed", "superseded"]},
         "payload": {"$ref": "#/$defs/factPayload"},
         "endpoint": {"type": "string"},
         "origin": {"enum": ["worker", "controller", "observer", "user"]},

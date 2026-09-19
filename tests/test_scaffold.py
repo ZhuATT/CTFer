@@ -5,6 +5,7 @@ T3.4 一致性锁（ARTEX/Cairn 之长取其锁）：汇编 §3.1/§3.2 定稿�
 """
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -13,9 +14,10 @@ from src import scaffold
 from src.board import Blackboard
 
 REPO = Path(__file__).resolve().parent.parent
-_MANUAL_HEADER = ("### 3.1 WORKER-CLAUDE.md 全文(定稿 09-18,施工原样落位 scaffolding/;"
+_MANUAL_HEADER = ("### 3.1 WORKER-CLAUDE.md 全文(定稿 09-19 批3fix,施工原样落位 scaffolding/;"
                   "渲染槽 {target}/{hint}/{env_bg})")
-_FORMATS_HEADER = "### 3.2 FORMATS.md 全文(定稿 09-18,施工原样落位 scaffolding/)"
+_OBSERVER_HEADER = ("### 4.1 OBSERVER-MANUAL.md 全文(定稿 09-19 批3fix,"
+                    "施工原样落位 scaffolding/)")
 
 
 def _eng(**kw) -> dict:
@@ -51,11 +53,28 @@ def test_assembly_lock_manual():
     assert locked == live
 
 
-def test_assembly_lock_formats():
-    """锁③b：汇编 §3.2 定稿段 ↔ scaffolding/FORMATS.md 逐字一致。"""
-    locked = _assembly_section(_FORMATS_HEADER)
-    live = (REPO / "scaffolding" / "FORMATS.md").read_text(encoding="utf-8")
+def test_formats_retired():
+    """锁③b 终版：FORMATS.md 退役（R1）——scaffolding 无此文件，汇编 §3.2 为退役注记。"""
+    assert not (REPO / "scaffolding" / "FORMATS.md").exists()
+    asm = (REPO / "docs" / "prompt-全文汇编.md").read_text(encoding="utf-8")
+    assert "FORMATS.md ——已退役" in asm
+
+
+def test_assembly_lock_observer_manual():
+    """锁③c（批3fix 新增）：汇编 §4.1 ↔ scaffolding/OBSERVER-MANUAL.md 逐字一致。
+    观察者手册是写图/审计的唯一纪律来源——漂移即红（改手册必须两边同 commit）。"""
+    locked = _assembly_section(_OBSERVER_HEADER)
+    live = (REPO / "scaffolding" / "OBSERVER-MANUAL.md").read_text(encoding="utf-8")
     assert locked == live
+
+
+def test_observer_protocol_contract_exists():
+    """契约文件在场（观察者写图协议的机器权威）。"""
+    iface = (REPO / "contracts" / "OBSERVER-INTERFACE.md").read_text(encoding="utf-8")
+    for op in ("add_fact", "add_finding", "add_intent", "set_state", "add_edge"):
+        assert op in iface
+    for dead in ("| annotate", "| set_guide", "| supersede", "| verdict"):
+        assert dead not in iface            # 已裁操作不得作为表行复活（提及去向的散文允许）
 
 
 def test_template_slots_exact():
@@ -120,29 +139,29 @@ def test_expand_renders_from_bookkeeping(tmp_path):
 
 
 def test_expand_creates_full_workdir_v3(tmp_path):
+    """批3fix R1/R7：单层根目录 + 一条一文件写盘面；大账本/FORMATS/status 退役。"""
+    for stale in tmp_path.iterdir():                 # pytest tmp_path 跨轮复用，先清场
+        (shutil.rmtree if stale.is_dir() else Path.unlink)(stale)
     _mk = Blackboard()
     scaffold.seed_engagement(_eng(), _mk)
     wd = scaffold.expand(tmp_path, _eng(), _mk)
-    for name in ("CLAUDE.md", "FORMATS.md", ".mcp.json", "FINDINGS", "FACTS",
-                 "evidence", "reports", "src标准"):
+    assert wd == tmp_path                            # 单层化：根=worker cwd
+    for name in ("CLAUDE.md", ".mcp.json", "facts", "findings", "evidence", "src标准"):
         assert (wd / name).exists(), name
-    assert not (wd / "DIRECTIONS").exists()         # A17③：写面退役，不预创建
-    assert "FORMATS.md" in (wd / "FINDINGS").read_text(encoding="utf-8")
-    assert "DIRECTIONS" not in (wd / "FINDINGS").read_text(encoding="utf-8")
-    fmt = (wd / "FORMATS.md").read_text(encoding="utf-8")
-    assert "derived_from|sources|yields" in fmt          # chain 三动词教学
-    assert "不归你声明" in fmt                            # same_root 判重归观察者（禁令句在）
+    names = {p.name for p in wd.iterdir()}           # Windows 大小写不敏感——按名字精确比对
+    for dead in ("FORMATS.md", "FINDINGS", "FACTS", "reports", ".auto",
+                 "status.md", "STATE.md"):
+        assert dead not in names, dead               # R6/R7：退役物不生成
+    assert not (wd / "DIRECTIONS").exists()          # A17③：写面退役，不预创建
 
 
 def test_expand_cleans_legacy_direactions(tmp_path):
     """旧 engagement 遗留 DIRECTIONS 文件——展开时清理（防误导新会话）。"""
-    wd = tmp_path / ".auto"
-    wd.mkdir(parents=True)
-    (wd / "DIRECTIONS").write_text('{"id":"D-001","goal":"旧方向"}\n', encoding="utf-8")
+    (tmp_path / "DIRECTIONS").write_text('{"id":"D-001","goal":"旧方向"}\n', encoding="utf-8")
     bb = Blackboard()
     scaffold.seed_engagement(_eng(), bb)
     scaffold.expand(tmp_path, _eng(), bb)
-    assert not (wd / "DIRECTIONS").exists()
+    assert not (tmp_path / "DIRECTIONS").exists()
 
 
 # ── fail-fast（§11：只剩 target） ────────────────────────────────────────
