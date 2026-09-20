@@ -16,7 +16,7 @@ from src.board import Blackboard
 REPO = Path(__file__).resolve().parent.parent
 _MANUAL_HEADER = ("### 3.1 WORKER-CLAUDE.md 全文(定稿 09-19 批3fix,施工原样落位 scaffolding/;"
                   "渲染槽 {target}/{hint}/{env_bg})")
-_OBSERVER_HEADER = ("### 4.1 OBSERVER-MANUAL.md 全文(定稿 09-19 批3fix,"
+_OBSERVER_HEADER = ("### 4.1 OBSERVER-MANUAL.md 全文(定稿 09-19 批4,"
                     "施工原样落位 scaffolding/)")
 
 

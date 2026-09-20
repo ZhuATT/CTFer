@@ -19,6 +19,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -176,14 +177,13 @@ def _render_state_minimal(bb) -> str:
     return "\n\n".join(parts) + "\n"
 
 
-def _dir_diff(root: Path, bb) -> list[dict]:
-    """目录级 diff（R1 终版）：facts//findings//evidence/ 本轮新增/变更文件清单。
-    状态存 bb.offsets["files_seen"]={relpath: [mtime_ns, size]}——新路径或指纹变化
-    即入清单（比字节 offsets 皮实：worker 改旧文件 → 指纹变 → 观察者重审）。
-    用纳秒+尺寸而非秒级 mtime：同秒内快速改写不会被漏掉。"""
-    seen = dict(bb.offsets.get("files_seen", {}))
-    out: list[dict] = []
-    for sub, hint in (("facts", "fact"), ("findings", "finding"), ("evidence", "evidence")):
+def _inventory_page(root: Path, prev: dict) -> tuple[dict, dict]:
+    """无状态目录页（批4 G1-A 终版）：facts//findings//evidence/ 全量盘点。
+    纯现算零持久化——prev（上一轮清单指纹，内存级，重启清零）只用于
+    new_or_changed 参考标记；标记不承担正确性责任，"哪些要审"由观察者对照图判断。"""
+    items: list[dict] = []
+    state: dict = {}
+    for sub in ("facts", "findings", "evidence"):
         d = root / sub
         if not d.is_dir():
             continue
@@ -192,12 +192,13 @@ def _dir_diff(root: Path, bb) -> list[dict]:
                 continue
             rel = p.relative_to(root).as_posix()
             st = p.stat()
-            fp = [st.st_mtime_ns, st.st_size]
-            if seen.get(rel) != fp:
-                out.append({"path": rel, "kind_hint": hint, "changed": rel in seen})
-                seen[rel] = fp
-    bb.offsets["files_seen"] = seen
-    return out
+            changed = prev.get(rel) != (st.st_mtime_ns, st.st_size)
+            items.append({"path": rel, "dir": sub, "bytes": st.st_size,
+                          "new_or_changed": changed})
+            state[rel] = (st.st_mtime_ns, st.st_size)
+    page = {"items": items,
+            "new_or_changed": [i["path"] for i in items if i["new_or_changed"]]}
+    return page, state
 
 
 def _finding_summary_of(path: Path) -> str:
@@ -212,19 +213,42 @@ def _finding_summary_of(path: Path) -> str:
     return path.stem
 
 
-def _noreport_rejects(root: Path, new_outputs: list[dict]) -> list[str]:
-    """noreport 检察官前置（T2.6 语义保留）：findings/ 新文件形状即现象 → 硬拒清单，
-    执行器对命中路径的 add_finding 拒不受理。"""
-    out: list[str] = []
-    for item in new_outputs:
-        if item.get("kind_hint") != "finding":
-            continue
-        p = root / item["path"]
+def _noreport_scan(root: Path, new_finding_paths: list[str]) -> tuple[list[str], list[dict]]:
+    """noreport 检察官前置（T2.6 语义保留 + 批4 G2 公诉出口）：
+    reject=形状即现象 → 硬拒清单（执行器对命中路径的 add_finding 拒不受理）；
+    suspect=定性公诉意见 → 任务单 precheck_hints（提示观察者重点核实，非结论）。"""
+    rejects: list[str] = []
+    hints: list[dict] = []
+    for rel in new_finding_paths:
+        p = root / rel
         text = p.read_text(encoding="utf-8", errors="replace") if p.is_file() else ""
         pre = noreport_check({"summary": _finding_summary_of(p), "endpoint": ""}, text)
         if pre["verdict"] == "reject":
-            out.append(item["path"])
-    return out
+            rejects.append(rel)
+        elif pre["verdict"] == "suspect":
+            hints.append({"path": rel,
+                          "hint": f"疑似 {pre['category']}：{pre['reason']}"})
+    return rejects, hints
+
+
+
+def _observer_feedback(root: Path, bb, doc, noreport_rejects: list[str]) -> str:
+    """resume 反馈文本（Cairn conclude-fallback）：把执行器校验的 rejects 精确回喂，
+    观察者带完整上下文修正判断书后重新提交。"""
+    if doc is None:
+        return ("你退出时没有留下合法的判断书（.observer/OBSERVER.json 不存在/无法解析/"
+                "operations 为空）。请按 .observer/INTERFACE.md 协议重新写判断书，"
+                "运行任务单里的 submit_cmd 提交成功后退出。")
+    check_bb = board_mod.Blackboard(str(root / ".at1" / "blackboard.json"))
+    res_o = observer_harvest.apply_judgment(check_bb, doc, round=0, root=None,
+                                            noreport_rejects=set(noreport_rejects))
+    if res_o["rejects"]:
+        det = "；".join(f"第{r.get('index', '?')}条 {r.get('error', '')}"
+                        for r in res_o["rejects"][:5])
+        return (f"你的判断书有 {len(res_o['rejects'])} 条未通过校验：{det}。"
+                "请修正 .observer/OBSERVER.json 后重新运行 submit 命令提交。")
+    return ("判断书校验通过但没有成功提交标记（SUBMITTED）——"
+            "请运行任务单里的 submit_cmd 提交后退出。")
 
 
 def run_engagement(engagement_root: str, *, budget_s: float | None = None,
@@ -332,6 +356,7 @@ def run_engagement(engagement_root: str, *, budget_s: float | None = None,
         return 2
 
     rnd = 0
+    prev_inventory: dict = {}               # 目录页指纹（内存级；重启清零→首轮全标新增，无害）
     # ── P-11 v2（2026-09-14，参照 ARTEX具名取消/Cairn 即时杀）：盯梢线程 ──
     # 0.5s 轮询 CONTROL，看到 stop 立即杀 worker 进程树并置标志。
     # 停机语义 = drain（收割落盘可续跑），与 ARTEX/Cairn/hxbai 三家一致。
@@ -441,9 +466,11 @@ def run_engagement(engagement_root: str, *, budget_s: float | None = None,
         print(f"[worker r{rnd}] stop={res.stop_reason} turns={res.turns} "
               f"tokens={res.tokens} nodes={len(bb.graph['nodes'])}")
 
-        # ── 目录级 diff（R1）：facts//findings//evidence/ 新增/变更 → 观察者任务单 ──
-        new_outputs = _dir_diff(root, bb)
-        noreport_rejects = _noreport_rejects(root, new_outputs)
+        # ── 无状态目录页（批4 G1-A）：全量盘点 worker 写盘面 → 观察者任务单 ──
+        page, inv_state = _inventory_page(root, prev_inventory)
+        prev_inventory = inv_state
+        new_finding_paths = [p for p in page["new_or_changed"] if p.startswith("findings/")]
+        noreport_rejects, precheck_hints = _noreport_scan(root, new_finding_paths)
 
         # ── Handoff（A19：读者=观察者，进任务单） ──
         bb.record_handoff(res.handoff or "")
@@ -453,43 +480,65 @@ def run_engagement(engagement_root: str, *, budget_s: float | None = None,
         sl.record_round(facts_delta=len(bb.graph["nodes"]) - nodes_before,
                         session_ok=(res.stop_reason != "error"))
 
-        # ── 观察者（F6）：-p 会话，终态判断书 → 执行器入图。空产出重试一次（R8） ──
+        # ── 观察者（F6）：-p 会话审计 → submit-judgment 提交 → 执行器入图。
+        #    未成功提交 → resume 同 session 精确回喂一次（Cairn conclude-fallback）；仍失败 → 告警 ──
         if observer_on:
             observer.copy_observer_kit(root)
             observer.clear_judgment(root)
             state_md = root / "STATE.md"
             state_mtime_before = state_md.stat().st_mtime if state_md.is_file() else 0.0
+            submit_cmd = f'"{sys.executable}" "{Path(__file__).resolve().parent.parent / "src" / "submit.py"}" "{root}"'
             sheet = {"round": rnd, "goal": bb.goal.get("text", ""),
                      "timebox": box,
-                     "new_outputs": new_outputs,
+                     "worker_output": page,
                      "noreport_rejects": noreport_rejects,
+                     "precheck_hints": precheck_hints,
                      "handoff": (res.handoff or "")[:500],
                      "graph_path": ".at1/blackboard.json",
                      "manual": ".observer/OBSERVER-MANUAL.md",
-                     "interface": ".observer/INTERFACE.md"}
-            observer.run_once(root, sheet)
-            ev.emit("observer_session_end", {"round": rnd}, round_=rnd)
+                     "interface": ".observer/INTERFACE.md",
+                     "submit_cmd": submit_cmd}
+
+            def on_tool(t, _r=rnd):
+                v = guard.check_tool(t.tool, t.args or {})
+                if not v.ok:
+                    ev.emit("guard_violation", {"round": _r, "role": "observer",
+                                                "kind": v.kind, "tool": t.tool,
+                                                "reason": v.reason[:200],
+                                                "critical": v.kind == "self_destruct"},
+                            round_=_r)
+
+            res_o = observer.run_once(root, sheet, on_tool=on_tool)
+            ev.emit("observer_session_end",
+                    {"round": rnd, "stage": "initial", **res_o}, round_=rnd)
             doc = observer.read_judgment(root)
-            if doc is None:                           # 空产出 → 重试一次（R8 防线）
-                ev.emit("observer_empty_retry", {"round": rnd, "stage": "retry"},
-                        round_=rnd)
-                observer.clear_judgment(root)
-                observer.run_once(root, sheet)
+            submitted = observer.submitted(root)
+            if doc is None or not submitted:
+                # 未成功提交 → resume 同 session 精确回喂（Cairn conclude-fallback，一次机会）
+                feedback = _observer_feedback(root, bb, doc, noreport_rejects)
+                ev.emit("observer_resume_feedback",
+                        {"round": rnd, "head": feedback[:80]}, round_=rnd)
+                res_o = observer.run_once(root, sheet, on_tool=on_tool,
+                                          resume_session_id=res_o.get("session_id"),
+                                          feedback=feedback)
+                ev.emit("observer_session_end",
+                        {"round": rnd, "stage": "retry", **res_o}, round_=rnd)
                 doc = observer.read_judgment(root)
-                if doc is None:
-                    ev.emit("observer_empty_retry", {"round": rnd, "stage": "exhausted"},
-                            round_=rnd)
-            if doc is not None:
-                res_o = observer_harvest.apply_judgment(
+                submitted = observer.submitted(root)
+                if doc is None or not submitted:
+                    ev.emit("observer_empty_retry",
+                            {"round": rnd, "stage": "exhausted"}, round_=rnd)
+            if doc is not None and submitted:
+                res_a = observer_harvest.apply_judgment(
                     bb, doc, round=rnd, root=root,
                     noreport_rejects=set(noreport_rejects))
-                if res_o["rejects"]:
-                    observer_harvest.write_rejects(root, res_o["rejects"], round=rnd)
+                if res_a["rejects"]:
+                    observer_harvest.write_rejects(root, res_a["rejects"], round=rnd)
                     ev.emit("observer_parse_fail",
-                            {"round": rnd, "count": len(res_o["rejects"])}, round_=rnd)
-                ev.emit("observer_applied", {"round": rnd, **res_o["counts"]}, round_=rnd)
+                            {"round": rnd, "count": len(res_a["rejects"])}, round_=rnd)
+                ev.emit("observer_applied", {"round": rnd, **res_a["counts"]}, round_=rnd)
                 print(f"[观察者 r{rnd}] " + " | ".join(
-                    f"{k}={v}" for k, v in res_o["counts"].items() if v))
+                    f"{k}={v}" for k, v in res_a["counts"].items() if v))
             # STATE.md：观察者写了就用；没写 → 兜底极简计数（防 P-13 式静默失联）
             if not state_md.is_file() or state_md.stat().st_mtime <= state_mtime_before:
                 state_md.write_text(_render_state_minimal(bb), encoding="utf-8")

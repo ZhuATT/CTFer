@@ -538,14 +538,17 @@ def run(
     time_box_s: float | None = None,
     max_turns: int | None = None,
     claude_bin: str | None = None,
+    resume_session_id: str | None = None,
 ) -> AgentResult:
     """带断点续跑的完整执行（设计§3.1）：
 
     - 异常终态（error，如 API 429/5xx 中断）→ 指数退避后 --resume <session_id> 续跑
     - max_turns / timeout 是终态，不续（续了等于放大时间盒）
     - 每 task.transcript_path 是追加式的：续跑的流接在同一个 transcript 后
+    - resume_session_id（批4）：外部指定的初始续跑句柄（观察者校验反馈回喂——
+      Cairn conclude-fallback 同构：同 session 带上下文修正输出）
     """
-    resume_id: str | None = None
+    resume_id: str | None = resume_session_id
     cur_prompt = prompt
     attempt = 0
     while True:

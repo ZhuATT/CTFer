@@ -27,8 +27,8 @@
 |---|---|---|
 | add_fact | **summary, evidence**, endpoint?, ref? | 建 confirmed fact；查重撞键→返回已有 id（幂等）；ref 指向方向/发现→自动连边；summary 带"目标画像："前缀→自动换代旧画像（机械 supersede） |
 | add_finding | **summary, report, severity, reason**, result?(默认 confirmed), endpoint?, ref? | 发现登记：唯一来源=worker 写的 findings/ 文件；result=dismissed→阴性视图；noreport 命中不受理 |
-| add_intent | **goal, note**, ref? | 开新方向；ref=来源线索（自动 sources 边） |
-| set_state | **id, state, reason** | 方向生命周期 open/in_progress/done/blocked；blocked 必带可检验条件（A11） |
+| add_intent | **goal, note**(必填，须写详细：为什么开/依据/下一步), ref? | 开新方向；ref=来源线索（自动 sources 边）。note 是 worker 读图时理解方向的唯一上下文 |
+| set_state | **id, state**, reason(仅 blocked 必填=可检验条件；其余状态选填，写则进 comment 批注) | 方向生命周期 open/in_progress/done/blocked；**不改动 direction 的 note**（创建时的方向说明书） |
 | add_edge | **src, rel(六动词), dst, note** | 显式连边。边三来源：worker 声明（观察者翻译落笔）/观察者主动组合（note=链式思路记录）/机械兜底（ref+同 endpoint auto_link） |
 
 **状态语义**：图唯一写手=观察者，入图即终态（落笔前已审计），无 proposed 待审态；"confirmed 不可翻案"——跨轮翻案只能加新节点替代（画像前缀自动换代）。

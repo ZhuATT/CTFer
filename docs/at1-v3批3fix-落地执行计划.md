@@ -162,7 +162,7 @@ MCP（已弃案）/ engagement 树 git 化（已弃案）/ confidence 字段（�
 | F4 | WORKER-CLAUDE.md 重写（优先读图/STATE 配合读/文件夹写盘/四纪律/判层语义保留/禁写可读）；汇编 §3.1 同步（逐字锁过） |
 | F5 | harvest 瘦身至 diff_new_lines（hints 用）；writeback.py 与 transcript_check.py 删除；driver 两刷投影/配方1 全删 |
 | F6 | **observer.py 重写**（-p 同构 spawn/`.observer/` 工作台/任务单/判断书读取/模型配置化）；**observer_harvest v2 执行器**（五操作/拒收矩阵/幂等/ref 连线语义表/receipts/rejects/画像换代）；OBSERVER-MANUAL 新增；会话计量（P4 关闭） |
-| F7 | 空产出重试一次 + `observer_empty_retry`（retry/exhausted 两阶段）+ `state_fallback` 兜底 + 目录级 diff（纳秒指纹）+ events 白名单增删 + watch 渲染器扩展 |
+| F7 | 空产出重试一次 + `observer_empty_retry`（retry/exhausted 两阶段）+ `state_fallback` 兜底 + 目录级 diff（纳秒指纹；⚠️ 批4 G1-A 复盘：该扫描器带 offsets 记账，观察者失败轮产出下轮不再进清单，"漏看自愈"不成立——批4 改为无状态目录页）+ events 白名单增删 + watch 渲染器扩展 |
 | F8 | 测试翻转：181 绿（原 223 → 删除 writeback/transcript_check/observer chat 通道相关死用例，新写执行器/防线/单层化/新链路用例）；dry-run 门全过 |
 
 **执行中发现并修正的实现问题**（非测试问题）：

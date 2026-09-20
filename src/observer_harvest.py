@@ -170,8 +170,12 @@ def _op_set_state(bb, op, *, round, noreport_rejects):
         return "rejected", {}, f"state 非法：{state}"
     if state == "blocked" and not reason:
         return "rejected", {}, "blocked 必带可检验条件（A11）"
-    patch = {"blocked_reason": reason[:300]} if state == "blocked" else {"note": reason[:500]}
-    ok = bb.update_node(nid, state=state, payload_patch=patch)
+    # D（批4）：note=add_intent 创建时的方向说明书，永不改写；
+    # 非 blocked 迁移的理由进 comment 批注槽；blocked 理由进 blocked_reason
+    ok = bb.update_node(nid, state=state,
+                        payload_patch=({"blocked_reason": reason[:300]}
+                                       if state == "blocked" else None),
+                        comment=(reason[:300] if reason else None))
     return ("applied" if ok else "rejected"), {"id": nid}, None if ok else "迁移未生效"
 
 

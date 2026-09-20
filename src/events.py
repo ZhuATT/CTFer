@@ -46,6 +46,7 @@ EVENT_TYPES = frozenset({
     "board_legacy_archived",  # v2 旧板归档改名（已裁 09-18：不做内容迁移）
     "observer_applied",       # 执行器入图计数（五操作各条数+dedup_existing）
     "observer_session_end",   # 观察者 -p 会话结束（计量：tokens/cost/turns）
+    "observer_resume_feedback",  # 观察者未成功提交 → resume 同 session 回喂校验 rejects（Cairn 式）
     "observer_empty_retry",   # 空产出防线：判断书缺失/坏/空 → 重试一次（stage: retry/exhausted）
     "state_fallback",         # 观察者未写 STATE.md → controller 兜底极简计数（R6）
     "scope_missing",          # engagement 无授权清单——guard 目标拦截停用（禁区/自毁保留）

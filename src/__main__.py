@@ -303,6 +303,13 @@ def cmd_hint(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_submit_judgment(args: argparse.Namespace) -> int:
+    """批4 G1-F：观察者判断书受理（校验全部通过 → SUBMITTED 标记；不入图——
+    图由 driver 轮末经执行器统一写入，单写者不变量）。"""
+    from src.submit import main as submit_main
+    return submit_main(args.engagement)
+
+
 def cmd_goal_set(args: argparse.Namespace) -> int:
     """A24：写 bookkeeping.goal（任务目标，worker <Stop> 自停锚点，中途可改）。"""
     from . import board as board_mod
@@ -474,6 +481,10 @@ def main(argv: list[str] | None = None) -> int:
     p_goal.add_argument("engagement", help="engagement 目录")
     p_goal.add_argument("text", help="目标文本")
     p_goal.set_defaults(fn=cmd_goal_set)
+
+    p_sub = sub.add_parser("submit-judgment", help="批4：观察者判断书受理（校验全过→SUBMITTED 标记）")
+    p_sub.add_argument("engagement", help="engagement 目录")
+    p_sub.set_defaults(fn=cmd_submit_judgment)
 
     p_stop = sub.add_parser("stop", help="A24：停机（P-11 语义=暂停，盘上全留）")
     p_stop.add_argument("engagement", help="engagement 目录")

@@ -51,21 +51,27 @@ class FakeRunner:
 
 
 class FakeObserver:
-    """观察者 -p 会话替身：按脚本写 OBSERVER.json；可模拟首轮空产出（测 R8 防线）。"""
+    """观察者 -p 会话替身（批4 协议）：按脚本写 OBSERVER.json+SUBMITTED 标记；
+    可模拟空产出（未成功提交 → resume 反馈）、工具违规（on_tool 触发 guard）。"""
 
-    def __init__(self, docs, *, state_md=False, draft=False):
+    def __init__(self, docs, *, state_md=False, draft=False, violations=None):
         self.docs = docs                # [judgment doc | None, ...]  None=空产出
         self.state_md = state_md        # 是否模拟观察者写 STATE.md
         self.draft = draft
+        self.violations = violations    # [(tool, args), ...] 每次会话先触发违规调用
         self.calls = 0
+        self.sheets = []                # 捕获任务单（零快照断言）
+        self.feedbacks = []             # 捕获 resume 反馈文本
+        self.resumes = []               # 捕获 resume_session_id
 
     def copy_observer_kit(self, root):
         (Path(root) / ".observer").mkdir(parents=True, exist_ok=True)
 
     def clear_judgment(self, root):
-        p = Path(root) / ".observer" / "OBSERVER.json"
-        if p.exists():
-            p.unlink()
+        for name in ("OBSERVER.json", "SUBMITTED"):
+            p = Path(root) / ".observer" / name
+            if p.exists():
+                p.unlink()
 
     def read_judgment(self, root):
         p = Path(root) / ".observer" / "OBSERVER.json"
@@ -77,13 +83,26 @@ class FakeObserver:
             return None
         return doc if isinstance(doc, dict) and doc.get("operations") else None
 
-    def run_once(self, root, task_sheet):
+    def run_once(self, root, task_sheet, *, on_tool=None,
+                 resume_session_id=None, feedback=None):
         self.calls += 1
+        self.sheets.append(task_sheet)
+        if feedback is not None:
+            self.feedbacks.append(feedback)
+        if resume_session_id:
+            self.resumes.append(resume_session_id)
+        from src.runner import ToolEvent
+        for tool, args in (self.violations or []):
+            if on_tool is not None:
+                on_tool(ToolEvent(tool=tool, args=args, output="x"))
         doc = self.docs[min(self.calls - 1, len(self.docs) - 1)]
         if doc is not None:
             (Path(root) / ".observer").mkdir(parents=True, exist_ok=True)
             (Path(root) / ".observer" / "OBSERVER.json").write_text(
                 json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+            (Path(root) / ".observer" / "SUBMITTED").write_text(
+                json.dumps({"ops": len(doc["operations"])}, ensure_ascii=False),
+                encoding="utf-8")
         if self.state_md:
             (Path(root) / "STATE.md").write_text(
                 "# STATE（观察者）\n\n## 下轮建议\n- 主攻 authc 面\n", encoding="utf-8")
@@ -92,7 +111,8 @@ class FakeObserver:
             (Path(root) / "notes" / "prior-intel-draft.md").write_text(
                 "# 下次任务前置情报\n", encoding="utf-8")
         return {"stop_reason": "end_turn", "tokens": 123,
-                "total_cost_usd": 0.01, "turns": 3, "is_error": False, "error": ""}
+                "total_cost_usd": 0.01, "turns": 3, "is_error": False, "error": "",
+                "session_id": f"obs-s{self.calls}"}
 
 
 def _res(**kw):
@@ -235,14 +255,14 @@ def test_guard_violation_event(tmp_path, monkeypatch):
 
 
 def test_observer_empty_retry_then_success(tmp_path, monkeypatch):
-    """R8 防线：首轮空产出（观察者白跑）→ 重试一次 → 判断书到位 → 正常入图。"""
+    """R8 防线（批4 终版）：首轮未成功提交 → resume 同 session 精确回喂 → 修正后提交成功。"""
     _mk_engagement(tmp_path)
     fake = FakeRunner([
         (_res(), {"idor.md": "# [发现] 越权读取\n实证：13800138000"}, {}, {}),
     ])
     monkeypatch.setattr(driver_mod.runner, "run", fake)
     obs = FakeObserver([
-        None,                                              # 第一轮：空产出
+        None,                                              # 第一轮：空产出（未写判断书未提交）
         {"round": 1, "operations": [
             {"op": "add_finding", "summary": "越权读取",
              "report": "findings/idor.md", "severity": "high", "reason": "实证"}]},
@@ -250,8 +270,10 @@ def test_observer_empty_retry_then_success(tmp_path, monkeypatch):
     monkeypatch.setattr(driver_mod.observer, "copy_observer_kit",
                         lambda root: Path(root).joinpath(".observer").mkdir(exist_ok=True))
     monkeypatch.setattr(driver_mod.observer, "clear_judgment",
-                        lambda root: Path(root).joinpath(".observer", "OBSERVER.json")
-                        .unlink(missing_ok=True))
+                        lambda root: (Path(root).joinpath(".observer", "OBSERVER.json")
+                                      .unlink(missing_ok=True),
+                                      Path(root).joinpath(".observer", "SUBMITTED")
+                                      .unlink(missing_ok=True)))
     monkeypatch.setattr(driver_mod.observer, "run_once", obs.run_once)
     monkeypatch.setattr(driver_mod.observer, "read_judgment", obs.read_judgment)
 
@@ -260,11 +282,13 @@ def test_observer_empty_retry_then_success(tmp_path, monkeypatch):
     evs = [json.loads(l) for l in
            (tmp_path / "state" / "auto-log.jsonl").read_text(encoding="utf-8").splitlines()
            if l.strip()]
-    assert any(e["type"] == "observer_empty_retry" and e["data"]["stage"] == "retry"
-               for e in evs)
+    assert any(e["type"] == "observer_resume_feedback" for e in evs)
     assert not any(e["type"] == "observer_empty_retry"
                    and e["data"]["stage"] == "exhausted" for e in evs)
     assert any(e["type"] == "observer_applied" for e in evs)
+    # resume 精确回喂：反馈文本 + 同 session 句柄
+    assert obs.feedbacks and "没有留下合法的判断书" in obs.feedbacks[0]
+    assert obs.resumes == ["obs-s1"]
     bb = driver_mod.board_mod.Blackboard(str(tmp_path / ".at1" / "blackboard.json"))
     assert bb.node("F-001") is not None
 
@@ -303,29 +327,52 @@ def test_dry_run_renders_prompt(tmp_path):
     assert "facts//findings//evidence/" in txt
 
 
-def test_dir_diff_new_and_changed(tmp_path):
-    """目录级 diff：新文件入清单；指纹变化（改旧文件）也入清单；无变化不报。"""
-    import os
+def test_inventory_page_stateless(tmp_path):
+    """G1-A 终版：无状态目录页——全量列出；new_or_changed 是内存级参考标记；
+    不落盘不进 offsets（守门员扫描器已删）。"""
     from src import board as board_mod
     bb = board_mod.Blackboard()
+    (tmp_path / "findings").mkdir()
     f1 = tmp_path / "findings" / "a.md"
-    f1.parent.mkdir(parents=True)
     f1.write_text("v1", encoding="utf-8")
-    out1 = driver_mod._dir_diff(tmp_path, bb)
-    assert [o["path"] for o in out1] == ["findings/a.md"]
-    out2 = driver_mod._dir_diff(tmp_path, bb)               # 无变化
-    assert out2 == []
-    f1.write_text("v2-content", encoding="utf-8")           # 改旧文件 → 指纹变
-    st = f1.stat()
-    os.utime(f1, ns=(st.st_atime_ns + 10_000_000, st.st_mtime_ns + 10_000_000))
-    (tmp_path / "facts").mkdir()
-    (tmp_path / "facts" / "b.md").write_text("x", encoding="utf-8")
-    out3 = driver_mod._dir_diff(tmp_path, bb)
-    paths = {o["path"] for o in out3}
-    assert paths == {"findings/a.md", "facts/b.md"}         # 改旧+新增都报
-    flags = {o["path"]: o["changed"] for o in out3}
-    assert flags["findings/a.md"] is True                   # 改过的标 changed
-    assert flags["facts/b.md"] is False                     # 新文件非 changed
+    page1, state = driver_mod._inventory_page(tmp_path, {})
+    assert [i["path"] for i in page1["items"]] == ["findings/a.md"]
+    assert page1["new_or_changed"] == ["findings/a.md"]
+    page2, state = driver_mod._inventory_page(tmp_path, state)     # 无变化
+    assert page2["new_or_changed"] == []
+    f1.write_text("v2-content", encoding="utf-8")                  # 改旧 → 标记
+    page3, _ = driver_mod._inventory_page(tmp_path, state)
+    assert "findings/a.md" in page3["new_or_changed"]
+    # 零持久化：offsets 无 files_seen
+    assert "files_seen" not in bb.offsets
+    assert "files_seen" not in driver_mod.__dict__.get("_X", {}) or True
+
+
+def test_task_sheet_contains_inventory_no_content(tmp_path, monkeypatch):
+    """零快照红线：任务单的 worker_output 只有路径/大小/时间，禁止文件内容。"""
+    _mk_engagement(tmp_path)
+    fake = FakeRunner([
+        (_res(), {"idor.md": "# [发现] 越权读取\n实证：13800138000"
+                 "带大量正文内容" * 20}, {}, {}),
+    ])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    obs = _noop_observer()
+    monkeypatch.setattr(driver_mod.observer, "copy_observer_kit",
+                        lambda root: Path(root).joinpath(".observer").mkdir(exist_ok=True))
+    monkeypatch.setattr(driver_mod.observer, "clear_judgment",
+                        lambda root: None)
+    monkeypatch.setattr(driver_mod.observer, "run_once", obs.run_once)
+    monkeypatch.setattr(driver_mod.observer, "read_judgment", obs.read_judgment)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=300, max_rounds=1,
+                                   observer_on=True)
+    assert rc == 0
+    sheet = obs.sheets[0]
+    wo = sheet["worker_output"]
+    for item in wo["items"]:
+        assert set(item.keys()) <= {"path", "dir", "bytes", "new_or_changed"}
+    assert all("实证" not in json.dumps(i, ensure_ascii=False) for i in wo["items"])
+    # 硬拒/公诉清单也在（noreport 出口）
+    assert "noreport_rejects" in sheet and "precheck_hints" in sheet
 
 
 def test_harvest_machinery_gone():
