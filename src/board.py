@@ -69,6 +69,7 @@ class Blackboard:
             "handoff": "",
             "config": {},
             "intel": [],
+            "round": 0,        # 批4fix S5：轮号持久——续跑接着编号，不从 1 重来
         }
         self.legacy_archived: str | None = None     # 旧板归档路径（v2 遗形自动改名）
         if path and os.path.isfile(path):
@@ -99,6 +100,7 @@ class Blackboard:
             "handoff": bk.get("handoff", ""),
             "config": bk.get("config", {}),
             "intel": bk.get("intel", []),
+            "round": int(bk.get("round", 0) or 0),
         }
 
     def _read_v3(self, p) -> Optional[dict]:

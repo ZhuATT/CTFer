@@ -395,6 +395,86 @@ def test_build_argv_strict_mcp_config():
     assert "--strict-mcp-config" not in argv2 and "--mcp-config" not in argv2
 
 
+# ── 批4fix S11：观察者轮次不设限（0/None 不拼 --max-turns） ───────────────
+
+def test_build_argv_max_turns_zero_means_unlimited():
+    """S11：max_turns=0/None → argv 不含 --max-turns（claude 自身无轮数硬限）。"""
+    from src import runner as runner_mod
+    solver = _mk()
+    for mt in (0, None):
+        argv = runner_mod._build_argv("claude", solver, mt, None)
+        assert "--max-turns" not in argv, mt
+    argv = runner_mod._build_argv("claude", solver, 60, None)     # worker 照拼
+    assert argv[argv.index("--max-turns") + 1] == "60"
+
+
+def test_observer_max_turns_default_unlimited(monkeypatch):
+    """S11：默认（env 不设）OBSERVER_MAX_TURNS=0=不限；spawn 传 0 走 _build_argv。"""
+    import importlib
+    from src import observer as obs_mod
+    monkeypatch.delenv("AT1_OBSERVER_MAX_TURNS", raising=False)
+    importlib.reload(obs_mod)
+    try:
+        assert obs_mod.OBSERVER_MAX_TURNS == 0
+        argv = runner_mod._build_argv("claude", _mk(), obs_mod.OBSERVER_MAX_TURNS, None)
+        assert "--max-turns" not in argv
+    finally:
+        importlib.reload(obs_mod)                    # 恢复现场（后续测试同默认）
+
+
+def test_observer_max_turns_env_override(monkeypatch):
+    """S11：env 非零仍按老逻辑拼 --max-turns（想设限随时可设）。"""
+    import importlib
+    from src import observer as obs_mod
+    monkeypatch.setenv("AT1_OBSERVER_MAX_TURNS", "100")
+    importlib.reload(obs_mod)
+    try:
+        assert obs_mod.OBSERVER_MAX_TURNS == 100
+        argv = runner_mod._build_argv("claude", _mk(), obs_mod.OBSERVER_MAX_TURNS, None)
+        assert argv[argv.index("--max-turns") + 1] == "100"
+    finally:
+        importlib.reload(obs_mod)
+
+
+# ── 批4fix S9：stdout 编码（R-3 中文 mojibake 根因） ──────────────────────
+
+def test_popen_decodes_utf8_chinese_end_to_end(tmp_path, monkeypatch):
+    """S9：Popen 带 encoding=utf-8——真子进程吐 UTF-8 中文流，经 StreamParser
+    到 handoff 全链路原样（实机事故：GBK 解码出"宸插畬鎴"）。"""
+    import subprocess
+    import sys as _sys
+
+    script = tmp_path / "fake_claude_stream.py"
+    script.write_text(
+        "import json, sys\n"
+        "sys.stdin.read()\n"
+        "sys.stdout.reconfigure(encoding='utf-8')\n"
+        'print(json.dumps({"type": "system", "subtype": "init",\n'
+        '                  "session_id": "enc-1"}, ensure_ascii=False))\n'
+        'print(json.dumps({"type": "assistant", "message": {"role": "assistant",\n'
+        '    "content": [{"type": "text",\n'
+        '    "text": "<Handoff>已完成：中文交接内容完整，含证据路径</Handoff>"}]}},\n'
+        '    ensure_ascii=False))\n'
+        'print(json.dumps({"type": "result", "subtype": "success", "is_error": False,\n'
+        '    "num_turns": 1, "stop_reason": "end_turn", "result": "完成",\n'
+        '    "total_cost_usd": 0.01}, ensure_ascii=False))\n',
+        encoding="utf-8")
+
+    real_popen = subprocess.Popen
+    seen_kwargs = {}
+
+    def spy_popen(argv, *a, **kw):
+        seen_kwargs.update(kw)                      # argv[0] 换成真 python 跑脚本
+        return real_popen([_sys.executable, str(script)] + list(argv[1:]), *a, **kw)
+
+    monkeypatch.setattr(runner_mod.subprocess, "Popen", spy_popen)
+    res = runner_mod.spawn_once("干活", str(tmp_path / "wd"), _mk(),
+                                time_box_s=30, max_turns=10)
+    assert seen_kwargs.get("encoding") == "utf-8"   # 参数在场（回归锚）
+    assert res.handoff == "已完成：中文交接内容完整，含证据路径"
+    assert "完成" in res.final_text
+
+
 # ── A18:Stop 抽取(与 Handoff 同路径) ─────────────────────────────────────
 
 def test_extract_stop_basic_and_absent():

@@ -89,6 +89,10 @@ class AgentTask:
     on_heartbeat: Optional[Callable[[dict], None]] = None
     transcript_path: Optional[str] = None   # 增量追加的原始流落盘位置（.at1/transcript.jsonl）
     on_spawn: Optional[Callable[[object], None]] = None   # Popen 后回调（杀进程演示/CONTROL 用）
+    # 批4fix S12：init 事件捕获到 session_id 即回调（会话进行中——phase 账本
+    # 据此记录当前会话句柄，被杀后断点续接才有 id 可续；Result.session_id 要
+    # 等会话结束才拿得到，来不及）
+    on_session_id: Optional[Callable[[str], None]] = None
 
 
 @dataclass
@@ -191,6 +195,11 @@ class StreamParser:
         etype = ev.get("type")
         if etype == "system" and ev.get("subtype") == "init":
             self.session_id = ev.get("session_id") or ""
+            if self.session_id and self.task.on_session_id is not None:
+                try:
+                    self.task.on_session_id(self.session_id)
+                except Exception:
+                    pass
 
         elif etype == "assistant":
             try:
@@ -374,9 +383,12 @@ def _build_argv(claude_bin: str, solver: SolverConfig, max_turns: int,
         "--output-format", "stream-json",
         "--verbose",                      # 实测：-p + stream-json 必需
         "--dangerously-skip-permissions",
-        "--max-turns", str(max_turns),
-        "--model", solver.model,
     ]
+    # S11/R-7：0/None=不限轮次（观察者默认）——不拼 --max-turns，claude 自身无轮数硬限；
+    # 成本硬闸=时间盒。worker 仍传 MAX_TURNS=60 照拼。
+    if max_turns:
+        argv += ["--max-turns", str(max_turns)]
+    argv += ["--model", solver.model]
     if mcp_config:
         # U-1（2026-09-14）：MCP 世界只认 scaffold 写的 .auto/.mcp.json——
         # 关掉父目录链/用户级的继承通道（实验证实 CLI 会逐级合并祖先 .mcp.json，
@@ -418,6 +430,8 @@ def spawn_once(
             argv, cwd=workdir, env=env,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, bufsize=1, errors="replace",
+            encoding="utf-8",   # S9/R-3：claude 输出恒为 UTF-8——中文 Windows 缺省按
+                                # GBK 解码，交接内容变 mojibake（hxbai 骨架遗传）
         )
     except FileNotFoundError as e:
         parser.close()

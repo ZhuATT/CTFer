@@ -19,6 +19,7 @@
       "required": ["offsets", "goal", "handoff", "config", "intel"],
       "properties": {
         "offsets": {"type": "object", "additionalProperties": true},
+        "round": {"type": "integer", "description": "批4fix S5：轮号持久——续跑接着编号（旧档案无此键，board 载入默认 0）"},
         "goal": {
           "type": "object",
           "required": ["text", "updated_round"],

@@ -110,3 +110,125 @@ def test_controller_zone_backslash_forms_rejected():
     # worker 自己的目录不受影响（阴性对照）
     v = _g().check_tool("Bash", {"command": "echo x >> evidence/log.txt"})
     assert v.ok
+
+
+# ── S7/R-5：$ 终止符（批4fix，2026-09-21 实机实锤三刀同族第三刀） ─────────
+
+def test_dollar_var_concat_url_allowed():
+    """实机事故回归锚：PowerShell 变量拼接 URL——正则在 $ 截断（变量名粘连的
+    主防线）；_host_of 的 strip 只管尾部裸 $（belt+裤带分工，S7 改法 2/3）。"""
+    g = Guard(allow=["usc.edu.cn"], deny=[])
+    v = g.check_tool("PowerShell",
+                     {"command": 'curl.exe -k "https://myportal.usc.edu.cn$u"'})
+    assert v.ok
+    assert g.check_tool("PowerShell",
+                        {"command": 'curl.exe -k "https://portal.usc.edu.cn$u/api/x"'}).ok
+    # host 解析：尾部裸 $ 被剥；变量名粘连由 finditer 截断保证，不经 _host_of
+    assert g._host_of("https://myportal.usc.edu.cn") == "myportal.usc.edu.cn"
+    assert g._host_of("https://myportal.usc.edu.cn$") == "myportal.usc.edu.cn"
+
+
+def test_dollar_regular_urls_unchanged():
+    """常规 URL 判定不变（截断只发生在 $ 粘连处）。"""
+    g = _g()
+    assert g.check_url("https://myportal.example.com/api/x").ok
+    assert g.check_url("https://evil.com/pay").ok is False
+    assert g.check_tool("Bash", {"command": "curl -s https://api.example.com/v1"}).ok
+
+
+def test_dollar_in_path_does_not_break_host():
+    """真 $ 在 path（OData $batch 类）：host 不受影响。"""
+    g = _g()
+    assert g._host_of("https://api.example.com/api/$batch") == "api.example.com"
+    assert g.check_tool("Bash",
+                        {"command": 'curl "https://api.example.com/api/$batch"'}).ok
+
+
+def test_dollar_stuck_deny_still_hits():
+    """deny 表在 $ 粘连场景下仍命中。"""
+    g = _g()
+    v = g.check_tool("PowerShell",
+                     {"command": 'curl.exe "https://admin.example.com$d/x"'})
+    assert not v.ok and v.kind == "scope" and "deny" in v.reason
+
+
+def test_p1_quote_semicolon_tail_no_regression():
+    """P-1 老案例（引号分号尾巴）不回归。"""
+    g = _g()
+    assert g._host_of("https://api.example.com';") == "api.example.com"
+    v = g.check_tool("PowerShell",
+                     {"command": "Invoke-WebRequest https://api.example.com';"})
+    assert v.ok
+    # 越界 + 尾巴粘连仍拦
+    v2 = g.check_tool("Bash", {"command": "curl -s https://evil.com/x';"})
+    assert not v2.ok and v2.kind == "scope"
+
+
+# ── S10/R-4：观察者角色豁免（批4fix，auto-log 42 条噪声的五类实抓形态回归） ─
+
+def test_observer_own_workspace_exempt():
+    """观察者写自家可写集放行：.observer/、STATE.md、notes/prior-intel-draft.md。"""
+    g = _g()
+    # 形态①：写判断书
+    assert g.check_tool("Write", {"file_path": ".observer/OBSERVER.json"},
+                        role="observer").ok
+    # 形态②：读任务单 + Write-Output 打印（旧启发式把打印当写文件）
+    assert g.check_tool("PowerShell",
+                        {"command": "Get-Content .observer/task.json; Write-Output $plan"},
+                        role="observer").ok
+    # 形态③：写 STATE.md（下轮建议）
+    assert g.check_tool("Bash", {"command": "echo '# STATE' > STATE.md"},
+                        role="observer").ok
+    # 形态④：写白名单产物 prior-intel-draft
+    assert g.check_tool("Write", {"file_path": "notes/prior-intel-draft.md"},
+                        role="observer").ok
+    # 形态⑤：纯读命令
+    assert g.check_tool("Bash",
+                        {"command": 'node -e "require(\'fs\').readFileSync(\'.observer/task.json\')"'},
+                        role="observer").ok
+
+
+def test_observer_outside_own_workspace_still_flagged():
+    """豁免只覆盖自家可写集——出界（.at1/、../state/）照拦。"""
+    g = _g()
+    v = g.check_tool("PowerShell",
+                     {"command": "Set-Content ..\\.at1\\blackboard.json '{}'"},
+                     role="observer")
+    assert not v.ok and v.kind == "controller_zone"
+    v2 = g.check_tool("Bash", {"command": "echo x >> ../state/log.jsonl"},
+                      role="observer")
+    assert not v2.ok and v2.kind == "controller_zone"
+    # 混合命令：豁免段+出界段同现 → 仍拦
+    v3 = g.check_tool("PowerShell",
+                      {"command": "Copy-Item .observer/draft.md ..\\.at1\\steal.json"},
+                      role="observer")
+    assert not v3.ok and v3.kind == "controller_zone"
+
+
+def test_worker_observer_zone_still_blocked():
+    """worker 侧一寸不让：写 .observer/ 照旧拦截（禁入纪律）。"""
+    g = _g()
+    v = g.check_tool("Write", {"file_path": ".observer/task.json"})    # 默认 worker
+    assert not v.ok and v.kind == "controller_zone"
+    v2 = g.check_tool("PowerShell", {"command": "Set-Content ../.observer/x.md y"},
+                      role="worker")
+    assert not v2.ok and v2.kind == "controller_zone"
+    v3 = g.check_tool("Write", {"file_path": "notes/prior-intel-draft.md"})
+    assert not v3.ok
+
+
+def test_write_verb_heuristic_tightened():
+    """S10：Write-Output/Write-Host 是打印不是写文件；真写动词照拦。"""
+    g = _g()
+    assert g.check_tool("Bash", {"command": "Write-Output hello; Write-Host done"}).ok
+    # 打印 + 禁区纯读同现：旧启发式误报，现在放行
+    assert g.check_tool("Bash",
+                        {"command": "Get-Content ../.at1/blackboard.json; Write-Output $x"},
+                        role="observer").ok
+    # 真写动词不松：重定向/Set-Content/New-Item/curl -o
+    for cmd in ("echo x >> ../state/log.jsonl",
+                "Set-Content ../state/a.md y",
+                "New-Item ../state/b.md",
+                "curl -o ../state/c.md https://api.example.com/x"):
+        v = g.check_tool("PowerShell", {"command": cmd}, role="worker")
+        assert not v.ok and v.kind == "controller_zone", cmd

@@ -17,7 +17,11 @@ from . import runner
 from .providers import SolverConfig
 
 OBSERVER_TIMEBOX_S = int(os.getenv("AT1_OBSERVER_TIMEBOX_S", "1800"))   # 09-19 拍板：与 worker 同
-OBSERVER_MAX_TURNS = int(os.getenv("AT1_OBSERVER_MAX_TURNS", "60"))
+# S11/R-7（09-21 拍板：观察者不限制轮次）：默认 0=不限——runner 对 0/None 不拼
+# --max-turns。成本硬闸=时间盒（超时照杀、盘上草稿全留），失控半径 30 分钟。
+# 实测验证实验很费轮次（r2 观察者 61 turns 被截停、烧 $4.67），设限得不偿失。
+# 想设限仍可 AT1_OBSERVER_MAX_TURNS=100（非 0 按老逻辑拼参数）。
+OBSERVER_MAX_TURNS = int(os.getenv("AT1_OBSERVER_MAX_TURNS", "0"))
 
 _OBSERVER_PROMPT = """你是 AT1 观察者（本轮审计+记账+引导）。
 先完整读 .observer/OBSERVER-MANUAL.md（职责与纪律）与 .observer/task.json（本轮任务单）。
@@ -97,12 +101,18 @@ def read_judgment(root: Path):
     return doc
 
 
-def run_once(root: Path, task_sheet: dict, *, on_tool=None,
+def run_once(root: Path, task_sheet: dict, *, on_tool=None, on_spawn=None,
+             on_session_id=None,
              resume_session_id: str | None = None,
-             feedback: str | None = None) -> dict:
+             feedback: str | None = None,
+             resume_prompt: str | None = None) -> dict:
     """spawn 一轮观察者会话（runner 含呆滞告警/异常续跑），返回计量摘要（含 session_id，
     供"校验失败→resume 同 session 精确回喂"使用——Cairn conclude-fallback 同构）。
-    on_tool：driver 注入的工具检测回调（guard 只记不拦，role=observer）。"""
+    on_tool：driver 注入的工具检测回调（guard 只记不拦，role=observer）。
+    on_spawn：driver 注入的进程登记回调（S2——观察者出生时报 PID 给 watcher，
+    stop 到达时杀的是当前活会话而非登记簿上 worker 的尸体）。
+    on_session_id：driver 注入的会话句柄回调（S12——phase 账本记当前审计会话）。
+    resume_prompt：断点续接时的注入语（S12——审计被中断，已做的验证不必重做）。"""
     obs = root / ".observer"
     obs.mkdir(parents=True, exist_ok=True)
     (obs / "task.json").write_text(
@@ -111,9 +121,11 @@ def run_once(root: Path, task_sheet: dict, *, on_tool=None,
     (root / ".at1").mkdir(parents=True, exist_ok=True)
     task = runner.AgentTask(
         transcript_path=str(root / ".at1" / "observer-transcript.jsonl"),
-        on_fact=on_tool)
+        on_fact=on_tool, on_spawn=on_spawn, on_session_id=on_session_id)
     if feedback:
         prompt = _RESUME_FEEDBACK_PROMPT.format(feedback=feedback[:1500])
+    elif resume_session_id and resume_prompt:
+        prompt = resume_prompt
     else:
         prompt = _OBSERVER_PROMPT
     res = runner.run(prompt, str(root), solver, task,

@@ -26,6 +26,10 @@ from urllib.parse import urlsplit
 # 分隔符 [/\\] 双形态（P-5，2026-09-14 真实 run 实锤：PowerShell
 # [IO.File]::AppendAllLines("..\state\log.jsonl",...) 反斜杠写穿禁区 0 告警——
 # 我们的运行平台就是 Windows，正则只认 / 等于对常态失明）。
+# $ 终止（批4fix S7/R-5，2026-09-21 实机实锤：PowerShell 变量拼接 URL
+# "https://myportal.usc.edu.cn$u" —— \S+ 不认 $ 是终止符，整串当 URL 抓出
+# hostname 带变量名 → scope 误拦连吃 5 次。host 永在 URL 中任何 $ 之前
+# （$ 合法出现在 path/query，不合法出现在 netloc 尾部粘连处），截断不影响判定）。
 # 禁区（批3fix R3 终版）：.at1/.observer/state/notes 禁写；.at1 与 notes 对 worker
 # 可读（读检测不存在——guard 只判写）。.observer 是观察者工作台，worker 完全禁入。
 _ZONE_PATH_RX = re.compile(
@@ -33,7 +37,17 @@ _ZONE_PATH_RX = re.compile(
     r"|_(?:blackboard|transcript|interface_log)\.(?:json|jsonl|bak|tmp)"
     r"|OBSERVER\.(?:json|rejects)",
     re.IGNORECASE)
-_URL_STRIP_RX = re.compile(r"https?://\S+", re.IGNORECASE)
+# 观察者自家可写集（S10/R-4）：观察者角色对这些路径的写放行——与 observer.py
+# 手册声明的可写面一致（OBSERVER.json/STATE.md/prior-intel-draft/.observer/ 草稿）。
+# worker 对它们照旧拦截（禁入纪律一寸不让）。前缀类含空白/引号/重定向符——
+# 命令文本里路径多带相对形态（".observer/x.md" 空格前缀）。
+_OBSERVER_WRITABLE_RX = re.compile(
+    r"(?:^|[\s\"'=;|&>])\.observer[/\\][^\s\"']*"
+    r"|(?:^|[\s\"'=;|&>])\.observer(?=[\s\"']|$)"
+    r"|(?:^|[\s\"'=;|&>])STATE\.md(?=[\s\"']|$)"
+    r"|(?:^|[\s\"'=;|&>])notes[/\\]prior-intel-draft\.md(?=[\s\"']|$)",
+    re.IGNORECASE)
+_URL_STRIP_RX = re.compile(r"https?://[^\s$]+", re.IGNORECASE)
 
 # 自毁特征（Windows + Unix 双形态；命中记 critical 事件）
 _SELF_DESTRUCT_RX = re.compile(
@@ -41,15 +55,19 @@ _SELF_DESTRUCT_RX = re.compile(
     r">\s*/dev/sda|remove-item\s+-recurse|rd\s+/s|"
     r"find\s+.*-delete\s+/\*|shutdown|/etc/passwd\s*<<", re.IGNORECASE)
 
-_WRITE_TOOL_HINT_RX = re.compile(r">>|>\s*\S|\btouch\b|\btee\b|\bmv\b|\bcp\b|"
-                                 r"\brm\b|\bdel\b|\bwrite|\bsave|\bcreate\b|"
-                                 r"\bnew-file\b|\bedit\b|"
-                                 r"add-content|set-content|out-file|"
-                                 r"copy-item|move-item|remove-item|"
-                                 # .NET 静态写方法（P-5 实锤第二道缝：[IO.File]::AppendAllLines
-                                 # 不含任何既有写动词，真跑穿区 0 告警的共同根因）
-                                 r"appendall(?:lines|text)|writeall(?:text|lines|bytes)|"
-                                 r"\[io\.file\]|\[system\.io\.file\]", re.IGNORECASE)
+# 写动词启发式（S10/R-4 收紧）：只认词边界真写动词——裸 \bwrite 把
+# Write-Output/Write-Host（往屏幕打印）当写文件，观察者 42 条违规全是这类噪声。
+# .NET 静态写方法保留（P-5 实锤：[IO.File]::AppendAllLines 不含任何既有写动词）。
+_WRITE_TOOL_HINT_RX = re.compile(
+    r">>|>\s*\S"                                   # 重定向
+    r"|\btouch\b|\btee\b|\bmv\b|\bcp\b|\brm\b|\bdel\b"
+    r"|add-content|set-content|out-file|new-item"
+    r"|copy-item|move-item|remove-item"
+    r"|\bnew-file\b"
+    r"|\bcurl(?:\.exe)?\b[^|;&]*\s-[oT]\b"         # curl 下载/上传落盘
+    r"|appendall(?:lines|text)|writeall(?:text|lines|bytes)"
+    r"|\[io\.file\]|\[system\.io\.file\]",
+    re.IGNORECASE)
 
 
 @dataclass
@@ -73,7 +91,7 @@ class Guard:
         try:
             # P1（批3fix）：剥掉命令串粘连的标点尾巴（实测 PowerShell 命令
             # "https://h.example';" → hostname 带引号分号 → scope 误报 12 次/轮）
-            return (urlsplit(url).hostname or "").lower().strip("'\";:,.()（）")
+            return (urlsplit(url).hostname or "").lower().strip("'\";:,.()（）$")
         except ValueError:
             return ""
 
@@ -100,23 +118,34 @@ class Guard:
 
     # ── 工具调用综合判定（on_fact 挂点） ─────────────────────────────────
 
-    def check_tool(self, tool: str, args: dict) -> GuardVerdict:
+    def check_tool(self, tool: str, args: dict, role: str = "worker") -> GuardVerdict:
         """URL 类参数走 scope；Bash/PowerShell 命令查自毁 + 控制器区写；写类工具查路径。
 
         Windows worker 实测用 PowerShell 工具（P4.9 事件流 tool:PowerShell）——
         命令类检查必须覆盖，否则自毁/禁区检测在 Windows 上形同虚设。
+        role（S10/R-4）："worker"（默认）=禁区一寸不让；"observer"=对自家可写集
+        （.observer/、STATE.md、notes/prior-intel-draft.md）豁免，出可写集照拦。
         """
-        # ① 自毁（最高优先级，critical）
+        # ① 自毁（最高优先级，critical——角色不豁免）
         if tool in ("Bash", "Execute", "PowerShell", "Shell"):
             cmd = str((args or {}).get("command", "") or (args or {}).get("script", ""))
             if _SELF_DESTRUCT_RX.search(cmd):
                 return GuardVerdict(False, "self_destruct", f"高危命令特征：{cmd[:120]}")
             # 禁区查命令文本（URL 剥掉——url 路径段 /state/ 不是禁区）
             cmd_sanitized = _URL_STRIP_RX.sub(" ", cmd)
-            if _ZONE_PATH_RX.search(cmd_sanitized) and _WRITE_TOOL_HINT_RX.search(cmd_sanitized):
+            zone_hit = _ZONE_PATH_RX.search(cmd_sanitized)
+            write_hit = _WRITE_TOOL_HINT_RX.search(cmd_sanitized)
+            if zone_hit and write_hit and role == "observer":
+                # S10：观察者豁免——剥掉自家可写集后无其余禁区引用才放行
+                residual = _OBSERVER_WRITABLE_RX.sub(" ", cmd_sanitized)
+                if not _ZONE_PATH_RX.search(residual):
+                    zone_hit = None
+            if zone_hit and write_hit:
                 return GuardVerdict(False, "controller_zone",
                                     f"疑似写控制器区/协议文件：{cmd[:120]}")
-            # 命令里的 curl/wget URL 走 scope（匹配尾巴带引号/分号先剥——P1）
+            # 命令里的 curl/wget URL 走 scope（匹配尾巴带引号/分号先剥——P1；
+            # $ 的截断已由正则字符集完成，rstrip 不补 $——09-21 拍板：正则改后
+            # 匹配串永不含 $，此处补了是死代码）
             for m in _URL_STRIP_RX.finditer(cmd):
                 v = self.check_url(m.group(0).rstrip("\"';,，。)）]"))
                 if not v.ok:
@@ -131,8 +160,12 @@ class Guard:
         # ③ 写文件类工具的路径参数（路径即整串，反斜杠归一）
         if tool in ("Write", "Edit", "NotebookEdit"):
             p = str((args or {}).get("file_path", "") or (args or {}).get("path", ""))
-            if _ZONE_PATH_RX.search(p.replace("\\", "/")):
-                return GuardVerdict(False, "controller_zone", f"写禁区路径：{p[:120]}")
+            p_norm = p.replace("\\", "/")
+            if _ZONE_PATH_RX.search(p_norm):
+                if role == "observer" and _OBSERVER_WRITABLE_RX.search(p_norm):
+                    pass                    # 观察者写自己工作台（S10 豁免）
+                else:
+                    return GuardVerdict(False, "controller_zone", f"写禁区路径：{p[:120]}")
         return GuardVerdict(True)
 
     @staticmethod

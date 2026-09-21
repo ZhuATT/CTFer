@@ -279,16 +279,27 @@ def cmd_selftest(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    """M4：跑一个 engagement（driver 主循环）。"""
+    """M4：跑一个 engagement（driver 主循环）。S3：先抢 engagement 所有权锁——
+    抢不到=已有实例，拒启并报出谁在跑；句柄随进程生命周期持有。"""
+    from . import runlock
     from .driver import run_engagement
-    return run_engagement(
-        args.engagement,
-        budget_s=args.budget,
-        max_rounds=args.rounds,
-        stop_on_first_confirmed=args.stop_on_first_confirmed,
-        dry_run=args.dry_run,
-        provider=args.provider,
-        observer_on=not args.no_observer)
+    lock = runlock.acquire(args.engagement)
+    if lock is None:
+        info = runlock.read_info(args.engagement) or {}
+        print(f"[run] 拒启：engagement 已有实例（PID {info.get('pid', '?')}，"
+              f"自 {info.get('started_at', '?')}）")
+        return 2
+    try:
+        return run_engagement(
+            args.engagement,
+            budget_s=args.budget,
+            max_rounds=args.rounds,
+            stop_on_first_confirmed=args.stop_on_first_confirmed,
+            dry_run=args.dry_run,
+            provider=args.provider,
+            observer_on=not args.no_observer)
+    finally:
+        runlock.release(lock)
 
 
 def cmd_hint(args: argparse.Namespace) -> int:
@@ -322,13 +333,49 @@ def cmd_goal_set(args: argparse.Namespace) -> int:
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
-    """A24：停机（P-11 语义原样=暂停：杀树/盘上全留/重跑 run 续收）。"""
+    """A24 停机（S4 新契约，2026-09-21 拍板）：**stop 命令返回的那一刻，保证该
+    engagement 无任何活进程。**
+
+    写 CONTROL（原样）→ 不返回，轮询所有权锁（0.5s 间隔）：抢到=持锁进程已死
+    （内核保证——进程死锁必放，无第三种状态；不用 PID 直接等，绕开 Windows
+    PID 回收复用陷阱）。30s 超时大声报警、非零退出——不偷偷强杀，卡住的原因
+    值得人看一眼。没程序在跑时敲 stop → 首次试探即抢到锁，幂等返回。
+
+    事故回放：实机双管道=stop 即返后立刻 run 撞上没退干净的老程序。本契约下
+    stop 返回时老进程必已死，run 起点干净；就算卡死 30s，run 也被 S3 锁拒启
+    ——双管道两个方向都堵死。
+    """
+    from . import phase as phase_mod
+    from . import runlock
     root = Path(args.engagement)
     (root / "state").mkdir(parents=True, exist_ok=True)
     (root / "state" / "CONTROL").write_text(
         json.dumps({"cmd": "stop", "text": (args.text or "")[:200]}), encoding="utf-8")
-    print("[stop] CONTROL 已写——盯梢线程 0.5s 内杀 worker 树（已落盘数据全留）")
-    return 0
+    try:
+        max_wait = float(os.getenv("AT1_STOP_WAIT_S", "30"))
+    except ValueError:
+        max_wait = 30.0
+    waited = 0.0
+    while True:
+        lock = runlock.acquire(root)
+        if lock is not None:
+            runlock.release(lock)
+            if waited <= 0:
+                print("[stop] 没有在跑的实例（CONTROL 已置——早于 run 则 run 不 spawn）")
+            else:
+                doc = phase_mod.read(root) or {}
+                where = (f"{doc.get('phase', '?')} r{doc.get('round', '?')}"
+                         if doc else "（无 phase 记录）")
+                print(f"[stop] 实例已退出（等了 {int(waited)}s），盘面冻结于 {where}")
+            return 0
+        if waited >= max_wait:
+            info = runlock.read_info(root) or {}
+            pid = info.get("pid", "?")
+            print(f"[stop] ⚠ 实例（PID {pid}）{int(max_wait)}s 未退出，仍在收尾"
+                  f"——可 taskkill /F /PID {pid} 强清")
+            return 1
+        time.sleep(0.5)
+        waited += 0.5
 
 
 def cmd_resume(args: argparse.Namespace) -> int:
@@ -486,7 +533,7 @@ def main(argv: list[str] | None = None) -> int:
     p_sub.add_argument("engagement", help="engagement 目录")
     p_sub.set_defaults(fn=cmd_submit_judgment)
 
-    p_stop = sub.add_parser("stop", help="A24：停机（P-11 语义=暂停，盘上全留）")
+    p_stop = sub.add_parser("stop", help="S4：停机（杀当前会话+进程退出；返回时实例必已死）")
     p_stop.add_argument("engagement", help="engagement 目录")
     p_stop.add_argument("text", nargs="?", default="", help="停机备注（可选）")
     p_stop.set_defaults(fn=cmd_stop)

@@ -50,6 +50,9 @@ EVENT_TYPES = frozenset({
     "observer_empty_retry",   # 空产出防线：判断书缺失/坏/空 → 重试一次（stage: retry/exhausted）
     "state_fallback",         # 观察者未写 STATE.md → controller 兜底极简计数（R6）
     "scope_missing",          # engagement 无授权清单——guard 目标拦截停用（禁区/自毁保留）
+    # 批4fix 新增（S5/S12：phase 账本 + 断点续会话）
+    "interrupted_phase",      # 启动读到 phase.json 残留——上次中断于何处（可诊断）
+    "resume_fallback",        # 断点续接失败 → 落回新开（只试一次，永不循环）
 })
 
 # 脱敏键名匹配：cookie/token/secret/authorization/credential/password/api_key。

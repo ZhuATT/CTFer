@@ -33,11 +33,13 @@ class FakeRunner:
     def __init__(self, scripts):
         self.scripts = scripts          # [(result, findings{slug:text}, facts{slug:text}), ...]
         self.calls = []
+        self.resumes = []               # S12：捕获每次调用的 resume_session_id
 
     def __call__(self, prompt, workdir, solver, task, *, time_box_s=None,
-                 max_turns=None, claude_bin=None):
+                 max_turns=None, claude_bin=None, resume_session_id=None):
         self.calls.append({"prompt": prompt, "workdir": workdir,
                            "task": task, "time_box": time_box_s})
+        self.resumes.append(resume_session_id)
         i = min(len(self.calls) - 1, len(self.scripts) - 1)
         result, findings, facts, evidences = self.scripts[i]
         wd = Path(workdir)
@@ -63,6 +65,7 @@ class FakeObserver:
         self.sheets = []                # 捕获任务单（零快照断言）
         self.feedbacks = []             # 捕获 resume 反馈文本
         self.resumes = []               # 捕获 resume_session_id
+        self.resume_prompts = []        # S12：捕获断点续接注入语（None=非续接）
 
     def copy_observer_kit(self, root):
         (Path(root) / ".observer").mkdir(parents=True, exist_ok=True)
@@ -83,14 +86,16 @@ class FakeObserver:
             return None
         return doc if isinstance(doc, dict) and doc.get("operations") else None
 
-    def run_once(self, root, task_sheet, *, on_tool=None,
-                 resume_session_id=None, feedback=None):
+    def run_once(self, root, task_sheet, *, on_tool=None, on_spawn=None,
+                 on_session_id=None, resume_session_id=None, feedback=None,
+                 resume_prompt=None):
         self.calls += 1
         self.sheets.append(task_sheet)
         if feedback is not None:
             self.feedbacks.append(feedback)
         if resume_session_id:
             self.resumes.append(resume_session_id)
+        self.resume_prompts.append(resume_prompt)
         from src.runner import ToolEvent
         for tool, args in (self.violations or []):
             if on_tool is not None:
@@ -530,6 +535,115 @@ def test_consume_stop_file_ignores_garbage(tmp_path):
     assert driver_mod._consume_stop_file(ctl, {"proc": None}, flag) is False
 
 
+# ── 批4fix S1/S2：停机三道门 + 观察者挂进 watcher 射程 ────────────────────
+
+def _wait_until(pred, timeout=10.0):
+    """轮询等待条件成立（watcher 0.5s 粒度的确定性等待）。"""
+    import time
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if pred():
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def test_stop_during_worker_gate_w(tmp_path, monkeypatch):
+    """S1 门 A + S2 登记制：worker 跑动中 stop → watcher 杀登记的真子进程 →
+    门 A 退（无观察者 spawn、盘面冻结、run_end reason=control-stop(W)）。"""
+    import subprocess
+    import sys
+
+    _mk_engagement(tmp_path)
+
+    def fake_run(prompt, workdir, solver, task, **kw):
+        proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        task.on_spawn(proc)                       # 出生登记（S2 机制，worker 侧既有）
+        ctl = Path(workdir) / "state" / "CONTROL"
+        ctl.write_text(json.dumps({"cmd": "stop", "text": ""}), encoding="utf-8")
+        assert _wait_until(lambda: not ctl.exists()), "盯梢线程未消费 CONTROL"
+        assert _wait_until(lambda: proc.poll() is not None), "watcher 未杀登记的 worker"
+        return _res(stop_reason="controller_kill")
+
+    monkeypatch.setattr(driver_mod.runner, "run", fake_run)
+    obs = FakeObserver([{"round": 1, "operations": []}])
+    monkeypatch.setattr(driver_mod.observer, "copy_observer_kit", lambda root: None)
+    monkeypatch.setattr(driver_mod.observer, "run_once", obs.run_once)
+
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=3)
+    assert rc == 0
+    evs = [json.loads(l) for l in
+           (tmp_path / "state" / "auto-log.jsonl").read_text(encoding="utf-8").splitlines()
+           if l.strip()]
+    assert any(e["type"] == "run_end" and e["data"]["reason"] == "control-stop(W)"
+               for e in evs)
+    assert obs.calls == 0                          # 门 A：观察者未生
+    assert not (tmp_path / "STATE.md").exists()    # 盘面冻结：STATE 未写
+    bb = driver_mod.board_mod.Blackboard(str(tmp_path / ".at1" / "blackboard.json"))
+    assert len(bb.graph["nodes"]) == 1             # 只有播种画像 fact——图字节不变
+
+
+def test_stop_during_observer_gate_o(tmp_path, monkeypatch):
+    """S1 门 B + S2：观察者跑动中 stop → 观察者（经 on_spawn 登记）被杀 →
+    判断书未入图、STATE 未写、run_end reason=control-stop(O)。"""
+    import subprocess
+    import sys
+
+    _mk_engagement(tmp_path)
+    fake = FakeRunner([(_res(), {}, {}, {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    obs_calls = []
+
+    def fake_obs_run(root, sheet, *, on_tool=None, on_spawn=None,
+                     on_session_id=None, resume_session_id=None, feedback=None,
+                     resume_prompt=None):
+        obs_calls.append(1)
+        proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        assert on_spawn is not None, "driver 未把 proc_ref setter 传给观察者（S2 断线）"
+        on_spawn(proc)                             # 观察者出生登记（S2 本体）
+        ctl = Path(root) / "state" / "CONTROL"
+        ctl.write_text(json.dumps({"cmd": "stop", "text": ""}), encoding="utf-8")
+        assert _wait_until(lambda: not ctl.exists()), "盯梢线程未消费 CONTROL"
+        assert _wait_until(lambda: proc.poll() is not None), "watcher 未杀观察者"
+        return {"stop_reason": "controller_kill", "tokens": 0, "total_cost_usd": 0,
+                "turns": 0, "is_error": False, "error": "", "session_id": "obs-killed"}
+
+    monkeypatch.setattr(driver_mod.observer, "copy_observer_kit", lambda root: None)
+    monkeypatch.setattr(driver_mod.observer, "clear_judgment", lambda root: None)
+    monkeypatch.setattr(driver_mod.observer, "run_once", fake_obs_run)
+
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=3)
+    assert rc == 0
+    assert len(obs_calls) == 1                     # 被杀后不进 resume 回喂重试
+    evs = [json.loads(l) for l in
+           (tmp_path / "state" / "auto-log.jsonl").read_text(encoding="utf-8").splitlines()
+           if l.strip()]
+    assert any(e["type"] == "run_end" and e["data"]["reason"] == "control-stop(O)"
+               for e in evs)
+    assert not (tmp_path / "STATE.md").exists()    # apply_judgment/STATE 写入未发生
+    bb = driver_mod.board_mod.Blackboard(str(tmp_path / ".at1" / "blackboard.json"))
+    assert bb.nodes("finding") == []               # 判断书未入图
+
+
+def test_controller_kill_skips_dead_proc():
+    """S2 保险：已退出的 Popen 不贴标不补刀（PID 复用防误杀）。"""
+    import subprocess
+    import sys
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+    proc.wait(timeout=10)
+    driver_mod._controller_kill(proc)              # 不抛、不动作
+    assert getattr(proc, "_controller_kill", False) is False
+    # 活进程照常贴标（既有语义不回归）
+    live = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        driver_mod._controller_kill(live)
+        assert getattr(live, "_controller_kill", False) is True
+        live.wait(timeout=10)
+    finally:
+        if live.poll() is None:
+            live.kill()
+
+
 def test_control_stop_preexisting_prevents_any_spawn(tmp_path, monkeypatch):
     _mk_engagement(tmp_path)
     (tmp_path / "state" / "CONTROL").write_text(
@@ -741,3 +855,207 @@ def test_hints_queue_harvested_into_prompt_once(tmp_path, monkeypatch):
     p1 = fake.calls[0]["prompt"]
     assert "重点看支付回调" in p1.split("【运行提示】")[-1]
     assert "重点看支付回调" not in fake.calls[1]["prompt"]
+
+
+# ── 批4fix S5/S12：phase 账本 + 断点续会话 ────────────────────────────────
+
+def _evs(root: Path) -> list[dict]:
+    return [json.loads(l) for l in
+            (root / "state" / "auto-log.jsonl").read_text(encoding="utf-8").splitlines()
+            if l.strip()]
+
+
+def test_phase_ledger_transitions_and_clean_clear(tmp_path, monkeypatch):
+    """S5 转换点：session_start→working(r,role=worker)、观察者 spawn→auditing、
+    轮末入图完成→working（清 sid）、干净收尾→清账。"""
+    from src import phase as phase_mod
+    _mk_engagement(tmp_path)
+    phase_seen = {}
+
+    class SpyRunner(FakeRunner):
+        def __call__(self, prompt, workdir, *a, **kw):
+            phase_seen[f"worker{len(self.calls) + 1}"] = phase_mod.read(Path(workdir))
+            return super().__call__(prompt, workdir, *a, **kw)
+
+    fake = SpyRunner([(_res(), {}, {}, {}), (_res(), {}, {}, {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+
+    class SpyObserver(FakeObserver):
+        def run_once(self, root, task_sheet, **kw):
+            phase_seen[f"audit{len(self.sheets) + 1}"] = phase_mod.read(Path(root))
+            return super().run_once(root, task_sheet, **kw)
+
+    obs = SpyObserver([
+        # 非空 operations——空判断书会触发 resume 回喂重试，干扰转换点时序
+        {"round": 1, "operations": [{"op": "add_intent", "goal": "方向一"}]},
+        {"round": 2, "operations": [{"op": "set_state", "id": "D-001",
+                                     "state": "in_progress", "reason": "接力"}]},
+    ])
+    monkeypatch.setattr(driver_mod.observer, "copy_observer_kit",
+                        lambda root: Path(root).joinpath(".observer").mkdir(exist_ok=True))
+    monkeypatch.setattr(driver_mod.observer, "clear_judgment", lambda root: None)
+    monkeypatch.setattr(driver_mod.observer, "run_once", obs.run_once)
+    monkeypatch.setattr(driver_mod.observer, "read_judgment", obs.read_judgment)
+
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=2)
+    assert rc == 0
+    strip_ts = lambda d: {k: v for k, v in (d or {}).items() if k != "updated_at"}
+    assert strip_ts(phase_seen["worker1"]) == {"phase": "working", "round": 1,
+                                               "role": "worker"}
+    assert strip_ts(phase_seen["audit1"]) == {"phase": "auditing", "round": 1,
+                                              "role": "observer"}
+    assert strip_ts(phase_seen["audit2"]) == {"phase": "auditing", "round": 2,
+                                              "role": "observer"}
+    assert strip_ts(phase_seen["worker2"]) == {"phase": "working", "round": 2,
+                                               "role": "worker"}
+    assert phase_mod.read(tmp_path) is None          # 干净收尾：清账
+    import src.board as bb_mod
+    bb = bb_mod.Blackboard(str(tmp_path / ".at1" / "blackboard.json"))
+    assert bb.bookkeeping["round"] == 2              # 轮号持久
+
+
+def test_round_number_continues_across_restart(tmp_path, monkeypatch):
+    """S5/R-6：轮号从簿记续——第二个进程的轮号接着走，不从 1 重来。"""
+    _mk_engagement(tmp_path)
+    fake = FakeRunner([(_res(), {}, {}, {}), (_res(), {}, {}, {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    assert driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=1,
+                                     observer_on=False) == 0
+    assert driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=1,
+                                     observer_on=False) == 0
+    starts = [e["data"]["round"] for e in _evs(tmp_path) if e["type"] == "session_start"]
+    assert starts == [1, 2]                          # 跨进程续编号
+
+
+def test_hint_offset_persists_immediately_and_no_replay(tmp_path, monkeypatch):
+    """S5/R-8：hint 收割即落盘（spawn 时盘上 offsets 已推进，不等轮末）；
+    跨进程续跑不重放旧插话。"""
+    _mk_engagement(tmp_path)
+    (tmp_path / ".at1" / "control").mkdir(parents=True)
+    (tmp_path / ".at1" / "control" / "hints.jsonl").write_text(
+        json.dumps({"ts": "t", "text": "重点看支付回调"}, ensure_ascii=False) + "\n",
+        encoding="utf-8")
+    offsets_seen = []
+
+    class SpyRunner(FakeRunner):
+        def __call__(self, prompt, workdir, *a, **kw):
+            data = json.loads((Path(workdir) / ".at1" / "blackboard.json")
+                              .read_text(encoding="utf-8"))
+            offsets_seen.append(data["bookkeeping"]["offsets"].get("hints", 0))
+            return super().__call__(prompt, workdir, *a, **kw)
+
+    fake = SpyRunner([(_res(), {}, {}, {}), (_res(), {}, {}, {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    assert driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=1,
+                                     observer_on=False) == 0
+    assert offsets_seen[0] > 0                       # spawn 前已落盘（即时性）
+    assert "重点看支付回调" in fake.calls[0]["prompt"]
+    assert driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=1,
+                                     observer_on=False) == 0
+    assert "重点看支付回调" not in fake.calls[1]["prompt"]   # 跨进程不重放
+
+
+def test_worker_resume_after_kill(tmp_path, monkeypatch):
+    """S12：working 残留+session_id → 续跑命令带 resume 句柄、注入语在 prompt。"""
+    from src import phase as phase_mod
+    _mk_engagement(tmp_path)
+    phase_mod.write(tmp_path, "working", 1, session_id="s-dead", role="worker")
+    fake = FakeRunner([(_res(), {}, {}, {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=1,
+                                   observer_on=False)
+    assert rc == 0
+    assert fake.resumes[0] == "s-dead"               # --resume <id>（FakeRunner 锚）
+    assert "你被停机中断过" in fake.calls[0]["prompt"]     # 注入语三件套
+    evs = _evs(tmp_path)
+    assert any(e["type"] == "interrupted_phase" and e["data"]["phase"] == "working"
+               for e in evs)
+    assert any(e["type"] == "session_start" and e["data"].get("resumed") for e in evs)
+    assert phase_mod.read(tmp_path) is None          # 干净收尾清账（接力完成）
+
+
+def test_observer_resume_after_kill_skips_worker(tmp_path, monkeypatch):
+    """S12：auditing 残留 → 本轮 worker 不重跑（上进程已收工），观察者续接
+    （注入语：已做的验证不必重做），判断书正常提交入图。"""
+    from src import phase as phase_mod
+    _mk_engagement(tmp_path)
+    phase_mod.write(tmp_path, "auditing", 1, session_id="obs-dead", role="observer")
+    fake = FakeRunner([(_res(), {}, {}, {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    obs = FakeObserver([{"round": 1, "operations": [
+        {"op": "add_intent", "goal": "续审计收尾方向", "note": "上进程验证已做完"}]}])
+    monkeypatch.setattr(driver_mod.observer, "copy_observer_kit",
+                        lambda root: Path(root).joinpath(".observer").mkdir(exist_ok=True))
+    monkeypatch.setattr(driver_mod.observer, "clear_judgment", lambda root: None)
+    monkeypatch.setattr(driver_mod.observer, "run_once", obs.run_once)
+    monkeypatch.setattr(driver_mod.observer, "read_judgment", obs.read_judgment)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=1)
+    assert rc == 0
+    assert not fake.calls                            # worker 未重跑
+    assert obs.resumes == ["obs-dead"]
+    assert obs.resume_prompts[0] and "审计被中断" in obs.resume_prompts[0]
+    evs = _evs(tmp_path)
+    assert any(e["type"] == "interrupted_phase" and e["data"]["phase"] == "auditing"
+               for e in evs)
+    import src.board as bb_mod
+    bb = bb_mod.Blackboard(str(tmp_path / ".at1" / "blackboard.json"))
+    assert bb.node("D-001") is not None              # 判断书正常提交入图
+
+
+def test_resume_fallback_once_on_spawn_error(tmp_path, monkeypatch):
+    """S12：续接抛错 → resume_fallback 留账 → 落回新开（正常 prompt），只试一次。"""
+    from src import phase as phase_mod
+    _mk_engagement(tmp_path)
+    phase_mod.write(tmp_path, "working", 1, session_id="s-dead", role="worker")
+    calls = []
+
+    def flaky_run(prompt, workdir, solver, task, *, time_box_s=None, max_turns=None,
+                  claude_bin=None, resume_session_id=None):
+        calls.append({"resume": resume_session_id, "prompt": prompt})
+        if resume_session_id:
+            raise RuntimeError("session 不存在")
+        return _res()
+
+    monkeypatch.setattr(driver_mod.runner, "run", flaky_run)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=1,
+                                   observer_on=False)
+    assert rc == 0
+    assert len(calls) == 2                           # 续接一次 + 新开一次，不循环
+    assert [c["resume"] for c in calls] == ["s-dead", None]
+    assert "你被停机中断过" in calls[0]["prompt"]
+    assert "【简报】" in calls[1]["prompt"]           # 落回正常轮 prompt
+    assert any(e["type"] == "resume_fallback" and e["data"]["role"] == "worker"
+               for e in _evs(tmp_path))
+
+
+def test_resume_fallback_on_error_result(tmp_path, monkeypatch):
+    """S12：续接返回 error 终态（session 截断损坏类）→ 同样落回新开。"""
+    from src import phase as phase_mod
+    _mk_engagement(tmp_path)
+    phase_mod.write(tmp_path, "working", 1, session_id="s-broken", role="worker")
+    fake = FakeRunner([
+        (_res(stop_reason="error", is_error=True, error="transcript broken"), {}, {}, {}),
+        (_res(), {}, {}, {}),
+    ])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=1,
+                                   observer_on=False)
+    assert rc == 0
+    assert fake.resumes == ["s-broken", None]
+    assert any(e["type"] == "resume_fallback" for e in _evs(tmp_path))
+
+
+def test_old_phase_format_without_session(tmp_path, monkeypatch):
+    """S12：旧档案无 session_id 字段 → 走老路径，不报错不续接。"""
+    from src import phase as phase_mod
+    _mk_engagement(tmp_path)
+    phase_mod.write(tmp_path, "working", 2)          # 本批之前的格式
+    fake = FakeRunner([(_res(), {}, {}, {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=1,
+                                   observer_on=False)
+    assert rc == 0
+    assert fake.resumes == [None]
+    assert "你被停机中断过" not in fake.calls[0]["prompt"]
+    assert any(e["type"] == "interrupted_phase"
+               and e["data"]["has_session"] is False for e in _evs(tmp_path))

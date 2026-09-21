@@ -124,8 +124,9 @@ def test_observer_guard_violation_role(tmp_path, monkeypatch):
         def submitted(self, root):
             return True
 
-        def run_once(self, root, task_sheet, *, on_tool=None,
-                     resume_session_id=None, feedback=None):
+        def run_once(self, root, task_sheet, *, on_tool=None, on_spawn=None,
+                     on_session_id=None, resume_session_id=None, feedback=None,
+                     resume_prompt=None):
             FakeObs.calls += 1
             if on_tool is not None:
                 on_tool(ToolEvent(tool="Write",
