@@ -2,7 +2,8 @@
 
 > **定位**：G7 实机复跑（`at1-v3批4-实机复跑测试.md` §9）实抓问题的修复批。本批修 R-1/R-3/R-4/R-5/R-6/R-7（R-8 由 S5 收口）；**R-2 用户拍板不修**（计量是账目问题，读 0 不影响运行）；M5 server、观察者迭代留批5/路线图。
 > **基线**：`1f478ed`（批4 竣工 + 交接单，188 测试绿）。
-> **状态**:**施工完成（2026-09-21）——S1-S7/S9-S12 全部落地，全量 pytest 222 绿（基线 188 + 新增 34）。S7 有一处经用户拍板的偏离（砍改法 2，见 §9.1）。未 commit；实机演练（§3 G 级验收）待跑。**
+> **状态**:**全批竣工（2026-09-21）——主批 S1-S12（§1）已施工并经实机演练验收（§9.4，含战果 F-001），已 commit+push（`5ae69a2`+`26ef89b`）；续修批 S13/S14/S16（§10，guard 静态检测加固）已施工，S15 tripwire 经讨论撤销（09-22 拍板：现阶段不考虑反注入场景），全量 pytest 237 绿，未 commit。**
+> **读法**：主批成果看 §9；**全部问题按发现顺序统一登记在 §9.5（P-1~P-14，含状态）**；续修批（本批最后一段）看 §10（快览 §10.1 / 施工结果 §10.5）。
 > **参考调研**：ARTEX（`lernproject/ARTEX-main`，settle 收尾时序/gate-first/具名死因/控制态即时落库）、Cairn（`lernproject/Cairn-main`，cancel-before-attach/取消=贴字条/被取消回合作废不补跑/单管家）、deadend（单进程架构无双跑问题，无可抄机制）、hxbai（反面教材：kill 了事）。
 
 ---
@@ -305,7 +306,148 @@ S6 收尾
 
 | 项 | 去向 |
 |---|---|
-| **实机演练**（§3 G 级验收：usc-portal-b4 run→stop→秒退→run 接力 + F-01 入图 + 三新资产） | **待跑**——需要真会话/真额度，等用户指令 |
-| commit / push | 等用户指示；建议分组：R-1 本体（S1-S4）/ R-6+接力（S5+S12）/ 小件包（S7+S9+S10+S11+S6 文档） |
+| ~~实机演练~~ → **已完成**（见 §9.4），usc-portal-b4 的 F-01 入图改在新靶 usc-cwcx-b1 完成（用户换目标） | — |
+| commit / push | **已完成**（2026-09-21：G7 遗留文档 `5ae69a2` + 批4fix `26ef89b`，已推送 origin/main） |
 | verify_fact 轮窗专项复核 | 机制本体已随批3fix 配方 1 退役（events.py 仅存登记）——落地为两条测试锚：hint 偏移跨进程不重放 + 轮号续接 |
 | 观察者迭代（判定质量精进、G-4 清单）、M5 server | 批5 / 路线图（§4 不变） |
+
+### 9.4 实机演练记录（2026-09-21，新靶 usc-cwcx-b1=cwcx.usc.edu.cn 智慧财务管理平台）
+
+> 用户换新目标（usc-portal-b4 三新资产之一），小目标=LoginSSO 签名 SSO + 收费查询面。
+> 共 2 个 run 进程 / 3 轮 / 总成本 $11.15，stoploss 收尾（该收尾后被判为误杀，见 §9.5 P-14），**confirmed=1（F-001）**。
+> 演练中暴露的问题全部统一登记在 §9.5（P-1~P-10），此处不重复。
+
+**批4fix 验收点实机结果**：
+
+| 验收点 | 结果 |
+|---|---|
+| S1 门 W（worker 阶段 stop） | ✅ stop 发出→1.6s 返回，run_end=control-stop(W)，无观察者 spawn，STATE 未写，stop 后盘面静止 |
+| S4 stop 等死透 | ✅ 报文"实例已退出（等了 1s），盘面冻结于 working r1"——返回时刻=进程死亡时刻 |
+| S3 双开拒启 | ✅ 实例运行中第二个 run 拒启带 PID+启动时间，原实例无损 |
+| S5 phase 账本 | ✅ working/auditing 转换、on_session_id spawn 中途落账、干净收尾清账（stoploss 后 phase.json 消失）、run.lock 残文件无害 |
+| S12 worker 续接 | ✅ working 残留→interrupted_phase(has_session=True)→resumed=True→**同 session_id 续上、零 fallback**——真 --resume 吃下被 taskkill 杀断的会话 |
+| S12 时间盒边界 | ✅ r2 worker 时间盒被杀→进程不退出→轮照走观察者→不触发续接（设计边界实机成立） |
+| S9 中文编码 | ✅ 三轮 handoff 中文逐字正常（auto-log 与 transcript 对照），R-3 mojibake 根治 |
+| R-2 计量断流 | 按 S8 拍板不修——r2 worker session_end 记 $0/0 turns，现象与上批一致，运行不受影响 |
+| S1 门 O + S2 杀观察者 + S12 auditing 续接 | **未实机验**（P-4）——单测已覆盖；下个 engagement 盯 `phase.json` 转 `auditing` 打 stop 一次补齐 |
+| S11 观察者不限轮 | argv 无 --max-turns 已单测锚定；实机 r3 观察者 53 turns 未越旧限 60，未构成直接观察（P-5） |
+
+**战果摘要**（详情见 engagement 盘面）：F-001=`/cw/Cwzccx_dz.asp`+`/cw/Cwzccx_th.asp` 双页完全无鉴权，匿名拉全校已到账明细 203 笔 ¥2271 万（含军工课题经费关联）+退回明细 532 笔（个人实名）。LoginSSO mac 结论：确定性可重放、只绑 username、不绑 sj/ts/appId（盐未破不立 finding）。r3 末 AC cookie/h5token 双死（worker 正确置 blocked 不空转，见 P-10）——**下次续跑前需操作员重新登录刷新 storage-state.json**。
+
+### 9.5 问题登记总表（实机暴露 + 续修批施工中暴露，按发现顺序，一处说完）
+
+> 状态口径：✅已修（含回归锚）｜☑已结案（含拍板）｜⏳待办。正向确认（P-9/P-10）一并登记防散失。
+
+| # | 问题 | 根因 | 处置 | 状态 |
+|---|---|---|---|---|
+| P-1 | guard 误报 26/28 条：①绝对路径写自家工作台被拦（19 条）；②`[System.IO.File]::ReadAllText` 读被当写；③拼接符粘连（`"https://x"+$p`、`curl "https://x"&echo hi`）。其中①②是 S10 施工 bug | 单测夹具全是相对路径理想形态，实机形态一个没盖住；豁免正则与禁区正则各认一套形态 | 当日修：截断式可写集 + 删裸 `[io.file]` 前缀 + `_host_of` 截断式清洗；续修批 S13/S14 进一步换成**路径代数 + 归一化 token 判**（§10）。另加**对账锁** `test_observer_writable_set_contract`：手册可写面声明钉成用例，手册↔guard 漂移即红 | ✅已修（三实机形态原样入库 test_guard.py；237 绿） |
+| P-2 | scope 误报：host 解析成 `{`（1 条，r2 worker） | PowerShell 子表达式 `"…{$x}…"` 形态，截断类没含 `{}` | S16：截断类补 `{}[]` | ✅已修（test_host_braces_truncated_p2） |
+| P-3 | guard 修复下个进程才生效，演练中 r2/r3 旧 guard 继续误报 22 条 | 进程级快照（代码在进程里的自然语义） | ☑已结案（用户拍板）：接受该语义——guard 是记录员不拦人，代价只是日志脏；"换规则立即生效"= stop→run，S12 断点续会把重启成本压到≈0；**不建"补判"回放工具** | ☑结案 |
+| P-4 | 观察者半场三件套未实机验（S1 门 O / S2 杀观察者 / S12 auditing 续接） | 两次都错过观察者窗口（3~8 分钟难掐；r3 观察者跑完即 stoploss 收尾） | 单测已覆盖；**待补测**：下个 engagement 盯 `phase.json` 转 `auditing` 打一次 stop，三件套全覆盖 | ⏳待办  **补测执行单=`v3批4fix实机测试计划.md`（2026-09-22 已写，等用户给目标）** |
+| P-5 | S11"不限轮"无直接实机观察（r3 观察者 53 turns < 旧限 60） | 未被自然越过 | argv 无 `--max-turns` 已单测锚定；遇长审计自然越过即为实机证 | ☑结案（低价值） |
+| P-6 | 观察者成本逐轮上涨（$1.23→$1.69→$2.84，r3 达 10.7M tokens 超同轮 worker） | 无状态全量审计固有成本：图和产出越大重读越多 | 批5 本职：任务单分诊（只深审 new_or_changed）、验证结论复用（G-4 清单） | ⏳批5 ；**用户拍板（09-22）：审计贵是设计使然，接受——优化杠杆在 worker 写的质量，不急** |
+| P-7 | cookie 死亡恢复是人工舞步（重登→抠 cookie→写 storage-state→重启） | 登录态在 storage-state 而非活浏览器 | **playwright 升级批正解**：持久 profile + KEEP=1，人工登录一次跨轮跨 run 存活 | ⏳playwright 批 ；**用户拍板（09-22）：留到 playwright 批一起做** |
+| P-8 | R-2 计量断流复现（r2 worker session_end 记 $0/0 turns） | S8 墓碑卡已录的诊断项 | 按拍板不修，现象稳定不影响运行 | ☑结案（拍板） |
+| P-9 | （正向）scope 真阳性工作正常 | — | r2 worker 探测厂商域名 `www.wangcai.cc` 被正确拦（allow 外）——28 条里唯一真阳性 | ☑确认 |
+| P-10 | （正向，2026-09-22 部分更正）记账纪律成立；~~判停~~一条移 P-14 | — | ①画像换代链完整（T-001→T-002→T-007→T-010）；②cookie 死后 D-003/D-004 置 blocked **已逐条核实**：blocked_reason 带可检验解锁条件，且是观察者重放 ssoLogin 确认 cookie 真死才记账（先验证后入图），r3 交接"门检确认双死，未空转"，同轮仍产出 SQLi fact+四条阴性；③判断书三轮零 rejects | ☑确认 |
+| P-11 | **scope 可被 `[]` 整对绕过（真绕过，非误报）**：`urlsplit("https://evil.com[x]")` 抛 Invalid IPv6 → 旧代码 except→空 host→按"本地路径"放行，任何越界 URL 挂 `[]` 即免检（含元数据端点形态） | 续修批 S16 测试 `[]` 截断时抓到 | S16 一并修：except 分支兜底手工解 netloc 再进同一截断清洗；本地路径宽松语义不变（阴性对照锚定） | ✅已修（test_malformed_netloc_scope_bypass_fixed） |
+| P-12 | **观察者豁免正则吞并嵌套禁区引用（真漏判）**：`.observer/../.at1/x.json` 被 `\.observer[/\\][^\s]*` 一口吞掉→逃过禁区判定 | 整串贪婪匹配能跨 `..`；"宽于 zone 是死支"的假设错误 | 续修批 S13/S14 修：豁免改**逐 token 全可写才放行** + 嵌套目录级引用检查（裸 `OBSERVER.json` 不算禁区委照——那是观察者自己的判断书名） | ✅已修（test_path_algebra_dotdot_and_mixed_separators） |
+| P-13 | **stop 竞态窗口（R-1 同族，产品代码）**：`_consume_stop_file` 原顺序「删 CONTROL→置标志」与主循环「读标志→轮询文件」交错时，两边都不见 stop→多跑一轮 worker | 测试偶发失败（3 轮 1 次）刨根，不是测试脆弱 | 续修批修两道：①置标志先于删文件；②主循环 `_poll_control` 后二次读标志。各配确定性单测 | ✅已修（test_consume_stop_sets_flag_before_unlink / test_loop_top_rereads_stop_flag） |
+| P-14 | **止损信号源断裂（真 bug，实机误杀）**：run 第 3 轮被"无新事实连击 3 轮"停，但三轮观察者入图 7/5/8 操作、产出旺盛 | `facts_delta` 用图节点增量；批3fix 架构下 worker 只写文件、图只在观察者轮末变（发生在 record_round 之后）→ 恒 0 → 任何 run 必在第 3 轮被误杀。旧架构轮内收割入图时该信号有意义，收割退役时没重接。usc-cwcx-b1 是第一个自然跑到第 3 轮的 run 才暴露；发现于用户对 P-10 的核查质询 | 2026-09-22 修：信号源换成本轮 worker 盘面新增/变更文件数（`page["new_or_changed"]`）；补两条回归（有产出 4 轮不触发 / 零产出第 3 轮触发）；stoploss.py docstring 记录语义变更 | ✅已修（test_stoploss_not_triggered_on_productive_rounds / test_stoploss_fires_on_three_barren_rounds） |
+
+---
+
+## 10. 续修批：guard 静态检测加固（S13-S16，2026-09-21 用户拍板）
+
+> **定位**：§9.5 的 P-1/P-2 病灶治理。用户拍板：**不引入 LLM 参与检测**，只把静态检测做到最好。
+> **基线**：`26ef89b` 之后（225 测试绿，含 S7/S10 的三条实机形态修复）。
+> **状态**：**已竣工（2026-09-21；P-14 止损修复 09-22 补入）——S13/S14/S16 落地 + 施工中连带修 P-11/P-12/P-13；S15 tripwire 撤销（09-22 拍板：现阶段不考虑目标反注入 agent 场景，效果层不做）。全量 237 测试绿；未 commit（见 §10.5）。**
+
+### 10.0 认知拍板（决定了这批长什么样）
+
+**旧做法的病根 = 枚举形态**：靠人想象"worker 会怎么写这个路径/这个 URL"，一种形态补一条正则。实机四刀同族（P-1 引号分号 / P-5 反斜杠 / S7 的 `$` / 4fix 的 `+&`）全是这个病——**军备竞赛，永远追不完**。
+
+**静态能打的最优解只有两条**（都不靠枚举）：
+
+1. **能拿到结构化数据的地方，别用正则**——`Write`/`Edit` 的 `file_path` 是干净字符串，用**路径代数**（`Path.resolve()` + 前缀比较）判定归属，绝对/相对/`..`/混合分隔符/8.3 短名/UNC 全由构造保证。
+2. **拿不到结构化的地方（命令文本），先归一化再匹配**——分隔符统一、引号统一，**禁区判定与豁免判定共用同一个归一化后的形态**（P-1① 的真正根因就是两侧各用一套正则、形态认知不一致）。
+
+**效果层兜底（S15 tripwire）——已撤销（09-22 拍板）**：曾加 `.at1/` 诱饵+基线哈希+尺寸单调作为漏报检测器。撤销理由：①诱饵文件在 `.at1/` 里有被 worker 误读的风险；②黑板/转录是自愈资产（控制器内存覆盖、续接有 fallback），篡改检测价值有限；③现阶段不考虑目标反注入 agent 的场景（用户拍板）。文本层被绕过=静默漏记，接受。
+
+### 10.1 快览（人话版）
+
+| 卡 | 问题哪来的 | 造成了什么 | 怎么修 |
+|---|---|---|---|
+| **S13** | 路径判定靠正则猜形态 | 绝对路径/混合分隔符/短名形态漏判误判 | 结构化路径改用**路径代数**（resolve + 前缀比较）：禁区判定"正则 ∪ 代数"（只增不漏），**豁免判定用代数**（精确，治 P-1①） |
+| **S14** | 禁区正则与豁免正则各认一套形态 | 两侧认知不一致 → 自家工作台被误判禁区 | 命令文本**先归一化**（分隔符→`/`、引号→空格），两侧共用同一形态；按**token**判定而不是整串正则 |
+| ~~**S15**~~ | 文本层被绕过时无声无息 | 真被改了控制器区也查不出来 | **已撤销（09-22 拍板，见 §10.0）**——现阶段不考虑反注入场景，效果层不做 |
+| **S16** | P-2 残留 + 房内清理 | 花括号形态 host 误判 | `_host_of` 截断类补 `{}[]`；顺手清理已死的正则分支 |
+
+### 10.2 施工卡
+
+**S13 结构化路径代数（治 P-1①）**
+
+- `Guard.__init__(allow, deny, root=None)`；`from_engagement(engagement, root=None)`；driver 传 engagement 根。
+- `_resolve_target(p)`：相对路径按 root 解析 → `Path.resolve()`（吃掉 `..`/软链/短名）；失败返回 None（回退正则）。
+- `_path_in_zone(target)`：与 `root/{.at1,.observer,state,notes}` 前缀比较 + 根目录下 `_blackboard/_transcript/_interface_log/OBSERVER.*` 文件名。
+- `_path_observer_writable(target)`：`root/.observer/**`、`root/STATE.md`、`root/notes/prior-intel-draft.md`。
+- **判定合并**：禁区 = 模糊正则 **∪** 代数（保高召回，不丢任何既有拦截）；豁免 = 代数 **∪** 已修的 token 正则（保精确，治误报）。
+- **验收**：绝对路径写自家工作台放行；绝对路径写 `.at1/` 仍拦；`notes/../.at1/x` 仍拦；root 缺省（单测旧路径）行为不回归。
+
+**S14 命令文本先归一化再匹配（治误报残留）**
+
+- `_normalize_cmd(cmd)`：URL 剥离 → 分隔符 `\`→`/` → 引号→空格。
+- `_ZONE_TEXT_RX` 改为**带 token 捕获**（`.at1/...`、`notes/...`、`_blackboard.json`…）。
+- 判定：归一化文本上取 zone tokens；observer 角色过滤掉自家可写 token；剩余非空且命中写动词 → 违规。
+- **验收**：五类实机形态（绝对路径、反斜杠、读方法、拼接符、纯读）全放行；真越界形态（`>> ../state/x`、`Set-Content .at1/x`）仍拦。
+
+**S15 `.at1/` tripwire——已撤销（09-22 拍板）**，以下为原设计存档：
+
+- `arm()`：`.at1/` 放两枚随机内容诱饵（`.tp-<hex>.dat`）+ 建基线。
+- `rebaseline()`：driver 每次 `bb.save()` 后调用——刷 `blackboard.json` 哈希基线（控制器合法写）。
+- `check()`：诱饵丢失/内容变 → 违规；`blackboard.json` 哈希 ≠ 基线 → 违规；`transcript.jsonl` 尺寸 < 历史最大值 → 违规。已报项去重不刷屏。
+- driver：watcher 线程每 ~5s 跑一次 `check()`，命中 emit `zone_tamper`（新事件类型，critical）；收尾再跑一次终检。
+- **诚实边界**：只守 `.at1/`（`.observer/` 是观察者合法工作台、`notes/` 有合法产物，不能放诱饵）；两次 check 之间"截断+立刻补回更大"的理论窗口盖不住（~5s 粒度）。
+- **验收**：改写诱饵/篡改黑板/截断 transcript 三种篡改各自被抓；无篡改时零误报。
+
+**S16 收尾补漏**
+
+- `_host_of` 截断类补 `{}[]`（治 P-2）；`_WRITE_TOOL_HINT_RX` 已删的裸 `[io.file]` 分支确认无残留引用。
+- **验收**：`{}` 形态 host 解析正确；既有 URL 用例不回归。
+
+### 10.3 测试与顺序
+
+- 新 `tests/test_tripwire.py`；`test_guard.py` 补 S13/S14 案例（**夹具取自 usc-cwcx-b1 auto-log 的实机事件流**——§9.5 P-1 的教训落地）。
+- 顺序：S16 → S13 → S14 → S15 → 全量 pytest（225 基线只增不减）。
+- 不自动 commit。
+
+### 10.4 明确不做
+
+| 项 | 去向 |
+|---|---|
+| LLM 复核/打标 | **用户拍板不做**（不引 LLM 参与检测） |
+| 观察者 triage guard 事件为机制 | 不做（同上；事件本就在 auto-log，人/观察者照旧能看，只是不新增机制） |
+| 全目录 watchdog（抓任意进程写禁区） | 不做——区分控制器自身合法写需要排除表，脆（排除表漂移=误报 critical） |
+| 权限收权（ACL/job object 沙箱） | M5/沙箱化路线，不预支 |
+| 命令文本层继续追新形态 | **冻结**——S14 归一化后不再枚举形态；文本层被绕过=静默漏记，**接受**（S15 已撤，无效果层兜底） |
+| S15 效果层 tripwire（诱饵/基线哈希/尺寸单调） | **已撤销（09-22 拍板）**——现阶段不考虑目标反注入 agent 场景；黑板篡改架构自愈（控制器内存覆盖）、transcript 截断有续接 fallback |
+
+### 10.5 施工结果（回写区）
+
+**施工完成（2026-09-21）；P-14 止损修复 09-22 补入；S15 tripwire 09-22 撤销。全量 pytest 237 绿。未 commit——等用户指示。**
+
+施工中新抓的 P-11/P-12/P-13 三个问题已统一登记进 §9.5 问题总表（含根因/修法/回归锚），此处不重复。
+
+| 卡 | 落点 | 测试锚 |
+|---|---|---|
+| S13 | `guard.py`：`Guard.__init__(allow, deny, root=None)` / `from_engagement(..., root=None)`（driver 传 engagement 根）；`_resolve_target`（相对路径按 root 解析 + `resolve()`）、`_path_in_zone`、`_path_observer_writable` 三个代数方法；判定合并 = 禁区「正则 ∪ 代数」（只增不漏）+ 豁免「代数 ∪ token 判」 | test_path_algebra_absolute_forms / dotdot_and_mixed_separators / without_root_keeps_legacy |
+| S14 | `_normalize_cmd`（URL 剥 → 分隔符 `/` → 引号空格）+ `_ZONE_TEXT_RX`（带 token 捕获）+ `_observer_writable_token`；`check_tool` 命令分支改 token 判定，禁区侧与豁免侧共用同一归一化形态 | test_norm_cmd_unifies_forms / text_zone_token_observer_exempt_forms（五类实机原形）/ text_zone_token_still_blocks_worker_and_out_of_scope |
+| ~~S15~~ | **已撤销（09-22 拍板）**——`src/tripwire.py`/`tests/test_tripwire.py` 删除，driver 6 处引用与 `zone_tamper`/`tripwire_armed` 事件注销 | — |
+| S16 | `_host_of` 截断类补 `{}[]`（P-2 收口）；施工中连带抓出 P-11 绕过一并修 | test_host_braces_truncated_p2 / test_malformed_netloc_scope_bypass_fixed |
+| P-13 | driver：`_consume_stop_file` 置标志先于删文件 + 主循环二次读标志 | test_consume_stop_sets_flag_before_unlink / test_loop_top_rereads_stop_flag |
+| P-14 | driver：止损信号源换 `page["new_or_changed"]`；stoploss.py docstring 记录语义变更 | test_stoploss_not_triggered_on_productive_rounds / test_stoploss_fires_on_three_barren_rounds |
+
+**诚实边界（本批交付后仍存在的）**：
+
+- **文本层被绕过=静默漏记，无效果层兜底**（S15 已撤）： exotic 写法真写了 `.at1/` 不会被告警，靠控制器内存覆盖自愈 + 审计对账。
+- **代数只在 root 在场时生效**：root 缺省（旧调用路径/单测）退回正则，行为不回归但不享代数精度。

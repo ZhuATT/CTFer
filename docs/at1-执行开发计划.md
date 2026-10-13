@@ -142,7 +142,7 @@ at1-github/（仓库根 = 项目根，phase1 定版）
 
 ### 3.1 runner.py —— 进程桥
 
-`claude -p --output-format stream-json **--verbose** --dangerously-skip-permissions --max-turns <时间盒> --model <模型>`，prompt 经 stdin 喂一次永不变；stdout 逐行解析；环境消毒（spawn 前剥掉 API key 与控制变量，消毒键名 `AT1_*`）；cwd = workdir。
+`claude -p --output-format stream-json **--verbose** --dangerously-skip-permissions --max-turns <时间盒> --model <模型>`，prompt 经 stdin 喂一次永不变；stdout 逐行解析；环境消毒（spawn 前剥掉 API key 与控制变量，消毒键名 `AT1_*`/`LLM_*`）——消毒防的是**凭证与控制器变量误传**，不是"worker 拿不到控制器内部状态"：浏览器附着通道（`PLAYWRIGHT_MCP_CDP_ENDPOINT`）是**有意共享**（worker 的正当工具），威胁模型 = worker 可全权操作本 engagement 浏览器（同信任域，2026-10-13 拍板接受）；cwd = workdir。
 
 **接口**（driver 的唯一入口）：
 
@@ -598,13 +598,13 @@ driver 在轮界与心跳点轮询（**worker 永远不知道此文件存在**�
 | 防线 | 威胁 | 实现 |
 |---|---|---|
 | untrusted nonce 隔离 | 目标响应内埋指令操纵黑板/worker | §3.3-6 + §2.3 单向阀；worker 看到的任何"指令"一律当数据；判重与免疫只认磁盘黑板 |
-| scope 拦截 | 打挂线上目标 / 越界 | guard 消费 engagement.json allow/deny，deny 先行拦截 |
+| scope 越界记录 | 打挂线上目标 / 越界 | guard 消费 engagement.json allow/deny，deny 命中即记账（**只记录不阻断**——guard 是摄像头不是闸门，P-9） |
 | fail-fast 启动 | 配置缺失静默跑错目标 | §3.6，allow 为空即拒 |
-| 环境消毒 | worker 拿到控制器凭证 | spawn 前剥 API key 与控制变量（§3.1） |
+| 环境消毒 | worker 拿到控制器凭证/控制变量（浏览器附着通道除外——有意共享，同信任域，§3.1 注） | spawn 前剥 API key 与控制变量（§3.1） |
 | 写操作纪律 | 不可逆副作用 | 能用测试对象不碰真实对象；写操作必须读回；门1.5 永不重放写操作；高危操作证据留完整请求 |
 | 会话过期守卫 | token 过期错杀真事实 | §3.3-4：带凭证 provenance 跳过重放，置信度冻结 |
 | 发现即落盘 | 会话被杀丢发现 | evidence+FINDINGS 当场写盘，收割依赖磁盘 |
-| 控制器区隔离 | worker 伪造自洽证据后篡改 transcript/黑板（reward hacking / 注入操纵） | `.at1/` 在 workdir 外 + guard 禁写 `.at1/**` 与 `state/**`（Windows 原生下对 dcr 双容器隔离的等价物） |
+| 控制器区隔离 | worker 伪造自洽证据后篡改 transcript/黑板（reward hacking / 注入操纵） | `.at1/` 在 workdir 外 + guard 对 `.at1/**` 与 `state/**` 禁写检测记账（不阻断——命中即记高危；Windows 原生下对 dcr 双容器隔离的等价物） |
 | 绝不误放 | 验证器故障放行假发现 | 任何门故障降级 tentative |
 
 ---

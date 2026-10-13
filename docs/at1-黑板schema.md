@@ -326,7 +326,7 @@ add_edge(src, rel, dst, origin, note=?, round)              # 建边((src,rel,ds
 | target | **是**(缺/空→拒启) | str | 手册{target}槽/guard | 打谁 |
 | goal | **是**(缺/空→拒启) | str | 启动播种 bookkeeping.goal(**仅 goal 空时;续跑不覆盖**)/STATE 任务概要轮轮投影/<Stop>达成锚点 | **完成标准,一句可判定的话**("拿到 X"——出现确认 F-xxx 即达成);别写不可判定的("测透") |
 | hint | **字段必填**(值可空串=无指示) | str | 手册{hint}槽(空渲染"（无）"),每轮在场 | 开工静态指示——开局就该知道的事(区别于 hints 队列=跑后插话) |
-| scope | 否(缺→不拒启,guard 目标拦截停用,禁区/自毁护栏保留,记 scope_missing 警告;生产建议始终填) | {allow[],deny[]} | guard 拦截 | 授权边界——UI 时代由前端负责边界交互 |
+| scope | 否(缺→不拒启,guard 目标越界记录停用,禁区/自毁检测保留,记 scope_missing 警告;生产建议始终填) | {allow[],deny[]} | guard 记账(不阻断) | 授权边界——UI 时代由前端负责边界交互 |
 | date | 否 | str | 审计 | 委托日期 |
 | skills_src | 否(缺→AT1_SKILLS_SRC env 兜底,再缺→无 skills) | path | scaffold 拷进 .auto/.claude/skills | 攻击方法论库来源 |
 | credentials.storage_state | 否 | path | scaffold 拷成 .auto/storage-state.json | 登录态(有鉴权目标时) |
