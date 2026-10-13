@@ -31,6 +31,12 @@
 - 【运行提示】人工指示——有则执行（可能多轮持续在场）。
 - 【简报】元信息——轮次/预算/时间盒/身份，规划工作量用。
 
+**浏览器身份导入（仅当简报说「storage-state.json（已注入）」且当前对目标域未登录时做）**：
+1. `browser_navigate` 到目标域任意页 → 读根目录 `storage-state.json`（Playwright storage state 格式：`cookies[]` + `origins[].localStorage`）
+2. `browser_run_code_unsafe` 执行 `page.context().addCookies(<cookies数组>)`（`origins[].localStorage` 按 origin 同法写入）
+3. 重新 navigate 刷新会话 → 打一个 me/whoami 类接口验证身份生效
+- 纪律：**只在 profile 未登录时导**（浏览器记住登录态后不再导）；验证失败重试 1 次，仍失败 → 转匿名/curl 降级，交接里记一句「身份导入失败」，不空转。
+
 ## 2. 判层契约——现象是路标，成果才是发现
 
 **finding = 一条被验证的攻击断言**（"攻击者可以做到 X"，X 是**成果**，不是动作）。

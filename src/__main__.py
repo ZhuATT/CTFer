@@ -459,6 +459,9 @@ def cmd_watch(args: argparse.Namespace) -> int:
         if t in ("hint_injected", "guide_injected", "resume",
                  "board_legacy_archived"):
             return f"{base} {t} {str(d)[:90]}"
+        if t.startswith("browser_"):        # playwright 批（R9）：池生命周期可见
+            return f"{base} ◐ {t} pid={d.get('pid', '-')} port={d.get('port', '-')} " \
+                   f"{str(d.get('reason', ''))[:60]}{C['off']}"
         return f"{base} {t}"
 
     with open(path, encoding="utf-8") as f:
@@ -505,7 +508,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("engagement", help="engagement 目录（三件套所在）")
     p_run.add_argument("--budget", type=float, default=None,
                        help="总预算秒（默认不设——判停靠 worker Stop/人工 stop/止损；09-19 拍板）")
-    p_run.add_argument("--rounds", type=int, default=None, help="轮上限（默认不限——仅预算与连击止损，2026-09-04 拍板）")
+    p_run.add_argument("--rounds", type=int, default=None, help="本次 run 轮数上限（相对语义：老 engagement 补跑 --rounds 1 = 再跑 1 轮；默认不限——仅预算与连击止损，2026-09-04 拍板）")
     p_run.add_argument("--dry-run", action="store_true", help="渲染首轮 prompt 不 spawn")
     p_run.add_argument("--stop-on-first-confirmed", action="store_true",
                        help="字面终止A：confirmed 即停待人收割（默认走完 report 阶段）")

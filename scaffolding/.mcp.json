@@ -3,9 +3,11 @@
     "playwright": {
       "command": "npx",
       "args": [
-        "@playwright/mcp@latest",
+        "@playwright/mcp@0.0.83",
         "--executable-path",
-        "D:\\chrome\\Chrome\\Application\\chrome.exe"
+        "D:\\chrome\\Chrome\\Application\\chrome.exe",
+        "--user-data-dir",
+        "{{BROWSER_PROFILE_DIR}}"
       ]
     }
   }

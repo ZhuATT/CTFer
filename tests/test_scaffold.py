@@ -86,6 +86,32 @@ def test_template_slots_exact():
         assert dead not in tmpl
 
 
+def test_mcp_template_pinned_version_and_placeholder():
+    """playwright 批 B4 锁：模板钉版字面量与 scaffold.MCP_PACKAGE 同源（漂移即红，
+    R7）；兜底 profile 占位符在场。"""
+    tmpl = (REPO / "scaffolding" / ".mcp.json").read_text(encoding="utf-8")
+    assert scaffold.MCP_PACKAGE in tmpl
+    assert "{{BROWSER_PROFILE_DIR}}" in tmpl
+
+
+def test_expand_renders_mcp_fallback_profile(tmp_path):
+    """playwright 批 B4：占位符渲染为 engagement 专属绝对路径（posix 斜杠——
+    Windows 反斜杠是非法 JSON 转义）；未替换占位符禁止落盘；产物是合法 JSON。"""
+    import json as _json
+    root = tmp_path / "eng"
+    bb = Blackboard()
+    scaffold.seed_engagement(_eng(), bb)
+    wd = scaffold.expand(root, _eng(), bb)
+    txt = (wd / ".mcp.json").read_text(encoding="utf-8")
+    assert "{{" not in txt                           # 未替换占位符禁止落盘
+    cfg = _json.loads(txt)                           # 合法 JSON
+    args = cfg["mcpServers"]["playwright"]["args"]
+    profile = args[args.index("--user-data-dir") + 1]
+    assert profile.endswith(".at1/chrome-profile-fallback")
+    assert "\\" not in profile                       # JSON 反斜杠非法转义防线
+    assert profile.startswith(root.resolve().as_posix())   # engagement 专属（不碰全局）
+
+
 # ── 播种（schema §11） ───────────────────────────────────────────────────
 
 def test_seed_engagement_empty_fill_and_no_overwrite():

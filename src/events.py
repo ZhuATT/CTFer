@@ -49,10 +49,16 @@ EVENT_TYPES = frozenset({
     "observer_resume_feedback",  # 观察者未成功提交 → resume 同 session 回喂校验 rejects（Cairn 式）
     "observer_empty_retry",   # 空产出防线：判断书缺失/坏/空 → 重试一次（stage: retry/exhausted）
     "state_fallback",         # 观察者未写 STATE.md → controller 兜底极简计数（R6）
-    "scope_missing",          # engagement 无授权清单——guard 目标拦截停用（禁区/自毁保留）
+    "scope_missing",          # engagement 无授权清单——guard 目标越界记录停用（禁区/自毁保留）
     # 批4fix 新增（S5/S12：phase 账本 + 断点续会话）
     "interrupted_phase",      # 启动读到 phase.json 残留——上次中断于何处（可诊断）
     "resume_fallback",        # 断点续接失败 → 落回新开（只试一次，永不循环）
+    # playwright 批新增（浏览器池 B1/B2——driver 托管每 engagement 独立 Chrome）
+    "browser_start",          # Chrome 拉起（fresh / orphan-dead 重拉）
+    "browser_reuse",          # 复用 browser.json 记账的孤儿实例（pid 活 + CDP 通 + headless 一致）
+    "browser_relaunch",       # 轮间探活失败 → 杀旧拉新（自愈）
+    "browser_skip",           # 池不启动（no-mcp-config / no-exe / 不拒启走 fallback）
+    "browser_exit",           # run_end 收尾（shutdown）或 launch-failed
 })
 
 # 脱敏键名匹配：cookie/token/secret/authorization/credential/password/api_key。

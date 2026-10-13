@@ -11,7 +11,7 @@ def test_all_clear_by_default():
 def test_round_cap():
     sl = Stoploss(max_rounds=3)
     ok, why = sl.should_stop(3, 9999.0)
-    assert ok and "会话上限" in why
+    assert ok and "本次 run 轮数上限" in why          # F1：文案按相对语义（已 3/3 轮）
 
 
 def test_budget_exhausted():
@@ -64,7 +64,7 @@ def test_round_cap_dominates_order():
     sl.record_round(facts_delta=0, session_ok=False)
     sl.record_round(facts_delta=0, session_ok=False)
     ok, why = sl.should_stop(2, 0.0)
-    assert ok and "会话上限" in why
+    assert ok and "本次 run 轮数上限" in why
 
 
 def test_round_cap_unlimited_by_default():
@@ -75,3 +75,18 @@ def test_round_cap_unlimited_by_default():
     # 预算耗尽仍在轮数很大时生效
     ok2, why2 = sl.should_stop(50, 0.0)
     assert ok2 and "预算" in why2
+
+
+def test_round_cap_relative_to_base_round():
+    """F1（2026-10-13）：--rounds 是相对本次 run 的轮数——base_round=启动时簿记
+    轮号，判定按差值。10-12 实抓：簿记轮号=5 的 engagement 跑 --rounds 1，
+    旧实现绝对比较（5 >= 1）启动即停秒收工。"""
+    sl = Stoploss(max_rounds=1, base_round=5)
+    assert sl.should_stop(5, 9999.0) == (False, "")   # 本次 run 第 1 轮：照跑
+    ok, why = sl.should_stop(6, 9999.0)               # 本次 run 第 2 轮：停
+    assert ok and "本次 run 轮数上限" in why
+    # 多轮补跑同型：簿记 5 + --rounds 2 → 第 7 轮（本次第 3 轮）才停
+    sl2 = Stoploss(max_rounds=2, base_round=5)
+    assert sl2.should_stop(6, 9999.0) == (False, "")
+    ok2, why2 = sl2.should_stop(7, 9999.0)
+    assert ok2 and "已 2/2 轮" in why2

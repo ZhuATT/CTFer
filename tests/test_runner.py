@@ -233,6 +233,54 @@ def test_sanitize_env_strips_controller_secrets(monkeypatch):
     assert env2.get("ANTHROPIC_BASE_URL") == "https://user-local.example/"
 
 
+def test_sanitize_env_keeps_cdp_endpoint(monkeypatch):
+    """playwright 批 B3：CDP 附着通道白名单放行（防御性——现状剥除规则本不匹配，
+    防未来收紧消毒时静默弄断）；其余 AT1_* 照剥。"""
+    monkeypatch.setenv("PLAYWRIGHT_MCP_CDP_ENDPOINT", "http://127.0.0.1:9333")
+    monkeypatch.setenv("AT1_API_KEY", "sk-test")
+    monkeypatch.setenv("AT1_BROWSER_KEEP", "1")
+    env = _sanitize_env(_mk())
+    assert env["PLAYWRIGHT_MCP_CDP_ENDPOINT"] == "http://127.0.0.1:9333"
+    assert "AT1_BROWSER_KEEP" not in env             # 其余 AT1_* 仍剥净
+    assert "AT1_API_KEY" not in env
+
+
+def test_sanitize_env_endpoint_absent_stays_absent(monkeypatch):
+    monkeypatch.delenv("PLAYWRIGHT_MCP_CDP_ENDPOINT", raising=False)
+    env = _sanitize_env(_mk())
+    assert "PLAYWRIGHT_MCP_CDP_ENDPOINT" not in env
+
+
+def test_spawn_env_carries_cdp_endpoint_to_popen(tmp_path, monkeypatch):
+    """playwright 批 B2/B6：spawn env 断言——endpoint 一路到 Popen（MCP 继承链
+    的锚；穿透 claude→MCP 子进程一节已实机预检闭环）。"""
+    import subprocess
+    import sys as _sys
+
+    script = tmp_path / "fake_claude_min.py"
+    script.write_text(
+        "import json, sys\n"
+        "sys.stdin.read()\n"
+        'print(json.dumps({"type": "system", "subtype": "init", "session_id": "e1"}))\n'
+        'print(json.dumps({"type": "result", "subtype": "success", "is_error": False,\n'
+        '    "num_turns": 1, "stop_reason": "end_turn", "result": "ok",\n'
+        '    "total_cost_usd": 0.0}))\n', encoding="utf-8")
+
+    real_popen = subprocess.Popen
+    seen_kwargs = {}
+
+    def spy_popen(argv, *a, **kw):
+        seen_kwargs.update(kw)
+        return real_popen([_sys.executable, str(script)] + list(argv[1:]), *a, **kw)
+
+    monkeypatch.setenv("PLAYWRIGHT_MCP_CDP_ENDPOINT", "http://127.0.0.1:9333")
+    monkeypatch.setattr(runner_mod.subprocess, "Popen", spy_popen)
+    runner_mod.spawn_once("干活", str(tmp_path / "wd"), _mk(),
+                          time_box_s=30, max_turns=10)
+    env = seen_kwargs.get("env") or {}
+    assert env.get("PLAYWRIGHT_MCP_CDP_ENDPOINT") == "http://127.0.0.1:9333"
+
+
 def test_extractors():
     assert extract_handoff("pre <handoff>abc</handoff> post") == "abc"
     assert extract_final_answer("<FinalAnswer>{\"pass\": true}</FinalAnswer>") == '{"pass": true}'

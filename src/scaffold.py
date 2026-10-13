@@ -22,6 +22,11 @@ from pathlib import Path
 _TEMPLATE_DIR = Path(__file__).parent.parent / "scaffolding"
 _STANDARDS_DIR = Path(__file__).parent.parent / "src标准"
 
+# playwright 批 R7 钉版：模板 .mcp.json 与 driver preflight 探测同一常量——
+# 漂移即红（test_scaffold 锁模板内版本字面量与本常量一致）
+MCP_PACKAGE = "@playwright/mcp@0.0.83"
+FALLBACK_PROFILE_DIRNAME = "chrome-profile-fallback"   # B4：MCP fallback 专属 profile
+
 # {env_bg} 渲染内容（汇编 §3.3；A21 可插拔——WSL/容器化时换 Cairn 同款 tmux 条款）
 _ENV_BG = (
     "长任务（扫描/爆破/大文件下载）脱离启动：PowerShell Start-Process（不是 Start-Job——"
@@ -71,7 +76,14 @@ def expand(engagement_root: str | os.PathLike, eng: dict, bb, *,
 
     # 纪律层（每轮重写）+ MCP
     (workdir / "CLAUDE.md").write_text(_render_worker_claude(bb), encoding="utf-8")
-    shutil.copyfile(_TEMPLATE_DIR / ".mcp.json", workdir / ".mcp.json")
+    # MCP 配置（playwright 批 B4）：兜底 profile 占位符渲染为 engagement 绝对
+    # 路径——任何路径都不再碰全局共享 profile；未替换的占位符禁止落盘（测试锁）。
+    # Windows 反斜杠在 JSON 里是非法转义——用 as_posix（Chrome/Playwright 双兼容）。
+    mcp_tmpl = (_TEMPLATE_DIR / ".mcp.json").read_text(encoding="utf-8")
+    mcp_txt = mcp_tmpl.replace(
+        "{{BROWSER_PROFILE_DIR}}",
+        (workdir / ".at1" / FALLBACK_PROFILE_DIRNAME).resolve().as_posix())
+    (workdir / ".mcp.json").write_text(mcp_txt, encoding="utf-8")
 
     # A17③：DIRECTIONS 写面退役——不预创建；遗留旧文件清理（防误导新会话）
     legacy = workdir / "DIRECTIONS"
@@ -115,7 +127,7 @@ class EngagementError(ValueError):
 def load_engagement(engagement_root: str | os.PathLike) -> dict:
     """读并校验 engagement.json（§11）。
     fail-fast：target/goal 非空必填；hint 字段必填（值可空串=无指示）。
-    scope/skills_src/credentials 可选（scope 缺→guard 目标拦截停用+警告）。"""
+    scope/skills_src/credentials 可选（scope 缺→guard 目标越界记录停用+警告）。"""
     path = Path(engagement_root) / "engagement.json"
     if not path.is_file():
         raise EngagementError("engagement", f"缺 engagement.json：{path}")

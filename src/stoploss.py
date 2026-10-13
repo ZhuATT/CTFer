@@ -1,7 +1,10 @@
 """AT1 stoploss —— 四维止损（P4.3，设计§3.7/§7 默认值）。
 
 四维（2026-09-04 拍板：轮上限默认不限，预算为主约束；全可调）：
-  ① 会话上限    max_rounds（**默认 None=不限**；需要封顶时 --rounds 显式给）
+  ① 会话上限    max_rounds（**默认 None=不限**；需要封顶时 --rounds 显式给。
+                F1 修正 2026-10-13：相对语义——计的是**本次 run 跑了几轮**
+                （rnd - base_round），不是绝对簿记轮号。老 engagement 补跑
+                --rounds 1 = 再跑 1 轮，不再被簿记轮号秒停）
   ② 活跃预算    budget_left_s ≤ 0（driver 每轮递减——**主约束**）
   ③ 无新事实连击 no_new_facts_streak ≥ 3（连续 N 轮 facts_delta == 0）
   ④ 不可达连击  unreachable_streak ≥ 3（连续 N 轮 worker 会话 error 且零收割）
@@ -9,15 +12,22 @@
 纯判定无副作用：driver 轮末调用 should_stop → (bool, reason)；
 触发由 driver 记 stoploss_trigger 事件并走终止 B。
 连击计数由本类内部维护（record_round），恢复自动清零。
+
+⚠ facts_delta 的语义（续修批 2026-09-21 实机修正，usc-cwcx-b1）：= **本轮
+worker 盘面新增/变更文件数**（inventory new_or_changed）。不是图节点增量——
+批3fix 架构下 worker 只写文件、图只在观察者轮末变（发生在 record_round 之后），
+图节点增量恒为 0，任何 run 必在第 3 轮被误杀（首跑 usc-cwcx-b1 实锤：三轮
+产出旺盛仍被"无新事实连击 3 轮"停掉）。
 """
 
 from __future__ import annotations
 
 
 class Stoploss:
-    def __init__(self, *, max_rounds: int | None = None,
+    def __init__(self, *, max_rounds: int | None = None, base_round: int = 0,
                  no_new_facts: int = 3, unreachable: int = 3):
         self.max_rounds = max_rounds            # None = 轮上限不限（2026-09-04 拍板：预算为主约束）
+        self.base_round = base_round            # F1：本次 run 启动时的簿记轮号（判定按差值）
         self.no_new_facts_limit = no_new_facts
         self.unreachable_limit = unreachable
         self.no_new_facts_streak = 0
@@ -35,9 +45,12 @@ class Stoploss:
             self.unreachable_streak += 1
 
     def should_stop(self, round_no: int, budget_left_s: float) -> tuple[bool, str]:
-        """四维判定（driver 轮末调用）。返回 (停否, 维度+连击数描述)。max_rounds=None 时轮上限维度失效。"""
-        if self.max_rounds is not None and round_no >= self.max_rounds:
-            return True, f"会话上限：第 {round_no} 轮 ≥ {self.max_rounds}"
+        """四维判定（driver 轮末调用）。返回 (停否, 维度+连击数描述)。max_rounds=None 时轮上限维度失效。
+        轮上限按相对轮数判（F1，2026-10-13）：round_no 是跨 run 持久的簿记绝对轮号，
+        max_rounds 是 --rounds 给的"本次 run 再跑几轮"——差值才是本次 run 的轮数。"""
+        if self.max_rounds is not None and (round_no - self.base_round) >= self.max_rounds:
+            return True, (f"本次 run 轮数上限：已 {round_no - self.base_round}"
+                          f"/{self.max_rounds} 轮")
         if budget_left_s <= 0:
             return True, f"预算耗尽：剩余 {budget_left_s:.0f}s"
         if self.no_new_facts_streak >= self.no_new_facts_limit:

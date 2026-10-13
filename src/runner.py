@@ -334,6 +334,10 @@ def _sanitize_env(solver: SolverConfig) -> dict:
     """
     env = dict(os.environ)
     claude_cfg_dir = env.pop("AT1_CLAUDE_CONFIG_DIR", None)
+    # playwright 批 B3（防御性白名单）：CDP 附着通道 pop→回注。现状剥除规则本就
+    # 不匹配此变量（正向透传已通），显式放行防未来收紧消毒时静默弄断；反向
+    # （托管失败时清 shell 残值）在 driver 的 browser_skip 路径做（B2）。
+    cdp_endpoint = env.pop("PLAYWRIGHT_MCP_CDP_ENDPOINT", None)
     for k in list(env):
         if (k.startswith("AT1_") or k.startswith("LLM_")
                 or k in ("SOLVER_API_KEY", "BENCHMARK_TOKEN", "BENCHMARK_BASE_URL", "LLM_PROFILE")):
@@ -343,6 +347,8 @@ def _sanitize_env(solver: SolverConfig) -> dict:
                   "ANTHROPIC_MODEL"):
             env.pop(k, None)
     env.update(solver.anthropic_env())
+    if cdp_endpoint:
+        env["PLAYWRIGHT_MCP_CDP_ENDPOINT"] = cdp_endpoint
     if claude_cfg_dir:
         try:
             os.makedirs(claude_cfg_dir, exist_ok=True)

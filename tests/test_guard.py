@@ -1,4 +1,4 @@
-"""guard 单测（P4.2）：scope 拦截 / 控制器区禁写 / 自毁检测。"""
+"""guard 单测（P4.2）：scope 越界记录 / 控制器区禁写检测 / 自毁检测。"""
 
 from src.guard import Guard, GuardVerdict
 
@@ -206,7 +206,7 @@ def test_observer_outside_own_workspace_still_flagged():
 
 
 def test_worker_observer_zone_still_blocked():
-    """worker 侧一寸不让：写 .observer/ 照旧拦截（禁入纪律）。"""
+    """worker 侧一寸不让：写 .observer/ 照旧记账（禁入纪律）。"""
     g = _g()
     v = g.check_tool("Write", {"file_path": ".observer/task.json"})    # 默认 worker
     assert not v.ok and v.kind == "controller_zone"
@@ -232,3 +232,212 @@ def test_write_verb_heuristic_tightened():
                 "curl -o ../state/c.md https://api.example.com/x"):
         v = g.check_tool("PowerShell", {"command": cmd}, role="worker")
         assert not v.ok and v.kind == "controller_zone", cmd
+
+
+# ── 批4fix 实机演练抓的三个误报新形态（usc-cwcx-b1 观察者轮实抓回归） ─────
+
+def test_observer_absolute_path_own_workspace_exempt():
+    """实抓①：绝对路径写自家工作台——.observer 前面是 / 或 \\，前缀类接不住。"""
+    g = _g()
+    v = g.check_tool("Write", {
+        "file_path": r"D:\Downloads\hacker\engagements\usc-cwcx-b1\.observer\OBSERVER.json"},
+        role="observer")
+    assert v.ok, v.reason
+    v2 = g.check_tool("Write", {
+        "file_path": r"D:\Downloads\hacker\engagements\usc-cwcx-b1\notes\prior-intel-draft.md"},
+        role="observer")
+    assert v2.ok, v2.reason
+    # 出界照拦：绝对路径写 .at1 不豁免
+    v3 = g.check_tool("Write", {
+        "file_path": r"D:\Downloads\hacker\engagements\usc-cwcx-b1\.at1\evil.json"},
+        role="observer")
+    assert not v3.ok and v3.kind == "controller_zone"
+
+
+def test_observer_dotnet_read_not_flagged():
+    """实抓②：[System.IO.File]::ReadAllText 是读——裸 [io.file] 前缀误标。"""
+    g = _g()
+    v = g.check_tool("PowerShell", {
+        "command": r'$t=[System.IO.File]::ReadAllText("D:\eng\.observer\verify-dz.txt"); "n=" + $t.Length'},
+        role="observer")
+    assert v.ok, v.reason
+    # P-5 写方法仍拦（AppendAllLines 由 appendall 独自覆盖）
+    v2 = g.check_tool("PowerShell", {
+        "command": r'[IO.File]::AppendAllLines("..\state\log.jsonl",$logs,$enc)'})
+    assert not v2.ok and v2.kind == "controller_zone"
+
+
+def test_powershell_concat_plus_host_not_flagged():
+    """实抓③（S7 第四刀）：PowerShell 字符串拼接 "https://x" + $path——host 粘 +。"""
+    g = Guard(allow=["usc.edu.cn"], deny=[])
+    v = g.check_tool("PowerShell", {
+        "command": 'Invoke-WebRequest -Uri ("http://cwcx.usc.edu.cn" + $path) -UseBasicParsing'})
+    assert v.ok, v.reason
+    assert g._host_of("https://cwcx.usc.edu.cn\"+") == "cwcx.usc.edu.cn"
+    # & | 同族（& 后还有命令文本——截断式清洗的主战场）
+    assert g._host_of("https://cwcx.usc.edu.cn&|") == "cwcx.usc.edu.cn"
+    assert _g().check_tool("Bash",
+                           {"command": 'curl -s "https://api.example.com"&echo hi'}).ok
+    # 越界域拼接仍拦
+    v2 = g.check_tool("Bash", {"command": 'curl -s "https://evil.com"+$p'})
+    assert not v2.ok and v2.kind == "scope"
+
+
+def test_host_braces_truncated_p2():
+    """S16（P-2 实机残留）：PowerShell 子表达式 "…{$x}…" 形态——花括号处截断。"""
+    g = Guard(allow=["usc.edu.cn"], deny=[])
+    assert g._host_of("https://cwcx.usc.edu.cn{$x}") == "cwcx.usc.edu.cn"
+    v = g.check_tool("PowerShell", {"command": 'curl "https://cwcx.usc.edu.cn{$p}/a"'})
+    assert v.ok, v.reason
+    # 常规域名不受影响（截断类不含点）
+    assert g._host_of("https://myportal.usc.edu.cn/api/x") == "myportal.usc.edu.cn"
+
+
+def test_malformed_netloc_scope_bypass_fixed():
+    """续修批实测**真绕过**：`evil.com[x]` 让 urlsplit 抛 Invalid IPv6 → 旧代码
+    except→空 host→按"本地路径"放行。任何越界 URL 挂对方括号即免检。"""
+    g = _g()
+    assert g._host_of("https://evil.com[x]") == "evil.com"        # 兜底解出主机
+    v = g.check_tool("Bash", {"command": 'curl "https://evil.com[x]/x"'})
+    assert not v.ok and v.kind == "scope", v.reason
+    # 元数据端点同路（deny/allow 判定照常生效）
+    g2 = Guard(allow=["example.com"], deny=["169.254.169.254"])
+    assert not g2.check_tool("Bash",
+                             {"command": 'curl "http://169.254.169.254[x]/latest/meta-data/"'}).ok
+    # 括号形态落在 scope 内 → 放行（不是一律拦）
+    assert g.check_tool("Bash", {"command": 'curl "https://api.example.com[x]/v1"'}).ok
+    # 阴性对照：真·本地路径/无主机仍放行（宽松取向不变）
+    assert g.check_url("/etc/passwd").ok
+    assert g.check_url("hello.txt").ok
+    assert g._host_of("not a url at all") == ""
+
+
+# ── 续修批 S13：结构化路径代数（治 P-1① 路径形态家族）────────────────────
+
+def _gr(root):
+    return Guard(allow=["example.com"], deny=["admin.example.com"], root=root)
+
+
+def test_path_algebra_absolute_forms(tmp_path):
+    """代数判定：绝对路径/短名/.. 归一——归属由构造保证，不枚举形态。"""
+    g = _gr(tmp_path)
+    eng = tmp_path
+    # 观察者写自家工作台（绝对路径）→ 放行
+    assert g.check_tool("Write", {"file_path": str(eng / ".observer" / "OBSERVER.json")},
+                        role="observer").ok
+    assert g.check_tool("Write", {"file_path": str(eng / "notes" / "prior-intel-draft.md")},
+                        role="observer").ok
+    assert g.check_tool("Write", {"file_path": str(eng / "STATE.md")},
+                        role="observer").ok
+    # 写 .at1/（绝对路径）→ 拦（观察者也不许）
+    assert not g.check_tool("Write", {"file_path": str(eng / ".at1" / "blackboard.json")},
+                            role="observer").ok
+    assert not g.check_tool("Write",
+                            {"file_path": str(eng / ".at1" / "claude-config" / "x.json")},
+                            role="observer").ok
+    # worker 写 .observer/ → 拦（禁入纪律一寸不让）
+    assert not g.check_tool("Write", {"file_path": str(eng / ".observer" / "task.json")}).ok
+
+
+def test_path_algebra_dotdot_and_mixed_separators(tmp_path):
+    """.. 归一 / 混合分隔符 / 子目录穿越——代数吃掉的形态。"""
+    g = _gr(tmp_path)
+    assert not g.check_tool("Write", {"file_path": "notes/../.at1/evil.json"}).ok
+    assert not g.check_tool("Write", {r"file_path": r".observer\..\.at1\x.json"},
+                            role="observer").ok
+    # 观察者合法：子目录里写草稿（.observer/ 前缀）
+    assert g.check_tool("Write", {"file_path": ".observer/sub/draft.md"},
+                        role="observer").ok
+    # notes/ 下非白名单文件 → 拦
+    assert not g.check_tool("Write", {"file_path": "notes/other.md"},
+                            role="observer").ok
+
+
+def test_path_algebra_without_root_keeps_legacy(tmp_path):
+    """root 缺省（旧调用路径）→ 正则兜底，行为不回归。"""
+    g = Guard(allow=["example.com"], deny=[])
+    assert not g.check_tool("Write", {"file_path": ".at1/transcript.jsonl"}).ok
+    assert not g.check_tool("Write", {r"file_path": r"..\.at1\_blackboard.json"}).ok
+    assert g.check_tool("Write", {"file_path": ".observer/OBSERVER.json"},
+                        role="observer").ok
+
+
+# ── 续修批 S14：命令文本先归一化再匹配 ───────────────────────────────────
+
+def test_norm_cmd_unifies_forms():
+    from src.guard import _normalize_cmd
+    # 反斜杠 → /；引号 → 空格；URL 剥掉
+    assert ".at1/blackboard.json" in _normalize_cmd(r'Set-Content ".\.at1\blackboard.json" x')
+    assert "state/log.jsonl" in _normalize_cmd("echo x >> '../state/log.jsonl'")
+    assert "http" not in _normalize_cmd('curl -s "http://api.example.com/x"')
+
+
+def test_text_zone_token_observer_exempt_forms(tmp_path):
+    """S14：观察者五类实机形态全放行（auto-log 事件流原形）。"""
+    g = _gr(tmp_path)
+    cmds = [
+        # 实抓①：读自家工作台 + 打印
+        '$ProgressPreference="SilentlyContinue"; Get-Content ".observer/verify.txt"',
+        # 实抓②：[System.IO.File]::ReadAllText 是读
+        r'$t=[System.IO.File]::ReadAllText("D:\eng\.observer\verify-dz.txt"); "n=" + $t.Length',
+        # 实抓③：写自家工作台草稿
+        'Set-Content ".observer/verify-round3.js" "code"',
+        # 实抓④：写白名单产物
+        'Out-File -FilePath "notes/prior-intel-draft.md" -Encoding utf8',
+        # 实抓⑤：列 bg-*.log 扫尾（纯读）
+        "Get-ChildItem -Path . -Filter \"bg-*.log\" -Recurse",
+    ]
+    for c in cmds:
+        v = g.check_tool("PowerShell", {"command": c}, role="observer")
+        assert v.ok, (c, v.reason)
+
+
+def test_text_zone_token_still_blocks_worker_and_out_of_scope(tmp_path):
+    """worker 侧一寸不让；观察者出界照拦；真越界形态仍拦。"""
+    g = _gr(tmp_path)
+    # worker 写 .observer/ / .at1/
+    assert not g.check_tool("Bash", {"command": "echo x > .observer/task.json"}).ok
+    assert not g.check_tool("PowerShell",
+                            {"command": "Set-Content .at1/blackboard.json '{}'"}).ok
+    # 观察者出界：.at1/
+    assert not g.check_tool("PowerShell",
+                            {"command": "Set-Content ..\\.at1\\x.json 'y'"},
+                            role="observer").ok
+    # 观察者出界：notes/ 非白名单
+    assert not g.check_tool("PowerShell",
+                            {"command": 'Out-File -FilePath "notes/other.md"'},
+                            role="observer").ok
+    # 混合：豁免段 + 出界段同现 → 仍拦
+    assert not g.check_tool(
+        "PowerShell",
+        {"command": 'Copy-Item ".observer/draft.md" "..\\.at1\\steal.json"'},
+        role="observer").ok
+
+
+def test_observer_writable_set_contract(tmp_path):
+    """对账锁（续修批）：把 OBSERVER-MANUAL §6 的可写面声明钉成用例——
+    "除 OBSERVER.json / STATE.md / notes/prior-intel-draft.md / .observer/ 内
+    草稿外，不要写任何文件"。
+    规则改版必须三处同改：手册 / guard.py / 本测试——漂移即红。"""
+    g = _gr(tmp_path)
+    # 手册允许的（观察者角色 → 放行）
+    for p in (".observer/OBSERVER.json",
+              ".observer/draft-x.md",
+              "STATE.md",
+              "notes/prior-intel-draft.md"):
+        v = g.check_tool("Write", {"file_path": p}, role="observer")
+        assert v.ok, (p, v.reason)
+    # 清单外/禁区（观察者与 worker 一律拦）
+    for p in (".at1/blackboard.json",
+              ".at1/transcript.jsonl",
+              "state/CONTROL",
+              "notes/other.md"):
+        vo = g.check_tool("Write", {"file_path": p}, role="observer")
+        vw = g.check_tool("Write", {"file_path": p}, role="worker")
+        assert not vo.ok, (p, vo.reason)
+        assert not vw.ok, (p, vw.reason)
+    # 绝对路径写 .at1（观察者）→ 拦
+    assert not g.check_tool(
+        "PowerShell",
+        {"command": f'Set-Content "{tmp_path / ".at1" / "evil.json"}" x'},
+        role="observer").ok

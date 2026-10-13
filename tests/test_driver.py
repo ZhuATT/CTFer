@@ -132,10 +132,20 @@ def _noop_observer():
     return FakeObserver([{"round": 1, "operations": []}])
 
 
+class _NoopBrowser:
+    """playwright 批：driver 全流程测试默认不真起 Chrome——start→None=skip 路径。
+    browser 专项用例在测试内自行覆盖回真类或脚本替身。"""
+
+    @classmethod
+    def start(cls, root, ev, *, mcp_config=None, **kw):
+        return None
+
+
 @pytest.fixture(autouse=True)
 def _env(monkeypatch):
     monkeypatch.setenv("AT1_PROVIDER", "glm")
     monkeypatch.setenv("AT1_API_KEY", "sk-test-1234567890")
+    monkeypatch.setattr(driver_mod, "BrowserHandle", _NoopBrowser)
 
 
 def test_failfast_missing_pieces(tmp_path, monkeypatch):
@@ -535,6 +545,42 @@ def test_consume_stop_file_ignores_garbage(tmp_path):
     assert driver_mod._consume_stop_file(ctl, {"proc": None}, flag) is False
 
 
+def test_consume_stop_sets_flag_before_unlink(tmp_path, monkeypatch):
+    """续修批竞态闭合：删文件必须晚于置标志——否则主循环"读标志→轮询文件"
+    两步之间被盯梢线程插入时两边都看不见 stop，多跑一轮 worker。"""
+    import os as _os
+    ctl = tmp_path / "CONTROL"
+    ctl.write_text(json.dumps({"cmd": "stop"}), encoding="utf-8")
+    flag = {"hit": False, "text": ""}
+    real_unlink = driver_mod.Path.unlink
+    seen = {}
+
+    def spy_unlink(self, *a, **kw):
+        seen["flag_at_unlink"] = flag["hit"]     # 删文件那一刻，标志位是否已置
+        return real_unlink(self, *a, **kw)
+
+    monkeypatch.setattr(driver_mod.Path, "unlink", spy_unlink)
+    assert driver_mod._consume_stop_file(ctl, {"proc": None}, flag) is True
+    assert seen["flag_at_unlink"] is True
+
+
+def test_loop_top_rereads_stop_flag(tmp_path, monkeypatch):
+    """二次读：轮询 CONTROL 返回 None（盯梢线程刚删了文件）但标志已置 → 仍收工。"""
+    _mk_engagement(tmp_path)
+    fake = FakeRunner([(_res(), {}, {}, {}), (_res(), {}, {}, {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    monkeypatch.setattr(driver_mod, "_poll_control", lambda root: None)
+
+    def fake_consume(control_path, proc_ref, flag):
+        flag["hit"] = True                       # 模拟盯梢线程已消费（文件已删）
+        return True
+    monkeypatch.setattr(driver_mod, "_consume_stop_file", fake_consume)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=3,
+                                   observer_on=False)
+    assert rc == 0
+    assert len(fake.calls) == 0, "盯梢线程已置标志 → 一轮都不该 spawn"
+
+
 # ── 批4fix S1/S2：停机三道门 + 观察者挂进 watcher 射程 ────────────────────
 
 def _wait_until(pred, timeout=10.0):
@@ -857,6 +903,43 @@ def test_hints_queue_harvested_into_prompt_once(tmp_path, monkeypatch):
     assert "重点看支付回调" not in fake.calls[1]["prompt"]
 
 
+# ── 续修批：止损信号源修正（usc-cwcx-b1 实机误杀回归） ───────────────────
+
+def test_stoploss_not_triggered_on_productive_rounds(tmp_path, monkeypatch):
+    """有产出的 run 不许被"无新事实"误杀（实机 usc-cwcx-b1：三轮产出旺盛仍
+    在第 3 轮被停——旧信号（图节点增量）在批3fix 架构下恒 0）。"""
+    _mk_engagement(tmp_path)
+    # 每轮 worker 都写新 evidence 文件（产出）
+    scripts = [(_res(), {}, {}, {f"probe-r{i}.txt": f"data{i}"}) for i in range(1, 5)]
+    fake = FakeRunner(scripts)
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=4,
+                                   observer_on=False)
+    assert rc == 0
+    assert len(fake.calls) == 4, "四轮全产出，不该被止损截停"
+    evs = [json.loads(l) for l in
+           (tmp_path / "state" / "auto-log.jsonl").read_text(encoding="utf-8").splitlines()
+           if l.strip()]
+    assert not any(e["type"] == "stoploss_trigger"
+                   and "无新事实" in e["data"].get("dim", "") for e in evs)
+
+
+def test_stoploss_fires_on_three_barren_rounds(tmp_path, monkeypatch):
+    """连续 3 轮零产出 → 第 3 轮末止损（信号修正后仍保留止损能力）。"""
+    _mk_engagement(tmp_path)
+    fake = FakeRunner([(_res(), {}, {}, {})])     # 每轮都不写任何文件
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=5,
+                                   observer_on=False)
+    assert rc == 0
+    assert len(fake.calls) == 3, "第 3 轮末就该停，不该跑到 5 轮"
+    evs = [json.loads(l) for l in
+           (tmp_path / "state" / "auto-log.jsonl").read_text(encoding="utf-8").splitlines()
+           if l.strip()]
+    assert any(e["type"] == "stoploss_trigger"
+               and "无新事实" in e["data"].get("dim", "") for e in evs)
+
+
 # ── 批4fix S5/S12：phase 账本 + 断点续会话 ────────────────────────────────
 
 def _evs(root: Path) -> list[dict]:
@@ -1059,3 +1142,172 @@ def test_old_phase_format_without_session(tmp_path, monkeypatch):
     assert "你被停机中断过" not in fake.calls[0]["prompt"]
     assert any(e["type"] == "interrupted_phase"
                and e["data"]["has_session"] is False for e in _evs(tmp_path))
+
+
+# ── playwright 批：浏览器池生命周期（B2/B6） ─────────────────────────────
+
+def test_browser_pool_lifecycle_in_run(tmp_path, monkeypatch):
+    """池启动→endpoint 注入 env→每轮 ensure→run_end 按 KEEP 收尾（fake 句柄记账）。"""
+    import os
+    _mk_engagement(tmp_path)
+    monkeypatch.setenv("AT1_BROWSER_KEEP", "1")
+    monkeypatch.setenv("PLAYWRIGHT_MCP_CDP_ENDPOINT", "sentinel-old")  # teardown 还原
+    made = []
+
+    class FakeHandle:
+        def __init__(self):
+            self.ensures = 0
+            self.keeps = []
+            self.endpoint = "http://127.0.0.1:9333"
+            made.append(self)
+
+        @classmethod
+        def start(cls, root, ev, *, mcp_config=None, **kw):
+            assert Path(mcp_config).is_file()        # expand() 已写 .mcp.json
+            return cls()
+
+        def ensure(self):
+            self.ensures += 1
+
+        def shutdown(self, *, keep):
+            self.keeps.append(keep)
+
+    monkeypatch.setattr(driver_mod, "BrowserHandle", FakeHandle)
+    fake = FakeRunner([(_res(), {}, {}, {}), (_res(), {}, {}, {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=2,
+                                   observer_on=False)
+    assert rc == 0
+    assert len(made) == 1                            # 一 run 一池
+    assert made[0].ensures == 2                      # 每轮 spawn 前探活
+    assert made[0].keeps == [True]                   # KEEP=1 → 留守
+    assert os.environ["PLAYWRIGHT_MCP_CDP_ENDPOINT"] == "http://127.0.0.1:9333"
+
+    # 默认（KEEP 未设）→ keep=False，run_end 杀+清账
+    monkeypatch.delenv("AT1_BROWSER_KEEP", raising=False)
+    made.clear()
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=1,
+                                   observer_on=False)
+    assert rc == 0 and made[0].keeps == [False]
+
+
+def test_browser_pool_skip_clears_env_and_emits(tmp_path, monkeypatch):
+    """skip 路径：真 start 走 no-exe → browser_skip 事件 + shell 残值被清（B3 反向）。"""
+    import os
+    from src import browser as browser_mod
+    _mk_engagement(tmp_path)
+    monkeypatch.delenv("PLAYWRIGHT_MCP_CDP_ENDPOINT", raising=False)
+    monkeypatch.setattr(driver_mod, "BrowserHandle", browser_mod.BrowserHandle)
+    monkeypatch.setattr(browser_mod, "find_exe", lambda: None)
+    fake = FakeRunner([(_res(), {}, {}, {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=60, max_rounds=1,
+                                   observer_on=False)
+    assert rc == 0
+    evs = _evs(tmp_path)
+    assert any(e["type"] == "browser_skip" and e["data"]["reason"] == "no-exe"
+               for e in evs)
+    assert "PLAYWRIGHT_MCP_CDP_ENDPOINT" not in os.environ
+
+
+def test_browser_relaunch_event_flows_mid_run(tmp_path, monkeypatch):
+    """轮间探活失败 → browser_relaunch 事件经真 EventWriter 落盘（验收4 事件锚），
+    run 照常跑完。"""
+    from src import browser as browser_mod
+    _mk_engagement(tmp_path)
+
+    class FlakyHandle:
+        def __init__(self):
+            self.ev = None
+            self.endpoint = "http://127.0.0.1:9333"
+
+        @classmethod
+        def start(cls, root, ev, *, mcp_config=None, **kw):
+            h = cls()
+            h.ev = ev
+            return h
+
+        def ensure(self):
+            self.ev.emit("browser_relaunch",
+                         {"pid": 1, "port": 9333, "headless": False,
+                          "reason": "probe-fail"})
+
+        def shutdown(self, *, keep):
+            pass
+
+    monkeypatch.setattr(driver_mod, "BrowserHandle", FlakyHandle)
+    fake = FakeRunner([(_res(), {}, {}, {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=60, max_rounds=1,
+                                   observer_on=False)
+    assert rc == 0
+    evs = _evs(tmp_path)
+    assert any(e["type"] == "browser_relaunch" and e["data"]["reason"] == "probe-fail"
+               for e in evs)
+    assert any(e["type"] == "run_end" for e in evs)  # 自愈不挡 run
+
+
+def test_preflight_reports_chrome_presence(tmp_path, monkeypatch):
+    """B2：preflight 增 chrome 键——在场报路径、缺席报文案（只警告不拒启）。"""
+    import subprocess as sp
+
+    def fake_run(cmd, **kw):
+        return sp.CompletedProcess(cmd, 0, "ok", "")
+
+    monkeypatch.setattr(driver_mod.subprocess, "run", fake_run)
+    monkeypatch.setattr(driver_mod.shutil, "which", lambda x: "C:/fake/npx.cmd")
+    mcp = tmp_path / ".mcp.json"
+    mcp.write_text("{}", encoding="utf-8")
+    # from-import 是导入期绑定——driver 命名空间的 find_exe 要在 driver 侧打桩
+    monkeypatch.setattr(driver_mod, "find_exe", lambda: r"D:\x\chrome.exe")
+    pf = driver_mod._preflight("claude", mcp)
+    assert pf["chrome"] == r"D:\x\chrome.exe" and pf["ok"] is True
+    monkeypatch.setattr(driver_mod, "find_exe", lambda: None)
+    pf = driver_mod._preflight("claude", mcp)
+    assert "未找到" in pf["chrome"] and pf["ok"] is True
+
+
+# ── 10-13 实机修复批（F1/F2）──────────────────────────────────────────────
+
+def test_rounds_relative_on_old_engagement(tmp_path, monkeypatch):
+    """F1：簿记轮号=5 的老 engagement + max_rounds=1 → 恰好再跑 1 轮。
+    旧实现绝对轮号比较（rnd=5 ≥ 1）启动即停，worker 一次都不 spawn
+    （10-12 E5a/E5b 实抓：--rounds 1 一秒没跑就收工）。"""
+    _mk_engagement(tmp_path)
+    import src.board as bb_mod
+    bb = bb_mod.Blackboard(str(tmp_path / ".at1" / "blackboard.json"))
+    bb.bookkeeping["round"] = 5                     # 老 engagement：已跑过 5 轮
+    bb.save()
+    fake = FakeRunner([(_res(), {}, {}, {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=1,
+                                   observer_on=False)
+    assert rc == 0
+    assert len(fake.calls) == 1, "补跑 1 轮 = 恰好 1 次 worker 会话，不许秒停"
+    evs = _evs(tmp_path)
+    trig = [e for e in evs if e["type"] == "stoploss_trigger"]
+    assert len(trig) == 1
+    assert "本次 run 轮数上限" in trig[0]["data"]["dim"]     # 文案按相对语义
+    # 存量回归：簿记轮号照绝对值续（6），不是重置
+    bb2 = bb_mod.Blackboard(str(tmp_path / ".at1" / "blackboard.json"))
+    assert bb2.bookkeeping["round"] == 6
+
+
+def test_resume_event_only_on_real_resume(tmp_path, monkeypatch):
+    """F2：resume 事件只在真续跑发。旧判定（启动时图非空）被配方 0 播种
+    击穿——播种在判定之前跑，首跑图必非空 → 永远发假 resume（jwzx 首跑实抓
+    `resume {nodes:1}`）。簿记轮号 > 0 才是续跑。"""
+    _mk_engagement(tmp_path)
+    fake = FakeRunner([(_res(), {}, {}, {}), (_res(), {}, {}, {})])
+    monkeypatch.setattr(driver_mod.runner, "run", fake)
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=1,
+                                   observer_on=False)
+    assert rc == 0
+    assert not any(e["type"] == "resume" for e in _evs(tmp_path)), \
+        "首跑（簿记轮号=0）不许发 resume——哪怕播种已让图非空"
+    # 第二次 run：簿记轮号=1 且图非空 → 真 resume
+    rc = driver_mod.run_engagement(str(tmp_path), budget_s=600, max_rounds=1,
+                                   observer_on=False)
+    assert rc == 0
+    resumes = [e for e in _evs(tmp_path) if e["type"] == "resume"]
+    assert len(resumes) == 1 and resumes[0]["data"]["nodes"] >= 1
