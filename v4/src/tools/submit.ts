@@ -79,6 +79,7 @@ export function createSubmitFindingTool(opts: SubmitToolOptions): AgentTool<any>
 			"- evidence：证据文件相对路径（Write 进 evidence/，内容=请求/响应关键部分）；",
 			"- vulnclass：漏洞类（越权/注入/未授权访问/信息泄露…）；severity：info/low/medium/high/critical 自评；",
 			"- related_fact_ids：可选，支撑该漏洞的已有 fact 编号（血缘会连 proves 边）。",
+			"severity 定级拿不准时，Read `standards/<目标厂商>.txt` 查该厂商评级细则（Grep 关键节，不全量读）；目标厂商不在列则按通用自评。",
 			"提交后 state=reported，等待复测（P4），不要自己反复打同一洞。",
 		].join("\n"),
 		parameters: Type.Object({
@@ -92,6 +93,7 @@ export function createSubmitFindingTool(opts: SubmitToolOptions): AgentTool<any>
 			poc: Type.String({ description: "最小复现命令" }),
 			evidence: Type.String({ description: "证据文件相对路径（evidence/ 下）" }),
 			report: Type.Optional(Type.String({ description: "可选：结构化报告正文" })),
+			endpoint: Type.Optional(Type.String({ description: "可选：机器可解析端点，如 /static/app.js.map" })),
 			related_fact_ids: Type.Optional(Type.Array(Type.Number(), { description: "支撑性 fact 编号列表" })),
 		}),
 		outputSchema: Type.Object({ id: Type.Number() }),
@@ -109,6 +111,7 @@ export function createSubmitFindingTool(opts: SubmitToolOptions): AgentTool<any>
 					poc: String(params?.poc ?? ""),
 					evidence: String(params?.evidence ?? ""),
 					...(params?.report ? { report: String(params.report) } : {}),
+					...(params?.endpoint ? { endpoint: String(params.endpoint) } : {}),
 				},
 			});
 			return {

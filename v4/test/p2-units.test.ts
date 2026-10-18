@@ -33,13 +33,14 @@ afterAll(() => {
 });
 
 describe("renderTriggers（P2-0）", () => {
-	it("六类事件各有形状；空=心跳巡检文案", () => {
+	it("七类事件各有形状；空=心跳巡检文案", () => {
 		const events: TriggerEvent[] = [
 			{ type: "step_done", stepId: 2, summary: "探测首页", outcome: "done", conclusion: "标题 Example", newFactIds: [4], findingIds: [] },
 			{ type: "finding", findingId: 7, severity: "high", summary: "越权读取" },
 			{ type: "goal_changed", action: "edited", text: "新目标" },
 			{ type: "hint", text: "重点看 /user/profile" },
 			{ type: "resume", nodeCount: 12 },
+			{ type: "steered", text: "试试 X-Forwarded-For", stepId: 2 },
 			{ type: "stall" },
 		];
 		const text = renderTriggers(events);
@@ -50,15 +51,18 @@ describe("renderTriggers（P2-0）", () => {
 		expect(text).toContain("目标修改");
 		expect(text).toContain("操作员插入一条指示");
 		expect(text).toContain("续跑恢复");
-		expect(text).toContain("停摆强制");
+		expect(text).toContain("操作员曾对 step #2 插话");
+		expect(text).toContain("接力唤醒");
 		expect(renderTriggers([])).toContain("心跳巡检");
 	});
 
-	it("开场白二变体：stalled 带硬提示", () => {
+	it("开场白二变体：stalled=收官判定三选一（v1.2）", () => {
 		const base = { triggers: "x", overviewJson: "{}", todosText: "", goalText: "g" };
-		expect(renderPlannerUserMessage({ ...base, stalled: false })).not.toContain("停摆强制");
-		expect(renderPlannerUserMessage({ ...base, stalled: true })).toContain("本轮必须产出至少 1 条");
-		expect(PLANNER_SYSTEM_PROMPT).toContain("硬底线");
+		expect(renderPlannerUserMessage({ ...base, stalled: false })).not.toContain("收官判定");
+		expect(renderPlannerUserMessage({ ...base, stalled: true })).toContain("收官判定");
+		expect(renderPlannerUserMessage({ ...base, stalled: true })).toContain("conclude_task");
+		expect(PLANNER_SYSTEM_PROMPT).toContain("决策流程");
+		expect(PLANNER_SYSTEM_PROMPT).toContain("conclude_task");
 	});
 });
 

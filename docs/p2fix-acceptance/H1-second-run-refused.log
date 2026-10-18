@@ -1,0 +1,8 @@
+[cli] 失败： Error: 已有运行中的调度进程 pid=57468，拒绝双开。确认真僵死后：taskkill /PID 57468 /T /F，然后重跑（锁会被接管）。
+    at acquireRunLock (file:///D:/Downloads/hacker/at1-github/v4/dist/scheduler.js:102:19)
+    at runTask (file:///D:/Downloads/hacker/at1-github/v4/dist/scheduler.js:131:5)
+    at main (file:///D:/Downloads/hacker/at1-github/v4/dist/index.js:48:34)
+    at file:///D:/Downloads/hacker/at1-github/v4/dist/index.js:156:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)

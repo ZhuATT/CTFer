@@ -20,6 +20,7 @@ export type TriggerEvent =
 	| { type: "goal_changed"; action: "added" | "edited" | "deleted"; text: string }
 	| { type: "hint"; text: string }
 	| { type: "resume"; nodeCount: number }
+	| { type: "steered"; text: string; stepId: number }
 	| { type: "stall" };
 
 export function renderTriggers(events: TriggerEvent[]): string {
@@ -48,8 +49,11 @@ export function renderTriggers(events: TriggerEvent[]): string {
 			case "resume":
 				lines.push(`- 续跑恢复：图上已有 ${ev.nodeCount} 个节点（历史进度见态势，别重复已完成的）`);
 				break;
+			case "steered":
+				lines.push(`- 操作员曾对 step #${ev.stepId} 插话：「${ev.text}」——执行层已收到该插话，判断是否影响后续方向`);
+				break;
 			case "stall":
-				lines.push("- 【停摆强制】目标未达且当前无 open/running step——本轮必须产出 ≥1 条 step");
+				lines.push("- 【接力唤醒】图上已无待办 step——本轮三选一：派真方向 / prove_goal / conclude_task（若确实都探尽了）");
 				break;
 		}
 	}

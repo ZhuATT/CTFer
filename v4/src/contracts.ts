@@ -41,7 +41,8 @@ export const GoalPayload = z.object({
 });
 export type GoalPayload = z.infer<typeof GoalPayload>;
 
-/** finding：严门——poc/severity/vulnclass/evidence 全必填；retest 是回写区。 */
+/** finding：严门——poc/severity/vulnclass/evidence 全必填；retest 是回写区。
+ * endpoint（p2fix P2F-2）：机器可解析端点，供 noreport 端点形状终审（.map 拒单）。 */
 export const FindingPayload = z.object({
 	summary: z.string().min(4).max(500),
 	vulnclass: z.string().min(2).max(80),
@@ -49,6 +50,7 @@ export const FindingPayload = z.object({
 	poc: z.string().min(4).max(5000),
 	report: z.string().max(20000).optional(),
 	evidence: z.string().min(3).max(500),
+	endpoint: z.string().max(500).optional(),
 	retest: z
 		.object({
 			verdict: z.enum(["reproduced", "fixed", "inconclusive"]),

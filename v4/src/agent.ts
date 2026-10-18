@@ -1,16 +1,23 @@
 /**
- * worker 会话基建（P1-4）——runWorkerStep：领一条 step 干活并写回图。
+ * worker 会话基建（P1-4 / p2fix P2F-1/7/8/11）——runWorkerStep：领一条 step 干活并写回图。
  *
  * 非调度（D2 拍板）：step 由调用方/测试夹具传入；P2 换 planner 供给，本接口不变。
- * user 首条 =【你领到的 step】+【全局态势】（graphOverview 渲染，态势预取省往返）。
- * 收尾 = usage 落 activity（token 四列，R-2 从根消解）+ step state→done。
+ * 通道（P2F-1）：调度循环传整份 cfg.channels.worker；P1 兼容入口（单跑/测试）保留 mode。
+ * user 首条 =【你领到的 step】+【任务态势】（p2fix 审7 精简版：goal+本 step 血缘 facts，
+ * 全图 steps/findings 是 planner 的视野）+【standards 索引】（渐进披露）。
+ * abort（P2F-5）：内部 stepTimeout 与外部 abortSignal（stop watcher）并联，同一条优雅收尾路。
+ * steer（P2F-11）：onAgent 把会话暴露给调度器，【操作员插话】经 agent.steer() 送达。
+ * 收尾 = usage 落 activity（token 四列，R-2 从根消解）+ step state→done/exhausted。
  */
 import { Agent, type AgentEvent, type AgentTool } from "@earendil-works/pi-agent-core";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Database } from "better-sqlite3";
-import { createChannel, type ChannelMode } from "./channel.js";
+import { createChannel, createChannelFromConfig, type ChannelMode } from "./channel.js";
+import type { ChannelConfig } from "./config.js";
 import { createGuard } from "./guard.js";
-import { graphOverview, setStepState, type GraphOverview } from "./graph.js";
-import type { NodeRow, } from "./db.js";
+import { setStepState, stepLineageView, type WorkerSituationalView } from "./graph.js";
+import type { NodeRow } from "./db.js";
 import { logActivity } from "./db.js";
 import { createBashTool, createReadTool, createWriteTool } from "./tools/exec.js";
 import { createSubmitFactTool, createSubmitFindingTool } from "./tools/submit.js";
@@ -26,7 +33,13 @@ export const WORKER_SYSTEM_PROMPT = [
 	"- 初次受阻 ≠ 探透：绕过手段走完再下结论；",
 	"- 操作约束最高优先：每条命令执行前自检是否越界；发现约束外新目标 ≠ 获得授权，记 fact 跳过；",
 	"- 一切结论必须有可复核证据；边发现边写回（别攒到结束丢掉）；完成即停。",
+	"会话中可能出现【操作员插话】（steer）——那是情报补充或纠偏，不是新任务：完成当前 step，把相关观察落 fact 上抛，不自开新方向。",
 ].join("\n");
+
+/** steer 目标接口（P2F-11）：worker 会话暴露给调度器 watcher 的最小插话面。 */
+export interface SteerableTarget {
+	steer(message: { role: "user"; content: string; timestamp: number }): void;
+}
 
 export interface WorkerUsageTotals {
 	turns: number;
@@ -45,7 +58,7 @@ export interface RunWorkerStepResult {
 	/** 本次会话新产出的 fact/finding 编号（P2 调度触发事件用）。 */
 	newFactIds: number[];
 	newFindingIds: number[];
-	/** 会话被超时掐断（P2 置 step=exhausted，planner 重派"接上次继续"）。 */
+	/** 会话被掐断（超时/stop watcher——P2 置 step=exhausted，planner 重派「接上次继续」）。 */
 	aborted: boolean;
 }
 
@@ -55,36 +68,53 @@ export interface RunWorkerStepOptions {
 	taskDir: string;
 	step: NodeRow;
 	secrets?: Secrets;
+	/** 完整通道配置（P2F-1：调度循环传 cfg.channels.worker）。 */
+	channel?: ChannelConfig;
+	/** P1 兼容入口（单跑/测试用）：mode + 默认 model/keyEnv。channel 优先。 */
 	mode?: ChannelMode;
 	browser?: boolean; // P1 默认开（smoke 要）；纯 bash task 可关
 	timeoutMs?: number;
+	/** 外部终止信号（P2F-5：stop watcher；与内部 timeout 并联，同落 exhausted）。 */
+	abortSignal?: AbortSignal;
+	/** 会话暴露（P2F-11）：调度器经此对在跑 step 送达操作员 steer。 */
+	onAgent?: (agent: SteerableTarget) => void;
 	onEvent?: (ev: AgentEvent) => void;
 }
 
-export function renderStepPrompt(step: NodeRow, overview: GraphOverview): string {
+/** worker user 首条（p2fix 审7 精简态势版）。standardsIndex：standards/INDEX.md 内容
+ * （P2F-8 渐进披露——索引坐 user 首条固定小开销，正文按需 Read/Grep）。 */
+export function renderStepPrompt(step: NodeRow, situational: WorkerSituationalView, standardsIndex?: string): string {
 	const payload = JSON.parse(step.payload) as { summary: string; note?: string };
 	return [
 		`【你领到的 step】#${step.id}`,
 		`目标：${payload.summary}`,
 		...(payload.note ? [`上下文/打法：${payload.note}`] : []),
 		"",
-		"【全局态势】",
-		JSON.stringify(overview),
+		...(standardsIndex?.trim() ? ["【standards 索引】", standardsIndex.trim(), ""] : []),
+		"【任务态势】",
+		JSON.stringify(situational),
 		"",
 		"完成定义：",
 		"1. 用 Bash/浏览器对目标做该 step 描述的动作；",
 		"2. 把关键证据用 Write 写进 evidence/<名字>.txt（一行命令 + 最能证明的输出）；",
 		"3. submit_fact（step_id 填本 step 编号）写回结论；若确认漏洞则 submit_finding；",
+		"3.5 若方向探不动/结果全阴性：这也是结论——submit_fact 落阴性观察（confidence=observed，summary 写明已试手段与结果），别空手收尾；",
 		"4. 完成即停，不要领取或执行其他 step。",
+		"",
+		"开工按 step 方向查阅 standards/ 下相关手册（评级细则/方法论），有则先读相关节，没有就跳过。",
 	].join("\n");
 }
 
 export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWorkerStepResult> {
 	const { db, task, taskDir, step } = opts;
-	const channel = createChannel(opts.mode ?? "openai", opts.secrets);
+	// P2F-1：完整配置优先；无配置走 P1 兼容入口（单跑/测试）
+	const channel = opts.channel
+		? createChannelFromConfig(opts.channel, opts.secrets)
+		: createChannel(opts.mode ?? "openai", opts.secrets);
 	const sessionId = `${task.name}-worker-s${step.id}-${Date.now()}`;
 
-	const overview = graphOverview(db, task.name);
+	const situational = stepLineageView(db, task.name, step);
+	const standardsIndex = readStandardsIndex(taskDir);
 
 	let pool: BrowserPool | undefined;
 	if (opts.browser !== false) {
@@ -115,6 +145,7 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		getApiKey: async () => channel.apiKey,
 		beforeToolCall: createGuard(db, { taskId: task.name, sessionId, scopeHosts: task.scope.hosts }),
 	});
+	opts.onAgent?.(agent);
 
 	const unsubscribe = agent.subscribe(async (ev: AgentEvent) => {
 		opts.onEvent?.(ev);
@@ -138,21 +169,26 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		}
 	});
 
+	// 双 abort 并联（P2F-5）：内部 stepTimeout / 外部 stop watcher——同一条优雅收尾路
 	let aborted = false;
-	const timeout = setTimeout(() => {
+	const doAbort = () => {
 		aborted = true;
 		agent.abort();
-	}, opts.timeoutMs ?? 600_000);
+	};
+	const timeout = setTimeout(doAbort, opts.timeoutMs ?? 600_000);
+	const onAbort = () => doAbort();
+	opts.abortSignal?.addEventListener("abort", onAbort, { once: true });
 	try {
-		await agent.prompt(renderStepPrompt(step, overview));
+		await agent.prompt(renderStepPrompt(step, situational, standardsIndex));
 	} finally {
 		clearTimeout(timeout);
+		opts.abortSignal?.removeEventListener("abort", onAbort);
 		unsubscribe();
 		if (browserSession) await browserSession.dispose();
 		if (pool) await pool.shutdown();
 	}
 
-	// 收尾：计量落 activity（token 四列）+ step 状态（正常 done / 超时 exhausted）
+	// 收尾：计量落 activity（token 四列）+ step 状态（正常 done / 超时或 stop 掐断 exhausted）
 	logActivity(db, {
 		task_id: task.name,
 		node_id: step.id,
@@ -160,7 +196,7 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		worker: "worker",
 		kind: "result",
 		tool: "runWorkerStep",
-		summary: `step #${step.id} ${aborted ? "超时掐断" : "完成"}，${usage.turns} 轮`,
+		summary: `step #${step.id} ${aborted ? "掐断（超时/stop）" : "完成"}，${usage.turns} 轮`,
 		detail: (texts[texts.length - 1] ?? "").slice(0, 1000),
 		tokens: { input: usage.input, output: usage.output, cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite },
 	});
@@ -184,6 +220,15 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		newFindingIds,
 		aborted,
 	};
+}
+
+/** standards/INDEX.md 内容（P2F-8 渐进披露）；无 standards/ 返回 undefined。 */
+export function readStandardsIndex(taskDir: string): string | undefined {
+	try {
+		return readFileSync(join(taskDir, "standards", "INDEX.md"), "utf-8");
+	} catch {
+		return undefined;
+	}
 }
 
 function idsBySession(db: Database, sessionId: string, kind: string): number[] {

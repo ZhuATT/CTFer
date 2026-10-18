@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createChannelFromConfig } from "./channel.js";
 import type { ChannelConfig } from "./config.js";
-import { addStep, goalAchieved, getNode, graphOverview, proveGoal } from "./graph.js";
+import { addStep, concludeGoal, goalAchieved, goalClosed, getNode, graphOverview, proveGoal } from "./graph.js";
 import { logActivity, type NodeRow } from "./db.js";
 import { PLANNER_SYSTEM_PROMPT, renderPlannerUserMessage } from "./planner-prompt.js";
 import { renderTriggers, type TriggerEvent } from "./triggers.js";
@@ -59,7 +59,9 @@ export interface PlannerToolOptions {
 	sessionId?: string;
 }
 
-export function createPlannerTools(opts: PlannerToolOptions & { acceptedCounter?: { n: number } }): AgentTool<any>[] {
+export function createPlannerTools(
+	opts: PlannerToolOptions & { acceptedCounter?: { n: number }; rejectedCounter?: { n: number } },
+): AgentTool<any>[] {
 	const addStepTool: AgentTool<any> = {
 		name: "add_step",
 		label: "Add step",
@@ -84,11 +86,33 @@ export function createPlannerTools(opts: PlannerToolOptions & { acceptedCounter?
 			if (!Array.isArray(steps) || steps.length < 1) throw new Error("steps 必填（1-4 条）");
 			const res = addStep(opts.db, opts.taskId, steps, opts.sessionId);
 			if (opts.acceptedCounter) opts.acceptedCounter.n += res.accepted.length;
+			if (opts.rejectedCounter) opts.rejectedCounter.n += res.rejected.length;
 			const lines = [
 				...res.accepted.map((a) => `已派 step #${a.id}: ${a.summary}`),
 				...res.rejected.map((r) => `拒收: 「${r.summary}」——${r.reason}`),
 			];
 			return textResult(lines.join("\n") || "（无动作）");
+		},
+	};
+
+	const concludeTaskTool: AgentTool<any> = {
+		name: "conclude_task",
+		label: "Conclude task",
+		description: [
+			"宣告任务收尾：确认方向已探尽或目标不可达时调用，reason 引 recent_done 的节点说明为何再派无价值。",
+			"调用后调度循环以 goal-closed 终止。方向没探尽就调用是严重错误——该派就派。",
+			"程序防线：图上还有 open/running step 时调用会被拒（无权宣判终局）；goal 已收尾/盖章后重复调用也拒。",
+		].join("\n"),
+		parameters: Type.Object({
+			reason: Type.String({ description: "为何收尾（引 recent_done 的节点 id 说明为何再派无价值）" }),
+		}),
+		execute: async (_id, params: any) => {
+			concludeGoal(opts.db, {
+				taskId: opts.taskId,
+				reason: String(params?.reason ?? ""),
+				sessionId: opts.sessionId,
+			});
+			return textResult("任务已收尾（goal closed）——调度循环将以 goal-closed 终止。");
 		},
 	};
 
@@ -169,7 +193,7 @@ export function createPlannerTools(opts: PlannerToolOptions & { acceptedCounter?
 		},
 	};
 
-	return [addStepTool, proveGoalTool, todoTool, listFactsTool, nodeDetailTool];
+	return [addStepTool, concludeTaskTool, proveGoalTool, todoTool, listFactsTool, nodeDetailTool];
 }
 
 // ── runPlanner ──
@@ -182,6 +206,8 @@ export interface RunPlannerOptions {
 	channel: ChannelConfig;
 	secrets?: Secrets;
 	timeoutMs?: number;
+	/** 外部终止信号（p2fix P2F-5：stop watcher 与超时并联 abort）。 */
+	abortSignal?: AbortSignal;
 	onEvent?: (ev: AgentEvent) => void;
 }
 
@@ -198,13 +224,13 @@ export async function runPlanner(opts: RunPlannerOptions): Promise<RunPlannerRes
 	const sessionId = `${task.name}-planner-${Date.now()}`;
 	const channel = createChannelFromConfig(opts.channel, opts.secrets);
 
-	// 停摆判定：已有 done 产出 + 无 open + goal 未达
+	// 收官判定（v1.2/方案 C 语义）：唤醒时图上无待办 step 即追加收官变体
 	const openCount = (db.prepare("SELECT COUNT(*) AS n FROM nodes WHERE task_id=? AND kind='step' AND state IN ('open','running')").get(task.name) as { n: number }).n;
-	const doneCount = (db.prepare("SELECT COUNT(*) AS n FROM nodes WHERE task_id=? AND kind='step' AND state='done'").get(task.name) as { n: number }).n;
-	const stalled = opts.events.some((e) => e.type === "stall") || (openCount === 0 && doneCount > 0 && !goalAchieved(db, task.name));
+	const stalled =
+		openCount === 0 && !goalAchieved(db, task.name) && !goalClosed(db, task.name);
 
 	const events = [...opts.events];
-	if (openCount === 0 && doneCount > 0 && !goalAchieved(db, task.name) && !events.some((e) => e.type === "stall")) {
+	if (stalled && !events.some((e) => e.type === "stall")) {
 		events.push({ type: "stall" });
 	}
 
@@ -215,11 +241,12 @@ export async function runPlanner(opts: RunPlannerOptions): Promise<RunPlannerRes
 	const usage = { turns: 0, input: 0, output: 0, cacheRead: 0 };
 	const texts: string[] = [];
 	const acceptedCounter = { n: 0 };
+	const rejectedCounter = { n: 0 };
 
 	const agent = new Agent({
 		initialState: {
 			systemPrompt: PLANNER_SYSTEM_PROMPT,
-			tools: createPlannerTools({ db, taskId: task.name, taskDir, sessionId, acceptedCounter }),
+			tools: createPlannerTools({ db, taskId: task.name, taskDir, sessionId, acceptedCounter, rejectedCounter }),
 			model: channel.model,
 			thinkingLevel: "low",
 		},
@@ -244,7 +271,10 @@ export async function runPlanner(opts: RunPlannerOptions): Promise<RunPlannerRes
 		}
 	});
 
-	const timeout = setTimeout(() => agent.abort(), opts.timeoutMs ?? 300_000);
+	const doAbort = () => agent.abort();
+	const timeout = setTimeout(doAbort, opts.timeoutMs ?? 300_000);
+	const onAbort = () => doAbort();
+	opts.abortSignal?.addEventListener("abort", onAbort, { once: true });
 	try {
 		await agent.prompt(
 			renderPlannerUserMessage({
@@ -257,6 +287,7 @@ export async function runPlanner(opts: RunPlannerOptions): Promise<RunPlannerRes
 		);
 	} finally {
 		clearTimeout(timeout);
+		opts.abortSignal?.removeEventListener("abort", onAbort);
 		unsubscribe();
 	}
 
@@ -266,14 +297,14 @@ export async function runPlanner(opts: RunPlannerOptions): Promise<RunPlannerRes
 		worker: "planner",
 		kind: "result",
 		tool: "runPlanner",
-		summary: `planner 唤醒：events=${events.length} stalled=${stalled} 派${acceptedCounter.n}条`,
+		summary: `planner 唤醒：events=${events.length} stalled=${stalled} 派${acceptedCounter.n}条拒${rejectedCounter.n}条`,
 		detail: (texts[texts.length - 1] ?? "").slice(0, 800),
 		tokens: { input: usage.input, output: usage.output, cacheRead: usage.cacheRead },
 	});
 
 	return {
 		acceptedCount: acceptedCounter.n,
-		rejectedCount: 0,
+		rejectedCount: rejectedCounter.n,
 		proved: goalAchieved(db, task.name),
 		usage,
 		finalText: texts[texts.length - 1] ?? "",

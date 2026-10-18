@@ -1,0 +1,6 @@
+# AT1 v4 运行配置（2026-10-18 p2fix 验收：切 GLM Coding Plan 通道）
+# 原因：/api/paas/v4 资源包余额耗尽（429 code 1113）；coding plan 配额走
+# /api/anthropic（anthropic 兼容形态），同一把 AT1_API_KEY。
+channels:
+  worker: { model: glm-5.3, api: anthropic, keyEnv: AT1_API_KEY }
+  planner: { model: glm-5.3, api: anthropic, keyEnv: AT1_API_KEY }

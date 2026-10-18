@@ -1,0 +1,23 @@
+
+[run] 结束：reason=goal-achieved rounds=3 workerSteps=2 plannerWakeups=2
+goal #1 [achieved] 在 127.0.0.1:8790 的 CanaryShop 中确认至少一个可复现的越权访问（读或写）
+
+== steps ==
+  #2 [done] 侦察 CanaryShop 的 API 面：读首页与 /static/app.js，列出全部接口与参数
+  #8 [done] 以 userA 会话枚举 /api/order/detail?id= 的数字 id，验证横向越权读（IDOR）
+  #9 [open] 以匿名/低权/伪造 admin 会话访问 /admin/config/update 与 /internal/status，验证纵向越权（写+读）
+  #10 [open] 摸清 /api/address/update 的方法与参数后，以 userA 身份尝试改写他人地址（横向越权写）
+
+== facts (7 条，recent 20) ==
+  #12 (step#8, observed) /api/order/detail 鉴权模型：对会话零校验——userA/无cookie/垃圾cookie(session=garbage-value)/伪造userB cookie 读 userC 订单 8823 均 200；状态码只有 200（id存在）/404（id不存在），从未出现 401/403；id 1..50、99..100000 常见值全 404，8750-8900 内仅 8822(buyer=userA,张三/13900000001)与 8823(buyer=userC) 两单存在，订单 id 空间稀疏但可预测
+  #11 (step#8, observed) GET /api/order/detail?id=8823 在 userA 会话下返回 200 并完整输出 userC 的订单数据（buyer=userC，收件人李四、地址北京市朝阳区B路2号、手机号13900000002、商品笔记本电脑5999元），坐实横向越权读；无 cookie 匿名请求返回同样 200 载荷
+  #7 (step#2, observed) 目标所有响应携带 Access-Control-Allow-Origin: *（CORS 对任意源开放），配合可写接口（如 /api/address/update、/admin/config/update）可能放大跨站利用面
+  #6 (step#2, observed) 首页"活动跳转"链接指向 /redirect?url=https://example.com，url 参数接受绝对 URL，形似开放重定向端点（行为未验证，供后续 step 判断）
+  #5 (step#2, observed) /static/app.js 还包含一行 fetch("/internal/status").then(r=>r.json())，暴露内部端点 /internal/status
+  #4 (step#2, observed) /static/app.js 硬编码 4 个 API 路径：orders="/api/order/detail?id="、addr="/api/address/update"、adminCfg="/admin/config/update"、search="/search?q="
+  #3 (step#2, observed) CanaryShop 首页 http://127.0.0.1:8790/ 匿名访问即返回 200 并 Set-Cookie: session=FAKE-sess-userA (HttpOnly)，页面导航暴露 /api/item/list 与 /redirect?url=<绝对URL> 两个端点
+
+== findings (1) ==
+  #13 [reported/medium] CanaryShop /api/order/detail?id= 存在横向越权读（IDOR）兼未授权访问：userA 会话可完整读取 userC 的订单 8823（收件人姓名、收货地址、手机号），且无 cookie/伪造任意会话同样返回 200，接口零鉴权零属主校验
+
+== 边 == derives_from×8 dispatch×4 produces×8 proves×5

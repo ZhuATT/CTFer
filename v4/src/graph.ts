@@ -185,8 +185,9 @@ export function submitFinding(db: Database, args: SubmitFindingArgs): SubmitResu
 	const sha = hashEvidence(taskDir, payload.evidence);
 
 	// noreport 前置（P2-4）：进件时跑，reject 硬拒不入图；suspect 放行但回执带公诉意见
+	// p2fix P2F-2：endpoint 接通 worker 提交的参数（此前硬编码空串，.map 终审规则是死代码）
 	const evText = readFileSync(resolve(taskDir, payload.evidence), "utf-8").slice(0, 20_000);
-	const nr = noreportCheck({ summary: payload.summary, evidence: evText, endpoint: "" });
+	const nr = noreportCheck({ summary: payload.summary, evidence: evText, endpoint: payload.endpoint ?? "" });
 	if (nr.verdict === "reject") {
 		throw new Error(
 			`[平台管控·不报表清单] 该 finding 被 noreport 预检拒绝：${nr.reason}。` +
@@ -345,6 +346,53 @@ export function goalAchieved(db: Database, taskId: string): boolean {
 	return goal?.state === "achieved";
 }
 
+// ── concludeGoal（p2fix P2F-4：探尽收尾出口——D2 防线：还有待办 step 无权宣判终局） ──
+
+export interface ConcludeGoalArgs {
+	taskId: string;
+	reason: string;
+	sessionId?: string;
+}
+
+export function concludeGoal(db: Database, args: ConcludeGoalArgs): { closed: true } {
+	const goal = db
+		.prepare("SELECT * FROM nodes WHERE task_id = ? AND kind='goal' ORDER BY id LIMIT 1")
+		.get(args.taskId) as NodeRow | undefined;
+	if (!goal) throw new Error("task 无 root goal——先 initTask");
+	if (goal.state !== "open") throw new Error(`goal #${goal.id} 已是 ${goal.state}，不能重复收尾`);
+
+	// D2 程序防线：还有 open/running step 时无权宣判终局（收尾不是弃守权）
+	const openCount = (
+		db.prepare("SELECT COUNT(*) AS n FROM nodes WHERE task_id=? AND kind='step' AND state IN ('open','running')").get(args.taskId) as { n: number }
+	).n;
+	if (openCount > 0) {
+		throw new Error(`还有 ${openCount} 条待办 step——无权宣判终局（先处理它们或说明为何该弃）。收尾只属于方向探尽的时刻。`);
+	}
+	if (!args.reason?.trim()) throw new Error("reason 必填——引 recent_done 说明为何再派无价值");
+
+	db.prepare("UPDATE nodes SET state='closed', updated_at=?, completed_at=? WHERE id=?").run(nowIso(), nowIso(), goal.id);
+	// 不落 proves 边——收尾不是证明
+	logActivity(db, {
+		task_id: args.taskId,
+		node_id: goal.id,
+		session_id: args.sessionId,
+		worker: "planner",
+		kind: "result",
+		tool: "conclude_task",
+		summary: `goal #${goal.id} closed（探尽收尾）`,
+		detail: args.reason.slice(0, 1000),
+	});
+	return { closed: true };
+}
+
+/** goal 是否已收尾（runTask 终止检查用，reason=goal-closed）。 */
+export function goalClosed(db: Database, taskId: string): boolean {
+	const goal = db
+		.prepare("SELECT state FROM nodes WHERE task_id = ? AND kind='goal' ORDER BY id LIMIT 1")
+		.get(taskId) as { state: string } | undefined;
+	return goal?.state === "closed";
+}
+
 // ── step 生命周期（P1-4 收尾用） ──
 
 export function setStepState(db: Database, taskId: string, stepId: number, state: string): void {
@@ -426,6 +474,72 @@ interface GoalPayloadLike {
 interface StepPayloadLike {
 	summary: string;
 	note?: string;
+}
+
+// ── worker 精简态势（p2fix P2F-7 审7：worker 只看 goal + 本 step 血缘，不看全图） ──
+
+export interface WorkerSituationalView {
+	goal: { id: number; text: string; state: string } | null;
+	lineage_facts: Array<{ id: number; summary: string; confidence: string; from_step: number | null }>;
+	counts: Record<string, number>;
+}
+
+/** 本 step 血缘上的 facts：本 step 直产的（前次会话遗留）+ 沿 derives_from 边向上游走
+ * （含间接），途中 fact 直接收，上游 step 收它 produces 的 facts——worker 拿到的是
+ * 「这条 step 为什么被派」的证据链，不含全图 steps/findings 明细（那是 planner 的视野）。
+ * 按 id 升序去重。 */
+export function stepLineageView(db: Database, taskId: string, step: NodeRow): WorkerSituationalView {
+	const goalRow = db
+		.prepare("SELECT * FROM nodes WHERE task_id = ? AND kind = 'goal' ORDER BY id LIMIT 1")
+		.get(taskId) as NodeRow | undefined;
+
+	const seen = new Set<number>([step.id]);
+	const facts = new Map<number, NodeRow>();
+	const collectFact = (id: number): void => {
+		if (seen.has(id)) return;
+		const n = getNode(db, taskId, id);
+		if (n?.kind === "fact") {
+			seen.add(id);
+			facts.set(id, n);
+		}
+	};
+	// 本 step 直产的 facts（前次被掐会话的产出保留也是接续上下文）
+	for (const pe of getEdges(db, taskId, { src: step.id, rel: "produces" })) collectFact(pe.dst_id);
+
+	const queue: number[] = [step.id];
+	while (queue.length) {
+		const cur = queue.shift()!;
+		for (const e of getEdges(db, taskId, { dst: cur, rel: "derives_from" })) {
+			if (seen.has(e.src_id)) continue;
+			seen.add(e.src_id);
+			const node = getNode(db, taskId, e.src_id);
+			if (!node) continue;
+			if (node.kind === "fact") facts.set(node.id, node);
+			if (node.kind === "step") {
+				// 上游 step 的产出也是血缘证据
+				for (const pe of getEdges(db, taskId, { src: node.id, rel: "produces" })) collectFact(pe.dst_id);
+			}
+			queue.push(e.src_id);
+		}
+	}
+
+	const counts: Record<string, number> = {};
+	for (const row of db
+		.prepare("SELECT kind, COUNT(*) AS n FROM nodes WHERE task_id = ? GROUP BY kind")
+		.all(taskId) as Array<{ kind: string; n: number }>) {
+		counts[row.kind] = row.n;
+	}
+
+	return {
+		goal: goalRow ? { id: goalRow.id, text: parsePayload<GoalPayloadLike>(goalRow).text, state: goalRow.state } : null,
+		lineage_facts: [...facts.values()]
+			.sort((a, b) => a.id - b.id)
+			.map((f) => {
+				const p = parsePayload<FactPayloadT>(f);
+				return { id: f.id, summary: p.summary, confidence: p.confidence, from_step: f.step_id };
+			}),
+		counts,
+	};
 }
 
 // ── 渲染（graph 命令人读输出） ──

@@ -35,7 +35,7 @@ export function createBashTool(taskDir: string): AgentTool<any> {
 		name: "Bash",
 		label: "Bash",
 		description: [
-			"在 task 工作目录内执行 bash 命令（curl/nmap 类渗透命令就绪）。bash 语义（管道/grep 均可用）。",
+			"在 task 工作目录内执行 bash 命令。curl 就绪（管道/grep 可用）；nmap/dig/nc 未预装——端口/服务探测用 curl 等价实现（如 `curl --connect-timeout 3 http://host:port/` 探活），确需 nmap 时提示平台安装。",
 			"纪律：只做领到的 step 范围内的动作；scope 外 host 会被平台拦截；破坏性命令被禁止。",
 			"超时默认 60s（参数可到 300s）；输出超 8000 字符截断。",
 		].join("\n"),

@@ -226,9 +226,9 @@ run: { maxRounds: 20, budgetMs: 3600000 }   # 可选覆写
 | 链式分步派 | ✅ seed 侦察 step → planner 基于侦察 facts 派 4 条攻击线（#7 IDOR/#8 会话伪造/#9 垂直越权写/#10 内部接口），不并行下发整链；planner 产出含路线/机理/血缘表 |
 | 不重派 | ✅ 第二次 run planner 收 resume+stall 触发后**派 0 条**（done 方向未重派），直接复核盖章 |
 | goal 证明自停 | ✅ `reason=goal-achieved`，goal #1 achieved（evidence=fact #20，proves 边落图） |
-| 中断续跑 | ✅ 真实中断（进程被杀）后重跑：#7 running 尸体被启动清扫置 exhausted，planner 重派接续方向，循环跑到自然终止 |
+| 中断续跑 | ✅ ~~真实中断（进程被杀）后重跑~~ **p2fix 更正（P2F-10）：验收当时的"中断"实况是双开重叠——甲进程从未死（03:07:58-03:17:15 连续 22 条 activity 为证），第二个 run 才是引发重叠的元凶；s7 实为自身 step 超时掐断（~9m17s），非进程级中断恢复**。真实"杀进程→重跑"路径于 p2fix 层2 H4 补真机验证：taskkill 后残留锁被接管、running 尸体清扫 exhausted、resume 触发重派接续 ✓ |
 | 计量分列 | ✅ planner in=14965/out=9062，worker in=73455/out=52205（activity 四列） |
-| hint 生效（真 LLM） | ⏳ 未跑——两次 run 未插 hint；mock 已验 hint 进 planner events，真实验证顺延下轮跑靶 |
+| hint 生效（真 LLM） | ⏳ ~~未跑~~ → **p2fix Run A 已补真机验证**：跑批中插 hint，下一轮 planner 唤醒 4 事件批（step_done+finding+steered+hint）一次全消费 ✓ |
 
 **战果（图上真实产出）**：15 facts 全 confirmed + 2 findings（#18 authbypass 高危：/admin/config/update 零鉴权写；#23 /internal/status 未授权读 medium）——canary 4 真洞中 worker 实际打穿 3 个（authbypass/内部接口/SQL LIKE 枚举线索），干扰项 0 误报（CORS/sourcemap/版本指纹全部只落 fact 不落 finding，noreport+worker 自判双闸生效）。边计数：dispatch×5 / produces×17 / proves×11 / derives_from×7。
 
@@ -259,4 +259,4 @@ run: { maxRounds: 20, budgetMs: 3600000 }   # 可选覆写
 
 **canary 实操教训（非代码 bug）**：
 - **旧 dist 乌龙**：第一次 canary run 跑的是 P1 构建产物（P2 改完源码没 `npm run build`），planner 根本没参与，输出格式是 P1 的——靠输出格式对不上发现。**纪律：改完源码必须 build 再跑真验收**（`npm test` 不受影响，vitest 走源码）。
-- **超时未掐观察**：#7 step running 超 8 分钟未被 `--step-timeout-min=8` 掐断——事后确认是 600s 命令行超时把整个进程迁后台时杀掉（非超时机制失效，pi 的 signal 透传已核实 ：371/:380）。超时掐断→exhausted 路径本身留待下次真跑验证。
+- **超时未掐观察**：#7 step running 超 8 分钟未被 `--step-timeout-min=8` 掐断——事后确认是 600s 命令行超时把整个进程迁后台时杀掉（非超时机制失效，pi 的 signal 透传已核实 ：371/:380）。~~超时掐断→exhausted 路径本身留待下次真跑验证~~ **→ p2fix 已真机验证（canary-p2fix-b B3/B5）：#23/#24 撞 6 分钟 step 超时 → abort → exhausted → planner 派「接续」step，产出保留，语义全对 ✓**
