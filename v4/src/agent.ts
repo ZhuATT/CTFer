@@ -42,6 +42,11 @@ export interface RunWorkerStepResult {
 	usage: WorkerUsageTotals;
 	facts: number;
 	findings: number;
+	/** 本次会话新产出的 fact/finding 编号（P2 调度触发事件用）。 */
+	newFactIds: number[];
+	newFindingIds: number[];
+	/** 会话被超时掐断（P2 置 step=exhausted，planner 重派"接上次继续"）。 */
+	aborted: boolean;
 }
 
 export interface RunWorkerStepOptions {
@@ -133,7 +138,11 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		}
 	});
 
-	const timeout = setTimeout(() => agent.abort(), opts.timeoutMs ?? 600_000);
+	let aborted = false;
+	const timeout = setTimeout(() => {
+		aborted = true;
+		agent.abort();
+	}, opts.timeoutMs ?? 600_000);
 	try {
 		await agent.prompt(renderStepPrompt(step, overview));
 	} finally {
@@ -143,7 +152,7 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		if (pool) await pool.shutdown();
 	}
 
-	// 收尾：计量落 activity（token 四列）+ step→done
+	// 收尾：计量落 activity（token 四列）+ step 状态（正常 done / 超时 exhausted）
 	logActivity(db, {
 		task_id: task.name,
 		node_id: step.id,
@@ -151,12 +160,14 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		worker: "worker",
 		kind: "result",
 		tool: "runWorkerStep",
-		summary: `step #${step.id} 完成，${usage.turns} 轮`,
+		summary: `step #${step.id} ${aborted ? "超时掐断" : "完成"}，${usage.turns} 轮`,
 		detail: (texts[texts.length - 1] ?? "").slice(0, 1000),
 		tokens: { input: usage.input, output: usage.output, cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite },
 	});
-	setStepState(db, task.name, step.id, "done");
+	setStepState(db, task.name, step.id, aborted ? "exhausted" : "done");
 
+	const newFactIds = idsBySession(db, sessionId, "fact");
+	const newFindingIds = idsBySession(db, sessionId, "finding");
 	const counts = db
 		.prepare(
 			"SELECT kind, COUNT(*) AS n FROM nodes WHERE task_id = ? AND origin = 'worker' GROUP BY kind",
@@ -169,5 +180,16 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		usage,
 		facts: counts.find((c) => c.kind === "fact")?.n ?? 0,
 		findings: counts.find((c) => c.kind === "finding")?.n ?? 0,
+		newFactIds,
+		newFindingIds,
+		aborted,
 	};
+}
+
+function idsBySession(db: Database, sessionId: string, kind: string): number[] {
+	return (
+		db
+			.prepare("SELECT id FROM nodes WHERE session_id = ? AND kind = ? ORDER BY id")
+			.all(sessionId, kind) as Array<{ id: number }>
+	).map((r) => r.id);
 }

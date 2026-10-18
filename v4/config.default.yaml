@@ -1,0 +1,8 @@
+# AT1 v4 通道配置（D2 拍板：worker/planner 独立可配，为模型对照实验留口）
+# 本文件是缺省模板；运行时读 v4/config.yaml（缺失=全默认，等价本文件）。
+channels:
+  worker: { model: glm-5.3, api: openai, keyEnv: AT1_API_KEY }
+  planner: { model: glm-5.3, api: openai, keyEnv: AT1_API_KEY }
+run:
+  maxRounds: 20
+  budgetMs: 3600000

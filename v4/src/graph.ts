@@ -19,6 +19,7 @@ import {
 	type FindingPayload as FindingPayloadT,
 } from "./contracts.js";
 import { logActivity, nowIso, type EdgeRow, type NodeRow } from "./db.js";
+import { noreportCheck } from "./noreport.js";
 import type { TaskJson } from "./task.js";
 
 // ── 基础 ──
@@ -63,10 +64,12 @@ function parsePayload<T>(row: NodeRow): T {
 export interface InitTaskResult {
 	rootGoalId: number;
 	stepIds: number[];
+	/** false=复用已有图（续跑），true=本次新建。 */
+	fresh: boolean;
 }
 
 /** 建 root goal + seed steps（仅测试夹具，D2：生产 step 由 P2 planner 供给）+ dispatch 边。
- * 幂等：图已有节点则直接返回现有 root goal 与 open steps，不重复播种。 */
+ * 幂等：图已有节点则直接返回现有 root goal 与 steps，不重复播种（fresh=false）。 */
 export function initTask(db: Database, task: TaskJson): InitTaskResult {
 	const existing = db.prepare("SELECT id FROM nodes WHERE task_id = ? AND kind = 'goal' ORDER BY id LIMIT 1").get(
 		task.name,
@@ -75,7 +78,7 @@ export function initTask(db: Database, task: TaskJson): InitTaskResult {
 		const steps = db
 			.prepare("SELECT id FROM nodes WHERE task_id = ? AND kind = 'step' ORDER BY id")
 			.all(task.name) as Array<{ id: number }>;
-		return { rootGoalId: existing.id, stepIds: steps.map((s) => s.id) };
+		return { rootGoalId: existing.id, stepIds: steps.map((s) => s.id), fresh: false };
 	}
 
 	const now = nowIso();
@@ -98,7 +101,7 @@ export function initTask(db: Database, task: TaskJson): InitTaskResult {
 		addEdge(db, task.name, rootGoalId, "dispatch", stepId, "seed");
 		stepIds.push(stepId);
 	}
-	return { rootGoalId, stepIds };
+	return { rootGoalId, stepIds, fresh: true };
 }
 
 // ── 证据 ──
@@ -176,10 +179,20 @@ export interface SubmitFindingArgs {
 	sessionId?: string;
 }
 
-export function submitFinding(db: Database, args: SubmitFindingArgs): SubmitResult {
+export function submitFinding(db: Database, args: SubmitFindingArgs): SubmitResult & { noreport?: { verdict: string; reason: string } } {
 	const { taskId, taskDir, stepId, sessionId } = args;
 	const payload = FindingPayload.parse(args.payload);
 	const sha = hashEvidence(taskDir, payload.evidence);
+
+	// noreport 前置（P2-4）：进件时跑，reject 硬拒不入图；suspect 放行但回执带公诉意见
+	const evText = readFileSync(resolve(taskDir, payload.evidence), "utf-8").slice(0, 20_000);
+	const nr = noreportCheck({ summary: payload.summary, evidence: evText, endpoint: "" });
+	if (nr.verdict === "reject") {
+		throw new Error(
+			`[平台管控·不报表清单] 该 finding 被 noreport 预检拒绝：${nr.reason}。` +
+				`现象是载体时，改报你用它找到的实际影响（作为 fact 或新 finding）；不要重复提交同类现象。`,
+		);
+	}
 
 	const step = getNode(db, taskId, stepId);
 	if (!step || step.kind !== "step") throw new Error(`step #${stepId} 不存在`);
@@ -210,7 +223,126 @@ export function submitFinding(db: Database, args: SubmitFindingArgs): SubmitResu
 		tool: "submit_finding",
 		summary: `finding #${id} [${payload.severity}] ${payload.summary.slice(0, 120)}`,
 	});
-	return { id, dedup: false };
+	const out: SubmitResult & { noreport?: { verdict: string; reason: string } } = { id, dedup: false };
+	if (nr.verdict === "suspect") out.noreport = { verdict: "suspect", reason: nr.reason };
+	return out;
+}
+
+// ── addStep（P2 planner 派活，D3 拒重兜底挂这里） ──
+
+export interface AddStepInput {
+	summary: string;
+	note?: string;
+	parent_ids?: number[];
+	priority?: number;
+}
+
+export interface AddStepOutcome {
+	accepted: Array<{ id: number; summary: string }>;
+	rejected: Array<{ summary: string; reason: string }>;
+}
+
+/** 批量派 step（≤4 由工具面限制）：每条入库前查「同归一化 summary 已 open/running」→
+ * 该条拒收回执，批量内其余照常（D3：程序精确硬拒零误伤，语义比对归 prompt）。 */
+export function addStep(db: Database, taskId: string, steps: AddStepInput[], sessionId?: string): AddStepOutcome {
+	if (steps.length > 4) throw new Error(`一次最多 4 条（收到 ${steps.length}）——挑最高价值的派`);
+	const goal = db.prepare("SELECT id FROM nodes WHERE task_id = ? AND kind='goal' ORDER BY id LIMIT 1").get(taskId) as
+		| { id: number }
+		| undefined;
+	if (!goal) throw new Error("task 无 root goal——先 initTask");
+	const openSteps = db
+		.prepare("SELECT payload FROM nodes WHERE task_id = ? AND kind='step' AND state IN ('open','running')")
+		.all(taskId) as Array<{ payload: string }>;
+	const openSummaries = new Set(
+		openSteps.map((s) => normalizeSummary((JSON.parse(s.payload) as StepPayload).summary)),
+	);
+
+	const accepted: AddStepOutcome["accepted"] = [];
+	const rejected: AddStepOutcome["rejected"] = [];
+	for (const s of steps) {
+		const payload = StepPayload.parse({ ...s, priority: undefined });
+		const key = normalizeSummary(payload.summary);
+		if (openSummaries.has(key)) {
+			rejected.push({ summary: s.summary, reason: "已有 open/running step 同义（拒重兜底）" });
+			continue;
+		}
+		const now = nowIso();
+		const id = Number(
+			db
+				.prepare(
+					// 9 列：task_id/kind/state/origin 字面量占 3 + 参数 6（含字面量占位共 9 项）
+					"INSERT INTO nodes (task_id, kind, state, origin, session_id, priority, payload, created_at, updated_at) VALUES (?, 'step', 'open', 'planner', ?, ?, ?, ?, ?)",
+				)
+				.run(taskId, sessionId ?? null, Math.max(0, Math.min(5, s.priority ?? 0)), JSON.stringify(payload), now, now)
+				.lastInsertRowid,
+		);
+		addEdge(db, taskId, goal.id, "dispatch", id, "planner");
+		for (const pid of s.parent_ids ?? []) {
+			const p = getNode(db, taskId, pid);
+			if (!p) throw new Error(`parent_ids 里的 #${pid} 不存在（derives_from 边引用须存在）`);
+			addEdge(db, taskId, pid, "derives_from", id, "planner 派生");
+		}
+		openSummaries.add(key); // 同批内互斥也生效
+		accepted.push({ id, summary: payload.summary });
+	}
+	if (accepted.length) {
+		logActivity(db, {
+			task_id: taskId,
+			session_id: sessionId,
+			worker: "planner",
+			kind: "result",
+			tool: "add_step",
+			summary: `派 ${accepted.length} 条 step${rejected.length ? `，拒 ${rejected.length} 条` : ""}`,
+		});
+	}
+	return { accepted, rejected };
+}
+
+// ── proveGoal（D7：evidence 必须是图内 fact，防挂空气证据达标） ──
+
+export interface ProveGoalArgs {
+	taskId: string;
+	goalId: number;
+	evidenceId: number;
+	reason: string;
+	sessionId?: string;
+}
+
+export function proveGoal(db: Database, args: ProveGoalArgs): { achieved: true } {
+	const goal = getNode(db, args.taskId, args.goalId);
+	if (!goal || goal.kind !== "goal") throw new Error(`goal #${args.goalId} 不存在`);
+	if (goal.state !== "open") throw new Error(`goal #${args.goalId} 已是 ${goal.state}，不能重复盖章`);
+	const evidence = getNode(db, args.taskId, args.evidenceId);
+	if (!evidence || evidence.kind !== "fact") {
+		throw new Error(`evidence_id #${args.evidenceId} 必须是图内 fact（防挂空气证据达标）`);
+	}
+	if (!args.reason?.trim()) throw new Error("reason 必填——目标为何已达成");
+
+	db.prepare("UPDATE nodes SET state='achieved', updated_at=?, completed_at=? WHERE id=?").run(
+		nowIso(),
+		nowIso(),
+		args.goalId,
+	);
+	addEdge(db, args.taskId, args.evidenceId, "proves", args.goalId, args.reason.slice(0, 300));
+	logActivity(db, {
+		task_id: args.taskId,
+		node_id: args.goalId,
+		session_id: args.sessionId,
+		worker: "planner",
+		kind: "result",
+		tool: "prove_goal",
+		summary: `goal #${args.goalId} achieved（evidence=fact #${args.evidenceId}）`,
+		detail: args.reason.slice(0, 1000),
+	});
+	return { achieved: true };
+}
+
+/** goal 是否已达成（runTask 终止检查用）。 */
+export function goalAchieved(db: Database, taskId: string): boolean {
+	const goal = db
+		.prepare("SELECT state FROM nodes WHERE task_id = ? AND kind='goal' ORDER BY id LIMIT 1")
+		.get(taskId) as { state: string } | undefined;
+	return goal?.state === "achieved";
 }
 
 // ── step 生命周期（P1-4 收尾用） ──
