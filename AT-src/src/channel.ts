@@ -17,11 +17,16 @@ import { resolveBaseUrl, type ChannelConfig } from "./config.js";
 
 export type ChannelMode = "openai" | "anthropic";
 
+/** pi ThinkingLevel（与 pi-ai EXTENDED_THINKING_LEVELS 同集；本地联合避免依赖 pi 导出面）。 */
+export type ChannelThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+
 export interface Channel {
 	mode: ChannelMode;
 	model: Model<any>;
 	apiKey: string;
 	streamFn: StreamFn;
+	/** 思考强度——Agent initialState 直用；缺省 low（glm-5.3 拒 thinking:disabled，1210）。 */
+	thinkingLevel: ChannelThinkingLevel;
 }
 
 // ── 传输层故障分类（P3pre-1，429 事故根治）──
@@ -90,15 +95,17 @@ function makeModel(c: ChannelConfig): Model<any> {
 	const api = c.api === "anthropic" ? "anthropic-messages" : "openai-completions";
 	return {
 		id: c.model,
-		name: `${c.model} (bigmodel ${c.api})`,
+		name: `${c.model} (${c.api})`,
 		api,
 		provider: c.api === "anthropic" ? "bigmodel-anthropic" : "bigmodel",
 		baseUrl: resolveBaseUrl(c),
 		reasoning: true,
 		input: ["text"],
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: 204_800,
-		maxTokens: 131_072,
+		// 2026-10-21 拍板 1M 上下文：contextWindow 是 pi 的输出预算钳制基准（非输入截断线），
+		// 详见 docs/PI-prompt.md §8.2——设小会让长会话输出被错误压小。
+		contextWindow: c.contextWindow ?? 1_000_000,
+		maxTokens: c.maxTokens ?? 131_072,
 	} as Model<any>;
 }
 
@@ -109,7 +116,9 @@ export function createChannelFromConfig(c: ChannelConfig, secrets?: Secrets): Ch
 		c.api === "anthropic"
 			? (anthropicStreamSimple as StreamFunction<"anthropic-messages", SimpleStreamOptions> as StreamFn)
 			: (openaiStreamSimple as StreamFunction<"openai-completions", SimpleStreamOptions> as StreamFn);
-	return { mode: c.api, model: makeModel(c), apiKey, streamFn };
+	const levels: readonly string[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+	const thinkingLevel = (c.thinkingLevel && levels.includes(c.thinkingLevel) ? c.thinkingLevel : "low") as ChannelThinkingLevel;
+	return { mode: c.api, model: makeModel(c), apiKey, streamFn, thinkingLevel };
 }
 
 /** P1 兼容入口（runWorkerStep 单跑用）：mode + AT1_API_KEY。 */

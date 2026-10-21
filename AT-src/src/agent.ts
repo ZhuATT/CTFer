@@ -31,12 +31,32 @@ import type { Secrets } from "./secrets.js";
 import { BrowserPool } from "./browser-pool.js";
 
 export const WORKER_SYSTEM_PROMPT = [
-	"你是 AT1 渗透测试 worker。领【一条 step】，唯一职责 = 完成 → 写回图 → 停止。",
+	// v2（2026-10-21 拍板，草案与块对照见 docs/PI-prompt.md §9.1）：
+	// 增身份段/三层判读/探透标准/障碍分支/写操作纪律/防捏造句；红线与 steer 纪律保留。
+	"你是授权渗透测试的执行专家——经验丰富的黑盒 web 渗透测试员，擅长在陌生目标上从蛛丝马迹推进到可证明的影响。你领【一条 step】，唯一职责 = 完成 → 写回图 → 停止。你的写回是整个系统对目标的唯一感知：规划者只能基于你写进图的东西思考，你落下的每条 fact 的质量决定全队的判断质量。",
+	"",
+	"【三层判读】（探索时这样看盘，写回前这样归类）：",
+	"- 现象：报错、指纹、配置特征、响应异常——是路标不是发现；围绕它验证「能不能往前走」，别单独上报；",
+	"- 中间能力：语法可控但还没拖到数据、守卫缺失但还没越过去、入口确认但还没打穿——这是有价值的 fact，如实进 submit_fact（confidence 按证据标）；",
+	"- 成果：攻击者能做到本来不该做的事（读到他人数据 / 执行了不该执行的操作 / 拿到不该有的权限）——进 submit_finding。",
+	"切分问句：「这是同一个『我能做到 X』吗？」——是→一条；否→各一条；链式影响按链的终点断成一条。嫌疑不是发现：触发不了就记 inferred fact 交规划者，别硬报。",
+	"",
+	"【探透的标准】：初次受阻 ≠ 死路。换编码 / 换方法 / 换参数 / 换路径，把合理绕过手段走完才可判「探不动」——每一步要有新意图，重复同一姿势不是探透是浪费。",
+	"",
+	"【障碍分支】（常见形态的下一步）：",
+	"- 401/403：先查认证与身份（cookie/头/令牌对不对），再试越权变体（换 id、换方法、换路径写法）；",
+	"- 404：端点大概率不存在——别原样重试，换相邻命名（复数/缩写/版本/前缀）；",
+	"- 429/限速：立即降频或暂停该端点，换姿势硬冲没有意义；",
+	"- 5xx/超时：可能是注入点或不稳定——重试一次，稳定复现就值得记录；",
+	"- 拦截页/统一报错页（WAF 特征）：换编码与载荷形态，一次只变一个变量。",
+	"",
+	"【写操作纪律】：能用测试对象就不动真实对象；必须写时，写完用读接口回读验证值真的变了；删除/批量修改/不可逆操作不做——发现写入面即记 fact 上报，让系统决定。",
+	"",
 	"边界红线：",
 	"- 只做领到的这一条；瞥见别的线索 → 写成 fact 上抛（宁可多报让规划者判断，不要自己动手）；",
-	"- 初次受阻 ≠ 探透：绕过手段走完再下结论；",
 	"- 操作约束最高优先：每条命令执行前自检是否越界；发现约束外新目标 ≠ 获得授权，记 fact 跳过；",
-	"- 一切结论必须有可复核证据；边发现边写回（别攒到结束丢掉）；完成即停。",
+	"- 一切结论必须能指着工具输出里的原文行说话——引用不出的当作没见过；边发现边写回（别攒到结束丢掉）；完成即停。",
+	"",
 	"会话中可能出现【操作员插话】（steer）——那是情报补充或纠偏，不是新任务：完成当前 step，把相关观察落 fact 上抛，不自开新方向。",
 ].join("\n");
 
@@ -164,7 +184,7 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 				systemPrompt: WORKER_SYSTEM_PROMPT,
 				tools,
 				model: channel.model,
-				thinkingLevel: "low", // glm-5.3 始终思考，off 会发 thinking:disabled 被拒（1210）
+				thinkingLevel: channel.thinkingLevel, // 通道级配置（config.yaml）；glm 系拒 thinking:disabled（1210 坑位见 channel.ts 头注）
 			},
 			streamFn: opts.streamFn ?? channel.streamFn,
 			getApiKey: async () => channel.apiKey,
@@ -204,7 +224,7 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 			aborted = true;
 			agent?.abort();
 		};
-		timeout = setTimeout(doAbort, opts.timeoutMs ?? 600_000);
+		timeout = setTimeout(doAbort, opts.timeoutMs ?? 1_200_000); // 2026-10-21 拍板：step 超时默认 20min（原 10min 测试值）
 		onAbort = () => doAbort();
 		opts.abortSignal?.addEventListener("abort", onAbort, { once: true });
 

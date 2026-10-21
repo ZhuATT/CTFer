@@ -1,5 +1,12 @@
 # AT1 v4 通道配置（D2 拍板：worker/planner 独立可配，为模型对照实验留口）
-# 本文件是缺省模板；运行时读 v4/config.yaml（缺失=全默认，等价本文件）。
+# 本文件是缺省模板；运行时读 AT-src/config.yaml（缺失=全默认，等价本文件）。
+#
+# 通道可选字段（2026-10-21 扩）：
+#   baseUrl        覆写端点（缺省按 api 映射：openai→bigmodel /paas/v4；anthropic→/api/anthropic）
+#   thinkingLevel  思考强度 off|minimal|low|medium|high|xhigh|max（缺省 low；glm 系拒 thinking:disabled 1210）
+#   contextWindow  pi 输出预算钳制基准：实际输出上限 = min(maxTokens, contextWindow−已用−4096)。
+#                  不是输入截断线（真实输入上限由服务端决定）。缺省 1000000。
+#   maxTokens      单次输出上限（缺省 131072；flash 级模型建议 65536）
 channels:
   worker: { model: glm-5.3, api: openai, keyEnv: AT1_API_KEY }
   planner: { model: glm-5.3, api: openai, keyEnv: AT1_API_KEY }

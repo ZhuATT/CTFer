@@ -24,6 +24,12 @@ export interface ChannelConfig {
 	api: ChannelMode;
 	keyEnv: string;
 	baseUrl?: string;
+	/** 思考强度（pi ThinkingLevel：off|minimal|low|medium|high|xhigh|max）；缺省 low（glm-5.3 拒 thinking:disabled，1210）。 */
+	thinkingLevel?: string;
+	/** 模型上下文窗——pi 用作输出预算钳制基准（contextWindow − 已用 − 4096），不是输入截断线；缺省 1_000_000。 */
+	contextWindow?: number;
+	/** 单次输出上限；缺省 131_072。 */
+	maxTokens?: number;
 }
 
 export interface RunConfig {
@@ -37,6 +43,9 @@ export interface AppConfig {
 	channels: { worker: ChannelConfig; planner: ChannelConfig };
 	run: RunConfig;
 }
+
+/** pi ThinkingLevel 全集（pi-ai models.ts EXTENDED_THINKING_LEVELS 同款）。 */
+export const THINKING_LEVELS: readonly string[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 const DEFAULTS: AppConfig = {
 	channels: {
@@ -102,6 +111,10 @@ export function loadConfig(path = CONFIG_PATH): AppConfig {
 		if (c.api === "openai" || c.api === "anthropic") cfg.channels[name].api = c.api;
 		if (typeof c.keyEnv === "string") cfg.channels[name].keyEnv = c.keyEnv;
 		if (typeof c.baseUrl === "string") cfg.channels[name].baseUrl = c.baseUrl;
+		if (typeof c.thinkingLevel === "string" && THINKING_LEVELS.includes(c.thinkingLevel))
+			cfg.channels[name].thinkingLevel = c.thinkingLevel;
+		if (typeof c.contextWindow === "number" && c.contextWindow > 0) cfg.channels[name].contextWindow = c.contextWindow;
+		if (typeof c.maxTokens === "number" && c.maxTokens > 0) cfg.channels[name].maxTokens = c.maxTokens;
 	}
 	if (raw.run && typeof raw.run === "object") {
 		const r = raw.run as Partial<RunConfig>;

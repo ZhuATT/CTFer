@@ -112,7 +112,7 @@ export async function livePing(channel: Channel, timeoutMs = PING_TIMEOUT_MS): P
 			systemPrompt: "你是通道健康探针。无论收到什么都只回复：OK",
 			tools: [],
 			model: channel.model,
-			thinkingLevel: "low", // glm-5.3 拒绝 thinking:disabled（channel.ts 坑位存档）
+			thinkingLevel: channel.thinkingLevel, // 探测保真：与生产同款思考强度（ARTEX TestConnection 原则）
 		},
 		streamFn: channel.streamFn,
 		getApiKey: async () => channel.apiKey,

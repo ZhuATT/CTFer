@@ -34,6 +34,7 @@ export function createSubmitFactTool(opts: SubmitToolOptions): AgentTool<any> {
 			"- evidence：证据文件相对路径（先用 Write 写进 evidence/<名>.txt，内容=一行命令 + 最能证明的一两行输出），没有可复核证据不收；",
 			"- confidence：observed=工具输出直接证明；inferred=由观察推断。拿不准填 inferred；",
 			"- 多个观察各自一条，别攒；瞥见别的线索也各成一条上抛，自己不动手。",
+			"- 中间能力（语法可控/守卫缺失/入口确认但未打穿）也是 fact——别等打穿才写，如实标 confidence。",
 			"同一 summary 重复提交会返回已有 id（幂等，无害）。",
 		].join("\n"),
 		parameters: Type.Object({

@@ -384,7 +384,7 @@ export async function runPlanner(opts: RunPlannerOptions): Promise<RunPlannerRes
 				assetsDb: opts.assetsDb,
 			}),
 			model: channel.model,
-			thinkingLevel: "low",
+			thinkingLevel: channel.thinkingLevel,
 		},
 		streamFn: opts.streamFn ?? channel.streamFn,
 		getApiKey: async () => channel.apiKey,
