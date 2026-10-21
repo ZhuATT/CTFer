@@ -6,21 +6,114 @@
  * 不做：kill_work/steer_work（单 worker 无在跑可杀）、list_assets（P3）、Bash（纯读图）。
  * usage 落 activity（worker="planner"）——计量分列（验收项）。
  */
-import { Agent, type AgentEvent, type AgentTool } from "@earendil-works/pi-agent-core";
+import { Agent, type AgentEvent, type AgentTool, type StreamFn } from "@earendil-works/pi-agent-core";
 import type { Database } from "better-sqlite3";
 import { Type } from "@earendil-works/pi-ai";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createChannelFromConfig } from "./channel.js";
+import { createChannelFromConfig, transportFailureFromMessage, type ChannelTransportFailure } from "./channel.js";
 import type { ChannelConfig } from "./config.js";
 import { addStep, concludeGoal, goalAchieved, goalClosed, getNode, graphOverview, proveGoal } from "./graph.js";
 import { logActivity, type NodeRow } from "./db.js";
 import { PLANNER_SYSTEM_PROMPT, renderPlannerUserMessage } from "./planner-prompt.js";
 import { renderTriggers, type TriggerEvent } from "./triggers.js";
 import type { Secrets } from "./secrets.js";
+import { normalizeSummary } from "./contracts.js";
+import { createListAssetsTool } from "./tools/assets.js";
 
 const FACTS_PAGE = 20;
 const TODO_MAX = 20;
+
+// ── P3pre-6 ②：操作员干预史渲染窗口（常量化，未来可提升 config） ──
+export const INTERVENTION_WINDOW = 5;
+export const INTERVENTION_TEXT_LIMIT = 200;
+
+export interface InterventionEntry {
+	ts?: string;
+	formatted: string;
+}
+
+/** 读 control/hints.jsonl 与 control/steer.jsonl 尾部 ≤5 条（每条截 ≤200 字，时间正序、不去重）。 */
+export function readRecentInterventions(taskDir: string): InterventionEntry[] {
+	const entries: InterventionEntry[] = [];
+
+	// hints: control/hints.jsonl
+	const hintsPath = join(taskDir, "control", "hints.jsonl");
+	if (existsSync(hintsPath)) {
+		try {
+			const lines = readFileSync(hintsPath, "utf-8")
+				.split(/\r?\n/)
+				.filter((l) => l.trim())
+				.slice(-INTERVENTION_WINDOW);
+			for (const line of lines) {
+				let ts: string | undefined;
+				let text = line;
+				try {
+					const obj = JSON.parse(line) as { ts?: string; text?: string };
+					if (typeof obj.text === "string" && obj.text.trim()) text = obj.text.trim();
+					if (typeof obj.ts === "string" && obj.ts.trim()) ts = obj.ts.trim();
+				} catch {
+					// 宽容解析：坏行整行当文本（hints.ts:52-54 语义）
+				}
+				const truncated = text.slice(0, INTERVENTION_TEXT_LIMIT);
+				const label = ts ? `[hint, ${ts}]` : `[hint]`;
+				entries.push({ ts, formatted: `- ${label} ${truncated}` });
+			}
+		} catch {
+			/* 读取失败忽略 */
+		}
+	}
+
+	// steer: control/steer.jsonl
+	const steerPath = join(taskDir, "control", "steer.jsonl");
+	if (existsSync(steerPath)) {
+		try {
+			const lines = readFileSync(steerPath, "utf-8")
+				.split(/\r?\n/)
+				.filter((l) => l.trim())
+				.slice(-INTERVENTION_WINDOW);
+			for (const line of lines) {
+				let ts: string | undefined;
+				let stepId: number | undefined;
+				let text = line;
+				try {
+					const obj = JSON.parse(line) as { ts?: string; text?: string; stepId?: number };
+					if (typeof obj.text === "string" && obj.text.trim()) text = obj.text.trim();
+					if (typeof obj.ts === "string" && obj.ts.trim()) ts = obj.ts.trim();
+					if (Number.isFinite(obj.stepId)) stepId = Number(obj.stepId);
+				} catch {
+					// 宽容解析：坏行整行当文本
+				}
+				const truncated = text.slice(0, INTERVENTION_TEXT_LIMIT);
+				const target = stepId !== undefined ? `→ step #${stepId}` : "";
+				const meta = [target, ts].filter(Boolean).join(", ");
+				const label = meta ? `[steer ${meta}]` : `[steer]`;
+				entries.push({ ts, formatted: `- ${label} ${truncated}` });
+			}
+		} catch {
+			/* 读取失败忽略 */
+		}
+	}
+
+	// 时间正序、不去重
+	entries.sort((a, b) => {
+		if (a.ts && b.ts) return a.ts.localeCompare(b.ts);
+		return 0;
+	});
+
+	return entries;
+}
+
+/** 格式化【操作员干预史（最近）】块；空窗口返回 undefined（不渲染）。 */
+export function renderRecentInterventions(taskDir: string): string | undefined {
+	const entries = readRecentInterventions(taskDir);
+	if (entries.length === 0) return undefined;
+	return [
+		"【操作员干预史（最近）】",
+		"hint=调度层建议，steer=已插进 worker 会话的纠偏；结合当前态势判断是否已消化，旧项已处理可忽略。",
+		...entries.map((e) => e.formatted),
+	].join("\n");
+}
 
 function textResult(text: string) {
 	return { content: [{ type: "text" as const, text }], details: null };
@@ -57,6 +150,7 @@ export interface PlannerToolOptions {
 	taskId: string;
 	taskDir: string;
 	sessionId?: string;
+	assetsDb?: Database;
 }
 
 export function createPlannerTools(
@@ -161,12 +255,31 @@ export function createPlannerTools(
 	const listFactsTool: AgentTool<any> = {
 		name: "list_facts",
 		label: "List facts",
-		description: "分页看全部 fact（最新在前，每页 20）。态势里的 recent_facts 只有 20 条，更多用本工具翻。",
+		description: "分页看全部 fact（最新在前，每页 20，支持 q 过滤 summary）。态势里的 recent_facts 只有 20 条，更多用本工具翻。",
 		parameters: Type.Object({
 			page: Type.Optional(Type.Number({ description: "页码，从 1 起，默认 1" })),
+			q: Type.Optional(Type.String({ description: "fact 摘要关键词过滤" })),
 		}),
 		execute: async (_id, params: any) => {
 			const page = Math.max(1, Number(params?.page) || 1);
+			const q = params?.q ? String(params.q).trim() : undefined;
+			if (q) {
+				const allRows = opts.db
+					.prepare("SELECT * FROM nodes WHERE task_id=? AND kind='fact' ORDER BY id DESC")
+					.all(opts.taskId) as NodeRow[];
+				const qKey = normalizeSummary(q);
+				const filtered = allRows.filter((r) => {
+					const p = JSON.parse(r.payload) as { summary: string };
+					return normalizeSummary(p.summary).includes(qKey);
+				});
+				const hasMore = filtered.length > page * FACTS_PAGE;
+				const facts = filtered.slice((page - 1) * FACTS_PAGE, page * FACTS_PAGE).map((r) => {
+					const p = JSON.parse(r.payload) as { summary: string; confidence: string };
+					return { id: r.id, summary: p.summary, confidence: p.confidence, from_step: r.step_id };
+				});
+				return textResult(JSON.stringify({ page, has_more: hasMore, facts }, null, 1));
+			}
+
 			const rows = opts.db
 				.prepare("SELECT * FROM nodes WHERE task_id=? AND kind='fact' ORDER BY id DESC LIMIT ? OFFSET ?")
 				.all(opts.taskId, FACTS_PAGE + 1, (page - 1) * FACTS_PAGE) as NodeRow[];
@@ -193,7 +306,11 @@ export function createPlannerTools(
 		},
 	};
 
-	return [addStepTool, concludeTaskTool, proveGoalTool, todoTool, listFactsTool, nodeDetailTool];
+	const tools = [addStepTool, concludeTaskTool, proveGoalTool, todoTool, listFactsTool, nodeDetailTool];
+	if (opts.assetsDb) {
+		tools.push(createListAssetsTool({ assetsDb: opts.assetsDb, taskId: opts.taskId }));
+	}
+	return tools;
 }
 
 // ── runPlanner ──
@@ -209,6 +326,12 @@ export interface RunPlannerOptions {
 	/** 外部终止信号（p2fix P2F-5：stop watcher 与超时并联 abort）。 */
 	abortSignal?: AbortSignal;
 	onEvent?: (ev: AgentEvent) => void;
+	/** streamFn 注入口（P3pre 测试用：假流验传输层故障路径；缺省用 channel 构造的）。 */
+	streamFn?: StreamFn;
+	/** 项目级资产库（P3-4/P3-5：在场时装配 list_assets + 态势 coverage 块）。 */
+	assetsDb?: Database;
+	/** 项目简报节（P3-6：首轮一次性注入前任 task 发现与实证观察）。 */
+	briefingText?: string;
 }
 
 export interface RunPlannerResult {
@@ -217,6 +340,8 @@ export interface RunPlannerResult {
 	proved: boolean;
 	usage: { turns: number; input: number; output: number; cacheRead: number };
 	finalText: string;
+	/** 传输层故障（P3pre-3：唤醒没真正发生——调度器据此重试/终止，事件不消费）。 */
+	transportError?: string;
 }
 
 export async function runPlanner(opts: RunPlannerOptions): Promise<RunPlannerResult> {
@@ -234,23 +359,34 @@ export async function runPlanner(opts: RunPlannerOptions): Promise<RunPlannerRes
 		events.push({ type: "stall" });
 	}
 
-	const overview = graphOverview(db, task.name);
+	const overview = graphOverview(db, task.name, opts.assetsDb);
 	const todos = readTodos(taskDir);
+	const interventionsText = renderRecentInterventions(taskDir);
 	const goalText = overview.goal ? `${overview.goal.text}（#${overview.goal.id}, ${overview.goal.state}）` : "（无）";
 
 	const usage = { turns: 0, input: 0, output: 0, cacheRead: 0 };
 	const texts: string[] = [];
 	const acceptedCounter = { n: 0 };
 	const rejectedCounter = { n: 0 };
+	// P3pre-3：传输层故障检测（与 worker 同款——pi 不抛错，错误走 message_end 事件）
+	let transportFailure: ChannelTransportFailure | undefined;
 
 	const agent = new Agent({
 		initialState: {
 			systemPrompt: PLANNER_SYSTEM_PROMPT,
-			tools: createPlannerTools({ db, taskId: task.name, taskDir, sessionId, acceptedCounter, rejectedCounter }),
+			tools: createPlannerTools({
+				db,
+				taskId: task.name,
+				taskDir,
+				sessionId,
+				acceptedCounter,
+				rejectedCounter,
+				assetsDb: opts.assetsDb,
+			}),
 			model: channel.model,
 			thinkingLevel: "low",
 		},
-		streamFn: channel.streamFn,
+		streamFn: opts.streamFn ?? channel.streamFn,
 		getApiKey: async () => channel.apiKey,
 	});
 
@@ -268,6 +404,7 @@ export async function runPlanner(opts: RunPlannerOptions): Promise<RunPlannerRes
 				const t = msg.content.filter((c) => c.type === "text" && c.text?.trim()).map((c) => c.text).join("\n");
 				if (t) texts.push(t);
 			}
+			transportFailure = transportFailureFromMessage(ev.message) ?? transportFailure;
 		}
 	});
 
@@ -279,6 +416,8 @@ export async function runPlanner(opts: RunPlannerOptions): Promise<RunPlannerRes
 		await agent.prompt(
 			renderPlannerUserMessage({
 				triggers: renderTriggers(events),
+				interventionsText,
+				briefingText: opts.briefingText,
 				overviewJson: JSON.stringify(overview),
 				todosText: renderTodos(todos),
 				goalText,
@@ -289,18 +428,21 @@ export async function runPlanner(opts: RunPlannerOptions): Promise<RunPlannerRes
 		clearTimeout(timeout);
 		opts.abortSignal?.removeEventListener("abort", onAbort);
 		unsubscribe();
+		// usage 落账进 finally（P3pre-3：失败唤醒也记账——429 期间不再"派 0 条"无声无息）
+		logActivity(db, {
+			task_id: task.name,
+			session_id: sessionId,
+			worker: "planner",
+			kind: "result",
+			tool: "runPlanner",
+			is_error: Boolean(transportFailure),
+			summary: transportFailure
+				? `planner 唤醒失败：${transportFailure.label}，events=${events.length} 未消费`
+				: `planner 唤醒：events=${events.length} stalled=${stalled} 派${acceptedCounter.n}条拒${rejectedCounter.n}条`,
+			detail: transportFailure ? transportFailure.raw.slice(0, 800) : (texts[texts.length - 1] ?? "").slice(0, 800),
+			tokens: { input: usage.input, output: usage.output, cacheRead: usage.cacheRead },
+		});
 	}
-
-	logActivity(db, {
-		task_id: task.name,
-		session_id: sessionId,
-		worker: "planner",
-		kind: "result",
-		tool: "runPlanner",
-		summary: `planner 唤醒：events=${events.length} stalled=${stalled} 派${acceptedCounter.n}条拒${rejectedCounter.n}条`,
-		detail: (texts[texts.length - 1] ?? "").slice(0, 800),
-		tokens: { input: usage.input, output: usage.output, cacheRead: usage.cacheRead },
-	});
 
 	return {
 		acceptedCount: acceptedCounter.n,
@@ -308,5 +450,6 @@ export async function runPlanner(opts: RunPlannerOptions): Promise<RunPlannerRes
 		proved: goalAchieved(db, task.name),
 		usage,
 		finalText: texts[texts.length - 1] ?? "",
+		...(transportFailure ? { transportError: transportFailure.label + "：" + transportFailure.raw } : {}),
 	};
 }

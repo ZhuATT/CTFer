@@ -29,6 +29,8 @@ export interface ChannelConfig {
 export interface RunConfig {
 	maxRounds: number;
 	budgetMs: number;
+	/** P3pre-2 熔断阈值：连续 blocked step 达此数终止 run（reason=channel-down）。缺省 3。 */
+	circuitBreaker?: number;
 }
 
 export interface AppConfig {
@@ -41,7 +43,7 @@ const DEFAULTS: AppConfig = {
 		worker: { model: "glm-5.3", api: "openai", keyEnv: "AT1_API_KEY" },
 		planner: { model: "glm-5.3", api: "openai", keyEnv: "AT1_API_KEY" },
 	},
-	run: { maxRounds: 20, budgetMs: 3_600_000 },
+	run: { maxRounds: 20, budgetMs: 3_600_000, circuitBreaker: 3 },
 };
 
 /** 最简两层 YAML 解析：`key: {a: b, c: d}` 行内对象 + `key:` 嵌套块（缩进感知）。
@@ -105,6 +107,7 @@ export function loadConfig(path = CONFIG_PATH): AppConfig {
 		const r = raw.run as Partial<RunConfig>;
 		if (typeof r.maxRounds === "number" && r.maxRounds > 0) cfg.run.maxRounds = r.maxRounds;
 		if (typeof r.budgetMs === "number" && r.budgetMs > 0) cfg.run.budgetMs = r.budgetMs;
+		if (typeof r.circuitBreaker === "number" && r.circuitBreaker > 0) cfg.run.circuitBreaker = r.circuitBreaker;
 	}
 	return cfg;
 }

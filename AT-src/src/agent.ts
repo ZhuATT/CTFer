@@ -7,13 +7,16 @@
  * 全图 steps/findings 是 planner 的视野）+【standards 索引】（渐进披露）。
  * abort（P2F-5）：内部 stepTimeout 与外部 abortSignal（stop watcher）并联，同一条优雅收尾路。
  * steer（P2F-11）：onAgent 把会话暴露给调度器，【操作员插话】经 agent.steer() 送达。
- * 收尾 = usage 落 activity（token 四列，R-2 从根消解）+ step state→done/exhausted。
+ * 收尾 = usage 落 activity（token 四列，R-2 从根消解）+ step state→done/exhausted/blocked 三态。
+ * 传输层故障（P3pre-2）：pi 不抛错（错误走 message_end 事件 stopReason="error"），订阅层检测
+ *   → step 翻 blocked + activity 落 is_error 账，planner 按 v1.2 blocked 重派规则接续。
+ * steer 核销（P3pre-4）：送达账是乐观的——会话收尾核对未消费队列，有残留落 is_error 账。
  */
-import { Agent, type AgentEvent, type AgentTool } from "@earendil-works/pi-agent-core";
+import { Agent, type AgentEvent, type AgentTool, type StreamFn } from "@earendil-works/pi-agent-core";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Database } from "better-sqlite3";
-import { createChannel, createChannelFromConfig, type ChannelMode } from "./channel.js";
+import { createChannel, createChannelFromConfig, transportFailureFromMessage, type ChannelMode, type ChannelTransportFailure } from "./channel.js";
 import type { ChannelConfig } from "./config.js";
 import { createGuard } from "./guard.js";
 import { setStepState, stepLineageView, type WorkerSituationalView } from "./graph.js";
@@ -21,6 +24,7 @@ import type { NodeRow } from "./db.js";
 import { logActivity } from "./db.js";
 import { createBashTool, createReadTool, createWriteTool } from "./tools/exec.js";
 import { createSubmitFactTool, createSubmitFindingTool } from "./tools/submit.js";
+import { createRegisterAssetTool } from "./tools/assets.js";
 import { BrowserSession, createNavigateTool, createSnapshotTool } from "./tools/browser.js";
 import type { TaskJson } from "./task.js";
 import type { Secrets } from "./secrets.js";
@@ -60,6 +64,8 @@ export interface RunWorkerStepResult {
 	newFindingIds: number[];
 	/** 会话被掐断（超时/stop watcher——P2 置 step=exhausted，planner 重派「接上次继续」）。 */
 	aborted: boolean;
+	/** 传输层故障（P3pre-2：429/网络断连等——step=blocked，planner 直接重派）。 */
+	transportError?: string;
 }
 
 export interface RunWorkerStepOptions {
@@ -79,6 +85,12 @@ export interface RunWorkerStepOptions {
 	/** 会话暴露（P2F-11）：调度器经此对在跑 step 送达操作员 steer。 */
 	onAgent?: (agent: SteerableTarget) => void;
 	onEvent?: (ev: AgentEvent) => void;
+	/** streamFn 注入口（P3pre 测试用：假流验 blocked 路径；缺省用 channel 构造的）。 */
+	streamFn?: StreamFn;
+	/** 项目级资产库（P3-3/P3-4：在场时装配 register_asset + 机械落锚）。 */
+	assetsDb?: Database;
+	/** 动态 scope 白名单集合（P3-7：支持 scope-add 原位扩权）。 */
+	scopeHosts?: string[] | Set<string>;
 }
 
 /** worker user 首条（p2fix 审7 精简态势版）。standardsIndex：standards/INDEX.md 内容
@@ -116,91 +128,129 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 	const situational = stepLineageView(db, task.name, step);
 	const standardsIndex = readStandardsIndex(taskDir);
 
-	let pool: BrowserPool | undefined;
-	if (opts.browser !== false) {
-		pool = await BrowserPool.start(taskDir);
-	}
-	const browserSession = pool ? new BrowserSession(pool.endpoint) : undefined;
-
 	const usage: WorkerUsageTotals = { turns: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 	const texts: string[] = [];
-
-	const tools: AgentTool<any>[] = [
-		createBashTool(taskDir),
-		createReadTool(taskDir),
-		createWriteTool(taskDir),
-		...(browserSession ? [createNavigateTool(browserSession), createSnapshotTool(browserSession)] : []),
-		createSubmitFactTool({ db, taskId: task.name, taskDir, sessionId }),
-		createSubmitFindingTool({ db, taskId: task.name, taskDir, sessionId }),
-	];
-
-	const agent = new Agent({
-		initialState: {
-			systemPrompt: WORKER_SYSTEM_PROMPT,
-			tools,
-			model: channel.model,
-			thinkingLevel: "low", // glm-5.3 始终思考，off 会发 thinking:disabled 被拒（1210）
-		},
-		streamFn: channel.streamFn,
-		getApiKey: async () => channel.apiKey,
-		beforeToolCall: createGuard(db, { taskId: task.name, sessionId, scopeHosts: task.scope.hosts }),
-	});
-	opts.onAgent?.(agent);
-
-	const unsubscribe = agent.subscribe(async (ev: AgentEvent) => {
-		opts.onEvent?.(ev);
-		if (ev.type === "turn_end") {
-			const msg = ev.message as { usage?: Record<string, number> };
-			const u = msg.usage ?? {};
-			usage.turns += 1;
-			usage.input += u.input ?? 0;
-			usage.output += u.output ?? 0;
-			usage.cacheRead += u.cacheRead ?? 0;
-			usage.cacheWrite += u.cacheWrite ?? 0;
-		} else if (ev.type === "message_end") {
-			const msg = ev.message as { role?: string; content?: Array<{ type: string; text?: string }> };
-			if (msg.role === "assistant" && Array.isArray(msg.content)) {
-				const t = msg.content
-					.filter((c) => c.type === "text" && c.text?.trim())
-					.map((c) => c.text)
-					.join("\n");
-				if (t) texts.push(t);
-			}
-		}
-	});
-
-	// 双 abort 并联（P2F-5）：内部 stepTimeout / 外部 stop watcher——同一条优雅收尾路
+	// P3pre-2：传输层故障检测（pi 不抛错，错误以 message_end(stopReason="error") 过事件流）
+	let transportFailure: ChannelTransportFailure | undefined;
+	let pool: BrowserPool | undefined;
+	let browserSession: BrowserSession | undefined;
+	let agent: Agent | undefined;
+	let unsubscribe: (() => void) | undefined;
+	let timeout: NodeJS.Timeout | undefined;
+	let onAbort: (() => void) | undefined;
 	let aborted = false;
-	const doAbort = () => {
-		aborted = true;
-		agent.abort();
-	};
-	const timeout = setTimeout(doAbort, opts.timeoutMs ?? 600_000);
-	const onAbort = () => doAbort();
-	opts.abortSignal?.addEventListener("abort", onAbort, { once: true });
+
 	try {
+		// P3pre-6 ①：BrowserPool 挪进 try 防护，配合 finally shutdown 杜绝 zombie chrome
+		if (opts.browser !== false) {
+			pool = await BrowserPool.start(taskDir);
+			browserSession = new BrowserSession(pool.endpoint);
+		}
+
+		const tools: AgentTool<any>[] = [
+			createBashTool(taskDir),
+			createReadTool(taskDir),
+			createWriteTool(taskDir),
+			...(browserSession ? [createNavigateTool(browserSession), createSnapshotTool(browserSession)] : []),
+			createSubmitFactTool({ db, taskId: task.name, taskDir, sessionId, assetsDb: opts.assetsDb }),
+			createSubmitFindingTool({ db, taskId: task.name, taskDir, sessionId, assetsDb: opts.assetsDb }),
+			...(opts.assetsDb
+				? [createRegisterAssetTool({ assetsDb: opts.assetsDb, taskId: task.name, project: task.project })]
+				: []),
+		];
+
+		agent = new Agent({
+			initialState: {
+				systemPrompt: WORKER_SYSTEM_PROMPT,
+				tools,
+				model: channel.model,
+				thinkingLevel: "low", // glm-5.3 始终思考，off 会发 thinking:disabled 被拒（1210）
+			},
+			streamFn: opts.streamFn ?? channel.streamFn,
+			getApiKey: async () => channel.apiKey,
+			beforeToolCall: createGuard(db, {
+				taskId: task.name,
+				sessionId,
+				scopeHosts: opts.scopeHosts ?? task.scope.hosts,
+			}),
+		});
+		opts.onAgent?.(agent);
+
+		unsubscribe = agent.subscribe(async (ev: AgentEvent) => {
+			opts.onEvent?.(ev);
+			if (ev.type === "turn_end") {
+				const msg = ev.message as { usage?: Record<string, number> };
+				const u = msg.usage ?? {};
+				usage.turns += 1;
+				usage.input += u.input ?? 0;
+				usage.output += u.output ?? 0;
+				usage.cacheRead += u.cacheRead ?? 0;
+				usage.cacheWrite += u.cacheWrite ?? 0;
+			} else if (ev.type === "message_end") {
+				const msg = ev.message as { role?: string; content?: Array<{ type: string; text?: string }> };
+				if (msg.role === "assistant" && Array.isArray(msg.content)) {
+					const t = msg.content
+						.filter((c) => c.type === "text" && c.text?.trim())
+						.map((c) => c.text)
+						.join("\n");
+					if (t) texts.push(t);
+				}
+				transportFailure = transportFailureFromMessage(ev.message) ?? transportFailure;
+			}
+		});
+
+		// 双 abort 并联（P2F-5）：内部 stepTimeout / 外部 stop watcher——同一条优雅收尾路
+		const doAbort = () => {
+			aborted = true;
+			agent?.abort();
+		};
+		timeout = setTimeout(doAbort, opts.timeoutMs ?? 600_000);
+		onAbort = () => doAbort();
+		opts.abortSignal?.addEventListener("abort", onAbort, { once: true });
+
 		await agent.prompt(renderStepPrompt(step, situational, standardsIndex));
 	} finally {
-		clearTimeout(timeout);
-		opts.abortSignal?.removeEventListener("abort", onAbort);
-		unsubscribe();
+		if (timeout) clearTimeout(timeout);
+		if (onAbort) opts.abortSignal?.removeEventListener("abort", onAbort);
+		// P3pre-4 steer 两段式核销：watcher 送达账是乐观的（agent.steer() 入队即记"送达"），
+		// 会话收尾核对未消费队列——有残留 = 插话没真正进会话，落 is_error 账纠偏
+		if (agent?.hasQueuedMessages()) {
+			const pending = agent.peekQueuedMessages().length;
+			logActivity(db, {
+				task_id: task.name,
+				node_id: step.id,
+				session_id: sessionId,
+				worker: "operator",
+				kind: "result",
+				tool: "steer",
+				is_error: true,
+				summary: `steer 发送失败：worker 已退出（未消费 ${pending} 条）`,
+				detail: "steered 事件已保留，planner 侧兜底判断是否影响后续方向",
+			});
+		}
+		unsubscribe?.();
 		if (browserSession) await browserSession.dispose();
 		if (pool) await pool.shutdown();
 	}
 
-	// 收尾：计量落 activity（token 四列）+ step 状态（正常 done / 超时或 stop 掐断 exhausted）
+	// 收尾：计量落 activity（token 四列）+ step 三态
+	// （P3pre-2：aborted→exhausted｜传输层故障→blocked｜else done；blocked 走 v1.2 重派规则）
+	const outcome = aborted ? "exhausted" : transportFailure ? "blocked" : "done";
 	logActivity(db, {
 		task_id: task.name,
 		node_id: step.id,
 		session_id: sessionId,
 		worker: "worker",
 		kind: "result",
-		tool: "runWorkerStep",
-		summary: `step #${step.id} ${aborted ? "掐断（超时/stop）" : "完成"}，${usage.turns} 轮`,
-		detail: (texts[texts.length - 1] ?? "").slice(0, 1000),
+		tool: transportFailure ? "channel" : "runWorkerStep",
+		is_error: Boolean(transportFailure),
+		summary: transportFailure
+			? `step #${step.id} blocked：${transportFailure.label}，${usage.turns} 轮`
+			: `step #${step.id} ${aborted ? "掐断（超时/stop）" : "完成"}，${usage.turns} 轮`,
+		detail: transportFailure ? transportFailure.raw.slice(0, 1000) : (texts[texts.length - 1] ?? "").slice(0, 1000),
 		tokens: { input: usage.input, output: usage.output, cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite },
 	});
-	setStepState(db, task.name, step.id, aborted ? "exhausted" : "done");
+	setStepState(db, task.name, step.id, outcome);
 
 	const newFactIds = idsBySession(db, sessionId, "fact");
 	const newFindingIds = idsBySession(db, sessionId, "finding");
@@ -219,6 +269,7 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		newFactIds,
 		newFindingIds,
 		aborted,
+		...(transportFailure ? { transportError: transportFailure.label + "：" + transportFailure.raw } : {}),
 	};
 }
 

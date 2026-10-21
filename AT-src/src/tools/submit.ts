@@ -16,6 +16,7 @@ export interface SubmitToolOptions {
 	taskId: string;
 	taskDir: string;
 	sessionId?: string;
+	assetsDb?: Database;
 }
 
 function textResult(text: string) {
@@ -52,6 +53,7 @@ export function createSubmitFactTool(opts: SubmitToolOptions): AgentTool<any> {
 				taskDir: opts.taskDir,
 				stepId: Number(params?.step_id),
 				sessionId: opts.sessionId,
+				assetsDb: opts.assetsDb,
 				payload: {
 					summary: String(params?.summary ?? ""),
 					evidence: String(params?.evidence ?? ""),
@@ -103,6 +105,7 @@ export function createSubmitFindingTool(opts: SubmitToolOptions): AgentTool<any>
 				taskDir: opts.taskDir,
 				stepId: Number(params?.step_id),
 				sessionId: opts.sessionId,
+				assetsDb: opts.assetsDb,
 				...(Array.isArray(params?.related_fact_ids) ? { relatedFactIds: params.related_fact_ids.map(Number) } : {}),
 				payload: {
 					summary: String(params?.summary ?? ""),

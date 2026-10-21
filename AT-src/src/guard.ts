@@ -50,8 +50,12 @@ export function extractHosts(text: string): string[] {
 const DESTRUCTIVE_RX =
 	/\b(rm\s+(-[a-z]*[rf][a-z]*\s+|--recursive)|mkfs(\.\w+)?\b|dd\s+if=|format\s+[a-zA-Z]:|shutdown\b|reboot\b|:\(\)\s*\{\s*:\|\|:\s*&\s*\}\s*;|del\s+\/[sq])/i;
 
-export function builtinRules(scopeHosts: string[]): GuardRule[] {
-	const hosts = new Set(scopeHosts.map((h) => h.toLowerCase()));
+export function builtinRules(scopeHosts: string[] | Set<string>): GuardRule[] {
+	// P3-4：传 Set 直接用引用不拷贝，供 scope-add 运行时扩权原位生效
+	const hosts =
+		scopeHosts instanceof Set
+			? scopeHosts
+			: new Set(scopeHosts.map((h) => h.toLowerCase()));
 	return [
 		{
 			id: "scope-host-allowlist",
@@ -95,7 +99,7 @@ export function builtinRules(scopeHosts: string[]): GuardRule[] {
 export interface GuardOptions {
 	taskId?: string;
 	sessionId?: string;
-	scopeHosts: string[];
+	scopeHosts: string[] | Set<string>;
 	/** 追加规则（测试/未来扩展用）。 */
 	extraRules?: GuardRule[];
 }

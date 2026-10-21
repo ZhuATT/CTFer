@@ -21,6 +21,7 @@ export type TriggerEvent =
 	| { type: "hint"; text: string }
 	| { type: "resume"; nodeCount: number }
 	| { type: "steered"; text: string; stepId: number }
+	| { type: "scope_changed"; added: string[] }
 	| { type: "stall" };
 
 export function renderTriggers(events: TriggerEvent[]): string {
@@ -44,13 +45,19 @@ export function renderTriggers(events: TriggerEvent[]): string {
 				lines.push(`- 目标${ev.action === "added" ? "新增" : ev.action === "edited" ? "修改" : "删除"}：${ev.text}`);
 				break;
 			case "hint":
-				lines.push(`- 操作员插入一条指示：「${ev.text}」——据此调整/补充方向`);
+				lines.push(
+					`- 操作员插入一条指示：「${ev.text}」——据此调整/补充方向` +
+						`（建议级：结合态势判断采纳/部分采纳/忽略，派单时在 note 里说明取舍）`,
+				);
 				break;
 			case "resume":
 				lines.push(`- 续跑恢复：图上已有 ${ev.nodeCount} 个节点（历史进度见态势，别重复已完成的）`);
 				break;
 			case "steered":
 				lines.push(`- 操作员曾对 step #${ev.stepId} 插话：「${ev.text}」——执行层已收到该插话，判断是否影响后续方向`);
+				break;
+			case "scope_changed":
+				lines.push(`- 操作员扩权：新增 host ${ev.added.join(", ")}——现可派相关方向`);
 				break;
 			case "stall":
 				lines.push("- 【接力唤醒】图上已无待办 step——本轮三选一：派真方向 / prove_goal / conclude_task（若确实都探尽了）");

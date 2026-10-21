@@ -223,8 +223,13 @@ export class BrowserPool {
 		if (st) {
 			await killPid(st.pid); // P0：不复用，先清场再拉新
 		}
-		await pool.launchNew();
-		return pool;
+		try {
+			await pool.launchNew();
+			return pool;
+		} catch (err) {
+			await pool.shutdown();
+			throw err;
+		}
 	}
 
 	/** 探活自愈：假死/崩溃 → 杀旧拉新。 */

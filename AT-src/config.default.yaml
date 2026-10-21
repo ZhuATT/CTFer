@@ -6,3 +6,4 @@ channels:
 run:
   maxRounds: 20
   budgetMs: 3600000
+  circuitBreaker: 3   # P3pre-2：连续 blocked step 达此数熔断终止（通道故障时防空泡烧轮数）

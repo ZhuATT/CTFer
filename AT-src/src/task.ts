@@ -13,6 +13,7 @@ import { z } from "zod";
 
 export const TaskJson = z.object({
 	name: z.string().min(1).max(80),
+	project: z.string().regex(/^[a-zA-Z0-9._-]+$/, "非法 project 名").optional(),
 	goal: z.string().min(4),
 	scope: z.object({ hosts: z.array(z.string().min(1)).min(1) }),
 	seed_steps: z
@@ -26,13 +27,21 @@ export const TaskJson = z.object({
 });
 export type TaskJson = z.infer<typeof TaskJson>;
 
+export function projectDir(tasksRoot: string, project: string): string {
+	if (!/^[a-zA-Z0-9._-]+$/.test(project)) throw new Error(`非法 project 名：${project}`);
+	return resolve(tasksRoot, "..", "projects", project);
+}
+
 export function taskDir(tasksRoot: string, name: string): string {
 	// 任务名做目录片段防逃逸
 	if (!/^[a-zA-Z0-9._-]+$/.test(name)) throw new Error(`非法 task 名：${name}`);
 	return resolve(tasksRoot, name);
 }
 
-export function loadTask(tasksRoot: string, name: string): { task: TaskJson; dir: string; dbPath: string } {
+export function loadTask(
+	tasksRoot: string,
+	name: string,
+): { task: TaskJson; dir: string; dbPath: string; assetsDbPath?: string } {
 	const dir = taskDir(tasksRoot, name);
 	const jsonPath = join(dir, "task.json");
 	if (!existsSync(jsonPath)) throw new Error(`task 不存在：${jsonPath}`);
@@ -43,7 +52,13 @@ export function loadTask(tasksRoot: string, name: string): { task: TaskJson; dir
 	}
 	mkdirSync(join(dir, "evidence"), { recursive: true });
 	initStandards(dir);
-	return { task: parsed.data, dir, dbPath: join(dir, "graph.db") };
+	let assetsDbPath: string | undefined;
+	if (parsed.data.project) {
+		const pDir = projectDir(tasksRoot, parsed.data.project);
+		mkdirSync(pDir, { recursive: true });
+		assetsDbPath = join(pDir, "assets.db");
+	}
+	return { task: parsed.data, dir, dbPath: join(dir, "graph.db"), assetsDbPath };
 }
 
 // ── standards/（p2fix P2F-8，D4：agent 参考资料唯一目录） ──

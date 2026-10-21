@@ -51,6 +51,12 @@ async function main(): Promise<number> {
 				stepTimeoutMs: flags["step-timeout-min"] ? Number(flags["step-timeout-min"]) * 60_000 : undefined,
 			});
 			console.log(`\n[run] 结束：reason=${result.reason} rounds=${result.rounds} workerSteps=${result.workerSteps} plannerWakeups=${result.plannerWakeups}`);
+			// P3pre：可靠性终局的人话提示——修复后重跑即续（initTask 幂等）
+			if (result.reason === "channel-down") {
+				console.log(`[run] 通道故障熔断——连续 step 传输层失败。检查配额/端点（config.yaml channels 段），修复后重跑即续。`);
+			} else if (result.reason === "planner-error") {
+				console.log(`[run] planner 唤醒失败（已重试 1 次）——检查通道后重跑即续，中断前进度不丢。`);
+			}
 			// 终态打印图
 			const { task: t, dbPath } = loadTask(TASKS_ROOT, task);
 			const db = openDb(dbPath);

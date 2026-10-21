@@ -21,11 +21,27 @@ import {
 import { logActivity, nowIso, type EdgeRow, type NodeRow } from "./db.js";
 import { noreportCheck } from "./noreport.js";
 import type { TaskJson } from "./task.js";
+import { anchorFact, coverageQuery, type CoverageQueryResult } from "./assets.js";
 
 // ── 基础 ──
 
 export function getNode(db: Database, taskId: string, id: number): NodeRow | undefined {
 	return db.prepare("SELECT * FROM nodes WHERE task_id = ? AND id = ?").get(taskId, id) as NodeRow | undefined;
+}
+
+/**
+ * 获取任务当前有效 goal（P3-8，D8 拍板）：
+ * 优先取最新 open（未完成目标）；若无 open 则取最新终态（achieved/closed）。
+ * 统一 7 处调用点，支持 reopen 续期与多 goal 拓扑。
+ */
+export function currentGoal(db: Database, taskId: string): NodeRow | undefined {
+	const openGoal = db
+		.prepare("SELECT * FROM nodes WHERE task_id = ? AND kind = 'goal' AND state = 'open' ORDER BY id DESC LIMIT 1")
+		.get(taskId) as NodeRow | undefined;
+	if (openGoal) return openGoal;
+	return db
+		.prepare("SELECT * FROM nodes WHERE task_id = ? AND kind = 'goal' ORDER BY id DESC LIMIT 1")
+		.get(taskId) as NodeRow | undefined;
 }
 
 export function getEdges(db: Database, taskId: string, opts?: { src?: number; dst?: number; rel?: string }): EdgeRow[] {
@@ -66,19 +82,35 @@ export interface InitTaskResult {
 	stepIds: number[];
 	/** false=复用已有图（续跑），true=本次新建。 */
 	fresh: boolean;
+	/** D8：reopen 触发目标变更（新 goal 播种）。 */
+	goalChanged?: boolean;
 }
 
 /** 建 root goal + seed steps（仅测试夹具，D2：生产 step 由 P2 planner 供给）+ dispatch 边。
- * 幂等：图已有节点则直接返回现有 root goal 与 steps，不重复播种（fresh=false）。 */
+ * 幂等：图已有节点则直接返回现有 root goal 与 steps，不重复播种（fresh=false）。
+ * D8 升级：最新 goal 是终态 且 task.goal ≠ 其文本 → 播种新 goal（origin=program）+ goalChanged=true。 */
 export function initTask(db: Database, task: TaskJson): InitTaskResult {
-	const existing = db.prepare("SELECT id FROM nodes WHERE task_id = ? AND kind = 'goal' ORDER BY id LIMIT 1").get(
-		task.name,
-	) as { id: number } | undefined;
-	if (existing) {
+	const curGoal = currentGoal(db, task.name);
+	if (curGoal) {
+		const curPayload = parsePayload<GoalPayloadLike>(curGoal);
+		// D8：终态 goal + 文本变化 → 播种新 goal
+		if (curGoal.state !== "open" && curPayload.text !== task.goal) {
+			const now = nowIso();
+			const newPayload = GoalPayload.parse({ text: task.goal });
+			const ins = db.prepare(
+				"INSERT INTO nodes (task_id, kind, state, origin, payload, created_at, updated_at) VALUES (?, 'goal', 'open', 'program', ?, ?, ?)",
+			);
+			const newGoalId = Number(ins.run(task.name, JSON.stringify(newPayload), now, now).lastInsertRowid);
+			const steps = db
+				.prepare("SELECT id FROM nodes WHERE task_id = ? AND kind = 'step' ORDER BY id")
+				.all(task.name) as Array<{ id: number }>;
+			return { rootGoalId: newGoalId, stepIds: steps.map((s) => s.id), fresh: false, goalChanged: true };
+		}
+
 		const steps = db
 			.prepare("SELECT id FROM nodes WHERE task_id = ? AND kind = 'step' ORDER BY id")
 			.all(task.name) as Array<{ id: number }>;
-		return { rootGoalId: existing.id, stepIds: steps.map((s) => s.id), fresh: false };
+		return { rootGoalId: curGoal.id, stepIds: steps.map((s) => s.id), fresh: false };
 	}
 
 	const now = nowIso();
@@ -124,6 +156,7 @@ export interface SubmitFactArgs {
 	stepId: number;
 	payload: FactPayloadT;
 	sessionId?: string;
+	assetsDb?: Database;
 }
 
 export interface SubmitResult {
@@ -156,6 +189,10 @@ export function submitFact(db: Database, args: SubmitFactArgs): SubmitResult {
 			.run(taskId, sessionId ?? null, stepId, sha, JSON.stringify(payload), now, now, now).lastInsertRowid,
 	);
 	addEdge(db, taskId, stepId, "produces", id);
+	// P3-3：校验器5 机械锚点（旁路不阻塞，endpoint 解析异常在 assets 内部被吞）
+	if (payload.endpoint?.trim() && args.assetsDb) {
+		anchorFact(args.assetsDb, taskId, id, payload.endpoint);
+	}
 	logActivity(db, {
 		task_id: taskId,
 		node_id: id,
@@ -177,6 +214,7 @@ export interface SubmitFindingArgs {
 	payload: FindingPayloadT;
 	relatedFactIds?: number[];
 	sessionId?: string;
+	assetsDb?: Database;
 }
 
 export function submitFinding(db: Database, args: SubmitFindingArgs): SubmitResult & { noreport?: { verdict: string; reason: string } } {
@@ -215,6 +253,10 @@ export function submitFinding(db: Database, args: SubmitFindingArgs): SubmitResu
 	for (const fid of args.relatedFactIds ?? []) {
 		addEdge(db, taskId, fid, "proves", id);
 	}
+	// P3-3：校验器5 机械锚点
+	if (payload.endpoint?.trim() && args.assetsDb) {
+		anchorFact(args.assetsDb, taskId, id, payload.endpoint);
+	}
 	logActivity(db, {
 		task_id: taskId,
 		node_id: id,
@@ -247,9 +289,7 @@ export interface AddStepOutcome {
  * 该条拒收回执，批量内其余照常（D3：程序精确硬拒零误伤，语义比对归 prompt）。 */
 export function addStep(db: Database, taskId: string, steps: AddStepInput[], sessionId?: string): AddStepOutcome {
 	if (steps.length > 4) throw new Error(`一次最多 4 条（收到 ${steps.length}）——挑最高价值的派`);
-	const goal = db.prepare("SELECT id FROM nodes WHERE task_id = ? AND kind='goal' ORDER BY id LIMIT 1").get(taskId) as
-		| { id: number }
-		| undefined;
+	const goal = currentGoal(db, taskId);
 	if (!goal) throw new Error("task 无 root goal——先 initTask");
 	const openSteps = db
 		.prepare("SELECT payload FROM nodes WHERE task_id = ? AND kind='step' AND state IN ('open','running')")
@@ -340,9 +380,7 @@ export function proveGoal(db: Database, args: ProveGoalArgs): { achieved: true }
 
 /** goal 是否已达成（runTask 终止检查用）。 */
 export function goalAchieved(db: Database, taskId: string): boolean {
-	const goal = db
-		.prepare("SELECT state FROM nodes WHERE task_id = ? AND kind='goal' ORDER BY id LIMIT 1")
-		.get(taskId) as { state: string } | undefined;
+	const goal = currentGoal(db, taskId);
 	return goal?.state === "achieved";
 }
 
@@ -355,9 +393,7 @@ export interface ConcludeGoalArgs {
 }
 
 export function concludeGoal(db: Database, args: ConcludeGoalArgs): { closed: true } {
-	const goal = db
-		.prepare("SELECT * FROM nodes WHERE task_id = ? AND kind='goal' ORDER BY id LIMIT 1")
-		.get(args.taskId) as NodeRow | undefined;
+	const goal = currentGoal(db, args.taskId);
 	if (!goal) throw new Error("task 无 root goal——先 initTask");
 	if (goal.state !== "open") throw new Error(`goal #${goal.id} 已是 ${goal.state}，不能重复收尾`);
 
@@ -387,9 +423,7 @@ export function concludeGoal(db: Database, args: ConcludeGoalArgs): { closed: tr
 
 /** goal 是否已收尾（runTask 终止检查用，reason=goal-closed）。 */
 export function goalClosed(db: Database, taskId: string): boolean {
-	const goal = db
-		.prepare("SELECT state FROM nodes WHERE task_id = ? AND kind='goal' ORDER BY id LIMIT 1")
-		.get(taskId) as { state: string } | undefined;
+	const goal = currentGoal(db, taskId);
 	return goal?.state === "closed";
 }
 
@@ -421,13 +455,12 @@ export interface GraphOverview {
 	recent_facts: Array<{ id: number; summary: string; from_step: number | null; confidence: string; created_at: string }>;
 	findings: Array<{ id: number; summary: string; severity: string; state: string }>;
 	counts: Record<string, number>;
+	coverage?: CoverageQueryResult;
 }
 
-/** 态势视图（§2.4 消费闭环第一块）。P1 无资产表→无 coverage——worker/planner 同函数同视图。 */
-export function graphOverview(db: Database, taskId: string): GraphOverview {
-	const goalRow = db
-		.prepare("SELECT * FROM nodes WHERE task_id = ? AND kind = 'goal' ORDER BY id LIMIT 1")
-		.get(taskId) as NodeRow | undefined;
+/** 态势视图（§2.4 消费闭环第一块）。assetsDb 在场时返回 coverage。 */
+export function graphOverview(db: Database, taskId: string, assetsDb?: Database): GraphOverview {
+	const goalRow = currentGoal(db, taskId);
 	const steps = db
 		.prepare("SELECT * FROM nodes WHERE task_id = ? AND kind = 'step' ORDER BY id")
 		.all(taskId) as NodeRow[];
@@ -465,6 +498,7 @@ export function graphOverview(db: Database, taskId: string): GraphOverview {
 			return { id: f.id, summary: p.summary, severity: p.severity, state: f.state };
 		}),
 		counts,
+		...(assetsDb ? { coverage: coverageQuery(assetsDb, taskId) } : {}),
 	};
 }
 
@@ -489,9 +523,7 @@ export interface WorkerSituationalView {
  * 「这条 step 为什么被派」的证据链，不含全图 steps/findings 明细（那是 planner 的视野）。
  * 按 id 升序去重。 */
 export function stepLineageView(db: Database, taskId: string, step: NodeRow): WorkerSituationalView {
-	const goalRow = db
-		.prepare("SELECT * FROM nodes WHERE task_id = ? AND kind = 'goal' ORDER BY id LIMIT 1")
-		.get(taskId) as NodeRow | undefined;
+	const goalRow = currentGoal(db, taskId);
 
 	const seen = new Set<number>([step.id]);
 	const facts = new Map<number, NodeRow>();

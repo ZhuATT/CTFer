@@ -37,14 +37,18 @@ export function renderPlannerUserMessage(parts: {
 	todosText: string;
 	goalText: string;
 	stalled: boolean;
+	interventionsText?: string;
+	briefingText?: string;
 }): string {
 	return [
 		`【任务目标】${parts.goalText}`,
+		...(parts.briefingText?.trim() ? ["", parts.briefingText.trim()] : []),
 		"",
 		parts.triggers,
 		"",
+		...(parts.interventionsText?.trim() ? [parts.interventionsText.trim(), ""] : []),
 		"【态势预取】",
-		"（字段导读：steps=全量含 note；recent_facts=最新 20 条，counts 给总数；findings=全量。）",
+		"（字段导读：steps=全量含 note；recent_facts=最新 20 条，counts 给总数；findings=全量；coverage.untouched=scope 内尚无 fact 锚定的资产（未测面），量化目标核对用 coverage.anchored/scope_total 实测值。）",
 		"（counts 里 edge:* 为边计数，如 edge:produces=step→产出的边条数。）",
 		parts.overviewJson,
 		"",

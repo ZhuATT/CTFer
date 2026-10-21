@@ -24,6 +24,68 @@ export interface Channel {
 	streamFn: StreamFn;
 }
 
+// ── 传输层故障分类（P3pre-1，429 事故根治）──
+//
+// 探路结论（pi-agent-core/pi-ai 源码核实 + 假 streamFn 探针测试固化）：
+// pi 不抛错——streamSimple catch 全部错误 → error 事件 + result() 得
+// stopReason="error"+errorMessage 的消息；agent-loop 见 error 即收轮正常返回，
+// Agent.prompt() 永不 reject。所以包装层抛 typed error 无处着落，检测点 = 订阅
+// 事件流（message_end 且 stopReason="error"），本模块只出分类纯函数。
+// abort 不是故障：pi-ai 与 handleRunFailure 都标 stopReason="aborted"，走既有 exhausted 路。
+
+export type ChannelErrorKind = "http" | "network" | "unknown";
+
+export interface ChannelTransportFailure {
+	kind: ChannelErrorKind;
+	/** HTTP 状态码（kind=http 时尽力提取，如 429/503）。 */
+	status?: number;
+	/** 原始错误消息。 */
+	raw: string;
+	/** 人读标签：`传输层故障[http 429]` / `传输层故障[network]`。 */
+	label: string;
+}
+
+const NETWORK_PATTERNS = [
+	"ENOTFOUND",
+	"ECONNRESET",
+	"ETIMEDOUT",
+	"ECONNREFUSED",
+	"EAI_AGAIN",
+	"EHOSTUNREACH",
+	"ENETUNREACH",
+	"ECONNABORTED",
+	"EPIPE",
+	"socket hang up",
+	"fetch failed",
+	"network error",
+	"Failed to fetch",
+];
+
+/** 错误消息 → 故障形态：HTTP 状态（4xx/5xx）→ http；网络错误码 → network；其余 → unknown。 */
+export function classifyTransportError(raw: string): ChannelTransportFailure {
+	const text = raw ?? "";
+	const statusMatch = /\b([45]\d{2})\b/.exec(text);
+	if (statusMatch) {
+		const status = Number(statusMatch[1]);
+		return { kind: "http", status, raw: text, label: `传输层故障[http ${status}]` };
+	}
+	if (NETWORK_PATTERNS.some((p) => text.includes(p))) {
+		return { kind: "network", raw: text, label: "传输层故障[network]" };
+	}
+	return { kind: "unknown", raw: text, label: "传输层故障[unknown]" };
+}
+
+/** pi Agent 事件里的 assistant 消息 → 传输层故障（非 assistant / 非 error 停因 / abort → undefined）。 */
+export function transportFailureFromMessage(message: unknown): ChannelTransportFailure | undefined {
+	const m = message as { role?: string; stopReason?: string; errorMessage?: string } | undefined;
+	if (!m || m.role !== "assistant" || m.stopReason !== "error") return undefined;
+	const text = m.errorMessage?.trim();
+	if (!text) {
+		return { kind: "unknown", raw: "(empty)", label: "传输层故障[unknown]" };
+	}
+	return classifyTransportError(text);
+}
+
 function makeModel(c: ChannelConfig): Model<any> {
 	const api = c.api === "anthropic" ? "anthropic-messages" : "openai-completions";
 	return {
