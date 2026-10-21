@@ -43,6 +43,8 @@ export interface RunTaskOptions {
 	plannerTimeoutMs?: number;
 	/** watcher 轮询间隔（默认 1500ms；测试可调小）。 */
 	watchIntervalMs?: number;
+	/** P3-10：浏览器池降级开关（preflight D 失败 + 人工确认降级 → false——worker 不起浏览器）。缺省 true。 */
+	browser?: boolean;
 	onEvent?: (ev: TriggerEvent) => void;
 	/** 测试钩子：替身 worker/planner（mock 集成用，零 LLM）。 */
 	deps?: {
@@ -442,6 +444,7 @@ export async function runTask(opts: RunTaskOptions): Promise<RunTaskResult> {
 					timeoutMs: opts.stepTimeoutMs,
 					abortSignal: runAbort.signal,
 					assetsDb,
+					browser: opts.browser,
 					scopeHosts: scopeSet,
 					onAgent: (a) => {
 						currentAgent = a;

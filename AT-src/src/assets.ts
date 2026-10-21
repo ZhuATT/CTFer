@@ -170,6 +170,12 @@ export function normalizeEndpoint(raw: string): NormalizedEndpoint {
 		port = parseInt(colonMatch[2], 10);
 	}
 
+	// P1 加固（实机测试计划 §1 P1）：纯路径形态（如 /jsxsd/foo.do）没有 host——
+	// 抛错交 anchorFact 的 catch 静默吞掉（旁路不阻塞 fact 入图），而不是落 host="" 垃圾资产行
+	if (!host) {
+		throw new Error(`Endpoint 缺少 host（纯路径形态？）：${trimmed}`);
+	}
+
 	const isIp = isIpAddress(host);
 	let type: AssetType;
 	let normalizedUrl: string;
@@ -353,7 +359,9 @@ export function anchorFact(
 	}
 }
 
-/** 查询本任务 scope 内可见资产（带本 task 锚计数，支持模糊搜索 q 和分页）。 */
+/** 查询本任务 scope 内可见资产（带本 task 锚计数，支持模糊搜索 q 和分页）。
+ * P2 修法 A：anchor_count 按 **host 级**统计（本 task 在同 host 任意 port 资产上的锚都算）——
+ * scope 裸 host（port=null）与 worker endpoint host:port 形态不再分裂；assets 表端口精度保留。 */
 export function listAssetsInScope(
 	db: Database.Database,
 	taskName: string,
@@ -377,18 +385,21 @@ export function listAssetsInScope(
 			.get(...countParams) as { n: number }
 	).n;
 
+	// 锚计数子查询：host 级匹配（锚落在本 task 关联资产的任意 port 形态上都算数）
 	const selectParams = q
 		? [taskName, taskName, `%${q}%`, `%${q}%`, pageSize, offset]
 		: [taskName, taskName, pageSize, offset];
 
 	const rows = db
 		.prepare(
-			`SELECT a.*, COUNT(anc.node_id) AS anchor_count
+			`SELECT a.*, (
+         SELECT COUNT(*) FROM anchors anc
+         WHERE anc.task_id = ?
+           AND anc.asset_id IN (SELECT a2.id FROM assets a2 WHERE a2.host = a.host)
+       ) AS anchor_count
        FROM assets a
        JOIN asset_tasks at ON at.asset_id = a.id
-       LEFT JOIN anchors anc ON anc.asset_id = a.id AND anc.task_id = ?
        ${whereClause}
-       GROUP BY a.id
        ORDER BY a.id ASC
        LIMIT ? OFFSET ?`,
 		)
@@ -397,15 +408,19 @@ export function listAssetsInScope(
 	return { total, page, pageSize, assets: rows };
 }
 
-/** 计算当前 task 的覆盖度（未测面 untouched 截取前 30 条）。 */
+/** 计算当前 task 的覆盖度（未测面 untouched 截取前 30 条）。
+ * P2 修法 A：anchored 判定按 **host 级**——本 task 在同 host 任意 port 资产上有锚即算已测
+ * （scope 裸 host 资产不再因 worker 提交 host:port 形态而恒 untouched）；他 task 的锚不计入。 */
 export function coverageQuery(db: Database.Database, taskName: string): CoverageQueryResult {
 	const rows = db
 		.prepare(
-			`SELECT a.id, a.type, a.host, a.port, a.url, COUNT(anc.node_id) AS anchor_count
+			`SELECT a.id, a.type, a.host, a.port, a.url, (
+         SELECT COUNT(*) FROM anchors anc
+         WHERE anc.task_id = ?
+           AND anc.asset_id IN (SELECT a2.id FROM assets a2 WHERE a2.host = a.host)
+       ) AS anchor_count
        FROM assets a
        JOIN asset_tasks at ON at.asset_id = a.id AND at.task_id = ?
-       LEFT JOIN anchors anc ON anc.asset_id = a.id AND anc.task_id = ?
-       GROUP BY a.id
        ORDER BY a.id ASC`,
 		)
 		.all(taskName, taskName) as Array<{

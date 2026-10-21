@@ -255,5 +255,58 @@ describe("P3-1 assets.ts 基建", () => {
 
 			db.close();
 		});
+
+		// ── P2 修法 A（实机测试计划 §1 P2）：scope 裸 host 与锚定 host:port 的 host 级放宽 ──
+
+		it("host 级放宽：scope 裸 host(port=null) 资产被 host:port 锚覆盖（coverage/list_assets/端口精度保留）", () => {
+			const dbPath = join(dir, "test-p2-host-level.db");
+			const db = openAssetsDb(dbPath);
+
+			// guard 约束下 scope 只能写裸 host → port=null 资产
+			resolveScopeHosts(db, "task-H", ["127.0.0.1"], "proj");
+			// worker endpoint 天然 host:port 形态 → port=8790 资产（同 host 不同 port，两行）
+			anchorFact(db, "task-H", 11, "127.0.0.1:8790/api/orders/8823", "proj");
+
+			// 资产两行（端口精度保留，审计不受损）
+			const hostRows = db.prepare("SELECT host, port FROM assets WHERE host='127.0.0.1'").all() as Array<{ port: number | null }>;
+			expect(hostRows).toHaveLength(2);
+			expect(hostRows.map((r) => r.port).sort((a, b) => (a ?? -1) - (b ?? -1))).toEqual([null, 8790]);
+
+			// coverage：裸 host scope 资产被 host 级锚覆盖 → anchored=1、untouched 空（修前恒 0/恒 untouched）
+			const cov = coverageQuery(db, "task-H");
+			expect(cov.scope_total).toBe(1);
+			expect(cov.anchored).toBe(1);
+			expect(cov.untouched).toHaveLength(0);
+
+			// list_assets 锚计数同款 host 级
+			const view = listAssetsInScope(db, "task-H");
+			expect(view.assets[0].anchor_count).toBe(1);
+
+			// 他 task 的锚不跨 task 计入
+			anchorFact(db, "task-other", 12, "127.0.0.1:8790/other", "proj");
+			const cov2 = coverageQuery(db, "task-H");
+			expect(cov2.anchored).toBe(1);
+
+			// 不同 host 的锚不误伤
+			anchorFact(db, "task-H", 13, "other-host.com:9999/x", "proj");
+			const cov3 = coverageQuery(db, "task-H");
+			expect(cov3.anchored).toBe(1); // 127.0.0.1 仍只被自己的锚覆盖
+			expect(cov3.untouched).toHaveLength(0);
+
+			db.close();
+		});
+
+		it("P1 加固：纯路径 endpoint 抛错（anchorFact 静默吞，不落 host='' 垃圾行）", () => {
+			const dbPath = join(dir, "test-p1-path-guard.db");
+			const db = openAssetsDb(dbPath);
+
+			expect(() => normalizeEndpoint("/jsxsd/foo.do")).toThrow("缺少 host");
+			const before = (db.prepare("SELECT COUNT(*) AS n FROM assets").get() as { n: number }).n;
+			expect(anchorFact(db, "task-P", 1, "/jsxsd/foo.do")).toBeUndefined(); // catch 静默
+			const after = (db.prepare("SELECT COUNT(*) AS n FROM assets").get() as { n: number }).n;
+			expect(after).toBe(before); // 无垃圾资产行
+
+			db.close();
+		});
 	});
 });

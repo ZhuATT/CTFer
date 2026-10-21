@@ -45,13 +45,19 @@ export function buildProjectBriefing(
 ): ProjectBriefing | undefined {
 	if (!existsSync(tasksRoot)) return undefined;
 
-	// 1. 查本 task scope 资产拥有的 anchors
+	// 1. 查锚定到本 task scope 资产的 anchors（P2 修法 A：host 级匹配——前任锚落在同 host
+	// 任意 port 形态资产上都算，scope 裸 host 与 endpoint host:port 不再分裂；port 精度保留在 assets 表）
 	const anchorRows = assetsDb
 		.prepare(
 			`SELECT anc.task_id, anc.node_id
        FROM anchors anc
-       JOIN asset_tasks at ON at.asset_id = anc.asset_id AND at.task_id = ?
-       WHERE anc.task_id != ?`,
+       JOIN assets aa ON aa.id = anc.asset_id
+       WHERE anc.task_id != ?
+         AND EXISTS (
+           SELECT 1 FROM assets sa
+           JOIN asset_tasks at ON at.asset_id = sa.id AND at.task_id = ?
+           WHERE sa.host = aa.host
+         )`,
 		)
 		.all(selfTask, selfTask) as Array<{ task_id: string; node_id: number }>;
 

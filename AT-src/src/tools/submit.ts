@@ -44,7 +44,12 @@ export function createSubmitFactTool(opts: SubmitToolOptions): AgentTool<any> {
 				description: "observed=直接看到；inferred=推断",
 			}),
 			detail: Type.Optional(Type.String({ description: "可选：对断言的拓展说明" })),
-			endpoint: Type.Optional(Type.String({ description: "可选：机器可解析端点，如 /jsxsd/foo.do" })),
+			endpoint: Type.Optional(
+				Type.String({
+					description:
+						"可选：机器可解析端点，须带 host（锚定资产用），如 127.0.0.1:8790/api/orders/8823 或 api.target.com/foo.do——别写纯路径（纯路径锚不到资产）",
+				}),
+			),
 		}),
 		outputSchema: Type.Object({ id: Type.Number(), dedup: Type.Boolean() }),
 		execute: async (_id, params: any) => {
@@ -95,7 +100,12 @@ export function createSubmitFindingTool(opts: SubmitToolOptions): AgentTool<any>
 			poc: Type.String({ description: "最小复现命令" }),
 			evidence: Type.String({ description: "证据文件相对路径（evidence/ 下）" }),
 			report: Type.Optional(Type.String({ description: "可选：结构化报告正文" })),
-			endpoint: Type.Optional(Type.String({ description: "可选：机器可解析端点，如 /static/app.js.map" })),
+			endpoint: Type.Optional(
+				Type.String({
+					description:
+						"可选：机器可解析端点，须带 host（锚定资产用），如 127.0.0.1:8790/static/app.js.map 或 api.target.com/.map——别写纯路径（纯路径锚不到资产）",
+				}),
+			),
 			related_fact_ids: Type.Optional(Type.Array(Type.Number(), { description: "支撑性 fact 编号列表" })),
 		}),
 		outputSchema: Type.Object({ id: Type.Number() }),

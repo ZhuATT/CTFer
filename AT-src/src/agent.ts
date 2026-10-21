@@ -109,7 +109,7 @@ export function renderStepPrompt(step: NodeRow, situational: WorkerSituationalVi
 		"完成定义：",
 		"1. 用 Bash/浏览器对目标做该 step 描述的动作；",
 		"2. 把关键证据用 Write 写进 evidence/<名字>.txt（一行命令 + 最能证明的输出）；",
-		"3. submit_fact（step_id 填本 step 编号）写回结论；若确认漏洞则 submit_finding；",
+		"3. submit_fact（step_id 填本 step 编号）写回结论；若确认漏洞则 submit_finding；endpoint 参数写完整 host[:port]/路径 形态（锚定资产用），别写纯路径；",
 		"3.5 若方向探不动/结果全阴性：这也是结论——submit_fact 落阴性观察（confidence=observed，summary 写明已试手段与结果），别空手收尾；",
 		"4. 完成即停，不要领取或执行其他 step。",
 		"",
