@@ -1,0 +1,88 @@
+{
+  "use_when": "在对 LoRaWAN 部署（智慧城市、资产追踪、工业遥测）或 433/868/915 MHz ISM 频段无线设备（车库门遥控、门铃、智能插座、胎压传感器）开展无线渗透测试需要抓包解密、密钥恢复与报文重放注入时阅读本篇，重点涵盖 OTAA 入网抓取、ABP 会话密钥复用、帧计数重放、KeeLoq 滚动码破解及 HackRF/RTL-SDR/Flipper Zero/rtl_433/URH 射频工作流，区别于 WiFi/蓝牙等常规 2.4GHz 无线攻击的亚GHz频段方法论。",
+  "triggers": [
+    "LoRaWAN",
+    "Sub-GHz",
+    "亚GHz射频攻击",
+    "OTAA入网抓包",
+    "ABP预置密钥",
+    "AppKey",
+    "NwkSKey",
+    "AppSKey",
+    "会话密钥复用",
+    "帧计数重放",
+    "下行注入",
+    "KeeLoq",
+    "滚动码破解",
+    "固定码重放",
+    "车库门遥控重放",
+    "TPMS欺骗",
+    "HackRF",
+    "RTL-SDR",
+    "Flipper Zero",
+    "rtl_433"
+  ],
+  "vulnclass": "密码学缺陷",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "四步无线攻击流程：识别频段与调制（LoRa CSS 与 OOK/FSK）、SDR 抓包、LoRaWAN 密钥派生分析、专有协议重放伪造"
+    },
+    {
+      "heading": "Hardware",
+      "what": "RTL-SDR/HackRF One/Flipper Zero/LimeSDR/YARD Stick One 及 LoRa 专用网关的射频硬件选型对比"
+    },
+    {
+      "heading": "LoRaWAN",
+      "what": "LoRaWAN MAC 层架构与 OTAA 空中激活、ABP 个性化激活两种密钥体系概述"
+    },
+    {
+      "heading": "OTAA Join Capture",
+      "what": "用 hackrf_transfer 抓取 Join-Request/Accept，结合固件提取的 AppKey 解密恢复 NwkSKey 与 AppSKey 进而解密注入流量"
+    },
+    {
+      "heading": "ABP — Pre-Flashed Keys",
+      "what": "利用 ABP 出厂预置密钥跨设备复用、无帧计数回绕保护、DevAddr 顺序可预测等缺陷，用 loraserver-attack-tools 解码注入报文"
+    },
+    {
+      "heading": "Frame Counter Replay",
+      "what": "利用 LoRaWAN 1.0.x 部分协议栈帧计数单调性校验缺失，重放历史上行报文使服务器当作新报文处理"
+    },
+    {
+      "heading": "Downlink Injection",
+      "what": "掌握 AppSKey 与 NwkSKey 后向终端设备注入下行配置修改与远程命令"
+    },
+    {
+      "heading": "Sub-GHz Proprietary Protocols",
+      "what": "433/868/915 MHz 专有协议的抓包、解调、识别报文格式与重放伪造总体思路"
+    },
+    {
+      "heading": "Quick Capture + Replay (Flipper Zero / HackRF)",
+      "what": "rtl_433 自动解码、gqrx 频谱分析、Flipper Zero 读取保存重放与 HackRF IQ 抓包配合 Inspectrum 识别 OOK/FSK 的操作命令"
+    },
+    {
+      "heading": "KeeLoq (Old Garage Doors, Some Cars)",
+      "what": "利用已公开泄露的厂商密钥解密滚动码预测下一有效码，结合 RollingPwn 抓取重放接管车库门与旧车遥控器"
+    },
+    {
+      "heading": "Fixed-Code Remotes",
+      "what": "针对每次按键发送相同报文的固定码廉价遥控设备，一次抓取即可用 Flipper Zero/HackRF 永久重放"
+    },
+    {
+      "heading": "TPMS Spoofing",
+      "what": "胎压监测传感器 315/433 MHz 无认证广播，伪造低压警报报文测试车载系统或实施信任破坏攻击"
+    },
+    {
+      "heading": "Reconstruction of Unknown Protocols",
+      "what": "用 Universal Radio Hacker 从原始 IQ 可视化识别调制、自动检测符号、解码比特并还原无文档协议结构"
+    },
+    {
+      "heading": "Detection",
+      "what": "LoRaWAN 服务端帧计数/信号强度/地理异常检测能力差异与消费级 Sub-GHz 产品基本无监控的现状"
+    },
+    {
+      "heading": "Reporting",
+      "what": "报告要求：记录每设备频率/调制/波特/报文格式，区分抓取重放与伪造报文攻击，注明加密状态与固件密钥存储位置"
+    }
+  ]
+}

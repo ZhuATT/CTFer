@@ -1,0 +1,88 @@
+{
+  "use_when": "在渗透测试中怀疑 CDN/反向代理与源站对 HTTP 请求边界解析不一致或 H2 降级出现异常请求拼接时阅读本篇，重点涵盖 CL.TE/TE.CL/TE.TE 八种混淆变体、H2.CL/H2.TE/CL.0 失步、Fat GET、客户端失步(CSD)与走私转缓存投毒利用链及主流 CDN 行为矩阵，区别于普通 CRLF 头注入与参数层注入类漏洞。",
+  "triggers": [
+    "请求走私",
+    "HTTP Request Smuggling",
+    "CL.TE",
+    "TE.CL",
+    "TE.TE",
+    "CL.0",
+    "传输编码混淆",
+    "Transfer-Encoding: chunked",
+    "H2.CL",
+    "H2.TE",
+    "HTTP/2降级走私",
+    "客户端失步",
+    "Client-Side Desync",
+    "CSD",
+    "缓存投毒",
+    "Fat GET",
+    "队列投毒",
+    "消息边界分歧",
+    "Request Smuggler",
+    "h2csmuggler"
+  ],
+  "vulnclass": "中间件漏洞",
+  "section_map": [
+    {
+      "heading": "2. CL.TE VULNERABILITIES",
+      "what": "前端信任 Content-Length 后端信任 chunked 的走私手法与 13 字节载荷构造"
+    },
+    {
+      "heading": "3. TE.CL VULNERABILITIES",
+      "what": "前端解析 chunked 后端只读 CL，在 chunk 体内嵌套第二个请求并精确计算长度"
+    },
+    {
+      "heading": "4. TE.TE VULNERABILITIES",
+      "what": "八种 Transfer-Encoding 混淆变体（TAB、前导空格、跨行冒号等）探测前后端解析差异"
+    },
+    {
+      "heading": "5. HTTP/2 REQUEST SMUGGLING",
+      "what": "H2 转 H1 降级时伪头部映射错乱与头部值内嵌请求字节的走私测试方向"
+    },
+    {
+      "heading": "6. CLIENT-SIDE DESYNC",
+      "what": "浏览器 fetch no-cors 请求体差异造成的客户端失步与 JavaScript PoC 形态"
+    },
+    {
+      "heading": "7. TOOLS",
+      "what": "Burp HTTP Request Smuggler、defparam/smuggler 等自动化走私探测工具"
+    },
+    {
+      "heading": "8. DETECTION DECISION TREE",
+      "what": "按代理拓扑与 CL/TE 优先级选择 CL.TE/TE.CL/TE.TE 探测路径的决策树"
+    },
+    {
+      "heading": "1. H2.CL — HTTP/2 Content-Length Desync",
+      "what": "H2 帧长度与 content-length 头不一致的字节级走私载荷及 GGET 确认法"
+    },
+    {
+      "heading": "2. H2.TE — HTTP/2 Transfer-Encoding Desync",
+      "what": "H2 违规 transfer-encoding 头被降级透传至后端触发 chunked 解析失步及混淆变体"
+    },
+    {
+      "heading": "3. CL.0 — CONNECTION CLOSE DESYNC",
+      "what": "后端完全忽略请求体的 CL.0 失步，针对重定向/静态文件/健康检查端点检测"
+    },
+    {
+      "heading": "4. FAT GET REQUEST SMUGGLING",
+      "what": "携带 body 的 GET 请求在前端转发后端忽略时形成失步及代理产品行为矩阵"
+    },
+    {
+      "heading": "5. REQUEST SMUGGLING → CACHE POISONING CHAIN",
+      "what": "走私请求响应与合法 URL 错配实现定向缓存投毒与响应队列错位利用"
+    },
+    {
+      "heading": "6. CLIENT-SIDE DESYNC (CSD)",
+      "what": "利用 fetch() 与 CL.0 端点毒化浏览器自身连接的完整 JS PoC 模板与暂停型失步"
+    },
+    {
+      "heading": "7. CDN / REVERSE PROXY BEHAVIOR MATRIX",
+      "what": "HAProxy/Nginx/Cloudflare/AWS ALB 等产品的 CL+TE 处理、H2 降级与连接复用对照表"
+    },
+    {
+      "heading": "8. TESTING METHODOLOGY",
+      "what": "架构识别、时间型失步探测的安全序列与影响升级检查清单"
+    }
+  ]
+}

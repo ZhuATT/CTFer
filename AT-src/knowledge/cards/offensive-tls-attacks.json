@@ -1,0 +1,80 @@
+{
+  "use_when": "在渗透测试中对目标 HTTPS/TLS 服务做加密配置审计与传输层漏洞利用时阅读本篇，重点涵盖 POODLE/DROWN/FREAK/BEAST 协议降级、Heartbleed 内存泄露、CRIME/BREACH 压缩预言机、Frida/Objection 证书固定绕过及 0-RTT 重放手法，区别于 Web 应用层漏洞挖掘的传输层安全评估。",
+  "triggers": [
+    "testssl.sh",
+    "sslyze",
+    "sslscan",
+    "POODLE",
+    "DROWN",
+    "FREAK",
+    "BEAST",
+    "CRIME",
+    "BREACH",
+    "Heartbleed",
+    "心脏出血",
+    "协议降级攻击",
+    "SSLv3",
+    "TLS剥离",
+    "HSTS绕过",
+    "证书固定绕过",
+    "Frida",
+    "Objection",
+    "0-RTT重放",
+    "mTLS"
+  ],
+  "vulnclass": "密码学缺陷",
+  "section_map": [
+    {
+      "heading": "TLS Enumeration and Scanning",
+      "what": "使用 testssl.sh/sslyze/sslscan/tlsx 枚举协议版本、密码套件、证书链与批量扫描"
+    },
+    {
+      "heading": "Protocol Downgrade Attacks",
+      "what": "利用 SSLv2/SSLv3 与出口密码套件实施 POODLE、DROWN、FREAK 降级攻击检测与密钥复用比对"
+    },
+    {
+      "heading": "BEAST Attack",
+      "what": "利用 TLS 1.0 CBC 可预测 IV 结合选择明文注入实现逐块解密"
+    },
+    {
+      "heading": "CRIME and BREACH",
+      "what": "基于 TLS 层与 HTTP 层压缩预言机逐字节恢复 Cookie 等秘密值及缓解条件判断"
+    },
+    {
+      "heading": "Heartbleed (CVE-2014-0160)",
+      "what": "利用 OpenSSL 心跳扩展缓冲区越读每次泄露 64KB 内存获取私钥与会话凭据"
+    },
+    {
+      "heading": "Certificate Validation Bypass",
+      "what": "通过代码审计 grep 定位 verify=False、TrustAllCerts 等禁用证书校验的危险模式"
+    },
+    {
+      "heading": "Certificate Pinning Bypass",
+      "what": "使用 Objection 与 Frida 脚本运行时绕过 Android/iOS 证书固定并植入系统 CA"
+    },
+    {
+      "heading": "HSTS Bypass and TLS Stripping",
+      "what": "利用首访劫持、子域名范围缺失、NTP 时钟操纵与 sslstrip2/mitmproxy 绕过 HSTS"
+    },
+    {
+      "heading": "TLS 1.3 -- 0-RTT Replay",
+      "what": "通过 openssl 会话恢复重放 0-RTT 早期数据攻击非幂等接口"
+    },
+    {
+      "heading": "mTLS Attacks",
+      "what": "枚举客户端证书要求并利用伪造证书、CA 校验缺失与证书中继攻击双向认证"
+    },
+    {
+      "heading": "Certificate Transparency Monitoring",
+      "what": "通过 crt.sh、certstream、subfinder/amass 从证书透明日志侦察子域名与新签发证书"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "防御视角监控降级探测、异常心跳、压缩预言机探测与 JA3/JA4 指纹及修复优先级"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "漏洞-检测工具-判定指标的速查表及各 TLS 协议版本风险等级总结"
+    }
+  ]
+}

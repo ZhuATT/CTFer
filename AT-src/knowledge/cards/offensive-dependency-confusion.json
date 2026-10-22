@@ -1,0 +1,88 @@
+{
+  "use_when": "在授权红队/渗透测试中需要评估目标软件供应链的依赖混淆与包命名空间抢占风险时阅读本篇，重点涵盖 npm/.npmrc 作用域映射缺陷、pip --extra-index-url 双索引、NuGet feed 优先级、Maven/Gradle 仓库顺序、GOPROXY 及 Docker 镜像标签等全生态仓库解析漏洞利用，以及 lock 文件与源码地图侦察内部包名、interactsh DNS 金丝雀安全 PoC 回连取证，区别于传统 Web 漏洞测试的供应链攻击视角。",
+  "triggers": [
+    "依赖混淆",
+    "Dependency Confusion",
+    "供应链攻击",
+    "供应链投毒",
+    "命名空间抢占",
+    "namespace squatting",
+    ".npmrc",
+    "npm scope",
+    "--extra-index-url",
+    "PyPI抢注",
+    "pip私服",
+    "NuGet feed",
+    "Maven仓库顺序",
+    "GOPROXY",
+    "Docker镜像标签混淆",
+    "interactsh",
+    "Burp Collaborator",
+    "DNS canary",
+    "package-lock.json",
+    "confused"
+  ],
+  "vulnclass": "配置错误",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "依赖混淆九步攻击链总览：侦察内部包名→公网发布高版本PoC→监控回连取证→清理上报"
+    },
+    {
+      "heading": "Reconnaissance for Internal Package Names",
+      "what": "多源搜集目标内部私有包名的侦察方法论总述"
+    },
+    {
+      "heading": "Lock File Analysis",
+      "what": "解析 package-lock.json/yarn.lock/Pipfile.lock 提取指向私有 registry 的依赖名并比对公网404"
+    },
+    {
+      "heading": "JavaScript Source Maps",
+      "what": "从生产 JS bundle 的 sourceMappingURL 与 webpack chunk 清单提取 node_modules 内部模块名"
+    },
+    {
+      "heading": "Error Messages and Stack Traces",
+      "what": "触发 404/API 报错从 Cannot find module 堆栈及 Wayback 缓存泄露内部包名"
+    },
+    {
+      "heading": "GitHub Repository Mining",
+      "what": "用 gh api 代码搜索目标 org 的 .npmrc、requirements.txt、NuGet.config 等 registry 配置"
+    },
+    {
+      "heading": "npm Scope Confusion",
+      "what": "利用 .npmrc 作用域映射缺失使内部 @scope/无作用域包回退公网 npm 解析并抢注"
+    },
+    {
+      "heading": "npm PoC Package",
+      "what": "preinstall 钩子携带主机名/用户名/CI 标记的 DNS+HTTP 最小元数据安全回连 PoC"
+    },
+    {
+      "heading": "PyPI Namespace Attacks",
+      "what": "pip --extra-index-url 双索引取最高版本缺陷利用与 --index-url 独占安全配置对比及 setup.py 钩子 PoC"
+    },
+    {
+      "heading": "NuGet Feed Priority Exploitation",
+      "what": "多 feed 最高版本优先抢注利用与 MSBuild .targets 构建期 Exec 回调执行"
+    },
+    {
+      "heading": "Maven and Gradle Repository Ordering",
+      "what": "Maven Central 先于私有仓库顺序遍历时的 groupId:artifactId 坐标抢注利用"
+    },
+    {
+      "heading": "Go Module Proxy Abuse",
+      "what": "GOPROXY 链公共代理优先的模块路径抢注与 init() 回连 PoC"
+    },
+    {
+      "heading": "Ruby Gems and Docker Image Confusion",
+      "what": "gem 名抢注 extconf.rb 安装期回调与未限定镜像名解析 Docker Hub 的投毒"
+    },
+    {
+      "heading": "Safe PoC Methodology",
+      "what": "interactsh/Burp Collaborator DNS 金丝雀带外检测、最小回连数据约束与 PoC 包描述模板"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "各生态 registry 加固对照表与安装期异常外联、999.x 版本跳变等检测信号"
+    }
+  ]
+}

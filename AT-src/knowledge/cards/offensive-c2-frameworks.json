@@ -1,0 +1,88 @@
+{
+  "use_when": "在红队演练获取初始访问后需要搭建隐蔽持久的 C2 命令控制基础设施并对抗 EDR 与流量审计时阅读本篇，重点涵盖 Cobalt Strike Malleable Profile 与 BOF、Sliver/Mythic/Havoc 免杀配置、msfvenom 载荷生成、mod_rewrite 重定向器/域前置/DNS 隧道架构与 TLS 证书管理，区别于单点漏洞利用文档，聚焦多框架选型与攻击基础设施的 OPSEC 韧性运营。",
+  "triggers": [
+    "C2框架",
+    "Command and Control",
+    "命令控制",
+    "Cobalt Strike",
+    "Beacon",
+    "Malleable C2 Profile",
+    "可变C2配置文件",
+    "BOF",
+    "Beacon Object File",
+    "Sliver",
+    "Mythic",
+    "Havoc",
+    "Demon",
+    "Metasploit",
+    "msfvenom",
+    "Meterpreter",
+    "重定向器",
+    "域前置",
+    "DNS隧道",
+    "睡眠混淆"
+  ],
+  "vulnclass": "网络与内网",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "按目标网络出口限制选型 C2 框架、搭建重定向层并建立主备信道的七步部署流程"
+    },
+    {
+      "heading": "Malleable C2 Profiles",
+      "what": "定制 HTTP 头、URI、Base64 编码与 TLS 证书元数据将 Beacon 流量伪装为 Microsoft 365"
+    },
+    {
+      "heading": "Beacon Types and Pivoting",
+      "what": "HTTP/DNS/SMB/TCP Beacon 选型、Sleep 抖动调优与命名管道内网链式转发"
+    },
+    {
+      "heading": "Beacon Object Files (BOFs)",
+      "what": "编写在 Beacon 进程内存中内联执行的 C 代码避免子进程被检测及常用 BOF 仓库"
+    },
+    {
+      "heading": "Implant Generation",
+      "what": "Sliver 生成 mTLS/WireGuard/DNS/HTTPS 多传输植入体及对应监听器启动"
+    },
+    {
+      "heading": "Operator Multiplayer and Armory",
+      "what": "多人协作操作员配置分发、armory 安装 Rubeus/Seatbelt 扩展及 portfwd/socks5 内网穿透"
+    },
+    {
+      "heading": "Agent Selection and Deployment",
+      "what": "Mythic 安装 Apollo/Poseidon/Medusa 多平台 Agent 与 HTTP C2 Profile 的流程及能力对比"
+    },
+    {
+      "heading": "Sleep Obfuscation and Evasion",
+      "what": "Havoc Demon 的 Ekko/Zilean 睡眠加密、间接系统调用与硬件断点 AMSI/ETW 绕过"
+    },
+    {
+      "heading": "Payload Generation with msfvenom",
+      "what": "分阶段与无阶段 Meterpreter 载荷生成及 exe/csharp/elf/macho 多平台格式输出"
+    },
+    {
+      "heading": "Multi/Handler Configuration",
+      "what": "编写 rc 资源脚本接收 HTTPS 回连、SSL 校验与自动进程迁移和 autoroute 路由"
+    },
+    {
+      "heading": "Apache mod_rewrite Redirectors",
+      "what": "用重写规则拦截扫描器 UA、仅匹配 C2 Profile 的 URI 转发团队服务器其余导向诱饵站"
+    },
+    {
+      "heading": "CDN Fronting and Domain Borrowing",
+      "what": "利用 CDN Host 头路由隐藏 C2 后端及悬空 CNAME 借用可信域名手法"
+    },
+    {
+      "heading": "DNS-Based C2",
+      "what": "NS 记录委派搭建 53 端口 DNS 隧道 C2 并结合 DoH 规避本地 DNS 日志"
+    },
+    {
+      "heading": "Certificate Management",
+      "what": "Let's Encrypt 与元数据匹配自签证书制作、PKCS12 导入 Cobalt Strike 密钥库及证书固定"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "蓝军视角 JA3/JA3S 指纹、Rita/Zeek 信标频率分析、Sysmon 命名管道监控与逐项规避策略"
+    }
+  ]
+}

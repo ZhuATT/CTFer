@@ -1,0 +1,88 @@
+{
+  "use_when": "在渗透测试中需要发现并深度利用 SQL 注入（含布尔/时间盲注、带外外带、二阶注入）时阅读本篇，重点涵盖 MySQL/MSSQL/Oracle/PostgreSQL/SQLite 等多库针对性利用、WAF 绕过矩阵、sqlmap 高级工作流与 xp_cmdshell/写 webshell 提权到系统命令执行，区别于仅覆盖基础探测语法或单数据库的入门手册。",
+  "triggers": [
+    "SQL注入",
+    "SQL injection",
+    "SQLi",
+    "联合查询注入",
+    "UNION SELECT",
+    "布尔盲注",
+    "时间盲注",
+    "WAITFOR DELAY",
+    "带外注入",
+    "UTL_HTTP",
+    "DNS外带",
+    "xp_cmdshell",
+    "二阶注入",
+    "万能密码",
+    "WAF绕过",
+    "sqlmap",
+    "tamper脚本",
+    "HANDLER",
+    "innodb_table_stats",
+    "xp_dirtree"
+  ],
+  "vulnclass": "SQL注入",
+  "section_map": [
+    {
+      "heading": "1. DETECTION & QUICK START",
+      "what": "首轮注入探测 payload 家族、报错指纹路由各 DBMS 与行为差异及全参数类型（URL/POST/JSON/头/Cookie）判定手法"
+    },
+    {
+      "heading": "3. UNION-BASED DATA EXTRACTION",
+      "what": "ORDER BY 列数探测、NULL 定位字符串列及各库拼接语法实现联合查询回显脱库"
+    },
+    {
+      "heading": "4. BLIND INJECTION — INFERENCE TECHNIQUES",
+      "what": "布尔盲注逐字符推断与 MSSQL WAITFOR DELAY、MySQL SLEEP、Oracle、PostgreSQL pg_sleep 等分库时间盲注手法"
+    },
+    {
+      "heading": "5. OUT-OF-BAND (OOB) EXFILTRATION",
+      "what": "OPENROWSET、UTL_HTTP/UTL_INADDR DNS 外带与 MySQL LOAD_FILE UNC 路径带外脱库及 SMB 抓 NTLMv2 哈希"
+    },
+    {
+      "heading": "6. ESCALATION — OS COMMAND EXECUTION",
+      "what": "xp_cmdshell 开启与调用、MySQL UDF 提权及 Oracle Java 存储过程执行系统命令"
+    },
+    {
+      "heading": "7. SECOND-ORDER INJECTION",
+      "what": "二阶注入原理：存储输入被信任后拼入新查询，以注册恶意用户名实现修改管理员密码为例"
+    },
+    {
+      "heading": "8. PARAMETERIZED QUERY BYPASS SCENARIOS",
+      "what": "预编译失效场景：表列名拼接、部分参数化、IN 子句动态拼接与 PDO 模拟预编译下的堆叠注入"
+    },
+    {
+      "heading": "9. FILTER EVASION TECHNIQUES",
+      "what": "内联注释断词、大小写变换、URL 编码、空白字符替代与 CHAR/CHR 构造字符串绕过关键字过滤"
+    },
+    {
+      "heading": "12. WAF BYPASS MATRIX",
+      "what": "空格/逗号/引号/OR/SELECT/information_schema 被拦截时的绕过矩阵、无空格无逗号 payload 与 polyglot 注入"
+    },
+    {
+      "heading": "16. DB-SPECIFIC: SQLITE — INJECTION TO RCE",
+      "what": "SQLite ATTACH DATABASE 写 webshell 与 cron 计划任务、load_extension RCE 及 RANDOMBLOB 重查询延时盲注"
+    },
+    {
+      "heading": "17. DB-SPECIFIC: POSTGRESQL — ADVANCED",
+      "what": "PostgreSQL 美元符引号绕过引号过滤、COPY 读写文件落地 webshell、大对象与 PL/pgSQL 命令执行"
+    },
+    {
+      "heading": "18. DB-SPECIFIC: MSSQL — ADVANCED",
+      "what": "MSSQL 链接服务器双跳横向、xp_dirtree UNC 触发窃取 NTLM 哈希、CLR 程序集与 Agent Job 命令执行"
+    },
+    {
+      "heading": "19. DB-SPECIFIC: ORACLE — ADVANCED",
+      "what": "Oracle DBMS_PIPE/DBMS_LOCK 时间盲注、DBMS_SCHEDULER 执行系统命令与 XMLTYPE XXE 带外外带"
+    },
+    {
+      "heading": "20. DB-SPECIFIC: MYSQL — ADVANCED",
+      "what": "MySQL HANDLER 语句绕 SELECT 过滤、hex 预编译执行、innodb_table_stats 与 sys 库绕 information_schema 拦截"
+    },
+    {
+      "heading": "22. INSERT / UPDATE / DELETE INJECTION PATTERNS",
+      "what": "INSERT/UPDATE/DELETE 写操作注入：附加元组回显脱库、改写 is_admin 列提权与时间盲注外带手法"
+    }
+  ]
+}

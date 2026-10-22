@@ -85,6 +85,7 @@ export function createSubmitFindingTool(opts: SubmitToolOptions): AgentTool<any>
 			"- 真实触发过 + 可复现才报；CVE/指纹/漏洞库推断 ≠ 确认——那只是 inferred fact，用 submit_fact；",
 			"- poc：最小复现命令（别人复制粘贴就能打中）；",
 			"- evidence：证据文件相对路径（Write 进 evidence/，内容=请求/响应关键部分）；",
+			"- baseline_evidence：对照证据文件相对路径（evidence/ 或 evidence/traffic/har/ 下），或显式豁免 '不适用——<一句话原因>'。proof=攻击条件在场（带 payload/受害者 ID）的请求；baseline=同端点去除攻击条件（匿名/不带 payload）的请求——两者相减差异才能归因。写不了对照就写清楚为什么不适用；",
 			"- vulnclass：漏洞类（越权/注入/未授权访问/信息泄露…）；severity：info/low/medium/high/critical 自评；",
 			"- related_fact_ids：可选，支撑该漏洞的已有 fact 编号（血缘会连 proves 边）。",
 			"severity 定级拿不准时，Read `standards/<目标厂商>.txt` 查该厂商评级细则（Grep 关键节，不全量读）；目标厂商不在列则按通用自评。",
@@ -100,6 +101,11 @@ export function createSubmitFindingTool(opts: SubmitToolOptions): AgentTool<any>
 			),
 			poc: Type.String({ description: "最小复现命令" }),
 			evidence: Type.String({ description: "证据文件相对路径（evidence/ 下）" }),
+			baseline_evidence: Type.String({
+				description:
+					"对照证据文件相对路径（evidence/ 或 evidence/traffic/har/ 下），或显式豁免 '不适用——<一句话原因>'。必填，值二选一",
+			}),
+			baseline_note: Type.Optional(Type.String({ description: "可选：对照补充说明" })),
 			report: Type.Optional(Type.String({ description: "可选：结构化报告正文" })),
 			endpoint: Type.Optional(
 				Type.String({
@@ -124,6 +130,8 @@ export function createSubmitFindingTool(opts: SubmitToolOptions): AgentTool<any>
 					severity: params?.severity as Severity,
 					poc: String(params?.poc ?? ""),
 					evidence: String(params?.evidence ?? ""),
+					baseline_evidence: String(params?.baseline_evidence ?? ""),
+					...(params?.baseline_note ? { baseline_note: String(params.baseline_note) } : {}),
 					...(params?.report ? { report: String(params.report) } : {}),
 					...(params?.endpoint ? { endpoint: String(params.endpoint) } : {}),
 				},

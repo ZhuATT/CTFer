@@ -2,34 +2,93 @@
  * browser 工具面（P0-4）：只做 browser_navigate + browser_snapshot 两个，
  * 包一层 playwright connectOverCDP 操作；其余工具面 P1 再扩。
  */
-import { chromium, type Browser, type Page } from "playwright";
+import { chromium, type Browser, type Page, type CDPSession } from "playwright";
 import { Type } from "@earendil-works/pi-ai";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { HarRecorder } from "../har.js";
 
 const SNAPSHOT_MAX_CHARS = 8000; // LLM-facing 截断，防大页面吃 token
 
 /** CDP 附着会话：connectOverCDP 连池里的 Chrome，复用默认 context 的首个页面。 */
 export class BrowserSession {
 	private browser?: Browser;
+	private cdpSession?: CDPSession;
+	readonly recorder: HarRecorder;
 
-	constructor(private readonly endpoint: string) {}
+	constructor(
+		private readonly endpoint: string,
+		private readonly harPath?: string,
+		recorder?: HarRecorder,
+	) {
+		this.recorder = recorder ?? new HarRecorder();
+	}
 
 	async page(): Promise<Page> {
 		if (!this.browser) {
 			this.browser = await chromium.connectOverCDP(this.endpoint);
 		}
 		const ctx = this.browser.contexts()[0] ?? (await this.browser.newContext());
-		return ctx.pages()[0] ?? (await ctx.newPage());
+		const p = ctx.pages()[0] ?? (await ctx.newPage());
+
+		if (this.harPath && !this.cdpSession) {
+			try {
+				this.cdpSession = await p.context().newCDPSession(p);
+				await this.cdpSession.send("Network.enable", {
+					maxTotalBufferSize: 10_000_000,
+					maxResourceBufferSize: 5_000_000,
+					maxPostDataSize: 65536,
+				});
+				this.cdpSession.on("Network.requestWillBeSent", (params) => {
+					this.recorder.onRequestWillBeSent(params);
+				});
+				this.cdpSession.on("Network.responseReceived", (params) => {
+					this.recorder.onResponseReceived(params);
+				});
+				this.cdpSession.on("Network.loadingFinished", async (params) => {
+					try {
+						const bodyRes = await this.cdpSession?.send("Network.getResponseBody", {
+							requestId: params.requestId,
+						});
+						if (bodyRes?.body) {
+							this.recorder.onResponseBody(params.requestId, bodyRes.body, bodyRes.base64Encoded);
+						}
+					} catch {
+						/* 忽略 body 获取失败 */
+					}
+					this.recorder.onLoadingFinished(params);
+				});
+				this.cdpSession.on("Network.loadingFailed", (params) => {
+					this.recorder.onLoadingFailed(params);
+				});
+			} catch {
+				/* 忽略 CDP 附着失败 */
+			}
+		}
+
+		return p;
 	}
 
-	/** 只断连接不杀 Chrome——Chrome 归 browser-pool 管（所有权单一）。 */
+	/** 只断连接不杀 Chrome——Chrome 归 browser-pool 管（所有权单一）。会话结束保证 flush HAR。 */
 	async dispose(): Promise<void> {
+		if (this.harPath) {
+			try {
+				this.recorder.flush(this.harPath);
+			} catch {
+				/* 容错 */
+			}
+		}
+		try {
+			await this.cdpSession?.detach();
+		} catch {
+			/* 已断 */
+		}
 		try {
 			await this.browser?.close();
 		} catch {
 			/* 已断 */
 		}
 		this.browser = undefined;
+		this.cdpSession = undefined;
 	}
 }
 

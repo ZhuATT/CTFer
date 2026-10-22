@@ -1,0 +1,88 @@
+{
+  "use_when": "在内核 CTF pwn 或真实 CVE 本地提权（LPE）场景下需要从 UAF/竞态/越界/类型混淆漏洞构造完整内核利用链时阅读本篇，重点涵盖 SLUB 堆喷射与 cross-cache 跨缓存、msg_msg/pipe_buffer/sk_buff 利用原语、commit_creds/modprobe_path 提权及 KASLR/SMEP/SMAP/KPTI 缓解绕过，区别于用户态二进制保护绕过与常规 Linux 提权枚举技巧。",
+  "triggers": [
+    "内核提权",
+    "kernel exploitation",
+    "LPE",
+    "UAF",
+    "释放后重用",
+    "DirtyPipe",
+    "脏管道",
+    "SLUB",
+    "堆喷射",
+    "cross-cache",
+    "msg_msg",
+    "pipe_buffer",
+    "sk_buff",
+    "setxattr",
+    "userfaultfd",
+    "commit_creds",
+    "modprobe_path",
+    "KASLR",
+    "SMEP",
+    "KPTI"
+  ],
+  "vulnclass": "提权",
+  "section_map": [
+    {
+      "heading": "2. ENVIRONMENT SETUP",
+      "what": "QEMU 自编译内核启动、GDB 远程调试与 initramfs 重打包的实验环境搭建"
+    },
+    {
+      "heading": "3. COMMON VULNERABILITY TYPES",
+      "what": "UAF/OOB读写/竞态/整数溢出/类型混淆/双重释放等内核漏洞类型及对应CVE示例"
+    },
+    {
+      "heading": "4. PRIVILEGE ESCALATION TARGETS",
+      "what": "commit_creds(prepare_kernel_cred(0))、modprobe_path覆写、cred结构清零、命名空间逃逸四类提权手法"
+    },
+    {
+      "heading": "5. KERNEL ROP",
+      "what": "通过ops函数指针与seq_operations劫持获取RIP控制及内核栈迁移gadget选择"
+    },
+    {
+      "heading": "7. RETURNING TO USERSPACE",
+      "what": "swapgs+iretq、KPTI trampoline跳板与信号处理器三种提权后干净返回用户态的路径"
+    },
+    {
+      "heading": "1. SLUB ALLOCATOR OVERVIEW",
+      "what": "SLUB分配器slab/cache/freelist机制及freelist随机化与硬化对喷射手感的影响"
+    },
+    {
+      "heading": "3. CROSS-CACHE ATTACK",
+      "what": "通过排空目标缓存、整页释放交还buddy再重分配实现跨slab缓存的页级UAF利用"
+    },
+    {
+      "heading": "4. msg_msg EXPLOITATION",
+      "what": "msg_msg结构布局及篡改m_ts/next指针配合MSG_COPY实现越界读与链式任意读"
+    },
+    {
+      "heading": "5. pipe_buffer EXPLOITATION",
+      "what": "劫持pipe_buffer的ops指针控制RIP与泄露内核地址及DirtyPipe页缓存任意覆写"
+    },
+    {
+      "heading": "7. setxattr / userfaultfd / FUSE PRIMITIVES",
+      "what": "setxattr任意大小堆写原语与userfaultfd/FUSE挂起页错误稳定竞态窗口"
+    },
+    {
+      "heading": "1. KASLR (Kernel Address Space Layout Randomization)",
+      "what": "kallsyms/dmesg/OOB读/eBPF等多渠道泄露内核基址及9位熵爆破与基址计算"
+    },
+    {
+      "heading": "2. SMEP (Supervisor Mode Execution Prevention)",
+      "what": "SMEP禁止内核执行用户页下的纯内核ROP及旧内核CR4位翻转绕过"
+    },
+    {
+      "heading": "3. SMAP (Supervisor Mode Access Prevention)",
+      "what": "SMAP禁止内核访问用户内存下用copy_from_user gadget与内核堆伪造结构绕过"
+    },
+    {
+      "heading": "4. KPTI (Kernel Page Table Isolation)",
+      "what": "利用swapgs_restore_regs_and_return_to_usermode跳板切换页表后安全返回用户态的ROP收尾"
+    },
+    {
+      "heading": "5. FG-KASLR (Function Granularity KASLR)",
+      "what": "函数级地址随机化下转向.data段modprobe_path/core_pattern数据攻击与函数指针泄露"
+    }
+  ]
+}

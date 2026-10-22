@@ -1,0 +1,88 @@
+{
+  "use_when": "在渗透测试与漏洞赏金中挖掘并利用 Web 前端跨站脚本漏洞时阅读本篇，重点涵盖存储型/反射型/DOM型/盲注 XSS 的发现流程、上下文感知 payload 构造、CSP/WAF/过滤器绕过及 mXSS、Polyglot、原型链污染到 XSS 的进阶利用链，区别于 SQL 注入等服务端注入类漏洞文档。",
+  "triggers": [
+    "XSS",
+    "跨站脚本",
+    "存储型XSS",
+    "反射型XSS",
+    "DOM型XSS",
+    "盲XSS",
+    "CSP绕过",
+    "WAF绕过",
+    "polyglot",
+    "mXSS",
+    "变异XSS",
+    "DOM clobbering",
+    "事件处理器注入",
+    "innerHTML",
+    "document.write",
+    "XSS Hunter",
+    "Dalfox",
+    "DOM Invader",
+    "Trusted Types",
+    "原型链污染"
+  ],
+  "vulnclass": "XSS",
+  "section_map": [
+    {
+      "heading": "Mechanisms",
+      "what": "XSS 漏洞原理与存储/反射/DOM/盲注四大类型分类及 LLM 生成内容型 XSS 攻击流程"
+    },
+    {
+      "heading": "Blind XSS",
+      "what": "识别无即时回显的隐蔽存储型 XSS 并借 XSS Hunter 等回调平台在管理面板/日志查看器中触发 payload"
+    },
+    {
+      "heading": "LLM-Generated Content XSS",
+      "what": "通过提示注入与 RAG 向量库投毒诱导 AI 输出未经净化的恶意脚本的攻击面"
+    },
+    {
+      "heading": "Discovery Techniques",
+      "what": "输入入口盘点、Burp 插件、WaybackURLs/Gau/GF 参数收集与 Google Dork 定位反射点的方法"
+    },
+    {
+      "heading": "Context-Aware Testing",
+      "what": "按 HTML 主体/属性/JS 字符串/CSS/URL 五种反射上下文定制专属 payload 的测试思路"
+    },
+    {
+      "heading": "Bypass Techniques",
+      "what": "标签过滤、字符串过滤、括号过滤绕过及 alert 替代函数与事件处理器替换手法"
+    },
+    {
+      "heading": "WAF Bypass Techniques",
+      "what": "针对 Cloudflare/Akamai/AWS WAF/Imperva/F5 BIG-IP/Wordfence 的专项绕过 payload"
+    },
+    {
+      "heading": "CSP Bypass Techniques",
+      "what": "CSP 关键指令解析及利用 unsafe-inline 配置错误、JSONP 端点滥用、CSP 反射注入与 Trusted Types 缺口绕过"
+    },
+    {
+      "heading": "Mutation XSS (mXSS)",
+      "what": "利用浏览器解析差异使合法 HTML 发生变异以绕过 WAF 与净化器"
+    },
+    {
+      "heading": "Polyglot XSS",
+      "what": "构造单一 payload 在 HTML/属性/JS 等多种上下文中均能执行的万能测试语句"
+    },
+    {
+      "heading": "Progressive Web App (PWA) XSS",
+      "what": "通过恶意 Service Worker 注册、Manifest 注入与推送通知实现持久化 XSS"
+    },
+    {
+      "heading": "Mobile WebView XSS",
+      "what": "Android addJavascriptInterface 实现原生命令执行与 iOS WKWebView evaluateJavaScript 注入漏洞"
+    },
+    {
+      "heading": "Tools",
+      "what": "Burp Suite/XSStrike/Dalfox/DOM Invader 等挖掘工具与 XSS Hunter/XSS.Report 盲打平台及 AI 辅助扫描器清单"
+    },
+    {
+      "heading": "Testing Methodologies",
+      "what": "侦察、初始测试、上下文分析、过滤绕过、影响评估的标准测试流程与 cookie 窃取/会话劫持升级"
+    },
+    {
+      "heading": "Remediation Recommendations",
+      "what": "Sanitizer API、Trusted Types、nonce+strict-dynamic 严格 CSP 与 Fetch-Metadata/CORP/COEP 防御方案"
+    }
+  ]
+}

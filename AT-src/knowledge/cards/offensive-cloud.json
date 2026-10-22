@@ -1,0 +1,88 @@
+{
+  "use_when": "在云环境红队或渗透中已窃得云凭证、需要评估 AWS/Azure/GCP 账户攻击面时阅读本篇，重点涵盖 IMDS 凭证窃取、PassRole/TokenCreator 等 IAM 提权矩阵、快照共享数据外带、CI/CD OIDC 信任滥用与 EventBridge/Lambda 后门持久化，区别于传统单机内网渗透的视角。",
+  "triggers": [
+    "云安全攻防",
+    "cloud security",
+    "AWS提权",
+    "iam:PassRole",
+    "IMDS凭证窃取",
+    "元数据服务",
+    "SSRF",
+    "AssumeRole",
+    "跨账户横向",
+    "Pacu",
+    "Azure AD攻击",
+    "AAD提权",
+    "ROADtools",
+    "AzureHound",
+    "GCP提权",
+    "serviceAccountTokenCreator",
+    "gcp_scanner",
+    "快照外带",
+    "Key Vault",
+    "OIDC信任滥用"
+  ],
+  "vulnclass": "提权",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "云上攻击五步流程：识别身份上下文→只读枚举权限→映射提权原语→抢先定位数据与持久化锚点→带时间戳留痕出报告"
+    },
+    {
+      "heading": "IMDS Credential Theft",
+      "what": "窃取 EC2 实例角色凭证：IMDSv1 直接 GET 与 IMDSv2 先 PUT 取 token 再 GET 的流程及 SSRF 反射自定义头才可达的现代限制"
+    },
+    {
+      "heading": "Privilege Escalation Paths",
+      "what": "AWS 提权矩阵：iam:PassRole 配合 Lambda/EC2 运行代码、CreatePolicyVersion 自改策略、CreateAccessKey 造持久凭证、CloudFormation/Glue/SSM SendCommand 间接提权"
+    },
+    {
+      "heading": "Cross-Account / Organization",
+      "what": "枚举 AssumeRolePolicyDocument 中信任当前账户的跨账户角色及 Organizations 全账户清单用于横向移动"
+    },
+    {
+      "heading": "Data Targets",
+      "what": "AWS 数据目标：S3 桶枚举、EC2/RDS 快照共享到攻击者账户实现外带、Secrets Manager 与 Parameter Store 解密读取"
+    },
+    {
+      "heading": "Persistence",
+      "what": "AWS 持久化：EventBridge 监听 IAM 变更触发 Lambda 后门自动为新管理员造 AccessKey、Config 投递通道重定向到攻击者桶"
+    },
+    {
+      "heading": "Detection Evasion",
+      "what": "绕过云检测：禁用 CloudTrail 日志校验、GuardDuty update-findings-feedback 静默告警、区分 VPC Flow Logs 对控制面 API 的盲区"
+    },
+    {
+      "heading": "IMDS",
+      "what": "Azure 与 GCP 元数据端点获取托管标识/服务账户令牌（Metadata:true 头与 Metadata-Flavor: Google）"
+    },
+    {
+      "heading": "Privilege Escalation Paths",
+      "what": "Azure 提权矩阵：User Access Administrator 自授 Owner、App Registration 造应用凭证、VM Contributor 经 MSI 读 Key Vault、AAD 同步账户 DCSync、特权认证管理员重置全局管理员 MFA"
+    },
+    {
+      "heading": "Data Targets",
+      "what": "Azure 数据目标：存储账户访问密钥、Key Vault 机密、Cosmos DB 主键、SQL 服务器 AD 管理员重置实现接管"
+    },
+    {
+      "heading": "Privilege Escalation Paths",
+      "what": "GCP 提权矩阵：serviceAccountTokenCreator 伪造 SA 令牌、KeyAdmin 造 JSON 密钥、Cloud Build/Deployment Manager/Functions 以高权 SA 执行、setIamPolicy 自授 Owner"
+    },
+    {
+      "heading": "Cross-Project / Folder Pivot",
+      "what": "枚举组织与资源文件夹层级及子项目，寻找跨项目/文件夹的权限落点与提权路径"
+    },
+    {
+      "heading": "CI/CD as the Pivot",
+      "what": "滥用 GitHub Actions OIDC 的 sub 通配信任、GitLab CI 分支误配、Jenkins 环境凭证实现云角色接管的常见入口"
+    },
+    {
+      "heading": "Snapshot Sideways",
+      "what": "三云通用外带手法：对受害 VM/磁盘打快照后共享或挂载到受控账户离线提取数据，绕过主机层防护"
+    },
+    {
+      "heading": "Tooling Matrix",
+      "what": "AWS/Azure/GCP 攻防工具速查：Pacu、ROADtools、AzureHound、gcp_scanner、ScoutSuite、Prowler 等的适用矩阵"
+    }
+  ]
+}

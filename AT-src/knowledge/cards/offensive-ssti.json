@@ -1,0 +1,72 @@
+{
+  "use_when": "在渗透测试中对模板渲染端点（render_template_string/Template拼接用户输入）进行SSTI探测、模板引擎指纹识别并升级至RCE时阅读本篇，重点涵盖Jinja2/Twig/Freemarker/Thymeleaf等12类引擎的polyglot探测、MRO遍历RCE链、WAF/过滤绕过、盲注OOB及SSRF/反弹shell链式利用（tplmap/SSTImap），区别于客户端模板注入与通用命令注入场景。",
+  "triggers": [
+    "SSTI",
+    "服务端模板注入",
+    "模板注入",
+    "模板引擎指纹",
+    "Jinja2",
+    "Twig",
+    "Freemarker",
+    "Thymeleaf",
+    "SpEL",
+    "Velocity",
+    "MRO遍历",
+    "__subclasses__",
+    "__globals__",
+    "polyglot探测",
+    "WAF绕过",
+    "时间盲注",
+    "OOB带外",
+    "interactsh",
+    "tplmap",
+    "原型污染"
+  ],
+  "vulnclass": "SSTI",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "八步渗透流程：映射注入面→探测与指纹→确认服务端执行→RCE→链式扩大影响的完整方法论"
+    },
+    {
+      "heading": "1. Engine Detection and Fingerprinting",
+      "what": "polyglot万能探测串、{{7*'7'}}决策树、各引擎报错签名及时间/OOB盲检测定位具体模板引擎"
+    },
+    {
+      "heading": "2. Jinja2 / Python",
+      "what": "MRO遍历与__subclasses__枚举、Popen/lipsum/cycler/namespace等多条RCE链及Flask config与文件读写"
+    },
+    {
+      "heading": "3. Twig / PHP",
+      "what": "Twig 1.x的_self.env回调与2.x/3.x的filter/map/sort/reduce函数回调执行系统命令及信息泄露"
+    },
+    {
+      "heading": "4. Java Template Engines",
+      "what": "Freemarker Execute/ObjectConstructor、Velocity Runtime.exec、Pebble反射链、Thymeleaf双下划线SpEL预处理注入"
+    },
+    {
+      "heading": "5. Other Engines",
+      "what": "Smarty {php}标签与math命令执行、Mako模块、ERB Ruby命令执行、Handlebars/EJS/Pug/Nunjucks原型污染链"
+    },
+    {
+      "heading": "6. Filter and WAF Bypass",
+      "what": "attr()替代点号、下划线十六进制编码、波浪线字符串拼接、请求参数走私与HTTP参数污染绕过WAF"
+    },
+    {
+      "heading": "7. Blind Exploitation",
+      "what": "时间盲注延时构造、interactsh/Collaborator OOB DNS回连确认、报错推断与布尔逐字符提取"
+    },
+    {
+      "heading": "8. Chained Exploitation",
+      "what": "SSTI转SSRF读云元数据、SSH密钥/K8s token等敏感文件读取、反弹shell、提权枚举与DNS/HTTP分块数据外传"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "模板定界符与MRO/Java反射攻击特征、失陷指标识别及沙箱环境与过滤白名单等防御加固"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "侦察到取证的各阶段行动速查表与tplmap/SSTImap/ffuf/arjun工具命令参考"
+    }
+  ]
+}

@@ -217,9 +217,52 @@ export interface SubmitFindingArgs {
 	assetsDb?: Database;
 }
 
+// ── baseline 对照严门校验器（E-2，静态检查三规则，零 LLM） ──
+
+export interface BaselineValidationResult {
+	ok: true;
+	note?: string;
+}
+
+export function validateBaselineEvidence(taskDir: string, baselineEvidence?: string): BaselineValidationResult {
+	const raw = String(baselineEvidence ?? "").trim();
+	if (!raw) {
+		throw new Error(
+			"[对照严门] baseline_evidence 必填，值二选一：填写对照证据文件路径（如 evidence/xxx.txt），或显式豁免 '不适用——<一句话原因>'。proof=带攻击条件的请求，baseline=去除攻击条件的请求，两者相减才能归因。",
+		);
+	}
+
+	// 规则 1：以 不适用—— 开头且原因非空
+	if (raw.startsWith("不适用——")) {
+		const reason = raw.slice("不适用——".length).trim();
+		if (!reason) {
+			throw new Error(
+				"[对照严门] baseline_evidence 申请豁免必须填写具体原因，格式为 '不适用——<一句话原因>'（收到了空的豁免原因）。",
+			);
+		}
+		return { ok: true, note: reason };
+	}
+
+	// 规则 2：按证据文件路径查存在性
+	const fullPath = resolve(taskDir, raw);
+	if (!existsSync(fullPath) || !statSync(fullPath).isFile()) {
+		throw new Error(
+			`[对照严门] 对照证据文件不存在：${raw}。请先将对照证据写入该文件（例如 evidence/baseline-xxx.txt），或若无需对照请显式填写豁免理由 '不适用——<一句话原因>'。`,
+		);
+	}
+	return { ok: true };
+}
+
 export function submitFinding(db: Database, args: SubmitFindingArgs): SubmitResult & { noreport?: { verdict: string; reason: string } } {
 	const { taskId, taskDir, stepId, sessionId } = args;
 	const payload = FindingPayload.parse(args.payload);
+
+	// baseline 对照严门（E-2）：静态三规则检查（必填，对照文件存在 或 显式豁免）
+	const baselineCheck = validateBaselineEvidence(taskDir, payload.baseline_evidence);
+	if (baselineCheck.note && !payload.baseline_note) {
+		payload.baseline_note = baselineCheck.note;
+	}
+
 	const sha = hashEvidence(taskDir, payload.evidence);
 
 	// noreport 前置（P2-4）：进件时跑，reject 硬拒不入图；suspect 放行但回执带公诉意见

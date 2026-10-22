@@ -1,0 +1,84 @@
+{
+  "use_when": "在对 Android/iOS 移动应用开展渗透测试或漏洞赏金移动端排查时阅读本篇，重点涵盖 apktool/jadx 静态反编译、Frida/Objection 动态Hook、SSL Pinning 与 root/越狱检测绕过、导出组件与深链/URL Scheme 攻击面、不安全本地存储及 Firebase/S3 云配置泄露，区别于纯 Web/API 渗透方法论。",
+  "triggers": [
+    "移动应用渗透",
+    "mobile pentest",
+    "apktool",
+    "jadx",
+    "Frida",
+    "Objection",
+    "SSL pinning bypass",
+    "证书校验绕过",
+    "root检测绕过",
+    "越狱检测绕过",
+    "drozer",
+    "导出组件",
+    "Intent重定向",
+    "URL Scheme滥用",
+    "深链劫持",
+    "不安全数据存储",
+    "Keychain dump",
+    "JavaScriptInterface",
+    "Firebase未授权访问",
+    "生物识别绕过"
+  ],
+  "vulnclass": "其他",
+  "section_map": [
+    {
+      "heading": "Lab Setup",
+      "what": "搭建 Android root 环境、iOS 越狱设备与 Burp/Frida 抓包测试环境"
+    },
+    {
+      "heading": "Static Analysis",
+      "what": "用 apktool/jadx 反编译 APK、class-dump 提取 iOS 头文件并审计 Manifest/Info.plist 与硬编码密钥端点"
+    },
+    {
+      "heading": "Dynamic Analysis & Frida",
+      "what": "Frida Hook 通用绕过 SSL Pinning、root/越狱检测及 Objection 一键式探测命令"
+    },
+    {
+      "heading": "SSL / TLS Interception",
+      "what": "修改 network-security-config 重打包或 Frida 动态绕过证书校验实现中间人抓包"
+    },
+    {
+      "heading": "Exported / IPC Attack Surface",
+      "what": "drozer 打导出 Activity/Provider/Receiver、Intent 重定向与 PendingIntent 劫持及 iOS URL Scheme/XPC 滥用"
+    },
+    {
+      "heading": "Insecure Data Storage",
+      "what": "审计 shared_prefs/SQLite 明文存储、Android Keystore 误用与 iOS Keychain 可访问性配置缺陷"
+    },
+    {
+      "heading": "WebView Vulnerabilities",
+      "what": "利用 addJavascriptInterface 反射调用实现 RCE、file:// 跨域任意读文件与 WKWebView JS 桥问题"
+    },
+    {
+      "heading": "Biometric / Auth Bypass",
+      "what": "Hook BiometricPrompt/LAContext 回调绕过未与密钥绑定的生物识别认证"
+    },
+    {
+      "heading": "Firebase / Cloud Misconfig (highest hit-rate)",
+      "what": "Firebase 未授权读写、Firestore 规则过宽与 S3/嵌入 API Key 泄露的探测手法"
+    },
+    {
+      "heading": "Mobile API Testing",
+      "what": "逆向客户端请求签名与设备绑定头、利用旧版 API 端点与可预测推送主题越权接收消息"
+    },
+    {
+      "heading": "App Tampering & Repackaging",
+      "what": "Smali 补丁修改业务逻辑后重签名安装，或用 LSPosed 免改包绕过签名校验"
+    },
+    {
+      "heading": "iOS Specifics",
+      "what": "审查 entitlements、App Group 共享容器与任意应用可调用的 URL Scheme 边界"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "对照 Frida 端口/Magisk/模拟器/反调试/应用完整性校验等检测机制及绕过手段"
+    },
+    {
+      "heading": "Engagement Checklist",
+      "what": "移动渗透全流程核查清单：从拉包反编译到导出组件、存储、云端配置逐项验证"
+    }
+  ]
+}

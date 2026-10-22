@@ -149,7 +149,7 @@ describe("buildProjectBriefing（D4 边界）", () => {
 			taskId: a.name, taskDir: a.tdir, stepId: stepIds[0],
 			payload: {
 				summary: "确认共享主机存在越权读取", vulnclass: "idor", severity: "high", poc: "curl /api/users 未授权返回列表",
-				evidence: "ev.txt", endpoint: "shared.example.com/",
+				evidence: "ev.txt", baseline_evidence: "不适用——测试夹具", endpoint: "shared.example.com/",
 			},
 			assetsDb,
 		});
@@ -230,7 +230,7 @@ describe("双 task 一 project 全链剧本", () => {
 				taskId: o.task.name, taskDir: o.taskDir, stepId: o.step.id,
 				payload: {
 					summary: "确认共享主机存在越权读取", vulnclass: "idor", severity: "high",
-					poc: "curl /api/users 未授权返回列表", evidence: "ev-find.txt", endpoint: "shared.example.com/",
+					poc: "curl /api/users 未授权返回列表", evidence: "ev-find.txt", baseline_evidence: "不适用——测试夹具", endpoint: "shared.example.com/",
 				},
 				assetsDb: o.assetsDb,
 			});

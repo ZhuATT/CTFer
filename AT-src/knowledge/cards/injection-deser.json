@@ -1,0 +1,72 @@
+{
+  "use_when": "在渗透测试中确认请求/Cookie/流量中的序列化数据指纹（如 rO0AB、O:N:\"、phar://、ViewState）并选择可用 gadget 链实现 RCE 时阅读本篇，重点涵盖 ysoserial/PHPGGC、CommonsCollections CC1-CC7 版本兼容矩阵、Shiro rememberMe 默认密钥、SnakeYAML 加载恶意 JAR、pickle __reduce__ 与原型污染利用链，区别于仅定位反序列化入口而不会构造跨语言利用链的基础检测。",
+  "triggers": [
+    "反序列化",
+    "insecure deserialization",
+    "反序列化利用链",
+    "gadget chain",
+    "ysoserial",
+    "PHPGGC",
+    "CommonsCollections",
+    "CC6",
+    "URLDNS",
+    "SHIRO-550",
+    "rememberMe",
+    "phar://",
+    "pickle __reduce__",
+    "BinaryFormatter",
+    "ViewState",
+    "ysoserial.net",
+    "node-serialize",
+    "SnakeYAML",
+    "WebLogic T3",
+    "原型污染"
+  ],
+  "vulnclass": "反序列化",
+  "section_map": [
+    {
+      "heading": "1. TRAFFIC FINGERPRINTING — IS IT DESERIALIZATION?",
+      "what": "通过 Java ac ed/rO0AB、PHP O:N:\" 与 pickle 80 03 等魔法字节指纹识别请求、Cookie、消息队列中的序列化数据"
+    },
+    {
+      "heading": "2. JAVA — GADGET CHAINS AND TOOLS",
+      "what": "ysoserial 生成利用链、URLDNS 无害 DNS 确认、Shiro rememberMe 默认密钥 AES-CBC 加密利用、WebLogic T3 与 RMI Registry 打击手法"
+    },
+    {
+      "heading": "3. PHP — unserialize AND PHAR",
+      "what": "PHP 魔术方法触发顺序、序列化对象格式、PHPGGC 框架链生成及 phar:// 文件操作触发反序列化的手法"
+    },
+    {
+      "heading": "4. PYTHON — PICKLE",
+      "what": "__reduce__ 返回可调用对象构造 RCE 载荷、pickletools 反汇编操作码与 RestrictedUnpickler 白名单绕过"
+    },
+    {
+      "heading": "5. DETECTION METHODOLOGY",
+      "what": "按语言签名分流判断反序列化类型并从探测逐步升级到 RCE 的决策树"
+    },
+    {
+      "heading": "8. RUBY DESERIALIZATION",
+      "what": "Ruby Marshal 二进制反序列化与 YAML.load 的 Gem::Requirement/Gem::Installer 利用链及 safe_load 安全差异"
+    },
+    {
+      "heading": "9. .NET DESERIALIZATION",
+      "what": "BinaryFormatter/ViewState/JSON.NET $type 流量指纹识别与 ObjectDataProvider 等 POP gadget 命令执行"
+    },
+    {
+      "heading": "10. NODE.JS DESERIALIZATION",
+      "what": "node-serialize 的 _$$ND_FUNC$$_ 标记加 IIFE 立即执行注入与 funcster constructor.constructor 绕过"
+    },
+    {
+      "heading": "1. JAVA GADGET CHAIN VERSION COMPATIBILITY MATRIX",
+      "what": "CC1-CC7/CommonsBeanutils/Spring/Jdk7u21 等利用链的依赖库版本与 JDK 约束对照及链选择决策树"
+    },
+    {
+      "heading": "2. SNAKEYAML GADGET",
+      "what": "SnakeYAML !! 标签实例化 ScriptEngineManager/URLClassLoader 加载远程恶意 JAR 实现 RCE 的利用流程"
+    },
+    {
+      "heading": "12. .NET DESERIALIZATION",
+      "what": "ViewState 未开 MAC 保护时利用泄露的 machineKey 伪造 ViewState 并用 ysoserial.net/Blacklist3r 实现代码执行"
+    }
+  ]
+}

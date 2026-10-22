@@ -1,0 +1,88 @@
+{
+  "use_when": "在众测/授权渗透项目启动阶段需要确立测试路线并开展信息收集与攻击面测绘时阅读本篇，重点涵盖主路由（现象到漏洞类映射）、子域名枚举、指纹识别、端点发现、.git/.env泄露检查与 Java 中间件矩阵，区别于各漏洞类的专项利用手册。",
+  "triggers": [
+    "信息收集",
+    "侦察方法论",
+    "资产测绘",
+    "子域名枚举",
+    "subfinder",
+    "amass",
+    "虚拟主机发现",
+    "指纹识别",
+    "httpx",
+    "目录爆破",
+    "ffuf",
+    "arjun",
+    "LinkFinder",
+    "gau",
+    "GitHub dorks",
+    ".git泄露",
+    ".env泄露",
+    "nuclei",
+    "Spring Boot Actuator",
+    "heapdump"
+  ],
+  "vulnclass": "信息泄露",
+  "section_map": [
+    {
+      "heading": "Step 2: Route by observed behavior",
+      "what": "按输入反射、服务端外联、文件接受等信号将现象路由到 XSS、SSRF、XXE、IDOR、请求走私等漏洞方向的路由表"
+    },
+    {
+      "heading": "1. RECON HIERARCHY",
+      "what": "从目标选定、范围定义到资产发现、技术指纹、端点发现、逐类漏洞测试的侦察层级模型"
+    },
+    {
+      "heading": "2. SUBDOMAIN ENUMERATION (CRITICAL FIRST STEP)",
+      "what": "被动证书透明查询与主动 DNS 爆破解析子域，subfinder/amass/crt.sh/massdns/ffuf 实操命令"
+    },
+    {
+      "heading": "Virtual Host Discovery",
+      "what": "ffuf 与 gobuster 的 vhost 模式通过 Host 头爆破探测隐藏虚拟主机"
+    },
+    {
+      "heading": "3. SERVICE AND PORT DISCOVERY",
+      "what": "nmap/masscan 快速与全量端口扫描并用 httpx 批量探测存活 HTTP 服务"
+    },
+    {
+      "heading": "4. WEB TECHNOLOGY FINGERPRINTING",
+      "what": "借助 Server 头、X-Powered-By、会话 Cookie、HTML 注释与 JS 框架文件识别目标技术栈"
+    },
+    {
+      "heading": "5. ENDPOINT DISCOVERY",
+      "what": "目录爆破、arjun/x8 隐藏参数挖掘、JS 源码与 Wayback 历史 URL 提取及 Swagger/GraphQL 接口发现"
+    },
+    {
+      "heading": "6. SOURCE CODE RECON",
+      "what": "GitHub dorks、trufflehog/gitleaks 密钥扫描与 .env、备份文件等敏感路径暴露检查"
+    },
+    {
+      "heading": "7. ZSEANO'S TESTING METHODOLOGY",
+      "what": "深耕单一项目的测试哲学、单页输入点测试序列与按参数语义推断漏洞类型"
+    },
+    {
+      "heading": "8. BUG BOUNTY PROGRAM TRIAGE (WHERE TO SPEND TIME)",
+      "what": "按范围大小、P2/P3 支付与技术迁移选择高价值项目并按认证、上传、支付流等功能排序测试优先级"
+    },
+    {
+      "heading": "9. NUCLEI TEMPLATES (AUTOMATED SCANNING)",
+      "what": "nuclei 按 CVE、暴露、配置错误分类与严重度过滤对目标及子域名列表自动化扫描"
+    },
+    {
+      "heading": "10. COMMON MISCONFIGURATIONS (QUICK WINS)",
+      "what": "CORS 通配、S3 桶公开、目录列出、.git/.env 泄露、默认凭据、GraphQL 内省等快速得分检查清单"
+    },
+    {
+      "heading": "12. JAVA MIDDLEWARE FINGERPRINT MATRIX",
+      "what": "Tomcat/JBoss/WebLogic/Spring Boot Actuator/Jenkins/GlassFish 的识别路径、默认口令及 env/heapdump/jolokia 利用优先级"
+    },
+    {
+      "heading": "13. INFORMATION LEAK DETECTION CHECKLIST",
+      "what": "版本控制元数据、备份文件、API 文档调试端点与云凭据等泄露路径检测清单"
+    },
+    {
+      "heading": "浏览器侦察四步（Playwright MCP——headless 会话必读）",
+      "what": "headless 会话先等待 MCP 就绪再按 navigate/snapshot/网络请求抓取/点击四步做浏览器侦察与 JS 蒸馏"
+    }
+  ]
+}

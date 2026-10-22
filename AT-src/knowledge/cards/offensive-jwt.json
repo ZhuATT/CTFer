@@ -1,0 +1,84 @@
+{
+  "use_when": "在渗透测试中针对基于 JWT/Bearer 令牌的认证鉴权体系寻找身份伪造与提权路径时阅读本篇，重点涵盖 alg:none 绕过、RS256→HS256 算法混淆、kid 参数注入、jku/x5u/jwk 头部注入、JWKS 缓存投毒、时序侧信道与移动端令牌提取，区别于传统 Session Cookie 会话劫持的测试思路。",
+  "triggers": [
+    "JWT攻击",
+    "JWT attack",
+    "算法混淆",
+    "algorithm confusion",
+    "alg:none",
+    "none算法绕过",
+    "RS256→HS256",
+    "kid参数注入",
+    "jwk注入",
+    "jku/x5u",
+    "JWKS缓存投毒",
+    "弱HMAC密钥爆破",
+    "jwt_tool",
+    "时间侧信道攻击",
+    "Bearer令牌",
+    "移动端令牌提取",
+    "Frida",
+    "签名验证绕过",
+    "JWS/JWE混淆",
+    "DPoP"
+  ],
+  "vulnclass": "认证绕过",
+  "section_map": [
+    {
+      "heading": "Quick Reference: Misconfigurations to Check",
+      "what": "JWT 常见错误配置速查：none 算法、RSA/HMAC 算法切换、弱 HMAC 密钥与未校验的 kid/jku/jwk/x5u 头部参数"
+    },
+    {
+      "heading": "Mechanisms",
+      "what": "JWT 三段式结构与各签名算法（HMAC/RSA/ECDSA/EdDSA/none）特性及 JWS/JWE 混淆、JWKS 获取等附加陷阱"
+    },
+    {
+      "heading": "Hunt: Identifying JWT Usage",
+      "what": "通过 Bearer 头、Cookie、浏览器存储识别目标 JWT 使用并解码检查 kid/jku/jwk/x5u 攻击面"
+    },
+    {
+      "heading": "Algorithm Vulnerabilities",
+      "what": "alg:none 大小写变体绕过签名校验与 RS256→HS256 算法混淆（公钥作 HMAC 密钥重签名）及 kid 操纵"
+    },
+    {
+      "heading": "Signature Vulnerabilities",
+      "what": "弱 HMAC 密钥字典/hashcat 爆破、签名校验完全缺失与校验逻辑实现错误"
+    },
+    {
+      "heading": "Implementation Issues",
+      "what": "exp/nbf/aud/iss 声明未校验、熵不足、无过期时间、HTTP 明文传输与调试信息泄露等实现缺陷"
+    },
+    {
+      "heading": "Header Injection Attacks",
+      "what": "jwk 内联伪造公钥、jku/x5u 指向攻击者 JWKS、JWKS 缓存投毒（kid 碰撞）与 crit 头滥用绕过"
+    },
+    {
+      "heading": "Mobile App JWT Storage",
+      "what": "Android SharedPreferences/备份、iOS Keychain/越狱提取及 React Native AsyncStorage 中的 JWT 明文提取手法"
+    },
+    {
+      "heading": "JWT Confusion Attacks",
+      "what": "SAML-JWT、API Key-JWT、会话 Cookie 混合与 OAuth ID Token 混淆等令牌类型错配利用"
+    },
+    {
+      "heading": "Timing Attacks on HMAC",
+      "what": "利用非常数时间比较的响应时延逐字节爆破 HMAC 签名的侧信道攻击及 PoC 脚本"
+    },
+    {
+      "heading": "JWT in URL Parameters",
+      "what": "令牌置于 GET URL 导致服务器/代理日志、浏览器历史与 Referer 泄露的排查方法"
+    },
+    {
+      "heading": "Manual Testing Steps",
+      "what": "手动构造 none 变体、算法混淆重签名、kid 路径穿越与 SQL 注入、jwk/jku/x5u/crit 载荷的实操步骤"
+    },
+    {
+      "heading": "Automated Testing with JWT_Tool",
+      "what": "jwt_tool 全量扫描与定向攻击（-X a/n/i/k）、密钥爆破命令及 Burp 扩展、jwtXploiter、c-jwt-cracker 等配套工具"
+    },
+    {
+      "heading": "Remediation Recommendations",
+      "what": "修复建议：固定算法、严格校验声明与 crit、锁定 JWKS 域名、jti 吊销名单、DPoP 绑定与 HttpOnly Cookie 存储"
+    }
+  ]
+}

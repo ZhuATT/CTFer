@@ -62,6 +62,7 @@ export function renderPlannerUserMessage(parts: {
 		"【态势预取】",
 		"（字段导读：steps=全量含 note；recent_facts=最新 20 条，counts 给总数；findings=全量；coverage.untouched=scope 内尚无 fact 锚定的资产（未测面），量化目标核对用 coverage.anchored/scope_total 实测值。）",
 		"（counts 里 edge:* 为边计数，如 edge:produces=step→产出的边条数。）",
+		"不熟的漏洞类/绕过手法/中间件打法，先 search_knowledge 查章节地图再按行号精读。",
 		parts.overviewJson,
 		"",
 		"【跨唤醒待办】",

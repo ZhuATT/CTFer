@@ -1,0 +1,76 @@
+{
+  "use_when": "在授权红队已取得主机执行权限或域管权限后需要植入可对抗重启与改密的持久化后门时阅读本篇，重点涵盖注册表Run键、计划任务、WMI事件订阅、COM/DLL劫持、SSP注入、黄金票据/白银票据、AdminSDHolder、Skeleton Key、crontab、PAM后门、LD_PRELOAD与内核Rootkit等Windows/Linux双平台手法及SharPersist、mimikatz、impacket-ticketer实操命令与检测指标，区别于初始打点与横向提权阶段的前置利用技术。",
+  "triggers": [
+    "权限维持",
+    "后门",
+    "注册表Run键",
+    "计划任务",
+    "WMI事件订阅",
+    "COM劫持",
+    "DLL搜索顺序劫持",
+    "SSP注入",
+    "黄金票据",
+    "Golden Ticket",
+    "白银票据",
+    "Silver Ticket",
+    "Skeleton Key",
+    "AdminSDHolder",
+    "DCShadow",
+    "SID History注入",
+    "mimikatz",
+    "crontab",
+    "PAM后门",
+    "LD_PRELOAD"
+  ],
+  "vulnclass": "其他",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "评估当前权限级别与隐蔽需求后选型持久化机制、验证重启存活并记录清理点的工作流程"
+    },
+    {
+      "heading": "Windows: Registry Autostart",
+      "what": "用reg add向Run/RunOnce及Winlogon等自启动位置写入载荷，配合SharPersist进行添加、列举与清理"
+    },
+    {
+      "heading": "Windows: Scheduled Tasks",
+      "what": "schtasks与Register-ScheduledTask创建开机/登录/周期触发的SYSTEM计划任务并伪装任务名"
+    },
+    {
+      "heading": "Windows: WMI Event Subscriptions",
+      "what": "构造__EventFilter、CommandLineEventConsumer与FilterToConsumerBinding三件套实现无文件持久化及三组件清理"
+    },
+    {
+      "heading": "Windows: DLL Hijacking and COM Hijacking",
+      "what": "借助ProcMon定位可劫持DLL并投放代理DLL，以及写HKCU CLSID InprocServer32劫持COM对象加载恶意DLL"
+    },
+    {
+      "heading": "Windows: Service and SSP Persistence",
+      "what": "sc create创建自启动服务，复制mimilib.dll并修改LSA Security Packages注册SSP以持续捕获明文登录口令"
+    },
+    {
+      "heading": "Windows: Active Directory Persistence",
+      "what": "提取KRBTGT哈希伪造黄金/白银票据、Skeleton Key注入DC、AdminSDHolder ACL滥用、DCShadow与SID History域级后门"
+    },
+    {
+      "heading": "Linux: Cron, At, and Systemd Persistence",
+      "what": "crontab/cron.d/cron.hourly定时执行、at自循环重调度及systemd服务与timer单元实现用户级/Root级持久化"
+    },
+    {
+      "heading": "Linux: Shell, SSH, and Authentication Persistence",
+      "what": "向authorized_keys注入公钥、.bashrc/.bash_profile//etc/profile植入后门命令及编译恶意PAM模块实现万能密码登录"
+    },
+    {
+      "heading": "Linux: LD_PRELOAD, Kernel Modules, and Web Shells",
+      "what": "构造constructor共享库写入ld.so.preload、insmod加载并持久化LKM内核Rootkit、投放PHP/JSP Webshell与Git钩子后门"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "汇总各手法对应的Sysmon 13/19/20/21、事件4698/7045/4622/4768等检测指标与Credential Guard、AppLocker、AIDE等防御控制"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "按用户级/管理员/域管/Root权限与快速、隐蔽、长期等场景匹配持久化技术与具体命令的速查表"
+    }
+  ]
+}

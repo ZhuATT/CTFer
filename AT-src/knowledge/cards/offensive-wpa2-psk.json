@@ -1,0 +1,76 @@
+{
+  "use_when": "在授权渗透测试中对消费级/SMB 的 WPA/WPA2-PSK（个人模式）无线网络需要离线破解预共享密钥时阅读本篇，重点涵盖 PMKID 无客户端抓取、定向反认证触发四次握手、hcxdumptool/hcxpcapngtool 转 hashcat hc22000 格式、字典/掩码/厂商默认密钥生成器破解及 802.11r FT 与 OKC 场景，区别于前期无线侦察与 WPA2-Enterprise 认证攻击。",
+  "triggers": [
+    "WPA/WPA2-PSK",
+    "无线密码破解",
+    "PMKID攻击",
+    "四次握手",
+    "抓握手包",
+    "反认证攻击",
+    "deauth",
+    "EAPOL",
+    "hcxdumptool",
+    "hcxpcapngtool",
+    "hashcat",
+    "hc22000",
+    "aircrack-ng",
+    "字典攻击",
+    "掩码攻击",
+    "rockyou",
+    "厂商默认密钥",
+    "802.11r FT",
+    "OKC",
+    "WIDS"
+  ],
+  "vulnclass": "网络与内网",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "五步速查流程：定位目标 BSSID/信道→优先 PMKID→回退四次握手抓取→转 hashcat 格式→离线爆破"
+    },
+    {
+      "heading": "PMKID Attack (Preferred When Possible)",
+      "what": "用 hcxdumptool 对目标 AP 发关联请求无客户端抓取 PMKID 并经 hcxpcapngtool 转 hc22000"
+    },
+    {
+      "heading": "Four-Way Handshake Capture",
+      "what": "airodump-ng 锁定信道抓包，配合 aireplay-ng 对单个客户端定向低量反认证触发握手"
+    },
+    {
+      "heading": "Verifying the Capture",
+      "what": "hcxpcapngtool 校验 M1/M2 AUTHORIZED 标记以判定握手包完整可破解"
+    },
+    {
+      "heading": "Dictionary + Rules",
+      "what": "hashcat 22000 模式配合 rockyou/weakpass/crackstation 字典与 OneRuleToRuleThemAll 规则变换爆破"
+    },
+    {
+      "heading": "Mask Attacks for Common Default Patterns",
+      "what": "针对运营商/路由器默认规律的 10 位/8 位纯数字、8 位十六进制及手机号掩码爆破"
+    },
+    {
+      "heading": "Vendor Default Generators",
+      "what": "upc_keys、skylogin、BT-Hub-PSK-Generator、ZyxelKeygen 按 SSID 前缀+序列号推导默认 PSK"
+    },
+    {
+      "heading": "802.11r FT Cracking",
+      "what": "快速漫游开启时捕获 AP 间密钥传递，经 PMK 派生获得同 hc22000 格式的替代破解路径"
+    },
+    {
+      "heading": "Tuning Cracking Performance",
+      "what": "hashcat 基准调优 GPU 负载，并用 hashtopolis 或 -s/-l 分段实现分布式破解"
+    },
+    {
+      "heading": "Opportunistic Key Cache (OKC)",
+      "what": "OKC 缓存 PMK 复用绕过完整握手，对空中 M1/M2 可见数量的影响分析"
+    },
+    {
+      "heading": "Detection Considerations",
+      "what": "反认证洪泛、PMKID 关联风暴与监听模式网卡触发 WIDS 的特征及最小化暴露的规避措施"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "从监听模式建立到 PMKID 扫描、握手抓取、格式转换与字典/掩码破解的完整实战命令速查"
+    }
+  ]
+}

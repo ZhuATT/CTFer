@@ -1,0 +1,68 @@
+{
+  "use_when": "在无线渗透测试中需要强制 Wi-Fi 客户端掉线以捕获 WPA 握手包、诱导重连至 evil twin 或测试目标 PMF（802.11w）防护姿态时阅读本篇，涵盖单客户端定向 deauth、广播 deauth DoS、action-frame 绕过 PMF、beacon 泛洪及 aireplay-ng/mdk4 工具链与 WIPS 检测规避，区别于常规无线侦察与破解类主题。",
+  "triggers": [
+    "Deauth攻击",
+    "deauthentication",
+    "解除认证",
+    "disassociation",
+    "解除关联",
+    "802.11w",
+    "PMF",
+    "Protected Management Frames",
+    "受保护管理帧",
+    "握手包捕获",
+    "handshake capture",
+    "广播deauth",
+    "拒绝服务",
+    "DoS",
+    "无线DoS",
+    "action-frame攻击",
+    "管理帧攻击",
+    "beacon flooding",
+    "信标泛洪",
+    "aireplay-ng"
+  ],
+  "vulnclass": "网络与内网",
+  "section_map": [
+    {
+      "heading": "Deauth / Disassoc Attacks",
+      "what": "伪造 AP 身份发送 802.11 管理帧踢客户端下线的基础原理与 PMF 现状"
+    },
+    {
+      "heading": "Quick Workflow",
+      "what": "定位目标客户端与 AP、选择攻击范围、核查 PMF 状态、发送 deauth 的四步流程"
+    },
+    {
+      "heading": "Single-Client Deauth (Preferred)",
+      "what": "用 aireplay-ng 对指定客户端发送 3-10 个 deauth 帧以触发重连并捕获握手包"
+    },
+    {
+      "heading": "Broadcast Deauth (DoS, Use Sparingly)",
+      "what": "对单 AP 全客户端或 BSSID 列表进行持续性广播 deauth 的 DoS 打法（需授权）"
+    },
+    {
+      "heading": "PMF (802.11w) Awareness",
+      "what": "通过 airodump-ng 查看 beacon RSN 中 PMF 状态并判断经典 deauth 是否失效"
+    },
+    {
+      "heading": "Action-Frame Attacks Against PMF",
+      "what": "用 mdk4 的 auth 洪泛、CTS 帧攻击、SAE 洪泛等动作帧手法绕过 802.11w 保护"
+    },
+    {
+      "heading": "Beacon Flooding",
+      "what": "用 mdk4 高速泛洪伪造 beacon 以掩护 evil twin、压测漫游逻辑或瘫痪 WIPS 面板"
+    },
+    {
+      "heading": "Rate Tuning and Detection",
+      "what": "调整 deauth 突发速率、burst-pause 周期与源 MAC 随机化以规避 WIPS 检测规则"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "侦察 PMF、单客户端 deauth、action-frame 兜底与授权 DoS 场景的完整命令速查"
+    },
+    {
+      "heading": "Reporting",
+      "what": "记录目标 BSSID/ESSID/PMF 状态、突发参数、实际效果及防守方可见的检测信号"
+    }
+  ]
+}

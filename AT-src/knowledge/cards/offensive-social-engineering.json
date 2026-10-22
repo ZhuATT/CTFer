@@ -1,0 +1,88 @@
+{
+  "use_when": "在授权红队与物理渗透测试中需要从人因层面突破目标组织防线时阅读本篇，重点涵盖Pretexting话术伪装与心理触发、Vishing语音钓鱼（Twilio/Asterisk来电显示伪造、IVR利用）、Smishing短信钓鱼、尾随进入与Proxmark3门禁卡克隆、Rubber Ducky/Bash Bunny/O.MG线缆USB投放攻击、BeEF水坑攻击及OSINT目标画像，区别于传统邮件钓鱼与纯技术漏洞利用的攻击路径。",
+  "triggers": [
+    "社会工程学",
+    "social engineering",
+    "vishing",
+    "语音钓鱼",
+    "smishing",
+    "短信钓鱼",
+    "pretexting",
+    "话术伪装",
+    "tailgating",
+    "尾随",
+    "门禁卡克隆",
+    "Proxmark3",
+    "来电显示伪造",
+    "USB Rubber Ducky",
+    "橡皮鸭",
+    "Bash Bunny",
+    "O.MG Cable",
+    "水坑攻击",
+    "BeEF",
+    "OSINT"
+  ],
+  "vulnclass": "其他",
+  "section_map": [
+    {
+      "heading": "Pretexting and Psychological Manipulation",
+      "what": "话术伪装与心理操纵：人设构建及权威、紧迫稀缺、社会认同、互惠等认知偏见的运用"
+    },
+    {
+      "heading": "VoIP Infrastructure Setup",
+      "what": "用Twilio与Asterisk PBX搭建支持来电显示伪造和TwiML IVR话术的语音攻击基础设施"
+    },
+    {
+      "heading": "Vishing Call Scripts",
+      "what": "开场白、凭据收割、异议处理与升级转接主管的语音钓鱼完整话术"
+    },
+    {
+      "heading": "IVR System Exploitation",
+      "what": "探测IVR隐藏管理菜单、默认PIN、外部拨入语音信箱与DTMF注入"
+    },
+    {
+      "heading": "SMS Gateway Setup and Delivery",
+      "what": "基于Twilio SMS网关批量投递带个性化追踪链接的钓鱼短信"
+    },
+    {
+      "heading": "Smishing Pretext Patterns",
+      "what": "IT安全告警、HR福利、快递确认与MFA推送疲劳四类短信话术模板"
+    },
+    {
+      "heading": "Tailgating and Piggybacking",
+      "what": "手持重物、吸烟区同行、快递员伪装与高峰时段尾随进入受控门禁的手法"
+    },
+    {
+      "heading": "RFID Badge Cloning with Proxmark3",
+      "what": "读取并克隆HID ProxCard、iCLASS、MIFARE Classic门禁卡及远距离隐蔽读卡窃取"
+    },
+    {
+      "heading": "Lock Picking and Physical Bypass",
+      "what": "撬锁、撞钥匙、垫片、门下工具、REX传感器触发与电梯消防钥匙等物理绕过手法"
+    },
+    {
+      "heading": "USB Rubber Ducky",
+      "what": "DuckyScript键盘注入payload经PowerShell下载执行反弹shell"
+    },
+    {
+      "heading": "Bash Bunny",
+      "what": "多协议USB攻击平台运行Responder抓取并外传NetNTLM哈希"
+    },
+    {
+      "heading": "O.MG Cable",
+      "what": "伪装成充电线的无线植入体实现键盘注入、键盘记录、Wi-Fi C2与远程自毁"
+    },
+    {
+      "heading": "Watering Hole Attacks",
+      "what": "攻陷目标常访行业网站并按目标IP段选择性注入BeEF hook的水坑攻击方法"
+    },
+    {
+      "heading": "OSINT for Targeting",
+      "what": "linkedin2username、theHarvester、CrossLinked枚举员工邮箱及组织架构与安防习惯画像"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "各攻击向量的检测指标与回拨验证、门禁多因素、USB白名单等防御对策对照表"
+    }
+  ]
+}

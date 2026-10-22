@@ -1,0 +1,76 @@
+{
+  "use_when": "在红队免杀与恶意代码开发中需要手写 x86/x64 位置无关 shellcode、构建加载器并绕过 AV/EDR 静态与行为检测时阅读本篇，重点涵盖 PEB 遍历解析 API、分配-写入-执行模式、Donut/sRDI PE 转换、证书表隐藏与直接系统调用，区别于通用漏洞利用与现成 C2 框架使用。",
+  "triggers": [
+    "Shellcode",
+    "Shellcode开发",
+    "免杀",
+    "EDR绕过",
+    "AV evasion",
+    "位置无关代码",
+    "PEB遍历",
+    "API哈希",
+    "GetProcAddress",
+    "进程注入",
+    "CreateRemoteThread",
+    "APC注入",
+    "ThreadlessInject",
+    "直接系统调用",
+    "SysWhispers3",
+    "Donut",
+    "sRDI",
+    "PE转Shellcode",
+    "证书表隐藏",
+    "反弹Shell"
+  ],
+  "vulnclass": "RCE",
+  "section_map": [
+    {
+      "heading": "Shellcode Development Workflow",
+      "what": "自定义 shellcode 六步开发流程：定平台→写位置无关汇编→提取测试→空字节处理→编码免杀→打包投递"
+    },
+    {
+      "heading": "Execution Pattern (Allocate-Write-Execute)",
+      "what": "避免 RWX 权限，采用先 PAGE_READWRITE 分配写入再 VirtualProtect 转 PAGE_EXECUTE_READ 的两步执行模式"
+    },
+    {
+      "heading": "Position-Independent Code (PIC) Techniques",
+      "what": "Call/Pop、fstenv FPU 状态、SEH、GOT、VDSO 等获取指令指针的位置无关技巧跨平台对比"
+    },
+    {
+      "heading": "Windows API Resolution (PEB Walk)",
+      "what": "经 gs/fs 段寄存器取 PEB，遍历 InMemoryOrderModuleList 与 EAT 解析 GetProcAddress/LoadLibraryA，附 WinDbg 调试命令"
+    },
+    {
+      "heading": "Shellcode Loaders",
+      "what": "加载器职责（环境校验/解密/注入）、Zig/Rust/Nim 语言选型与分配-写入-执行三阶段技术"
+    },
+    {
+      "heading": "Execute Phase",
+      "what": "CreateRemoteThread、NtQueueApcThreadEx APC 注入、NtSetContextThread 劫持、API trampoline 与 ThreadlessInject 等执行手法对比"
+    },
+    {
+      "heading": "PE-to-Shellcode Conversion",
+      "what": "Donut/sRDI/Pe2shc/Amber 等 PE 转 shellcode 工具及 ScareCrow/NimPackt/DripLoader 等开源加载器清单"
+    },
+    {
+      "heading": "Shellcode Storage & Hiding",
+      "what": "shellcode 存储位置（.text/RCDATA/额外节区/证书表/远程托管）风险对比，重点推荐证书表填充以保持主程序签名有效"
+    },
+    {
+      "heading": "Evasion",
+      "what": "渐进式免杀升级路线（加密混淆→直接系统调用→远程注入兜底）与本地/远程注入的 CFG/ETW/调用栈回溯检测面"
+    },
+    {
+      "heading": "Cross-Platform Considerations",
+      "what": "Windows ARM64 SVC 调用与 PAC 指针认证、Linux 6.9 eBPF Arena 隐藏执行、macOS SSV 密封卷 dylib 劫持持久化技巧"
+    },
+    {
+      "heading": "DripLoader Technique",
+      "what": "64KB NO_ACCESS 保留+4KB 分块随机序写入+直接系统调用+覆写 ntdll 函数序言 JMP trampoline 的免杀注入流程"
+    },
+    {
+      "heading": "Full x64 Reverse Shell Shellcode (Windows)",
+      "what": "Python/Keystone 完整 x64 反弹 shell 汇编实现：PEB 遍历→Winsock 连接→CreateProcessA 启动 cmd.exe 回连 C2"
+    }
+  ]
+}

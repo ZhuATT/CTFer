@@ -1,0 +1,72 @@
+{
+  "use_when": "在近场无线渗透中针对车载套件、工业传感器、旧医疗设备与音频外设等采用蓝牙经典(BR/EDR)协议的目标进行测试时阅读本篇，重点涵盖hcitool/bluetoothctl/redfang设备发现、SDP服务枚举、SPP未授权访问、KNOB弱密钥协商与BlueBorne补丁级检测，区别于BLE低功耗蓝牙攻击方向。",
+  "triggers": [
+    "蓝牙经典",
+    "Bluetooth Classic",
+    "BR/EDR",
+    "hcitool",
+    "sdptool",
+    "bluetoothctl",
+    "redfang",
+    "SDP服务发现",
+    "SPP串口协议",
+    "Serial Port Profile",
+    "rfcomm",
+    "KNOB攻击",
+    "CVE-2019-9506",
+    "BlueBorne",
+    "CVE-2017-1000251",
+    "HID欺骗",
+    "键鼠注入",
+    "音频窃听",
+    "internalblue",
+    "BlueSnarf"
+  ],
+  "vulnclass": "网络与内网",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "蓝牙经典攻击五步流程：发现设备、SDP枚举、逐Profile测未授权访问、配对加密检测与近场物理攻击"
+    },
+    {
+      "heading": "Discovery",
+      "what": "使用hcitool/bluetoothctl扫描可发现设备，并用redfang暴力穷举非可发现设备MAC地址"
+    },
+    {
+      "heading": "Service Discovery (SDP)",
+      "what": "sdptool browse枚举目标全部服务Profile并对照OPP/FTP/HSP/SPP/HID/A2DP各攻击面"
+    },
+    {
+      "heading": "SPP Abuse",
+      "what": "通过rfcomm绑定串口通道连接工业/IoT设备常无认证的调试串口并进入CLI"
+    },
+    {
+      "heading": "KNOB (CVE-2019-9506)",
+      "what": "借助internalblue固件补丁强制配对协商1字节加密密钥使链路密钥可被暴力破解"
+    },
+    {
+      "heading": "BlueBorne (CVE-2017-1000251 et al.)",
+      "what": "检测各蓝牙栈缓冲区溢出/信息泄露家族漏洞并使用Armis扫描器判断补丁级别"
+    },
+    {
+      "heading": "HID Spoofing (PoC)",
+      "what": "在Just Works或弱PIN配对成功后注册HID设备类实施键盘按键注入"
+    },
+    {
+      "heading": "Audio Eavesdropping",
+      "what": "重配对目标耳机后经HSP/HFP成为对端接收通话音频实现窃听"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "从发现、枚举、SPP连接、补丁扫描到KNOB测试的完整交战命令速查清单"
+    },
+    {
+      "heading": "Detection",
+      "what": "说明蓝牙经典攻击的检测面：环境内普遍无IDS、主动inquiry可见性低、重配对提示可能暴露"
+    },
+    {
+      "heading": "Reporting",
+      "what": "按设备记录芯片组与固件版本、映射BlueBorne/KNOB/BlueFrag等CVE适用性及具体Profile滥用结果"
+    }
+  ]
+}

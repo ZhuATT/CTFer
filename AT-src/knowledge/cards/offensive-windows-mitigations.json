@@ -1,0 +1,72 @@
+{
+  "use_when": "在Windows二进制漏洞利用与内核提权研究中需要识别并检测DEP、ASLR、CFG、/GS栈Cookie等缓解机制、规划绕过策略时阅读本篇，重点涵盖编译链接器开关控制、WinDbg异常码定位阻断原因、Set-ProcessMitigation审计与ROP链在不同缓解组合下的成败对比，区别于纯漏洞复现或Linux侧栈溢出利用的角度。",
+  "triggers": [
+    "Windows缓解机制",
+    "Windows mitigations",
+    "DEP",
+    "数据执行保护",
+    "NX",
+    "ASLR",
+    "地址空间布局随机化",
+    "KASLR",
+    "CFG",
+    "控制流防护",
+    "kCFG",
+    "CET",
+    "Shadow Stack",
+    "影子栈",
+    "/GS",
+    "栈Cookie",
+    "stack cookie",
+    "SEHOP",
+    "ROP链",
+    "WinDbg"
+  ],
+  "vulnclass": "RCE",
+  "section_map": [
+    {
+      "heading": "Context",
+      "what": "以近年真实CVE与进程退出码/WinDbg异常码对照表说明各类缓解机制何时阻断利用尝试"
+    },
+    {
+      "heading": "Windows Mitigations Relevance",
+      "what": "梳理竞态、类型混淆、整数溢出等bug类别与缓解机制及Week8绕过手法的交互关系"
+    },
+    {
+      "heading": "Day 1: DEP and ASLR Fundamentals",
+      "what": "DEP与ASLR两大基础缓解的原理学习、实验环境搭建与崩溃转储识别练习"
+    },
+    {
+      "heading": "Transitioning from Linux to Windows Debugging",
+      "what": "提供pwndbg到WinDbg的命令映射表便于从Linux利用迁移到Windows调试"
+    },
+    {
+      "heading": "Standardized Vulnerable Targets",
+      "what": "给出含栈溢出、堆溢出、DEP触发、函数指针调用的统一漏洞测试套件与Winsock靶机服务端源码"
+    },
+    {
+      "heading": "Per-Binary Mitigation Control",
+      "what": "用cl编译器与链接器开关(/NXCOMPAT、/DYNAMICBASE、/GS、/guard:cf、/CETCOMPAT)按二进制粒度启停各项缓解"
+    },
+    {
+      "heading": "Graduated Mitigation Introduction",
+      "what": "按DEP、叠加ASLR、叠加栈Cookie的渐进式分层缓解实验流程"
+    },
+    {
+      "heading": "Step 1: DEP Only",
+      "what": "仅启用DEP的编译方法并用dumpbin /headers验证NX兼容标志"
+    },
+    {
+      "heading": "Step 2: DEP + ASLR",
+      "what": "对比无ASLR与开ASLR二进制上ROP链ret2lib调WinExec的成败以验证地址随机化效果"
+    },
+    {
+      "heading": "Finding Gadget Addresses with WinDbg",
+      "what": "用WinDbg的x符号查询与s -b内存搜索命令定位WinExec及pop rcx; ret gadget"
+    },
+    {
+      "heading": "Step 3: DEP + ASLR + Stack Cookies",
+      "what": "通过fgets尺寸不匹配触发/GS栈Cookie校验失败并按退出码0xC0000409与__fastfail分析保护行为"
+    }
+  ]
+}

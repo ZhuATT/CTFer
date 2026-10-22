@@ -1,0 +1,76 @@
+{
+  "use_when": "在授权红队后渗透阶段需要将窃取的目标数据绕过出网限制与流量检测外带时阅读本篇，重点涵盖dnscat2/iodine等DNS隧道、CDN域前置HTTPS隐蔽信道、S3预签名URL云存储死信箱、邮件与隐写术外带及定时分块传输，区别于漏洞利用与权限提升类打点技法。",
+  "triggers": [
+    "数据外带",
+    "Data Exfiltration",
+    "数据窃取",
+    "DNS隧道",
+    "dnscat2",
+    "iodine",
+    "dns2tcp",
+    "域前置",
+    "Domain Fronting",
+    "ICMP隧道",
+    "icmpsh",
+    "ptunnel-ng",
+    "云存储死信箱",
+    "S3 presigned URL",
+    "邮件外带",
+    "草稿箱外传",
+    "隐写术",
+    "steghide",
+    "chisel",
+    "时间隐蔽信道"
+  ],
+  "vulnclass": "信息泄露",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "外带八步流程：盘点目标数据、暂存去元数据、压缩分块、AES加密、按出网环境选信道、控速传输、SHA-256校验与痕迹清理"
+    },
+    {
+      "heading": "DNS Exfiltration",
+      "what": "dnscat2/iodine/dns2tcp三大DNS隧道工具搭建与文件传输，TXT/CNAME记录base32编码查询外带、慢速滴水及PacketWhisper免服务器外带"
+    },
+    {
+      "heading": "HTTPS Tunneling",
+      "what": "stunnel将流量封装为TLS443、CDN域前置伪装SNI与Host分离隐藏收集服务器、滥用Slack webhook/GitHub Gist/Pastebin合法服务信道传数据"
+    },
+    {
+      "heading": "ICMP Tunneling",
+      "what": "icmpsh反向ICMP shell、ptunnel-ng把SSH封装进ping隧道、原始socket构造ICMP报文分块嵌入payload外带"
+    },
+    {
+      "heading": "Cloud Storage Dead Drops",
+      "what": "生成S3预签名URL、Azure Blob SAS令牌、GCS签名URL实现目标机免凭据PUT上传，轮换桶规避检测"
+    },
+    {
+      "heading": "Email-Based Exfiltration",
+      "what": "smtplib伪装附件外发、exchangelib走EWS发送、草稿箱方法仅在草稿存数据不产生发送与网络传输证据"
+    },
+    {
+      "heading": "Steganography",
+      "what": "steghide/zsteg/OpenStego图片隐写、PIL实现PNG LSB嵌入、WAV音频LSB嵌入及EXIF注释/PDF自定义元数据藏数据"
+    },
+    {
+      "heading": "Encoding and Encryption",
+      "what": "base64/base32/hex按信道分块编码、XOR异或加密、AES-256-GCM与openssl aes-256-cbc加解密文件全流程"
+    },
+    {
+      "heading": "Covert Channels",
+      "what": "自定义HTTP头部编码夹带数据、chisel反向SOCKS隧道、scapy IP ID字段逐字节编码及低速率时间信道传密钥口令"
+    },
+    {
+      "heading": "Data Staging",
+      "what": "Linux/Windows伪装目录暂存、tar压缩加密按64KB分块生成manifest、cron与计划任务定时定量传输规避流量阈值"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "按技术对照检测信号：DNS高熵长标签、JA3/SNI不匹配、ICMP大载荷等及对应防守工具与流量伪装规避要点"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "按仅53端口、有Web、仅ping、有云权限等出网场景选择信道与工具的速查表和外带前RoE合规检查清单"
+    }
+  ]
+}

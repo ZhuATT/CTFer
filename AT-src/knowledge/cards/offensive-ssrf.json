@@ -1,0 +1,88 @@
+{
+  "use_when": "在Web应用渗透测试与漏洞赏金(SRC)中需要探测服务端请求伪造(SSRF)、带外验证盲SSRF并绕过URL过滤时阅读本篇，重点涵盖云元数据利用(AWS IMDSv2/GCP/Azure)、IP进制与DNS重绑定绕过、gopher/file协议打内网及Kubernetes攻击面，区别于通用Web漏洞测试方法论。",
+  "triggers": [
+    "SSRF",
+    "Server-Side Request Forgery",
+    "服务端请求伪造",
+    "盲SSRF",
+    "blind SSRF",
+    "带外检测",
+    "云元数据",
+    "169.254.169.254",
+    "IMDSv2",
+    "AWS元数据",
+    "DNS重绑定",
+    "DNS rebinding",
+    "SSRF绕过",
+    "IP进制绕过",
+    "开放重定向",
+    "gopher协议",
+    "file协议",
+    "Burp Collaborator",
+    "Interactsh",
+    "内网端口扫描"
+  ],
+  "vulnclass": "SSRF",
+  "section_map": [
+    {
+      "heading": "Shortcut",
+      "what": "SSRF测试速查流程：定位易受攻击功能、搭建回调监听验证盲SSRF并选择升级路径"
+    },
+    {
+      "heading": "Identifying SSRF Vectors",
+      "what": "识别URL输入框、Webhook、PDF导出、代理功能与文件处理等SSRF高发功能点"
+    },
+    {
+      "heading": "Test Methodology",
+      "what": "定位URL参数并用Burp Collaborator/Interactsh搭监听，探测localhost与169.254.169.254云元数据"
+    },
+    {
+      "heading": "Allowlist Bypasses",
+      "what": "利用开放重定向、DNS欺骗、子域名接管与userinfo路径穿越绕过域名白名单"
+    },
+    {
+      "heading": "Denylist Bypasses",
+      "what": "用十进制/八进制/十六进制IP表示、IPv6变体、URL编码与大小写混淆绕过黑名单"
+    },
+    {
+      "heading": "Uncommon Techniques",
+      "what": "DNS重绑定、双重URL编码、Unicode归一化与协议降级等冷门绕过手法"
+    },
+    {
+      "heading": "PDF SSRF Exploitation",
+      "what": "在PDF渲染功能中通过SVG内嵌iframe标签读取云元数据接口"
+    },
+    {
+      "heading": "Cloud Metadata Access",
+      "what": "访问AWS/GCP/Azure/阿里云元数据端点，含IMDSv2会话令牌PUT请求绕过技巧"
+    },
+    {
+      "heading": "Internal Service Exposure",
+      "what": "探测localhost上的管理后台、MySQL/MongoDB、Redis与Consul等内部服务端口"
+    },
+    {
+      "heading": "Protocol Abuse",
+      "what": "滥用file/dict/gopher/tftp/ldap协议及HTTP/2合并、h2c升级与IPv6映射绕过主机过滤"
+    },
+    {
+      "heading": "Exploitation",
+      "what": "Bash端口扫描、云元数据凭证窃取curl示例、Gopher打Redis与file协议读取敏感文件"
+    },
+    {
+      "heading": "Bypass Testing",
+      "what": "IP表示变体与URL编码实测，及1u.ms、rbndr.us等现代DNS重绑定工具用法"
+    },
+    {
+      "heading": "Kubernetes-Specific SSRF Attack Surface",
+      "what": "从SSRF视角打kubelet API、窃取Service Account Token、访问Istio/Envoy管理与Docker socket"
+    },
+    {
+      "heading": "Remediation Recommendations",
+      "what": "严格URL白名单校验、网络分段与egress过滤、两段式URL解析等修复建议"
+    },
+    {
+      "heading": "Framework-Specific SSRF",
+      "what": "Node.js/Python/Java常见HTTP库的SSRF隐患及相关CVE（如CVE-2024-39338）"
+    }
+  ]
+}

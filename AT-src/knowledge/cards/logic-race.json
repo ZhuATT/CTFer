@@ -1,0 +1,76 @@
+{
+  "use_when": "在对电商、支付、会员订阅类 Web/App 做渗透测试或众测时需要挖掘业务流程缺陷与并发竞争漏洞时阅读本篇，重点涵盖负数/小数数量0元购、整数溢出、金额篡改、优惠券叠加、Burp 并发分组与 Turbo Intruder 双花竞争、跳过支付/2FA 步骤、Cookie 替换越权及 Spring Security antMatchers 覆盖缺口，区别于自动化扫描器可发现的技术型漏洞、强调需人工业务推理的高赏金攻击面。",
+  "triggers": [
+    "业务逻辑漏洞",
+    "逻辑漏洞",
+    "竞争条件",
+    "race condition",
+    "双花",
+    "double spend",
+    "0元购",
+    "负数数量",
+    "整数溢出",
+    "integer overflow",
+    "金额篡改",
+    "支付绕过",
+    "优惠券叠加",
+    "薅羊毛",
+    "短信轰炸",
+    "Turbo Intruder",
+    "Burp并发",
+    "工作流绕过",
+    "workflow bypass",
+    "2FA绕过"
+  ],
+  "vulnclass": "逻辑漏洞",
+  "section_map": [
+    {
+      "heading": "1. PRICE AND VALUE MANIPULATION",
+      "what": "价格与数值篡改手法：负数/小数数量0元购、删除必填字段骗取免费档、32位整数溢出清零与舍入、汇率差套利"
+    },
+    {
+      "heading": "2. RACE CONDITIONS",
+      "what": "并发竞争攻击：礼品卡双花兑换、Burp Repeater 分组并行发包、Turbo Intruder 突破短信限频及多设备并发锁定新人优惠叠加VIP时长"
+    },
+    {
+      "heading": "3. WORKFLOW / STEP SKIP BYPASS",
+      "what": "业务流程跳步绕过：直发订单确认接口、跳过2FA与密码重置中间步骤、百分百折扣券免付款发货"
+    },
+    {
+      "heading": "Filter Path Truncation Bypass — `..//` and `;`",
+      "what": "Java Filter 鉴权绕过：../.. 路径折叠与分号路径参数截断使基于 getRequestURI 的登录校验失效，修复应改用 getServletPath"
+    },
+    {
+      "heading": "4. COUPON AND REFERRAL ABUSE",
+      "what": "优惠券叠加超100%折扣、固定金额券购买低价商品套现余额与推荐返利无限循环刷取积分"
+    },
+    {
+      "heading": "5. ACCOUNT / PRIVILEGE LOGIC FLAWS",
+      "what": "账户权限逻辑缺陷：邮箱改绑免二次验证、重置令牌复用、OAuth 邮箱匹配账号劫持、Cookie 替换水平/垂直越权与 rand() 弱随机重置令牌爆破"
+    },
+    {
+      "heading": "6. API BUSINESS LOGIC FLAWS",
+      "what": "API 业务逻辑：客户端自改订单状态触发退款、transaction_id 复用、限额计数绕过及无 Filter/Spring Security antMatchers 覆盖缺口的未授权接口审计"
+    },
+    {
+      "heading": "7. SUBSCRIPTION / TIER CONFUSION",
+      "what": "订阅层级混淆：降级后保留付费功能、响应中泄露 .flv/.m3u8 媒体直链匿名播放与免费课ID置换付费课资源越权"
+    },
+    {
+      "heading": "8. FILE UPLOAD BUSINESS LOGIC",
+      "what": "上传业务逻辑：Zip 炸弹解压 DoS、CSV 公式注入、按 UID 预测存储路径越权覆盖及图片转换器 CVE 打击面"
+    },
+    {
+      "heading": "9. TESTING APPROACH",
+      "what": "业务流程八问测试方法论：跳步、极端值、重复幂等、步骤乱序、双用户并发与可信状态字段篡改，从资金影响角度排序赏金"
+    },
+    {
+      "heading": "10. HIGH-IMPACT CHECKLISTS",
+      "what": "30分钟高收益清单：电商支付篡改、认证账户绕过、订阅限额与资源三大攻击面的优先测试项"
+    },
+    {
+      "heading": "11. CONSOLIDATED CHECKLIST (2-Hour Full Sweep)",
+      "what": "2小时九大业务面全面扫查表：登录注册、密码找回、会话令牌、支付订单、IDOR越权、验证码、文件上传与CSRF/SSRF/XXE逐项条目"
+    }
+  ]
+}

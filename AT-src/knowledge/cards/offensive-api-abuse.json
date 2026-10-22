@@ -1,0 +1,76 @@
+{
+  "use_when": "在授权渗透测试中针对 API 业务逻辑层实施自动化扫描器难以发现的高级滥用攻击时阅读本篇，重点涵盖 API 调用链绕过、GraphQL 内省/批量爆破、JWT 算法混淆与 kid/jku 注入、竞态条件与 Webhook SSRF，区别于传统注入类漏洞测试的业务流程/状态机/信任链滥用视角。",
+  "triggers": [
+    "API业务逻辑漏洞",
+    "API chaining",
+    "调用链绕过",
+    "GraphQL",
+    "内省查询",
+    "introspection",
+    "批量查询爆破",
+    "JWT攻击",
+    "算法混淆",
+    "none算法绕过",
+    "kid注入",
+    "jku滥用",
+    "声明篡改",
+    "竞态条件",
+    "race condition",
+    "Webhook劫持",
+    "SSRF",
+    "分页数据枚举",
+    "API密钥泄露",
+    "jwt_tool"
+  ],
+  "vulnclass": "逻辑漏洞",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "十步API攻击流程总览：端点测绘、业务工作流建模、竞态/JWT/GraphQL测试到影响定级"
+    },
+    {
+      "heading": "Business Logic Bypass via API Chaining",
+      "what": "通过跳过支付直接确认订单、价格操纵、负数数量与状态篡改等调用链滥用绕过业务流程"
+    },
+    {
+      "heading": "GraphQL Batching and Abuse",
+      "what": "利用内省查询泄露schema、单请求批量登录绕过限速实施爆破、查询深度与字段重复实现DoS响应放大"
+    },
+    {
+      "heading": "Pagination Exploitation",
+      "what": "滥用per_page/page参数与伪造base64游标实现全量数据枚举，并注入sort/filter参数探测隐藏字段"
+    },
+    {
+      "heading": "Webhook Hijacking and SSRF",
+      "what": "注册攻击者控制的Webhook截获事件数据，并将回调URL指向127.0.0.1/云元数据/内网服务实施SSRF"
+    },
+    {
+      "heading": "Race Conditions in API Transactions",
+      "what": "用Python asyncio/aiohttp或GNU parallel并发请求实现一次性优惠券重复兑换与余额超额转账"
+    },
+    {
+      "heading": "JWT Manipulation",
+      "what": "jwt_tool实施RS256转HS256算法混淆、none算法绕过、kid路径穿越/SQL注入、jku指向伪造JWKS及role/exp声明篡改"
+    },
+    {
+      "heading": "API Key Leakage Patterns",
+      "what": "用gh搜索公开仓库泄露的AKIA/sk_live密钥，从JS bundle与报错响应中提取api_key/token等凭据"
+    },
+    {
+      "heading": "Undocumented Endpoint Discovery",
+      "what": "用Arjun/ParamSpider挖掘隐藏参数，按internal/debug/admin命名规律爆破未文档化端点并从JS中提取API路由"
+    },
+    {
+      "heading": "Resource Exhaustion and Algorithmic Complexity",
+      "what": "通过ReDoS正则回溯测量响应时间放大与Billion Laughs XML实体扩展耗尽服务端资源"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "防守视角：行为分析检测乱序状态转移、查询复杂度限制、Webhook出站监控与数据库序列化失败日志"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "按发现/逻辑/认证/数据/基础设施五个阶段对照所需工具的速查表"
+    }
+  ]
+}

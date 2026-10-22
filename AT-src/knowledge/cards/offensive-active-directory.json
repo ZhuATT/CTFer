@@ -1,0 +1,72 @@
+{
+  "use_when": "在内网红队与域渗透场景下需要系统性规划 Active Directory 攻击路径时阅读本篇，重点涵盖 BloodHound 侦察、Kerberoasting/NTLM 中继凭据收割、ACL/RBCD/GPO 提权、ADCS ESC1-15 证书滥用、黄金票据/DCSync 持久化及 Entra ID 混合云打点与 MDI 规避，区别于 Web 应用层漏洞测试，聚焦域内横向移动与 Tier 0 权限夺取。",
+  "triggers": [
+    "Active Directory",
+    "AD域渗透",
+    "BloodHound",
+    "Kerberoasting",
+    "ASREProasting",
+    "NTLM中继",
+    "LLMNR/NBT-NS毒化",
+    "Responder",
+    "Pass-the-Hash",
+    "哈希传递",
+    "Pass-the-Ticket",
+    "黄金票据",
+    "白银票据",
+    "DCSync",
+    "DCShadow",
+    "ADCS攻击",
+    "RBCD",
+    "PetitPotam",
+    "GPO滥用",
+    "LSASS转储"
+  ],
+  "vulnclass": "网络与内网",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "五步域渗透流程：离线侦察、凭据收割、攻击路径规划、低噪执行与持久化留痕"
+    },
+    {
+      "heading": "Reconnaissance",
+      "what": "BloodHound/SharpHound 采集、PowerView 无落地枚举与 ADExplorer 快照离线分析域结构"
+    },
+    {
+      "heading": "Credential Harvesting",
+      "what": "LLMNR/NBT-NS 毒化抓 NetNTLMv2、NTLM 中继、Kerberoasting/ASREProasting 烤票与 LSASS 转储"
+    },
+    {
+      "heading": "Privilege Escalation Within AD",
+      "what": "ACL 滥用（GenericAll/WriteDacl）、Kerberos 委派与 RBCD、PetitPotam 等强制认证原语及 GPO 计划任务提权"
+    },
+    {
+      "heading": "ADCS Abuse — ESC1 through ESC15",
+      "what": "certipy 枚举证书模板错误配置并利用 ESC1-ESC15 获取任意用户证书冒充身份"
+    },
+    {
+      "heading": "Lateral Movement",
+      "what": "哈希传递/票据传递及 WinRM、atexec、WMI、DCOM 等低检测噪声横向执行手法"
+    },
+    {
+      "heading": "Persistence",
+      "what": "黄金/白银/Diamond 票据伪造、DCSync、DCShadow 与 AdminSDHolder 后门持久化"
+    },
+    {
+      "heading": "Forest & Trust Attacks",
+      "what": "跨林信任 SID History 注入与域间票据伪造实现林间提权"
+    },
+    {
+      "heading": "Hybrid AD / Entra ID (Azure AD) Pivots",
+      "what": "AAD Connect 凭据提取、Seamless SSO、PTA 代理劫持、Golden SAML 与 Pass-the-PRT 混合云打点"
+    },
+    {
+      "heading": "Detection Evasion (MDI / Defender for Identity)",
+      "what": "识别 MDI 传感器并针对蜜罐账户、SAMR 侦察、票据伪造检测等规避 Defender for Identity"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "匿名 LDAP/SMB 枚举、低速率密码喷洒与认证后 BloodHound 全量采集实战速查"
+    }
+  ]
+}

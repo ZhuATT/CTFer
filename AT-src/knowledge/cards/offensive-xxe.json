@@ -1,0 +1,88 @@
+{
+  "use_when": "在Web渗透测试与漏洞赏金(SRC/众测)中对XML解析入口进行XXE漏洞挖掘与利用时阅读本篇，重点涵盖经典文件读取、Blind XXE带外回连、SVG/DOCX/EPUB/SAML格式注入、XInclude、Billion Laughs、php://filter绕过及云原生K8s/CI-CD链利用，区别于通用SSRF与文件上传漏洞的常规测试思路。",
+  "triggers": [
+    "XXE",
+    "XML External Entity",
+    "XML外部实体注入",
+    "Blind XXE",
+    "盲XXE",
+    "带外OOB",
+    "XInclude",
+    "SVG XXE",
+    "SOAP XXE",
+    "SAML XXE",
+    "Billion Laughs",
+    "十亿笑声",
+    "报错XXE",
+    "php://filter",
+    "XXE SSRF",
+    "外部实体",
+    "DTD",
+    "Burp Collaborator",
+    "Interactsh",
+    "169.254.169.254"
+  ],
+  "vulnclass": "XXE",
+  "section_map": [
+    {
+      "heading": "Shortcut",
+      "what": "快速测试路径：定位XML数据入口、区分经典/盲XXE、搭建回连监听并尝试读取/etc/hostname等系统文件"
+    },
+    {
+      "heading": "Mechanisms",
+      "what": "XXE原理：DTD外部实体解析缺陷导致文件泄露、SSRF、拒绝服务及借助expect://或Java反序列化的RCE链"
+    },
+    {
+      "heading": "Identify XML Injection Points",
+      "what": "枚举XML注入面：REST/GraphQL API、DOCX/SVG文件上传、JSON转XML、SOAP/XML-RPC/SAML遗留接口与隐藏解析器"
+    },
+    {
+      "heading": "Test Basic XXE Patterns",
+      "what": "基础payload测试：经典file:///读文件、盲XXE外带DTD回连及无法定义DTD时的XInclude攻击"
+    },
+    {
+      "heading": "Billion Laughs Attack Steps",
+      "what": "代理中转换请求体为XML并插入嵌套实体(lol1-lol9)实现指数膨胀DoS的操作流程"
+    },
+    {
+      "heading": "Check Alternative XML Formats",
+      "what": "在SVG图片、DOCX/XLSX内部XML(word/document.xml)及SOAP信封中注入XXE payload"
+    },
+    {
+      "heading": "SAML 2.0 XXE Testing",
+      "what": "测试SAML AuthnRequest、Response断言与加密断言回绕中的XXE以攻击SSO集成点"
+    },
+    {
+      "heading": "E-book Format Exploitation (EPUB)",
+      "what": "解包EPUB的ZIP结构并向META-INF/container.xml或content.opf注入XXE后重打包上传图书馆/电商系统"
+    },
+    {
+      "heading": "Parameter Entity Testing",
+      "what": "利用参数实体嵌套定义eval/exfil实体实现盲XXE文件内容外带"
+    },
+    {
+      "heading": "Error-Based XXE",
+      "what": "构造file:///nonexistent/%file;路径让报错消息携带文件内容实现数据提取"
+    },
+    {
+      "heading": "Cloud-Native & Kubernetes XXE",
+      "what": "K8s Admission Webhook/ConfigMap窃取serviceaccount token及Jenkins/GitLab/GitHub Actions/Maven供应链XXE利用"
+    },
+    {
+      "heading": "SSRF via XXE",
+      "what": "借XXE打内网服务与AWS IMDS/Azure/GCP云元数据，用jar://或开放重定向绕过元数据Header防护"
+    },
+    {
+      "heading": "Bypass Techniques",
+      "what": "大小写变体、URL编码、CDATA区段与XML命名空间混淆绕过XXE过滤器"
+    },
+    {
+      "heading": "PHP Wrapper inside XXE",
+      "what": "php://filter/convert.base64-encode读取index.php源码及内网响应绕过XML解析限制"
+    },
+    {
+      "heading": "Tools",
+      "what": "XXEinjector、oxml_sec、OWASP ZAP及Burp Collaborator/Interactsh带外检测工具清单"
+    }
+  ]
+}

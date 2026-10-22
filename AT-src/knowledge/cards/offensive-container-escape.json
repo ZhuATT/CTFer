@@ -1,0 +1,68 @@
+{
+  "use_when": "在渗透测试中拿到容器内 Shell 需要逃逸到宿主机时阅读本篇，重点涵盖特权容器挂载宿主文件系统与 nsenter、Docker Socket 滥用、CAP_SYS_ADMIN 等危险 Capabilities 利用、cgroup release_agent 逃逸及 runc CVE-2019-5736/Leaky Vessels 漏洞利用与 deepce/CDK 自动化枚举，区别于常规 Linux 本地提权和 K8s 集群横向移动。",
+  "triggers": [
+    "容器逃逸",
+    "container escape",
+    "Docker逃逸",
+    "特权容器",
+    "privileged",
+    "docker.sock",
+    "Docker Socket滥用",
+    "nsenter",
+    "CAP_SYS_ADMIN",
+    "CAP_SYS_PTRACE",
+    "release_agent",
+    "notify_on_release",
+    "cgroup逃逸",
+    "runc漏洞",
+    "CVE-2019-5736",
+    "CVE-2024-21626",
+    "Leaky Vessels",
+    "shocker",
+    "DirtyPipe",
+    "deepce"
+  ],
+  "vulnclass": "提权",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "容器逃逸六步流程：确认容器环境、枚举能力与挂载、识别逃逸向量、执行突破、验证宿主机访问并横向移动"
+    },
+    {
+      "heading": "Phase 1: Container Detection and Enumeration",
+      "what": "通过 .dockerenv、cgroup 条目、PID 1 与命名空间 inode 检测容器环境，并用 deepce/CDK/amicontained/capsh 枚举 Capabilities 与攻击面"
+    },
+    {
+      "heading": "Phase 2: Privileged Container Breakout",
+      "what": "特权容器直接挂载宿主磁盘读取 shadow、植入 SSH 公钥与 cron 后门，nsenter 进入宿主命名空间及 mknod 访问宿主设备"
+    },
+    {
+      "heading": "Phase 3: Docker Socket Abuse",
+      "what": "检测可写的 /var/run/docker.sock 与 containerd.sock，通过 Docker API/ctr 创建挂载宿主根目录的特权容器实现逃逸"
+    },
+    {
+      "heading": "Phase 4: Capability-Based Escapes",
+      "what": "利用 CAP_SYS_ADMIN 挂载、CAP_SYS_PTRACE 注入宿主进程、CAP_NET_ADMIN 流量劫持及 CAP_DAC_READ_SEARCH 的 shocker open_by_handle_at 逃逸"
+    },
+    {
+      "heading": "Phase 5: Cgroup Escape (notify_on_release)",
+      "what": "cgroup v1 经典逃逸：创建子 cgroup 并开启 notify_on_release，将 release_agent 指向容器内 payload 触发宿主机执行命令"
+    },
+    {
+      "heading": "Phase 6: Runtime CVE Exploitation",
+      "what": "runc/containerd 漏洞利用：CVE-2019-5736 覆写宿主 runc 二进制、CVE-2024-21626 泄漏文件描述符访问宿主文件系统、CVE-2020-15257 主机网络访问 containerd API"
+    },
+    {
+      "heading": "Phase 7: Kernel Exploits from Container",
+      "what": "容器内利用共享内核漏洞 DirtyPipe/DirtyCow/OverlayFS/nftables 提权，并检查 seccomp 与 AppArmor 限制"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "蓝队视角：监控容器内 mount 调用、release_agent 写入、Docker Socket API 访问、危险 Capabilities 及部署 Falco 规则检测逃逸"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "实战速查：特权模式/Socket/cgroup 版本检测一行命令与挂载逃逸、nsenter、cgroup release_agent 逃逸快捷利用"
+    }
+  ]
+}

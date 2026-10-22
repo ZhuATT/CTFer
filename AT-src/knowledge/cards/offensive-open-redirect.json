@@ -1,0 +1,84 @@
+{
+  "use_when": "在Web渗透测试与漏洞挖掘（Bug Bounty）中需要发现并绕过开放重定向防护时阅读本篇，重点涵盖redirect/url/next等重定向参数识别、域名欺骗、URL编码与双重编码、javascript与data伪协议、CRLF及CDN反向代理解析差异等绕过手法，并结合OAuth redirect_uri测试与钓鱼/XSS/SSRF攻击链升级，区别于仅覆盖基础跳转探测的入门教程。",
+  "triggers": [
+    "开放重定向",
+    "open redirect",
+    "URL重定向",
+    "重定向绕过",
+    "redirect bypass",
+    "URL编码绕过",
+    "双重编码",
+    "CRLF注入",
+    "协议混淆",
+    "javascript伪协议",
+    "data URI",
+    "OAuth redirect_uri",
+    "重定向链",
+    "redirect chain",
+    "SSRF链",
+    "域名欺骗",
+    "协议相对URL",
+    "Referer重定向",
+    "钓鱼攻击",
+    "OpenRedireX"
+  ],
+  "vulnclass": "逻辑漏洞",
+  "section_map": [
+    {
+      "heading": "Shortcut",
+      "what": "快速搜索重定向URL参数与Referer跳转页面并按序测试、串联漏洞链的操作捷径"
+    },
+    {
+      "heading": "Mechanisms",
+      "what": "开放重定向成因原理、URL校验缺陷类型及参数/路径/Referer/短链接等多种实现形态"
+    },
+    {
+      "heading": "Hunt",
+      "what": "常见重定向参数名清单、跳转端点发现方法与OAuth redirect_uri基础测试"
+    },
+    {
+      "heading": "Bypass Techniques",
+      "what": "防护绕过技术总览：域名欺骗、编码、协议混淆、路径混淆与特殊字符滥用"
+    },
+    {
+      "heading": "Domain Spoofing Techniques",
+      "what": "利用target.com.attacker.com子域伪装与?拼接目标域名绕过域名校验"
+    },
+    {
+      "heading": "CDN/Reverse Proxy Quirks",
+      "what": "利用CDN与反向代理混合协议解析、双重解码及X-Original-URL头注入的绕过手法"
+    },
+    {
+      "heading": "Encoding Bypass Techniques",
+      "what": "对跳转目标进行URL全编码与多层编码绕过过滤校验"
+    },
+    {
+      "heading": "Protocol Confusion Bypasses",
+      "what": "利用javascript:、data:text/html伪协议及https;/畸形协议绕过验证"
+    },
+    {
+      "heading": "Path-Based Bypasses",
+      "what": "利用/\\、////、\\/\\/等多斜杠与反斜杠路径混淆绕过跳转校验"
+    },
+    {
+      "heading": "Special Character Abuse",
+      "what": "利用@认证段、#片段截断与反斜杠转义绕过域名字符串校验"
+    },
+    {
+      "heading": "Vulnerabilities",
+      "what": "Spring/Laravel/Express/Next.js等框架及OAuth/社交登录的典型重定向漏洞模式"
+    },
+    {
+      "heading": "Impact Scenarios",
+      "what": "钓鱼、CSRF增强、XSS与SSRF跳转及OAuth令牌窃取的攻击链升级路径"
+    },
+    {
+      "heading": "Tools",
+      "what": "OWASP ZAP、Burp Collaborator、OpenRedireX、Waybackurls等检测工具与Python自定义脚本"
+    },
+    {
+      "heading": "Remediation Recommendations",
+      "what": "域名白名单、服务端校验、间接引用映射与安全跳转提示页等修复方案"
+    }
+  ]
+}

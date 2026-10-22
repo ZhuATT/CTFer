@@ -1,0 +1,88 @@
+{
+  "use_when": "在时间受限的渗透测试、CTF竞速或目标初期快速摸排攻击面时需要一份全流程速查检查清单时阅读本篇，重点涵盖快速侦察与CDN源站IP定位、认证/会话/越权测试、注入与文件上传绕过、GraphQL/OAuth/JWT专项、云与K8s配置错误及WAF绕过手法，区别于单漏洞深度利用的专项技术文档。",
+  "triggers": [
+    "快速测试",
+    "渗透测试清单",
+    "快速侦察",
+    "攻击面测绘",
+    "源站IP",
+    "CDN/WAF绕过",
+    "用户名枚举",
+    "MFA绕过",
+    "会话固定",
+    "IDOR越权",
+    "BOLA/BFLA",
+    "Mass Assignment",
+    "文件上传绕过",
+    "GraphQL内省",
+    "OAuth测试",
+    "JWT攻击",
+    "jwt_tool",
+    "HTTP请求走私",
+    "WAF绕过",
+    "提示注入"
+  ],
+  "vulnclass": "其他",
+  "section_map": [
+    {
+      "heading": "Reconnaissance and Analysis",
+      "what": "映射可见与隐藏内容、识别技术栈与数据入口、DNS/子域名范围发现及API契约抓取"
+    },
+    {
+      "heading": "Find Origin IP behind CDN/WAF",
+      "what": "通过历史DNS、证书SAN、邮件头与curl --resolve直连测试定位CDN背后的真实源站IP"
+    },
+    {
+      "heading": "Authentication",
+      "what": "测试密码策略、用户名枚举、账户恢复流程及MFA/OAuth/JWT/API Key等认证机制绕过"
+    },
+    {
+      "heading": "Session handling",
+      "what": "检测会话令牌可预测性与含义、会话固定、CSRF防护及Cookie安全属性配置"
+    },
+    {
+      "heading": "Access controls",
+      "what": "多账号横向纵向越权测试、ID参数篡改、BOLA/BFLA及Mass Assignment批量赋值利用"
+    },
+    {
+      "heading": "Input Validation Testing",
+      "what": "全参数Fuzz及SQL注入、XSS、命令注入、路径穿越、SSTI、文件包含、XXE等注入类检测"
+    },
+    {
+      "heading": "File Upload Testing",
+      "what": "双扩展名、大小写绕过、魔术字节伪造、Polyglot多态文件及Zip Slip等上传绕过手法"
+    },
+    {
+      "heading": "Business Logic Testing",
+      "what": "识别业务逻辑攻击面、多阶段流程缺陷、竞态条件与TOCTOU及幂等性验证"
+    },
+    {
+      "heading": "GraphQL Specific Testing",
+      "what": "内省查询与Schema分析、字段猜测、BOLA/BFLA及深度嵌套查询DoS测试"
+    },
+    {
+      "heading": "OAuth Specific Testing",
+      "what": "redirect_uri与state参数校验绕过、PKCE、Scope提权及令牌泄露检测"
+    },
+    {
+      "heading": "JWT Specific Testing",
+      "what": "alg:none与RS256转HS256算法混淆绕过、弱HMAC密钥爆破及kid/jku头部注入"
+    },
+    {
+      "heading": "Infrastructure Security Testing",
+      "what": "Web服务器漏洞、AWS/Azure/GCP云配置错误、IMDS元数据泄露及Kubernetes安全检查"
+    },
+    {
+      "heading": "HTTP Request Smuggling",
+      "what": "CL.TE/TE.CL/TE.TE走私检测、Rapid-Reset DoS及HTTP/2降级与流复用问题"
+    },
+    {
+      "heading": "AI/LLM Integration Testing",
+      "what": "直接与间接提示注入、越狱DAN、RAG上下文投毒、敏感数据泄露及模型DoS"
+    },
+    {
+      "heading": "WAF Bypass Testing",
+      "what": "WAF指纹识别、住宅IP与代理轮换、TLS/浏览器指纹对抗及Payload混淆编码"
+    }
+  ]
+}

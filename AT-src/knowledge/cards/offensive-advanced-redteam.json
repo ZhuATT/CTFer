@@ -1,0 +1,84 @@
+{
+  "use_when": "在面向具备 EDR/AMSI 与成熟蓝队的目标开展红队演练（假定失陷、外到内、内部威胁等场景）需要规划从授权、C2 基建、防御规避到紫队复盘的全生命周期对抗行动时阅读本篇，重点涵盖三层 C2 基础设施与重定向器/域名养号、Cobalt Strike 可塑性 Profile 流量伪装、AMSI/ETW 绕过与 SysWhispers3 直接系统调用、OPSEC 归因规避及痕迹清理，区别于以漏洞发现为核心、范围固定的常规渗透测试。",
+  "triggers": [
+    "红队",
+    "Red Team",
+    "C2",
+    "Cobalt Strike",
+    "Malleable Profile",
+    "可塑性配置",
+    "Beacon",
+    "重定向器",
+    "域名养号",
+    "AMSI绕过",
+    "ETW Patch",
+    "SysWhispers3",
+    "直接系统调用",
+    "ntdll脱钩",
+    "LOLBins",
+    "OPSEC",
+    "归因规避",
+    "LSASS转储",
+    "紫队复盘",
+    "MITRE ATT&CK"
+  ],
+  "vulnclass": "其他",
+  "section_map": [
+    {
+      "heading": "Engagement Planning",
+      "what": "规划阶段界定目标与禁入范围、签署ROE法律授权、建立可信代理人去冲突与端到端加密通信"
+    },
+    {
+      "heading": "Infrastructure Setup",
+      "what": "搭建抗归因、可分割的攻击基础设施并对应ATT&CK资源开发战术TA0042"
+    },
+    {
+      "heading": "Tiered Architecture",
+      "what": "T1投递/T2短程C2/T3长程C2三层域名与VPS分离及烧毁容忍度设计"
+    },
+    {
+      "heading": "Redirectors and Traffic Filtering",
+      "what": "nginx按URI与User-Agent过滤仅转发合法beacon回调，并用Cloudflare隧道保护团队服务器"
+    },
+    {
+      "heading": "Malleable Profiles and Traffic Blending",
+      "what": "编写模仿Office 365 API请求的Cobalt Strike可塑性Profile实现流量隐匿"
+    },
+    {
+      "heading": "Fallback Channels",
+      "what": "HTTPS→DoH→DNS TXT→ICMP的C2多级降级链与指数退避休眠重试策略"
+    },
+    {
+      "heading": "OPSEC Discipline",
+      "what": "一次性身份注册、剥离EXIF等文件元数据、改造CS/Mimikatz默认签名的归因规避与痕迹清理"
+    },
+    {
+      "heading": "Data Handling",
+      "what": "GPG即时加密战利品、DNS TXT分块渗出绕过DLP阈值与SHA-256监管链保全"
+    },
+    {
+      "heading": "AMSI Bypass",
+      "what": "反射置amsiInitFailed或补丁AmsiScanBuffer返回RET以绕过脚本与程序集扫描"
+    },
+    {
+      "heading": "Unhooking and Direct Syscalls",
+      "what": "磁盘加载干净ntdll覆盖.text段脱钩EDR内联hook并用SysWhispers3/HellsGate直调内核"
+    },
+    {
+      "heading": "LOLBins and Living Off the Land",
+      "what": "活用certutil/mshta/rundll32/msbuild等系统自带二进制下载与执行载荷"
+    },
+    {
+      "heading": "Reporting",
+      "what": "高管摘要、攻击叙事、ATT&CK热力图与IOC附录的分层报告结构"
+    },
+    {
+      "heading": "Purple Team Debrief",
+      "what": "红蓝协同逐步复盘攻击链检测时效并共同开发检测规则与调优工具"
+    },
+    {
+      "heading": "Engagement Scenarios",
+      "what": "假定失陷、外到内、内部威胁、物理网络混合四类演练场景及对应ATT&CK战术"
+    }
+  ]
+}

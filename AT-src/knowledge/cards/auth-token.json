@@ -1,0 +1,88 @@
+{
+  "use_when": "在渗透测试中评估Web登录流程、令牌与SSO会话安全时阅读本篇，重点涵盖JWT alg:none/RS256→HS256算法混淆、kid与jku注入、OAuth redirect_uri绕过与state CSRF、SAML签名包装、密码重置投毒及MFA/2FA绕过，区别于单纯口令爆破与CORS/CSRF类单点漏洞，聚焦从令牌伪造到账号接管的完整认证攻击链。",
+  "triggers": [
+    "JWT攻击",
+    "alg:none",
+    "算法混淆",
+    "kid注入",
+    "jku注入",
+    "JWKS",
+    "jwt_tool",
+    "OAuth配置错误",
+    "redirect_uri绕过",
+    "PKCE绕过",
+    "SAML断言",
+    "签名包装",
+    "认证绕过",
+    "密码重置投毒",
+    "Host头注入",
+    "MFA绕过",
+    "bcrypt截断",
+    "撞库",
+    "账号枚举",
+    "弱随机数"
+  ],
+  "vulnclass": "认证绕过",
+  "section_map": [
+    {
+      "heading": "ATTACK 1 — ALGORITHM NONE (alg:none)",
+      "what": "构造alg:none空签名令牌修改role等claim直接提权绕过验签"
+    },
+    {
+      "heading": "ATTACK 2 — RS256 TO HS256 KEY CONFUSION",
+      "what": "获取公钥后将RS256降级为HS256并以公钥作HMAC密钥伪造签名"
+    },
+    {
+      "heading": "ATTACK 3 — JWT SECRET BRUTE FORCE",
+      "what": "用hashcat/john/jwt_tool跑rockyou字典破解HS256弱密钥并离线伪造令牌"
+    },
+    {
+      "heading": "ATTACK 4 — kid (Key ID) INJECTION",
+      "what": "kid头SQL注入UNION控制验签密钥或路径穿越读/dev/null实现空密钥签名"
+    },
+    {
+      "heading": "ATTACK 5 — jku / x5u Header Injection",
+      "what": "jku头指向攻击者托管的恶意JWKS使服务端用攻击者公钥验签接受伪造令牌"
+    },
+    {
+      "heading": "OAUTH 2.0 — STATE PARAMETER MISSING (CSRF)",
+      "what": "缺失state时将攻击者授权码回调给受害者实现会话绑定与账号接管"
+    },
+    {
+      "heading": "OAUTH — REDIRECT_URI BYPASS",
+      "what": "前缀匹配、路径混淆、@符号与localhost重定向绕过白名单窃取授权码"
+    },
+    {
+      "heading": "SQL INJECTION LOGIN BYPASS",
+      "what": "admin'--与' OR '1'='1'--万能密码分别注入用户名/密码字段绕过登录校验"
+    },
+    {
+      "heading": "PASSWORD RESET VULNERABILITIES",
+      "what": "重置令牌可预测/不失效、Host头投毒污染重置链接与Referer头泄露令牌"
+    },
+    {
+      "heading": "MULTI-FACTOR AUTHENTICATION BYPASS",
+      "what": "2FA未完成即发放会话直接访问后台、爆破TOTP六位码及复用一次性验证码"
+    },
+    {
+      "heading": "SESSION MANAGEMENT FLAWS",
+      "what": "登出后会话未失效、权限变更未重生成会话令牌与可预测会话ID重放"
+    },
+    {
+      "heading": "PASSWORD RESET ATTACK MATRIX (22 Patterns)",
+      "what": "22种密码重置缺陷速查：令牌不绑定用户、响应体泄露验证码、邮箱参数污染、注册覆盖账号等"
+    },
+    {
+      "heading": "CAPTCHA/VERIFICATION BYPASS PATTERNS (20 Methods)",
+      "what": "删除captcha参数、切换请求方法/Content-Type、OCR识别及短信验证码响应泄露等20种绕过手法"
+    },
+    {
+      "heading": "INSECURE RANDOMNESS — TOKEN PREDICTION",
+      "what": "UUIDv1、MongoDB ObjectId、PHP uniqid与mt_rand弱随机令牌的预测还原及guidtool等工具"
+    },
+    {
+      "heading": "身份诊断三实验（服务端到底认谁？）",
+      "what": "cookie摘除、客户端身份字段对调与签名强制性实验定位真实身份派生源与摆设字段"
+    }
+  ]
+}

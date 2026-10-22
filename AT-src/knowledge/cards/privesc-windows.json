@@ -1,0 +1,88 @@
+{
+  "use_when": "在已获得 Windows 主机低权限 Shell 后需要本地提权至 SYSTEM、横向移动或窃取凭证时阅读本篇，重点涵盖 Potato 家族令牌滥用、服务/DLL/计划任务错误配置、PTH/PTT 横向与 LSASS 凭证转储，区别于单点技巧笔记提供从信息收集到内网代理的完整提权-横移决策链路。",
+  "triggers": [
+    "Windows提权",
+    "SeImpersonatePrivilege",
+    "土豆提权",
+    "GodPotato",
+    "JuicyPotato",
+    "PrintSpoofer",
+    "命名管道模拟",
+    "DLL劫持",
+    "未加引号服务路径",
+    "AlwaysInstallElevated",
+    "UAC绕过",
+    "横向移动",
+    "PsExec",
+    "evil-winrm",
+    "哈希传递",
+    "票据传递",
+    "LSASS转储",
+    "Mimikatz",
+    "NTDS.dit",
+    "winPEAS"
+  ],
+  "vulnclass": "提权",
+  "section_map": [
+    {
+      "heading": "1. ENUMERATION CHECKLIST",
+      "what": "提权前信息收集：系统版本、令牌权限、服务与计划任务、已装补丁及存储凭证的检查命令"
+    },
+    {
+      "heading": "2. TOKEN MANIPULATION & POTATO EXPLOITS",
+      "what": "利用 SeImpersonate/SeDebug 权限通过 Potato 家族工具与进程注入提升至 SYSTEM"
+    },
+    {
+      "heading": "3. SERVICE MISCONFIGURATIONS",
+      "what": "未加引号服务路径植入、弱服务 ACL 重配 binpath 与可写服务二进制替换提权"
+    },
+    {
+      "heading": "4. DLL HIJACKING",
+      "what": "利用 DLL 搜索顺序与幽灵 DLL 缺失项在可写目录植入恶意 DLL"
+    },
+    {
+      "heading": "5. ALWAYSINSTALLELEVATED",
+      "what": "检查 HKLM/HKCU 双注册表键并用 msfvenom 生成 MSI 载荷以 SYSTEM 静默安装提权"
+    },
+    {
+      "heading": "6. SCHEDULED TASK ABUSE",
+      "what": "枚举 SYSTEM 计划任务的可写或缺失二进制并替换以获取提权执行"
+    },
+    {
+      "heading": "8. NAMED PIPE IMPERSONATION",
+      "what": "创建命名管道诱使 SYSTEM 进程连接并模拟客户端令牌实现提权"
+    },
+    {
+      "heading": "3. DETAILED COMPARISON MATRIX",
+      "what": "Juicy/Rogue/Print/Sweet/God/Efs Potato 各系统版本兼容性、协议依赖与检测风险对比"
+    },
+    {
+      "heading": "5. SeBackupPrivilege EXPLOITATION",
+      "what": "用 reg save 与 robocopy /b 绕过 DACL 导出 SAM/SYSTEM/NTDS.dit 离线提取哈希"
+    },
+    {
+      "heading": "1. REMOTE EXECUTION METHODS COMPARISON",
+      "what": "PsExec/WMI/WinRM/DCOM/RDP 等横向方法的端口、凭证类型、落盘与 OPSEC 对比表"
+    },
+    {
+      "heading": "6. PASS-THE-HASH (PTH)",
+      "what": "NTLM 哈希直接横向至 Impacket/evil-winrm/Mimikatz 并利用 Restricted Admin RDP"
+    },
+    {
+      "heading": "7. OVERPASS-THE-HASH (PASS-THE-KEY)",
+      "what": "将 NTLM 哈希兑换 Kerberos TGT 实现纯 Kerberos 认证规避 NTLM 日志检测"
+    },
+    {
+      "heading": "9. PIVOTING THROUGH COMPROMISED HOSTS",
+      "what": "SSH 动态 SOCKS 代理、Chisel 反向隧道与 Ligolo-ng 转发进入内网"
+    },
+    {
+      "heading": "1. LSASS MEMORY DUMP TECHNIQUES",
+      "what": "comsvcs/ProcDump/Mimikatz/nanodump/handlekatz/PPLdump 等转储 LSASS 并离线解析凭证"
+    },
+    {
+      "heading": "10. LATERAL MOVEMENT DECISION TREE",
+      "what": "按凭证类型、隐蔽性优先级与目标加固情况选择横向方法与隧道方案的决策树"
+    }
+  ]
+}

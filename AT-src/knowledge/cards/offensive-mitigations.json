@@ -1,0 +1,88 @@
+{
+  "use_when": "在内核漏洞利用与本地提权对抗中需要检测并绕过目标启用的 KASLR、SMEP、SMAP、DEP、CFI、HVCI 等缓解机制时阅读本篇，重点涵盖 ROP/JOP 链、CR4 翻转、BYOVD 恶意驱动、CET 影子栈对抗、MTE 标签绕过及 checksec 式检测命令，区别于面向 Web 应用的常规渗透测试技能。",
+  "triggers": [
+    "内核提权",
+    "kernel exploit",
+    "缓解机制绕过",
+    "KASLR",
+    "内核地址随机化",
+    "SMEP",
+    "SMAP",
+    "DEP",
+    "数据执行保护",
+    "ROP",
+    "返回导向编程",
+    "ret2libc",
+    "CFI",
+    "控制流完整性",
+    "HVCI",
+    "VBS",
+    "BYOVD",
+    "stack canary",
+    "影子栈",
+    "MTE"
+  ],
+  "vulnclass": "提权",
+  "section_map": [
+    {
+      "heading": "Kernel Address Space Layout Randomization (KASLR)",
+      "what": "内核地址随机化原理与信息泄露、Prefetch 侧信道计时探测内核基址、爆破及未随机化区域利用等绕过手法"
+    },
+    {
+      "heading": "Kernel Page Table Isolation (KPTI)",
+      "what": "页表隔离防 Meltdown 机制与 TLB/缓存侧信道、L1TF/MDS 硬件漏洞及实现缺陷绕过及检测命令"
+    },
+    {
+      "heading": "Supervisor Mode Access Prevention (SMAP)",
+      "what": "SMAP 禁止内核访问用户态内存的原理与 stac 指令 ROP gadget、纯数据攻击及结合 KASLR 泄露的绕过手法"
+    },
+    {
+      "heading": "Supervisor Mode Execution Protection (SMEP)",
+      "what": "SMEP 位原理与 ROP/JOP 链、修改 CR4 关闭 SMEP、页表 PTE 篡改及任意写原语绕过手法"
+    },
+    {
+      "heading": "Memory Tagging Extension (MTE)",
+      "what": "ARM 内存标签扩展原理（4位标签/指针标记）与标签碰撞、去标签指针 gadget、内核态不受保护等绕过利用流程"
+    },
+    {
+      "heading": "Intel Linear Address Masking (LAM)",
+      "what": "LAM57/LAM48 高位地址标签掩码原理与指针伪造、信息泄露校验绕过及地址混淆漏洞类别"
+    },
+    {
+      "heading": "Memory Sealing",
+      "what": "mseal() 永久封锁 VMA 权限机制与时间窗抢占、纯数据滥用及内核缺陷绕过"
+    },
+    {
+      "heading": "Virtualization-Based Security (VBS)",
+      "what": "Windows 基于虚拟化的隔离防护与 Hyper-V 漏洞逃逸、DMA 物理攻击、被入侵签名组件绕过及检测方法"
+    },
+    {
+      "heading": "Hypervisor-Enforced Code Integrity (HVCI)",
+      "what": "HVCI 强制内核代码签名校验与窃取证书签名恶意驱动、BYOVD 自带漏洞驱动及策略配置缺陷绕过"
+    },
+    {
+      "heading": "OS Loader and Hotpatching Changes (Windows 11 24H2+)",
+      "what": "Win11 24H2 热补丁导致经典进程镂空 RunPE 报错 0xC0000141/0xC00004AC 的机理与 Hook NTDLL ZwQueryVirtualMemory/NtManageHotPatch 绕过方案"
+    },
+    {
+      "heading": "Data Execution Prevention (DEP)",
+      "what": "DEP/NX 原理与 ROP、ret2libc、VirtualProtect/NtProtectVirtualMemory、JIT 喷射绕过及 WinDbg 检测命令"
+    },
+    {
+      "heading": "Control Flow Integrity (CFI)",
+      "what": "CFI/kCFI/XFG 前向边校验原理与相似函数原型利用、纯数据攻击、JIT 编译绕过及编译选项配置"
+    },
+    {
+      "heading": "Control Flow Guard (CFG)",
+      "what": "Windows CFG 间接调用白名单机制与 IAT 表篡改、类型混淆、JIT 代码执行绕过及 Get-ProcessMitigation 检测"
+    },
+    {
+      "heading": "Stack Canaries",
+      "what": "栈金丝雀检测栈溢出原理与格式化字符串泄露 Canary、低熵爆破、异常处理器及未保护函数绕过"
+    },
+    {
+      "heading": "Hardware‑Enforced Stack Protection",
+      "what": "Intel CET 影子栈/KCET 硬件返回地址保护与安全内核 VTL1 防篡改机制及 Hyper-V 漏洞、纯数据攻击等高难度绕过向量"
+    }
+  ]
+}

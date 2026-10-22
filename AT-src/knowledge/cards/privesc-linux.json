@@ -1,0 +1,92 @@
+{
+  "use_when": "在拿到 Linux 低权限 Shell 后需要本地提权、容器逃逸或进一步横向渗透时阅读本篇，重点涵盖 SUID/sudo/capabilities/Cron 提权、DirtyPipe/PwnKit 等内核漏洞利用、Docker socket 与 cgroup release_agent 逃逸及 Kubernetes Pod 逃逸路径，区别于单点提权技巧片段的完整攻击链手册。",
+  "triggers": [
+    "Linux提权",
+    "privilege escalation",
+    "SUID",
+    "sudo -l",
+    "GTFOBins",
+    "capabilities",
+    "cap_setuid",
+    "Cron任务劫持",
+    "PATH hijacking",
+    "LD_PRELOAD",
+    "no_root_squash",
+    "内核提权",
+    "DirtyPipe",
+    "PwnKit",
+    "DirtyCow",
+    "Baron Samedit",
+    "容器逃逸",
+    "container escape",
+    "docker.sock",
+    "release_agent"
+  ],
+  "vulnclass": "提权",
+  "section_map": [
+    {
+      "heading": "1. ENUMERATION CHECKLIST",
+      "what": "落地 Shell 后立即执行的信息收集清单：系统版本、sudo 权限、SUID/SGID、Cron、可写文件、凭据与网络服务探测"
+    },
+    {
+      "heading": "2. SUID/SGID EXPLOITATION",
+      "what": "GTFOBins 查证方法论与 find/vim/python/bash 等 SUID 快速提权命令及 SUID 二进制共享库劫持"
+    },
+    {
+      "heading": "3. CAPABILITIES ABUSE",
+      "what": "getcap 枚举后针对 cap_setuid/cap_dac_override/cap_sys_admin 等各能力的具体提权利用手法"
+    },
+    {
+      "heading": "4. CRON / TIMER ABUSE",
+      "what": "可写 Cron 脚本注入 payload、Cron PATH 劫持、tar 通配符注入及 pspy 无 root 监控后台进程"
+    },
+    {
+      "heading": "5. NFS NO_ROOT_SQUASH",
+      "what": "利用 NFS no_root_squash 配置从攻击机植入 SUID bash 到共享目录获取目标 root shell"
+    },
+    {
+      "heading": "6. WRITABLE /etc/passwd OR /etc/shadow",
+      "what": "对可写 passwd 追加 UID 为 0 的用户或直接替换 shadow 中 root 口令哈希实现提权"
+    },
+    {
+      "heading": "7. LD_PRELOAD / LD_LIBRARY_PATH WITH SUDO",
+      "what": "sudo env_keep 保留 LD_PRELOAD 时编译带 setresuid 的恶意 .so 劫持允许的二进制提权"
+    },
+    {
+      "heading": "8. DOCKER GROUP → ROOT",
+      "what": "docker 组成员通过运行挂载宿主根目录或 /root 的容器写入 SSH 公钥获取宿主 root"
+    },
+    {
+      "heading": "11. PRIVILEGE ESCALATION DECISION TREE",
+      "what": "从低权限 Shell 出发按 sudo/SUID/capabilities/cron/可写文件/内核版本逐层排查的提权决策树"
+    },
+    {
+      "heading": "3. KERNEL EXPLOIT STABILITY NOTES",
+      "what": "内核漏洞稳定性三档分级、运行前版本/架构/发行版补丁/安全模块检查与崩溃失败排查"
+    },
+    {
+      "heading": "4. SPECIFIC EXPLOIT QUICK REFERENCES",
+      "what": "DirtyPipe、PwnKit、GameOver(lay)、DirtyCow、Baron Samedit 等经典内核提权漏洞速查与 PoC 用法"
+    },
+    {
+      "heading": "3. CUSTOM SUID BINARY EXPLOITATION",
+      "what": "自定义 SUID 二进制的 strace/ltrace 逆向分析与 PATH 劫持、RPATH/RUNPATH 库劫持、TOCTOU 竞争利用"
+    },
+    {
+      "heading": "2. PRIVILEGED CONTAINER ESCAPE",
+      "what": "特权容器通过挂载宿主磁盘、nsenter 进入宿主 PID 1 命名空间及 hostPID 场景逃逸"
+    },
+    {
+      "heading": "4. DOCKER SOCKET ESCAPE (/var/run/docker.sock)",
+      "what": "利用挂载的 docker.sock 借助 Docker CLI 或 curl 直接调 API 创建特权容器挂载宿主根目录逃逸"
+    },
+    {
+      "heading": "5. CGROUP V1 RELEASE_AGENT ESCAPE",
+      "what": "CAP_SYS_ADMIN 下 cgroup v1 的 release_agent 写入宿主路径命令实现宿主机任意执行"
+    },
+    {
+      "heading": "8. RUNTIME VULNERABILITIES",
+      "what": "runc CVE-2019-5736、containerd CVE-2020-15257、cgroups CVE-2022-0492 等容器运行时漏洞逃逸手法"
+    }
+  ]
+}

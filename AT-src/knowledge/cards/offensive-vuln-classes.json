@@ -1,0 +1,80 @@
+{
+  "use_when": "在漏洞利用开发学习或研究内存破坏与逻辑漏洞的类别划分及真实CVE利用模式时阅读本篇，重点涵盖栈/堆缓冲区溢出、UAF悬空指针、越界读取、未初始化变量、竞态条件TOCTOU/双重读取、引用计数错误与任意写原语及KASLR绕过，区别于单一漏洞类型的零散资料，以QNAP、Chrome ANGLE、libWebP、Linux内核nf_tables、Windows AppLocker等CVE完整案例串讲漏洞原理—攻击手法—修复方案全链路。",
+  "triggers": [
+    "内存破坏",
+    "缓冲区溢出",
+    "栈溢出",
+    "堆溢出",
+    "heap overflow",
+    "use-after-free",
+    "UAF",
+    "悬空指针",
+    "堆喷",
+    "越界读取",
+    "OOB read",
+    "未初始化变量",
+    "竞态条件",
+    "race condition",
+    "TOCTOU",
+    "double-fetch",
+    "双重读取",
+    "KASLR",
+    "认证绕过",
+    "提权"
+  ],
+  "vulnclass": "RCE",
+  "section_map": [
+    {
+      "heading": "Stack Buffer Overflow",
+      "what": "strcpy等不安全拷贝溢出栈缓冲区覆盖返回地址与栈帧指针的原理，附QNAP QTS越界拷贝致远程代码执行的CVE-2024-27130案例"
+    },
+    {
+      "heading": "Use-After-Free (UAF)",
+      "what": "悬空指针与堆分配控制复用手法，附Chrome ANGLE WebGL场景UAF配合堆喷/堆风水劫持控制流的CVE-2024-2883案例"
+    },
+    {
+      "heading": "Heap Buffer Overflow",
+      "what": "堆越界写破坏堆元数据与相邻对象的利用思路，附libWebP BuildHuffmanTable解析恶意WebP图片零日RCE的CVE-2023-4863案例"
+    },
+    {
+      "heading": "Out-of-Bounds Read (Info Leak)",
+      "what": "越界读取泄露指针与内核对象布局以绕过KASLR构建任意读写原语，附Linux AMDGPU显示驱动EDID解析越界读的CVE-2024-53108案例"
+    },
+    {
+      "heading": "Uninitialized Memory Use",
+      "what": "未初始化变量残留内核指针经netlink回传用户态的信息泄露手法，附nf_tables nft_pipapo_walk配合非特权命名空间获取CAP_NET_ADMIN的CVE-2024-26581案例"
+    },
+    {
+      "heading": "Reference Counting Bugs",
+      "what": "引用计数错误致对象提前释放形成UAF的原理，附nf_tables有状态表达式生命周期管理缺陷实现本地提权的CVE-2022-32250案例"
+    },
+    {
+      "heading": "NULL Pointer Dereference",
+      "what": "特权代码解引用空指针引发内核panic拒绝服务，附Linux SMB客户端smb2_parse_contexts解析畸形create context的CVE-2023-52434案例"
+    },
+    {
+      "heading": "Race Conditions",
+      "what": "多线程共享资源缺乏同步的常见竞态模式（文件系统/同步原语），附Windows内核TOCTOU时间窗口本地提权至SYSTEM的CVE-2024-26218案例"
+    },
+    {
+      "heading": "Time-of-Check Time-of-Use (TOCTOU)",
+      "what": "检查与使用间隙的资源替换攻击及符号链接劫持经典手法，附7-Zip解压symlink路径穿越实现任意文件写的CVE-2025-11001案例"
+    },
+    {
+      "heading": "Double-Fetch Vulnerabilities",
+      "what": "内核两次读取用户态内存被中途篡改的利用原理，附KVM AMD SEV VMGEXIT双重读取致递归栈溢出与潜在虚拟机逃逸的CVE-2023-4155案例"
+    },
+    {
+      "heading": "Logic Flaws in Authentication and Authorization",
+      "what": "认证授权流程逻辑缺陷免凭据绕过安全边界，附Palo Alto PAN-OS管理接口未授权获取管理员权限并链式利用的CVE-2024-0012案例"
+    },
+    {
+      "heading": "Arbitrary Write (Write-What-Where)",
+      "what": "受控地址写受控值的原语构造路径，附Windows AppLocker驱动IOCTL任意函数调用篡改KTHREAD PreviousMode获取内核读写的CVE-2024-21338案例"
+    },
+    {
+      "heading": "Locking/RCU Misuse",
+      "what": "锁序错误、缺锁或RCU误用导致已释放对象竞态访问，附Linux nf_tables竞态条件CVE-2023-32629案例"
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "use_when": "在渗透测试中针对智能家居 Z-Wave 设备（智能门锁、传感器、车库控制器）需要评估无线协议攻击面时阅读本篇，重点涵盖 EZ-Wave/HackRF 入网嗅探、S0 全零 PSK 网络密钥推导缺陷、S2 ECDH 配网分析、无认证节点重放注入及 SmartThings/Home Assistant 网关横向渗透，区别于 Zigbee/Wi-Fi 等其他 IoT 无线协议攻击手法。",
+  "triggers": [
+    "Z-Wave",
+    "S0",
+    "S2",
+    "EZ-Wave",
+    "HackRF",
+    "RTL-SDR",
+    "ZniffMobile",
+    "Z-Force",
+    "入网嗅探",
+    "网络密钥",
+    "全零PSK",
+    "ECDH",
+    "DSK",
+    "重放攻击",
+    "报文注入",
+    "无认证节点",
+    "智能门锁",
+    "网关渗透",
+    "SmartThings",
+    "Home Assistant"
+  ],
+  "vulnclass": "密码学缺陷",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "四步攻击流程：识别区域频段、嗅探入网密钥交换流量、判定 S0/S2 并分别选择密钥推导重放或 ECDH 实现缺陷分析"
+    },
+    {
+      "heading": "Hardware",
+      "what": "硬件选型对照：Z-Force、EZ-Wave（HackRF 自定义固件）、Aeotec Z-Stick、RTL-SDR+ZniffMobile 等嗅探与收发设备的用途差异"
+    },
+    {
+      "heading": "Sniffing",
+      "what": "使用 EZ-Wave 在 908.4/868.4 MHz 捕获流量并用 Wireshark Z-Wave 解析器定位入网阶段的网络密钥交换"
+    },
+    {
+      "heading": "S0 Security Flaw",
+      "what": "S0 以全零 PSK 固定推导网络密钥，触发或等待入网并嗅探约 2 秒密钥交换窗口即可离线推导密钥解密全网后续流量"
+    },
+    {
+      "heading": "S2 (Z-Wave Plus / S2 Authenticated)",
+      "what": "S2 采用 Curve25519 ECDH 配网与 DSK 带外校验，攻击面集中在实现缺陷：配网模式常开、固件验证漏洞、ECDH 侧信道及 DSK 贴纸物理窃取"
+    },
+    {
+      "heading": "Replay / Injection on Unauthenticated Nodes",
+      "what": "低端传感器与开关不强制 S0/S2 而直接接受明文命令，用 scapy-zwave 构造帧实现开锁、开关与撤防传感器"
+    },
+    {
+      "heading": "Key Brute-Force",
+      "what": "对使用默认 home ID/网络密钥的老旧测试部署做爆破遍历，仅对默认配置的 IoT 实验设备有效"
+    },
+    {
+      "heading": "Hub Pivots",
+      "what": "攻陷 SmartThings、Home Assistant、Hubabit 类网关以获取明文存储的 Z-Wave PSK 并接管全部已配对设备的命令权限"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "实战速查命令：识别区域频段→嗅探→判定 S0/S2→S0 捕获入网推导密钥/S2 转向网关沦陷与 DSK 窃取→测试明文设备"
+    },
+    {
+      "heading": "Detection",
+      "what": "Z-Wave 部署普遍缺乏 IDS、网关异常命令日志不展示给用户、配网模式常开被管理员忽视等检测盲区"
+    },
+    {
+      "heading": "Reporting",
+      "what": "报告要点：逐设备记录芯片组/固件版本（ZW0500/ZW7000 系列）、按节点标注 S0/S2 混用情况并单独记录网关沦陷路径"
+    }
+  ]
+}

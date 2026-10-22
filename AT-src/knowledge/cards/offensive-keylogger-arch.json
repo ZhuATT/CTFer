@@ -1,0 +1,56 @@
+{
+  "use_when": "在恶意软件分析、红队研究或 EDR 对抗中需要理解 Windows 键盘记录器底层实现与检测指纹时阅读本篇，重点涵盖 SetWindowsHookEx/WH_KEYBOARD_LL 全局钩子机制、win32k.sys 内核流程、RegisterRawInputDevices 原始 HID 输入捕获与 ETW 审计 IOC，区别于 Web 漏洞利用的终端输入窃取与隐蔽数据外传手法。",
+  "triggers": [
+    "键盘记录器",
+    "keylogger",
+    "键盘钩子",
+    "keyboard hook",
+    "WH_KEYBOARD_LL",
+    "SetWindowsHookEx",
+    "win32k.sys",
+    "钩子链",
+    "CallNextHookEx",
+    "DLL注入",
+    "RegisterRawInputDevices",
+    "原始输入",
+    "raw input",
+    "RIDEV_INPUTSINK",
+    "WM_INPUT",
+    "HID捕获",
+    "ETW审计",
+    "EDR规避",
+    "VAD检测",
+    "NtUserInternalGetWindowText"
+  ],
+  "vulnclass": "信息泄露",
+  "section_map": [
+    {
+      "heading": "SetWindowHookEx",
+      "what": "解析 user32 全局钩子在 win32k.sys 内的四步流程：分配 HOOK 结构、WH_KEYBOARD_LL 低级钩子免注入投递消息 vs 普通钩子经 APC 调 LdrLoadDll 向目标进程映射 DLL、事件路由及 CallNextHookEx 钩子链传递"
+    },
+    {
+      "heading": "TLDR",
+      "what": "总结两类钩子的隐蔽性权衡：低级钩子无外来代码映射但拖住安装线程且消息队列足迹易被检测，普通全局钩子无需 WriteProcessMemory/CreateRemoteThread 即真注入但留下 VAD 映射 DLL 痕迹"
+    },
+    {
+      "heading": "NtUserSetWindowsHookEx / zzzzNtUserSetWindowsHookEx",
+      "what": "绕过 user32 层潜在 hook 直接调用 win32k 底层函数，IOCs 相同；并说明 raw-input 按会话隔离、session-0 服务无法捕获 session-1 按键的边界"
+    },
+    {
+      "heading": "NtUserRegisterRawInputDevices / RegisterRawInputDevices",
+      "what": "创建 message-only 窗口（HWND_MESSAGE）并以 RIDEV_INPUTSINK 注册原始输入，后台线程泵 WM_INPUT 调 GetRawInputData 记录 RAWKEYBOARD，不产生钩子列表与跨进程 DLL 映射痕迹，但触发内核 win32kfull.sys 不可规避的 ETW 审计事件"
+    },
+    {
+      "heading": "Capturing current window's name",
+      "what": "获取当前活动窗口标题以过滤仅监控 Chrome/Firefox 等目标进程按键的函数选型对比"
+    },
+    {
+      "heading": "GetWindowTextA",
+      "what": "最常被检测的窗口标题读取函数，被各类脚本小子键盘记录器滥用，内部包装 NtUserInternalGetWindowText"
+    },
+    {
+      "heading": "NtUserInternalGetWindowText",
+      "what": "win32u.dll 中 win32k 低层 syscall 级窗口标题获取，签名同 GetWindowTextW，检测率低且可用直接 syscall 门技术调用"
+    }
+  ]
+}

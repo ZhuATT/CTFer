@@ -1,0 +1,76 @@
+{
+  "use_when": "在无线渗透中需要伪造目标热点诱导客户端接入并实施钓鱼或中间人攻击时阅读本篇，重点涵盖 Evil Twin/KARMA/Mana 流氓AP搭建、hostapd-mana/wifiphisher/airgeddon 工具链、强制门户钓取凭据、去认证逼迁与关联后 DNS/ARP 劫持，区别于单纯的 WiFi 密码破解与内网横向移动。",
+  "triggers": [
+    "Evil Twin",
+    "邪恶双胞胎",
+    "流氓AP",
+    "rogue AP",
+    "KARMA",
+    "Mana",
+    "hostapd-mana",
+    "wifiphisher",
+    "airgeddon",
+    "captive portal",
+    "强制门户",
+    "WiFi钓鱼",
+    "钓鱼热点",
+    "去认证攻击",
+    "deauth",
+    "aireplay-ng",
+    "PNL",
+    "首选网络列表",
+    "Known Beacons",
+    "eaphammer"
+  ],
+  "vulnclass": "网络与内网",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "五步上钩流程：嗅探客户端 PNL 期望 ESSID→架设同 ESSID 流氓 AP→去认证逼迁→门户/MITM→收凭据或载荷"
+    },
+    {
+      "heading": "Variants",
+      "what": "Evil Twin/KARMA/Mana/Known Beacons/强制门户五种变种的作用机制与适用场景对照表"
+    },
+    {
+      "heading": "Open / PSK-Known Evil Twin",
+      "what": "已知 PSK 或开放网络下用 wifiphisher/airgeddon 或 hostapd+dnsmasq+iptables 手工搭建同 ESSID 流氓 AP 并泛域名劫持 DNS"
+    },
+    {
+      "heading": "KARMA — Universal Probe Response",
+      "what": "hostapd-mana 的 mana_loud 模式对任意探测请求一律响应诱骗客户端，但对现代 MAC 随机化设备易失效"
+    },
+    {
+      "heading": "Mana — Selective Per-Client Response",
+      "what": "Mana 记录 MAC→ESSID 探测列表映射，客户端关联时选取其真实探测过的 ESSID 一致性响应，绕过 KARMA 防御"
+    },
+    {
+      "heading": "Known Beacons Attack",
+      "what": "eaphammer 以真实信标批量广播机场/咖啡/酒店等常见 ESSID，吸引 PNL 含这些名称的设备主动关联"
+    },
+    {
+      "heading": "Deauth Coercion",
+      "what": "aireplay-ng 对合法 AP 发去认证包踢客户端下线，配合更强信号/更高发射功率诱其重连到流氓 AP，注意 PMF(802.11w) 阻断"
+    },
+    {
+      "heading": "Captive Portal / Credential Capture",
+      "what": "伪造 OAuth/厂商路由器/企业门户页面钓取 AD 凭据或借升级提示投递 EXE/APK 载荷，iptables DNAT 配合 Flask 自建高仿页面"
+    },
+    {
+      "heading": "Post-Association MITM",
+      "what": "客户端关联后用 mitmproxy 透明 TLS 劫持与 bettercap 执行 ARP 欺骗、DNS 劫持、嗅探和 JS 注入，HSTS/证书固定下的替代目标"
+    },
+    {
+      "heading": "MAC Randomization Defeat",
+      "what": "利用同 SSID 的 MAC 一致性、探测序列号与 802.11 IE 顺序厂商指纹跨随机 MAC 追踪设备，hcxdumptool 聚类分析"
+    },
+    {
+      "heading": "Detection Considerations",
+      "what": "对照 WIPS 检测信号（BSSID 白名单、KARMA 模式、RSSI 差值、信标时序、门户 HTML 差异）给出匹配 BSSID、降功率等规避手段"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "从 airodump-ng 被动侦察、按 PSK/开放/异构设备环境选模式到架 AP、门户部署与定向逼迁的完整作战清单"
+    }
+  ]
+}

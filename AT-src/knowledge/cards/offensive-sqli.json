@@ -1,0 +1,72 @@
+{
+  "use_when": "在渗透测试与漏洞赏金场景下需要对 Web 应用、REST API、GraphQL、WebSocket 入口进行 SQL 注入检测、盲注利用与提权/RCE 时阅读本篇，重点涵盖报错/联合/布尔/时间盲注、MySQL/MSSQL/PostgreSQL/Oracle 针对性利用、WAF 绕过及 sqlmap/Ghauri 自动化管线，区别于防御侧 SQLi 告警规则与 ORM 安全编码类文档。",
+  "triggers": [
+    "SQL注入",
+    "SQL injection",
+    "SQLi",
+    "报错注入",
+    "联合查询注入",
+    "UNION SELECT",
+    "布尔盲注",
+    "时间盲注",
+    "WAF绕过",
+    "sqlmap",
+    "Ghauri",
+    "xp_cmdshell",
+    "LOAD_FILE",
+    "INTO OUTFILE",
+    "写Webshell",
+    "NoSQL注入",
+    "MongoDB注入",
+    "GraphQL注入",
+    "ORM注入",
+    "tamper脚本"
+  ],
+  "vulnclass": "SQL注入",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "SQL注入测试五步法：输入入口测绘、注入探测、识别数据库类型、提取数据提权及报告修复建议"
+    },
+    {
+      "heading": "Detection",
+      "what": "全入口基础探针与报错/布尔/时间盲注判定，及 JSON 操作符、GraphQL、WebSocket、REST API 过滤器注入探针"
+    },
+    {
+      "heading": "Automation Workflow",
+      "what": "sublist3r/httpx/waybackurls/gf 构建注入目标管线，sqlmap/Ghauri 批量检测与 arjun/hakrawler 隐藏参数发现"
+    },
+    {
+      "heading": "Exploitation",
+      "what": "UNION 列数与字符串列判定、information_schema 表列枚举及布尔/时间盲注逐字符提取数据"
+    },
+    {
+      "heading": "Database-Specific Exploitation",
+      "what": "MySQL LOAD_FILE/INTO OUTFILE 写 webshell、MSSQL xp_cmdshell 与注册表读取、PostgreSQL COPY FROM PROGRAM、Oracle 权限枚举与 PL/SQL 执行"
+    },
+    {
+      "heading": "NoSQL & Graph Injection",
+      "what": "MongoDB $ne/$regex/$where 操作符注入与 Neo4j Cypher 注入（CVE-2024-34517）及旧版提权利用"
+    },
+    {
+      "heading": "WAF Bypass Techniques",
+      "what": "大小写、注释、URL/十六进制/双重编码、空字节等绕过手法及 sqlmap tamper 组合与 HTTP/2 走私投递"
+    },
+    {
+      "heading": "Cloud-Specific Attack Paths",
+      "what": "AWS IMDS 凭据窃取与 RDS Proxy 打断、Azure 托管实例 xp_cmdshell RCE、GCP 版本指纹及 Lambda 连接池 SET ROLE 投毒"
+    },
+    {
+      "heading": "ORM CVE Tracking (2023–2025)",
+      "what": "Sequelize/TypeORM/Hibernate/Prisma 原生查询注入 CVE 特征及参数化查询安全写法对照"
+    },
+    {
+      "heading": "Quick-Reference Cheatsheet",
+      "what": "MySQL/MSSQL/PostgreSQL/Oracle 版本查询、延时函数、字符串拼接与 schema 来源速查表"
+    },
+    {
+      "heading": "Detection & Monitoring Queries",
+      "what": "Splunk SPL 与 AWS CloudWatch Insights 识别 UNION/SELECT 等注入特征的蓝队检测规则"
+    }
+  ]
+}

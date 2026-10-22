@@ -1,0 +1,88 @@
+{
+  "use_when": "在红队无线安全评估、战争驾驶或企业无线隔离测试场景下需要对 Wi-Fi/802.11 网络实施攻击（握手包捕获、PSK 离线破解、企业级 EAP 凭据窃取、恶意双胞胎热点搭建）时阅读本篇，重点涵盖 monitor 模式配置、四次握手与 PMKID 抓取、WPA3 SAE 降级与 Dragonblood、MSCHAPv2 破解与 eaphammer/hostapd-mana、KRACK/FragAttacks、WPS Pixie Dust 及去认证攻击，区别于 Web 应用与内网横向渗透方法论，专注无线空口攻击、认证破解与 BLE/Zigbee 等侧带频段。",
+  "triggers": [
+    "无线渗透",
+    "监听模式",
+    "握手包捕获",
+    "PMKID",
+    "WPA2-PSK",
+    "hashcat",
+    "WPA3",
+    "SAE",
+    "Dragonblood",
+    "降级攻击",
+    "802.1X",
+    "MSCHAPv2",
+    "eaphammer",
+    "邪恶双胞胎",
+    "KARMA",
+    "KRACK",
+    "FragAttacks",
+    "WPS",
+    "Pixie Dust",
+    "去认证攻击"
+  ],
+  "vulnclass": "网络与内网",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "无线攻击五步流程：选适配器、被动侦察、选择攻击路径、离线破解、企业网走凭据横向"
+    },
+    {
+      "heading": "Hardware & Adapter Selection",
+      "what": "支持监听与注入的双频/Wi-Fi 6E 网卡芯片选型（AR9271/RTL8812AU/MT7921AU）及 airmon-ng 验证命令"
+    },
+    {
+      "heading": "Reconnaissance",
+      "what": "airodump-ng 全频段扫描、隐藏 SSID 暴露与 Kismet/Wigle 战争驾驶信息收集"
+    },
+    {
+      "heading": "WPA / WPA2-PSK",
+      "what": "定向去认证触发四次握手捕获、无客户端 PMKID 抓取与 hashcat 字典/掩码离线破解"
+    },
+    {
+      "heading": "WPA3 / SAE",
+      "what": "过渡模式降级至 WPA2、Dragonblood 侧信道泄露口令与 mdk4 SAE 认证洪泛资源耗尽"
+    },
+    {
+      "heading": "WPA-Enterprise (802.1X / EAP)",
+      "what": "EAP 方法指纹识别与内层方法攻击：MSCHAPv2 离线破解、EAP-GTC 明文窃取、EAP-TLS 证书盗取及 eaphammer 恶意 RADIUS"
+    },
+    {
+      "heading": "WPS",
+      "what": "Pixie Dust 离线秒破 PIN（Ralink/Realtek/Broadcom 芯片）与 reaver 在线爆破及锁定规避"
+    },
+    {
+      "heading": "Evil Twin / KARMA / Mana",
+      "what": "wifiphisher 钓鱼门户、KARMA/Mana 利用 PNL 探测请求伪造 AP 及 MAC 随机化识别反制"
+    },
+    {
+      "heading": "KRACK & FragAttacks",
+      "what": "KRACK 密钥重装与 FragAttacks 碎片聚合漏洞的官方检测脚本及补丁状态验证"
+    },
+    {
+      "heading": "Deauth / Disassociation Attacks",
+      "what": "aireplay-ng 单客户端去认证抓握手、mdk4 广播洪泛 DoS 及 802.11w PMF 防护与 Action 帧绕过"
+    },
+    {
+      "heading": "802.1X / Wired NAC Bypass (Adjacent)",
+      "what": "tcpdump 嗅探有线 802.1X 认证交换与 silentbridge 透明桥接已认证主机绕过 NAC"
+    },
+    {
+      "heading": "Wi-Fi 6 / 6E / 7 Considerations",
+      "what": "6 GHz 强制 WPA3+PMF 的缓解效果、OFDMA/TWT 对注入的影响与 Wi-Fi 7 MLO 多链路捕获要点"
+    },
+    {
+      "heading": "Sidebands & Adjacent Wireless",
+      "what": "蓝牙/BLE/Zigbee/Z-Wave/LoRa/433MHz 副频段攻击工具矩阵（bettercap、KillerBee、HackRF 等）"
+    },
+    {
+      "heading": "RADIUS / Backend Pivots Post-Compromise",
+      "what": "利用破解的 PEAP-MSCHAPv2 域凭据经 nxc 横向至 AD，及 FreeRADIUS/NPS 服务账号后渗透"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "WIDS 对去认证频率、Rogue AP、Karma 应答异常的检测阈值与对应规避策略"
+    }
+  ]
+}

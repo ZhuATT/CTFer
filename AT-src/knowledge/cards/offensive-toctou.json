@@ -1,0 +1,76 @@
+{
+  "use_when": "在二进制、内核、容器与Web多层渗透中识别并利用'先检查后使用'（check-then-act）竞态条件以实现提权、容器逃逸或逻辑漏洞挖掘时阅读本篇，重点涵盖access/open符号链接竞争、renameat2原子交换、FUSE与userfaultfd窗口放大、内核double-fetch、runc CVE-2019-5736逃逸及HTTP/2单包并发攻击，区别于仅讲防御修复的普通并发安全文章。",
+  "triggers": [
+    "TOCTOU",
+    "竞态条件",
+    "race condition",
+    "符号链接竞争",
+    "symlink swap",
+    "renameat2",
+    "RENAME_EXCHANGE",
+    "FUSE",
+    "userfaultfd",
+    "双重读取",
+    "double-fetch",
+    "/proc/self/exe",
+    "CVE-2019-5736",
+    "runc",
+    "容器逃逸",
+    "窗口放大",
+    "单包攻击",
+    "HTTP/2",
+    "幂等键复用",
+    "SUID提权"
+  ],
+  "vulnclass": "逻辑漏洞",
+  "section_map": [
+    {
+      "heading": "The Core Pattern",
+      "what": "access()检查与open()使用对路径二次解析的经典漏洞模式及O_NOFOLLOW/openat/fstat等修复思路"
+    },
+    {
+      "heading": "Filesystem TOCTOU",
+      "what": "符号链接交换、renameat2(RENAME_EXCHANGE)原子换名、目录swap与bind mount命名空间交换等文件系统竞争原语"
+    },
+    {
+      "heading": "Window-Widening Primitives",
+      "what": "用FUSE慢速文件系统、userfaultfd缺页暂停、cgroup freeze与CPU绑核sched_yield放大竞争窗口"
+    },
+    {
+      "heading": "Kernel Double-Fetch",
+      "what": "内核对用户态指针双重读取的漏洞模式及KFENCE、Bochspwn-Reloaded、DECAF检测工具"
+    },
+    {
+      "heading": "/proc and procfs Races",
+      "what": "/proc/pid/exe魔法符号链接配合ptrace、/proc/pid/mem写保护绕过及跨容器命名空间解引用竞争"
+    },
+    {
+      "heading": "Setuid Binary TOCTOU",
+      "what": "SUID二进制access/open权限竞态审计，用strace统计同一路径重复解析定位TOCTOU攻击面"
+    },
+    {
+      "heading": "Container Escape via TOCTOU",
+      "what": "runc CVE-2019-5736的/proc/self/exe覆写、CVE-2024-21626工作目录FD泄漏及挂载符号链接竞争逃逸"
+    },
+    {
+      "heading": "Web / API TOCTOU",
+      "what": "网关认证与服务授权分离、长任务权限重检缺失、幂等键换body复用、余额并发扣减及HTTP/2单包多请求竞争"
+    },
+    {
+      "heading": "Mobile / Binary Cookbook",
+      "what": "Android Intent重定向ContentProvider劫持与iOS NSXPC audit_token因PID复用被冒充"
+    },
+    {
+      "heading": "Detection & Tooling",
+      "what": "strace/bpftrace/TSan/Helgrind/syzkaller与Burp单包、Turbo Intruder等分层竞态检测工具矩阵"
+    },
+    {
+      "heading": "Race Loop Templates",
+      "what": "C语言renameat2交换循环配合execve与Python httpx HTTP/2并发请求的即用竞争模板"
+    },
+    {
+      "heading": "Reporting / Severity",
+      "what": "按窗口大小、所需位置与后利用原语评估竞态严重性并撰写最小复现、成功率报告的要素"
+    }
+  ]
+}

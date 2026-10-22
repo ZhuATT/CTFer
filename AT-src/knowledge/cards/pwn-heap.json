@@ -1,0 +1,88 @@
+{
+  "use_when": "在 CTF pwn 或真实 glibc 二进制利用中遇到 UAF、double free、堆溢出、off-by-one 等堆漏洞需要构造完整利用链时阅读本篇，重点涵盖 ptmalloc2 结构、libc/堆地址泄露与 safe-linking 解码、tcache/fastbin/unsortedbin/largebin 攻击、House of 系列手法及 _IO_FILE/FSOP/vtable 劫持，并按 glibc 版本（2.24 vtable 检查、2.29 tcache key、2.32 safe-linking、2.34 hook 移除）选择攻击路径，区别于栈溢出 ROP 与格式化字符串利用。",
+  "triggers": [
+    "堆溢出",
+    "heap overflow",
+    "UAF",
+    "释放后利用",
+    "double free",
+    "tcache poisoning",
+    "tcache投毒",
+    "fastbin dup",
+    "unsortedbin attack",
+    "largebin attack",
+    "safe-linking",
+    "one_gadget",
+    "House of Force",
+    "House of Orange",
+    "House of Apple",
+    "House of Cat",
+    "FSOP",
+    "vtable劫持",
+    "_IO_FILE",
+    "__free_hook"
+  ],
+  "vulnclass": "RCE",
+  "section_map": [
+    {
+      "heading": "1. PTMALLOC2 STRUCTURE QUICK REFERENCE",
+      "what": "malloc_chunk 布局、tcache/fastbin/unsortedbin/smallbin/largebin 分类与 main_arena 等全局结构速查"
+    },
+    {
+      "heading": "2. LEAK METHODS",
+      "what": "经 unsortedbin fd/bk 泄露 libc 基址、tcache fd 泄露堆地址及 safe-linking 异或编解码"
+    },
+    {
+      "heading": "3. ATTACK CATEGORIES BY GLIBC VERSION",
+      "what": "按 glibc 版本划分可用攻击：无 tcache、tcache key、safe-linking 及 2.34 后 hook 移除的适配变化"
+    },
+    {
+      "heading": "4. COMMON VULNERABILITY PATTERNS",
+      "what": "UAF、double free、堆溢出、off-by-one/off-by-null、未初始化读等原语到利用路径的映射"
+    },
+    {
+      "heading": "6. CORE DECISION TREE",
+      "what": "从漏洞原语出发选择泄露方式与 tcache 投毒、hook 覆写或 _IO_FILE 攻击链的决策树"
+    },
+    {
+      "heading": "7. HOUSE OF FORCE",
+      "what": "覆写 top chunk size 为 -1 后以巨量 malloc 将下一次分配移至任意地址（glibc<2.29）"
+    },
+    {
+      "heading": "10. HOUSE OF ORANGE",
+      "what": "无 free 调用下缩小 top chunk 触发 sysmalloc 入 unsortedbin，攻击 _IO_list_all 伪造 FILE 拿 shell"
+    },
+    {
+      "heading": "11. HOUSE OF EINHERJAR",
+      "what": "off-by-null 清除 PREV_INUSE 并伪造 prev_size 触发向后合并制造重叠堆块"
+    },
+    {
+      "heading": "15. HOUSE OF CAT",
+      "what": "经 _IO_wfile_jumps 宽字符 vtable 间接调用绕过 vtable 范围检查（glibc≥2.35）"
+    },
+    {
+      "heading": "16. HOUSE OF APPLE (1, 2, 3)",
+      "what": "largebin 攻击写 _IO_list_all 后伪造 wide_data/_wide_vtable 链实现泄露与 RCE 的三种变体"
+    },
+    {
+      "heading": "17. TCACHE-SPECIFIC ATTACKS",
+      "what": "tcache 投毒（含 safe-linking 编码）、key 清零绕过双重释放检测、House of Botcake 与 stashing unlink"
+    },
+    {
+      "heading": "20. FSOP — FILE STREAM ORIENTED PROGRAMMING",
+      "what": "覆写 _IO_list_all 插入伪造 FILE，在 exit/abort 触发 _IO_flush_all_lockp 调用伪造 vtable"
+    },
+    {
+      "heading": "21. VTABLE HIJACK",
+      "what": "glibc 2.24 前直接伪造 vtable 调 system，2.24 后用 _IO_str_jumps/_IO_wfile_jumps 绕过范围检查"
+    },
+    {
+      "heading": "23. STDOUT ARBITRARY READ (LIBC LEAK)",
+      "what": "篡改 _IO_2_1_stdout_ 的 _IO_write_base/_IO_write_ptr 与 flags 在 puts/printf 时泄露任意内存"
+    },
+    {
+      "heading": "26. FSOP + HOUSE OF APPLE 2 TEMPLATE",
+      "what": "glibc≥2.34 下 largebin 任意写接 wide_data 伪造 FILE 触发 exit 拿 shell 的完整 exp 模板"
+    }
+  ]
+}

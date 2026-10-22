@@ -1,0 +1,80 @@
+{
+  "use_when": "在 Web 渗透测试中 Payload 被 WAF 拦截、需要先指纹识别再实施绕过时阅读本篇，重点涵盖 Cloudflare/ModSecurity/AWS WAF 指纹识别、编码混淆、sqlmap tamper、SNI 欺骗、域名前置与源站直连手法，区别于单点漏洞利用文档更专注于防护规避与流量伪装全链路。",
+  "triggers": [
+    "WAF绕过",
+    "WAF bypass",
+    "WAF evasion",
+    "WAF指纹识别",
+    "指纹探测",
+    "Cloudflare",
+    "ModSecurity",
+    "AWS WAF",
+    "Imperva",
+    "JA3/JA4指纹",
+    "TLS指纹伪造",
+    "SNI欺骗",
+    "域名前置",
+    "domain fronting",
+    "源站IP直连",
+    "住宅IP代理",
+    "双重URL编码",
+    "注释注入",
+    "sqlmap tamper",
+    "HTTP参数污染"
+  ],
+  "vulnclass": "其他",
+  "section_map": [
+    {
+      "heading": "WAF Overview",
+      "what": "WAF 负向黑名单与正向白名单两种工作模型的检测原理"
+    },
+    {
+      "heading": "Popular WAFs",
+      "what": "主流 WAF 产品及其识别特征如 Cloudflare cookie、AWSALB、X-Sucuri-ID 等"
+    },
+    {
+      "heading": "Detection Methods",
+      "what": "通过拦截页、HTTP 响应头、Cookie、JS 对象与 JA3/JA4 指纹探测并识别 WAF 类型"
+    },
+    {
+      "heading": "4. Call the Origin Server Directly",
+      "what": "借助 Shodan、历史 DNS A 记录与 Alt-Svc 泄露定位源站 IP 直连绕过 WAF 层"
+    },
+    {
+      "heading": "7. CAPTCHA Bypass Techniques",
+      "what": "Cloudflare Turnstile 隐藏 iframe、令牌复用与延时提交等验证码绕过手法"
+    },
+    {
+      "heading": "10. TLS Fingerprinting Evasion",
+      "what": "使用 noble-tls 等库伪造 JA3/JA4 指纹并对齐密码套件模拟真实浏览器"
+    },
+    {
+      "heading": "12. SQL Injection Specific WAF Bypasses",
+      "what": "大小写混淆、注释拆分关键词、多重编码、JSON 注入与 sqlmap tamper 脚本绕过注入过滤"
+    },
+    {
+      "heading": "13. XSS-Specific WAF Bypasses",
+      "what": "上下文感知 payload、mXSS 变异、替代标签、JS 混淆与 CSP/JSONP 绕过手法"
+    },
+    {
+      "heading": "14. HTTP Protocol Level Bypasses",
+      "what": "HTTP 方法混淆、X-Forwarded-For 伪造、参数污染、Host 头欺骗与 IP 限制绕过"
+    },
+    {
+      "heading": "15. Advanced Techniques",
+      "what": "多重 Content-Encoding、8k 参数超载、Unicode 归一化利用、分片攻击与 ML 对抗逃逸"
+    },
+    {
+      "heading": "16. HTTP/2, HTTP/3 & Advanced Protocol Bypasses",
+      "what": "利用 :authority 伪头、QUIC/HTTP3 加密流与 Rapid Reset 等协议差异绕过检测"
+    },
+    {
+      "heading": "17. GraphQL-Specific WAF Bypasses",
+      "what": "GraphQL 别名轰炸、批量查询打包与查询名伪装绕过深度限制和浅层过滤"
+    },
+    {
+      "heading": "18. SNI (Server Name Indication) Manipulation & Evasion",
+      "what": "SNI 欺骗、省略 SNI 直连 IP 与 ECH 加密 ClientHello 绕过基于域名的过滤策略"
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "use_when": "在渗透测试或红队项目收尾撰写正式交付报告、为漏洞发现定级并规范证据留存时阅读本篇，重点涵盖执行摘要撰写、technical finding 模板、CVSS v3.1/v4.0 向量论证、证据脱敏与保管链、攻击链叙事、复测跟踪及 Pandoc 多格式交付，区别于具体漏洞利用手法类文档的纯报告方法论。",
+  "triggers": [
+    "渗透测试报告",
+    "报告模板",
+    "executive summary",
+    "执行摘要",
+    "CVSS v3.1",
+    "CVSS v4.0",
+    "严重性评级",
+    "OWASP Risk Rating",
+    "technical finding",
+    "复现步骤",
+    "reproduction steps",
+    "remediation",
+    "修复建议",
+    "证据脱敏",
+    "chain of custody",
+    "attack chain",
+    "攻击链",
+    "retest",
+    "复测",
+    "bug bounty"
+  ],
+  "vulnclass": "其他",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "边打边取证、逐条即时撰写、执行摘要最后成文并两轮审校的五步报告工作流"
+    },
+    {
+      "heading": "Report Structure (Standard)",
+      "what": "标准报告七大部分结构：执行摘要、项目概述、风险汇总、技术发现、攻击链、战略建议与附录组织"
+    },
+    {
+      "heading": "Executive Summary — The 90-Second Read",
+      "what": "面向CISO/董事会的一页执行摘要写法：技术黑话转译为业务影响表述"
+    },
+    {
+      "heading": "Technical Finding Template",
+      "what": "单条漏洞发现完整模板：严重性、影响范围、复现步骤、证据指针、量化影响与分级修复建议"
+    },
+    {
+      "heading": "Severity Scoring",
+      "what": "CVSS v3.1逐项向量论证、CVSS失真时的业务影响调整段、CVSS v4.0与OWASP风险评级备选方案"
+    },
+    {
+      "heading": "Evidence Discipline",
+      "what": "UTC时间戳审计日志CSV、凭据/PII脱敏与EXIF清除规则、加密卷存储与证据保管链"
+    },
+    {
+      "heading": "Scope, Limitations, and Assumptions",
+      "what": "明确测试范围、环境限制与前提假设三类声明以规避双方责任争议"
+    },
+    {
+      "heading": "Risk Summary & Heatmap",
+      "what": "按严重性统计发现数量并配热力图/红绿灯格的一眼式风险总览"
+    },
+    {
+      "heading": "Attack Chains / Narratives",
+      "what": "将多个漏洞串联成完整攻击路径叙事，组合风险可支撑更高的整体严重性定级"
+    },
+    {
+      "heading": "Strategic Recommendations",
+      "what": "面向董事会呈现的3-5条程序化整改建议并映射其覆盖的发现数量"
+    },
+    {
+      "heading": "Deliverable Formats",
+      "what": "以Markdown单一源经Pandoc/LaTeX生成PDF/DOCX/HTML/JSON/CSV多格式交付物"
+    },
+    {
+      "heading": "Common Report Mistakes",
+      "what": "过度CVSS打分、营销化措辞、泛化修复建议、无时间戳证据等常见错误对照修正"
+    },
+    {
+      "heading": "Reporting for Bug Bounty (Different Audience)",
+      "what": "面向众测审核员的精简报告写法：标题含漏洞类与端点、单条curl复现与威胁模型锚定"
+    },
+    {
+      "heading": "Retest & Closeout",
+      "what": "复测结果状态表格与逐条修复验证的请求响应证据留存"
+    },
+    {
+      "heading": "Sample CVSS Vectors (Reference)",
+      "what": "RCE/XSS/IDOR/SSRF/开放重定向等典型漏洞的CVSS向量与分数速查表"
+    }
+  ]
+}

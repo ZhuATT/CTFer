@@ -1,0 +1,76 @@
+{
+  "use_when": "在渗透测试中发现应用处理序列化数据（cookie、ViewState、消息队列、JMX/RMI 端点）需要构造 gadget 链实现 RCE 时阅读本篇，重点涵盖 ysoserial/phpggc/ysoserial.net 跨语言利用链生成、phar:// 触发、pickle __reduce__、ViewState 篡改与 WAF 编码绕过，区别于漏洞原理科普，提供多语言 sink 识别、序列化格式指纹签名与实战 payload 命令。",
+  "triggers": [
+    "反序列化",
+    "gadget chain",
+    "POP链",
+    "ysoserial",
+    "phpggc",
+    "ysoserial.net",
+    "CC链",
+    "CommonsCollections",
+    "URLDNS",
+    "phar://",
+    "魔术方法",
+    "pickle __reduce__",
+    "yaml.load",
+    "Marshal.load",
+    "node-serialize",
+    "BinaryFormatter",
+    "ViewState",
+    "TypeNameHandling",
+    "JNDI",
+    "WAF绕过"
+  ],
+  "vulnclass": "反序列化",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "反序列化利用七步流程：枚举序列化数据入口、指纹识别格式、匹配 gadget 链并先以 DNS/sleep payload 安全验证"
+    },
+    {
+      "heading": "Recognition Signatures",
+      "what": "各语言序列化格式魔术字节速查表（ac ed 00 05、rO0AB、AAEAAAD///// 等）用于快速指纹识别"
+    },
+    {
+      "heading": "Java Deserialization",
+      "what": "ObjectInputStream/XMLDecoder/XStream/Jackson 多态类型 sink 识别、serialVersionUID 约束、ysoserial 生成 CC/Spring/Hibernate 链及 JMX/RMI 打点"
+    },
+    {
+      "heading": "PHP Deserialization",
+      "what": "unserialize 魔术方法（__wakeup/__destruct）利用、phpggc 生成 Laravel/Symfony/Monolog 链及 phar:// 流包装器经文件操作函数触发"
+    },
+    {
+      "heading": ".NET Deserialization",
+      "what": "BinaryFormatter/LosFormatter/Json.NET TypeNameHandling sink 识别、ysoserial.net 生成 TypeConfuseDelegate 等链及已知 machineKey 下 ViewState 篡改"
+    },
+    {
+      "heading": "Python Deserialization",
+      "what": "pickle __reduce__ 执行任意命令与反弹 shell、yaml.load !!python/object 标签实例化及 shelve/marshal/jsonpickle 附加向量"
+    },
+    {
+      "heading": "Node.js Deserialization",
+      "what": "node-serialize 库 _$$ND_FUNC$$_ 标记追加 () 构造 IIFE 即时执行及 funcster __js_function 注入"
+    },
+    {
+      "heading": "Ruby Deserialization",
+      "what": "Marshal.load/YAML.load gadget 链（Gem::Requirement、ERB 模板）及利用 secret_key_base 伪造 Rails session cookie"
+    },
+    {
+      "heading": "Modern Attack Vectors",
+      "what": "K8s 准入 webhook 注解投毒、Kafka/Redis/Celery 消息队列消费者污染与 S3/SNS Serverless 事件触发的集群级 RCE"
+    },
+    {
+      "heading": "Evasion Techniques",
+      "what": "双重 Base64、gzip 压缩、URL/Unicode 编码与 Content-Type 切换绕过 WAF，以及多层加密签名匹配的 payload 封装"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "防守方网络特征（魔术字节、$type、_$$ND_FUNC$$_）、JEP 290/SerializationBinder/allowed_classes 运行时防御及对应绕过思路"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "按 Java/PHP/.NET/Python/Node/Ruby/K8s 场景速查工具、payload 与验证方式的作战表及安全确认顺序"
+    }
+  ]
+}

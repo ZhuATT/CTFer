@@ -1,0 +1,88 @@
+{
+  "use_when": "在 Web 渗透测试与漏洞赏金中挖掘并发时序类业务逻辑缺陷（TOCTOU）时阅读本篇，重点涵盖 Turbo Intruder 单包攻击、Last-Byte 同步、限流绕过、双花/重复提现、会话锁绕过及数据库隔离级别验证手法，区别于单请求顺序触发的常规逻辑漏洞测试。",
+  "triggers": [
+    "竞争条件",
+    "race condition",
+    "条件竞争",
+    "TOCTOU",
+    "time-of-check to time-of-use",
+    "单包攻击",
+    "single-packet attack",
+    "Last-Byte Sync",
+    "末字节同步",
+    "Turbo Intruder",
+    "限流绕过",
+    "rate limit bypass",
+    "并发请求",
+    "双花",
+    "double spend",
+    "双重提现",
+    "优惠券重复核销",
+    "会话锁绕过",
+    "Dirty COW",
+    "idempotency key"
+  ],
+  "vulnclass": "逻辑漏洞",
+  "section_map": [
+    {
+      "heading": "Shortcut",
+      "what": "快速定位易受竞争条件影响的功能、复制关键请求并同时并发发送的操作入口"
+    },
+    {
+      "heading": "Mechanisms",
+      "what": "解析 TOCTOU、Read-Modify-Write、线程安全与资源分配四类竞争条件成因及余额篡改、优惠券重用等脆弱场景"
+    },
+    {
+      "heading": "Identifying Race Condition Vulnerabilities",
+      "what": "筛选资金交易、库存、优惠券、投票、注册等状态变更目标及并行请求工具与同区域 VPS 低延迟等测试前置条件"
+    },
+    {
+      "heading": "Testing Methodology",
+      "what": "基线行为分析、同时发送 10-100 个相同请求探测状态异常、时间窗口操纵的三步测试法"
+    },
+    {
+      "heading": "Advanced Testing Techniques",
+      "what": "Python 线程 Event 门控同步并发、HTTP/2 单包攻击与 Last-Byte-Sync 末字节同步等网络级微秒级时序操纵技术"
+    },
+    {
+      "heading": "Vulnerabilities",
+      "what": "汇总金融双花、令牌重用、MFA 绕过、上传下载竞态、购物车与拍卖抢拍等竞争条件漏洞影响模式"
+    },
+    {
+      "heading": "Session Handling Bypass",
+      "what": "多次认证获取多个 PHPSESSID 并为每个并发请求分配独立会话以绕过 PHP session 文件锁"
+    },
+    {
+      "heading": "Database Isolation Level Testing",
+      "what": "通过 PostgreSQL/MySQL 各隔离级别、FOR UPDATE 行锁与 advisory 咨询锁测试并发事务竞态窗口"
+    },
+    {
+      "heading": "WebSocket Race Conditions",
+      "what": "并发发送 WebSocket 消息与同时发起多个握手升级探测消息处理与房间加入竞态"
+    },
+    {
+      "heading": "Cloud & Serverless Race Conditions",
+      "what": "测试 AWS Lambda 并发调用与保留并发限制、DynamoDB 条件写及 GCP/Azure 云函数的并行执行竞态"
+    },
+    {
+      "heading": "Tools",
+      "what": "Turbo Intruder、Racepwn、Raceocat 等专用竞争工具及 Python asyncio/Go 协程并发脚本编写"
+    },
+    {
+      "heading": "Multi-Endpoint Race Conditions",
+      "what": "针对商品-购物车-结账等多步链式请求，用 Burp 单包攻击并发执行最终确认步骤"
+    },
+    {
+      "heading": "Single-Endpoint Race Conditions",
+      "what": "并发切换攻击者与受害者邮箱触发确认链接竞态实现账户接管"
+    },
+    {
+      "heading": "Remediation Recommendations",
+      "what": "悲观锁、乐观并发控制、幂等 API、分布式锁与数据库唯一约束等竞争条件防御方案"
+    },
+    {
+      "heading": "Real World Cases and CVEs",
+      "what": "剖析 Dirty COW、runc 容器逃逸、GitHub GraphQL 提权及 PayPal 双花等真实 CVE 与 HackerOne 案例影响"
+    }
+  ]
+}

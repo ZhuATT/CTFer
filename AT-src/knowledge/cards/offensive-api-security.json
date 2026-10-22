@@ -1,0 +1,76 @@
+{
+  "use_when": "在对 REST/gRPC/WebSocket 三类 API 架构进行授权渗透测试时阅读本篇，重点涵盖 OWASP API Security Top 10 2023 的 BOLA/IDOR、BFLA、批量赋值、速率限制绕过、SSRF 及 gRPC 反射与跨站 WebSocket 劫持手法，区别于传统 Web 页面漏洞的单点测试思路。",
+  "triggers": [
+    "API安全测试",
+    "API penetration testing",
+    "BOLA",
+    "IDOR",
+    "水平越权",
+    "BFLA",
+    "垂直越权",
+    "OWASP API Security Top 10",
+    "批量赋值",
+    "Mass Assignment",
+    "速率限制绕过",
+    "rate limit bypass",
+    "HTTP动词篡改",
+    "verb tampering",
+    "参数污染",
+    "gRPC安全测试",
+    "grpcurl",
+    "protobuf",
+    "元数据注入",
+    "WebSocket安全"
+  ],
+  "vulnclass": "越权",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "API 测试十步流程总览：从接口面测绘、认证枚举到越权与限流测试"
+    },
+    {
+      "heading": "OWASP API Top 10 2023 -- BOLA and IDOR",
+      "what": "替换对象 ID 重放请求并跨 HTTP 方法自动化枚举实现水平越权测试"
+    },
+    {
+      "heading": "Broken Authentication and Excessive Data Exposure",
+      "what": "登录接口撞库探测、令牌生命周期弱点与响应中过度数据暴露检测"
+    },
+    {
+      "heading": "Rate Limiting and Resource Consumption",
+      "what": "测量限流响应头、分页滥用与超大负载提交测试资源消耗限制"
+    },
+    {
+      "heading": "BFLA and Mass Assignment",
+      "what": "低权限令牌遍历管理端点测试功能级越权并注入 role/is_admin 属性提权"
+    },
+    {
+      "heading": "REST Verb Tampering and Content-Type Switching",
+      "what": "遍历异常 HTTP 方法、方法覆盖头与切换 XML/表单序列化及重复键参数污染绕过控制"
+    },
+    {
+      "heading": "SSRF via API Parameters",
+      "what": "向 webhook/导入/头像 URL 参数注入内网地址与云元数据端点 169.254.169.254"
+    },
+    {
+      "heading": "gRPC Security Testing",
+      "what": "gRPC 反射服务枚举、grpcurl 构造越权请求、元数据注入与 mitmproxy 拦截 protobuf 流量"
+    },
+    {
+      "heading": "WebSocket Security Testing",
+      "what": "websocat 测试 Origin 校验绕过、消息注入模糊测试与跨站 WebSocket 劫持验证"
+    },
+    {
+      "heading": "API Versioning and Security Misconfiguration",
+      "what": "枚举 API 版本与旧版控制缺失、探测 swagger/actuator 调试端点及 CORS 配置错误"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "蓝军视角下各攻击留下的流量特征与告警痕迹（429 突发、404 爆发、异常 Origin 等）"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "按侦察/认证/授权/输入处理/协议/基础设施分阶段的动作与工具速查表"
+    }
+  ]
+}

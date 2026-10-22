@@ -1,0 +1,88 @@
+{
+  "use_when": "在内网渗透中需要对网络协议层发起中间人劫持、名称解析投毒并搭建隧道向内网横向渗透时阅读本篇，重点涵盖ARP欺骗、LLMNR/NBT-NS投毒、mitm6+ntlmrelayx中继、VLAN跳跃、Chisel/Ligolo-ng隧道、iodine DNS隧道及.git源码泄露恢复，区别于单点Web漏洞利用，聚焦网络基础设施攻击面与出网受限环境下的流量落地手法。",
+  "triggers": [
+    "ARP欺骗",
+    "ARP spoofing",
+    "LLMNR投毒",
+    "NBT-NS",
+    "Responder",
+    "mitm6",
+    "WPAD劫持",
+    "DHCPv6攻击",
+    "VLAN跳跃",
+    "NTLM中继",
+    "ntlmrelayx",
+    "NetNTLMv2",
+    "RBCD",
+    "隧道搭建",
+    "Chisel",
+    "Ligolo-ng",
+    "DNS隧道",
+    "Neo-reGeorg",
+    ".git泄露",
+    "依赖混淆"
+  ],
+  "vulnclass": "网络与内网",
+  "section_map": [
+    {
+      "heading": "1. ARP SPOOFING",
+      "what": "使用arpspoof/ettercap/bettercap发送免费ARP实现中间人定位与选择性目标欺骗"
+    },
+    {
+      "heading": "2. LLMNR / NBT-NS / mDNS POISONING",
+      "what": "Responder投毒捕获NetNTLM哈希并区分NTLMv1/NTLMv2破解或改走ntlmrelayx中继"
+    },
+    {
+      "heading": "3. WPAD ABUSE",
+      "what": "伪造wpad.dat PAC代理文件诱导浏览器走攻击者代理并强制NTLM认证拿凭据"
+    },
+    {
+      "heading": "4. DHCPv6 ATTACK — mitm6",
+      "what": "mitm6应答DHCPv6抢占IPv6 DNS后配合ntlmrelayx中继LDAP实施RBCD接管域控"
+    },
+    {
+      "heading": "5. VLAN HOPPING",
+      "what": "yersinia利用DTP交换机欺骗协商trunk与scapy构造802.1Q双重标签帧跨VLAN攻击"
+    },
+    {
+      "heading": "7. DNS SPOOFING",
+      "what": "bettercap/ettercap配置域名劫持与Kaminsky递归解析器缓存投毒变体"
+    },
+    {
+      "heading": "9. IDS/IPS EVASION",
+      "what": "IP分片、TTL操纵、会话拼接、诱饵源IP与慢速扫描绕过入侵检测设备"
+    },
+    {
+      "heading": "2. RELAY TARGET SELECTION",
+      "what": "CrackMapExec筛选未强制SMB签名主机并按SMB/LDAP/MSSQL/ADCS等协议选择高价值中继链"
+    },
+    {
+      "heading": "3. CREDENTIAL FORMAT ANALYSIS",
+      "what": "NetNTLMv1/v2哈希结构、hashcat 5500/5600模式与固定challenge降级彩虹表破解优先级"
+    },
+    {
+      "heading": "1. SSH TUNNELING",
+      "what": "本地/远程/动态端口转发搭建SOCKS代理与ProxyJump多级跳板配置"
+    },
+    {
+      "heading": "2. CHISEL",
+      "what": "受控主机回连建立反向SOCKS代理及多条端口转发规则"
+    },
+    {
+      "heading": "3. LIGOLO-NG",
+      "what": "基于TUN网卡的透明路由隧道、listener反向承接与多Agent双重跳板路由叠加"
+    },
+    {
+      "heading": "7. DNS TUNNELING",
+      "what": "iodine/dnscat2将IP流量封装进DNS查询构建仅53端口出网可用的隐蔽隧道"
+    },
+    {
+      "heading": "9. HTTP TUNNELING",
+      "what": "Neo-reGeorg生成webshell隧道脚本在仅HTTP出网或仅webshell场景下建立SOCKS代理"
+    },
+    {
+      "heading": "1. GIT EXPOSURE",
+      "what": "探测/.git/HEAD与config判断仓库暴露、区分403/404并用git-dumper/GitTools恢复源码"
+    }
+  ]
+}

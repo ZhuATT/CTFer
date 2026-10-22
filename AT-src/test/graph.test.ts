@@ -139,6 +139,7 @@ describe("submitFinding", () => {
 				severity: "high",
 				poc: "curl https://target.example.com/admin",
 				evidence,
+				baseline_evidence: "不适用——测试夹具",
 			},
 		});
 		const node = getNode(db, TASK.name, r.id)!;

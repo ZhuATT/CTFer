@@ -1,0 +1,88 @@
+{
+  "use_when": "在授权红队评估企业软件供应链安全时需要从内部包名侦察到恶意包注册与回调验证的完整打法时阅读本篇，重点涵盖依赖混淆、typosquatting 抢注、setup.py/npm postinstall 构建钩子注入、GitHub Actions 流水线滥用、容器镜像投毒及 confused 扫描工具，区别于针对单体 Web 应用的传统漏洞渗透视角。",
+  "triggers": [
+    "供应链攻击",
+    "supply chain attack",
+    "依赖混淆",
+    "dependency confusion",
+    "typosquatting",
+    "包名抢注",
+    "恶意包投毒",
+    "npm postinstall",
+    "preinstall",
+    "setup.py 安装钩子",
+    "Makefile 注入",
+    "pull_request_target",
+    "CI/CD 产物篡改",
+    "容器镜像投毒",
+    "基础镜像木马",
+    "registry confusion",
+    "代码签名滥用",
+    "维护者账号接管",
+    "confused",
+    "T1195"
+  ],
+  "vulnclass": "RCE",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "从 lock 文件枚举内部包名、选定攻击向量、发布带 DNS canary 回调的 PoC 包并监控确认目标环境执行的七步攻击流程"
+    },
+    {
+      "heading": "Dependency Confusion",
+      "what": "利用私有与公共源并存时包管理器优先选取高版本的解析顺序缺陷，以公共包遮蔽内部依赖包"
+    },
+    {
+      "heading": "npm Dependency Confusion",
+      "what": "从 package-lock.json 提取包名、curl 探测公共 npm 源 404 未占用名并以 99.0.0 高版本恶意 package.json 抢注"
+    },
+    {
+      "heading": "PyPI Dependency Confusion",
+      "what": "利用 pip --extra-index-url 双源解析机制，通过 setup.py 重写 install 命令类在安装时发起 HTTP 回传"
+    },
+    {
+      "heading": "Automated Scanning with confused",
+      "what": "使用 Go 编写的 confused 工具批量扫描 npm/pip/nuget 锁文件中可被抢注混淆的内部包名"
+    },
+    {
+      "heading": "Typosquatting Attacks",
+      "what": "生成常见误拼、连字符/下划线与复数变体包名在公共源抢注并植入安全回调 PoC"
+    },
+    {
+      "heading": "Makefile Injection",
+      "what": "在 Makefile 默认构建目标前插入 backdoor 目标，实现编译阶段的隐式代码执行"
+    },
+    {
+      "heading": "setup.py Install Hooks (Python)",
+      "what": "重写 install/develop/egg_info 命令类的 run 方法，在打包安装各环节触发回调"
+    },
+    {
+      "heading": "npm postinstall / preinstall Scripts",
+      "what": "利用 package.json 生命周期脚本在安装时回传主机名、用户名与 CI 环境变量等元数据"
+    },
+    {
+      "heading": "GitHub Actions Workflow Injection",
+      "what": "滥用 pull_request_target 触发器使攻击者 PR 代码以仓库 secrets 权限执行并外带 DEPLOY_TOKEN"
+    },
+    {
+      "heading": "CI/CD Artifact Tampering",
+      "what": "替换 S3 产物存储中无校验和保护的构建产物，并在被攻陷 CI 任务中枚举外带 token 与密钥环境变量"
+    },
+    {
+      "heading": "Container Image Supply Chain",
+      "what": "发布木马化基础镜像、利用未限定镜像名解析到 Docker Hub 的仓库混淆及可变 tag 替换与 digest 比对攻击"
+    },
+    {
+      "heading": "Code Signing Abuse",
+      "what": "用 openssl 自签名证书仿冒可信发布者签名恶意二进制，并从 CI 环境变量与 gnupg 目录窃取签名私钥"
+    },
+    {
+      "heading": "Upstream Repository Compromise",
+      "what": "接管无 2FA 的维护者账号后以良性提交信息向深层文件注入隐蔽后门并赶在审查前快速合并"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "防御侧 registry 独占固定、lock 文件完整性监控、可复现构建、dependency-check 扫描、镜像 digest 固定与 cosign 校验等八项控制措施"
+    }
+  ]
+}

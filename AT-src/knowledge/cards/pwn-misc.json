@@ -1,0 +1,88 @@
+{
+  "use_when": "在 CTF Pwn/二进制漏洞利用中面对 ASLR/PIE/NX/RELRO/Canary/CET/MTE 等多重保护组合，或已获得任意写原语需要'最后一公里'转化为代码执行时阅读本篇，重点涵盖 checksec 保护识别、格式化字符串泄露、ROP/SROP/ret2dlresolve 绕过、GOT/堆钩子/_IO_FILE FSOP/__exit_funcs/TLS_dtor_list 按 glibc 版本选择覆盖目标及 one_gadget/modprobe_path，区别于基础栈溢出与堆攻击教程，专讲保护绕过决策与写原语转 RCE。",
+  "triggers": [
+    "二进制漏洞利用",
+    "pwn",
+    "checksec",
+    "ASLR",
+    "PIE",
+    "NX",
+    "RELRO",
+    "Canary",
+    "GOT劫持",
+    "ROP",
+    "ret2libc",
+    "ret2dlresolve",
+    "SROP",
+    "格式化字符串",
+    "one_gadget",
+    "__malloc_hook",
+    "_IO_FILE",
+    "FSOP",
+    "TLS_dtor_list",
+    "指针混淆"
+  ],
+  "vulnclass": "RCE",
+  "section_map": [
+    {
+      "heading": "1. PROTECTION IDENTIFICATION",
+      "what": "用 checksec/readelf 快速识别 RELRO/NX/PIE/Canary/FORTIFY 等各项保护及对应编译选项"
+    },
+    {
+      "heading": "2. ASLR BYPASS",
+      "what": "信息泄露/部分覆盖/ret2dlresolve/SROP 等绕过地址随机化并给出各区域 ASLR 熵位表"
+    },
+    {
+      "heading": "3. PIE BYPASS",
+      "what": "泄露 .text 返回地址推算 PIE 基址及利用页偏移末 12 位固定的 1/16 部分覆盖"
+    },
+    {
+      "heading": "4. NX / DEP BYPASS",
+      "what": "ROP/ret2libc/ret2csu/SROP/mprotect 链与 JIT spray 打开代码执行路径"
+    },
+    {
+      "heading": "5. RELRO BYPASS",
+      "what": "按 RELRO 等级选择 GOT 直写或改打 __malloc_hook/_IO_FILE/exit_funcs 等替代目标"
+    },
+    {
+      "heading": "6. CANARY BYPASS",
+      "what": "%N$p 泄露 canary、fork 子进程逐字节爆破及覆写 fs:[0x28] TLS canary 源头"
+    },
+    {
+      "heading": "8. CET (Control-flow Enforcement Technology)",
+      "what": "Intel 影子栈/IBT 检测原理及转 JOP、ENDBR gadget 链与纯数据攻击绕过"
+    },
+    {
+      "heading": "9. MTE (Memory Tagging Extension, ARM)",
+      "what": "ARM MTE 4bit 内存标签的 1/16 爆破、同标签区越界利用与标签侧信道推断"
+    },
+    {
+      "heading": "10. DECISION TREE",
+      "what": "按 NX/Canary/PIE/ASLR/RELRO/CET/MTE 保护组合逐层决策的完整利用路径选择树"
+    },
+    {
+      "heading": "2. COMBINED PROTECTION SCENARIOS",
+      "what": "典型 CTF 保护组合(如 NX+ASLR+Canary+Full RELRO+PIE)的泄露-覆写-触发组合拳流程"
+    },
+    {
+      "heading": "1. TARGET SELECTION BY GLIBC VERSION",
+      "what": "覆盖目标×glibc 版本兼容矩阵，标明 __malloc_hook 等钩子在 2.34 已移除等差异"
+    },
+    {
+      "heading": "2. GOT OVERWRITE",
+      "what": "将 printf/free/atoi 等 GOT 改写为 system 并以 /bin/sh 参数触发，附 fmtstr_payload 用法"
+    },
+    {
+      "heading": "3. __malloc_hook / __free_hook (glibc < 2.34)",
+      "what": "one_gadget 覆盖堆钩子及 realloc+N 跳过 push 调整栈约束的技巧"
+    },
+    {
+      "heading": "4. _IO_FILE VTABLE",
+      "what": "FSOP 经 _IO_list_all 触发及 _IO_str_jumps/_IO_wfile_jumps/House of Cat 分版本打法"
+    },
+    {
+      "heading": "6. TLS_dtor_list (glibc ≥ 2.34)",
+      "what": "glibc 2.34+ 首选目标：伪造经 pointer guard 混淆的线程局部析构链并经 exit 触发"
+    }
+  ]
+}

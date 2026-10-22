@@ -1,0 +1,92 @@
+{
+  "use_when": "在 CTF 逆向或分析受保护二进制时需要识别并绕过反调试检测、还原混淆代码时阅读本篇，重点涵盖 ptrace/PEB/NtQueryInformationProcess/rdtsc 时间检测绕过、控制流平坦化与 movfuscator 去混淆、angr/Z3 符号执行及 VMProtect 类 VM 字节码逆向，区别于 Web 漏洞利用与常规静态分析类文档。",
+  "triggers": [
+    "反调试",
+    "Anti-Debugging",
+    "ptrace",
+    "LD_PRELOAD",
+    "PEB",
+    "IsDebuggerPresent",
+    "NtQueryInformationProcess",
+    "rdtsc时间检测",
+    "TLS回调",
+    "ThreadHideFromDebugger",
+    "ScyllaHide",
+    "Frida",
+    "代码混淆",
+    "控制流平坦化",
+    "虚假谓词",
+    "自修改代码",
+    "movfuscator",
+    "VMProtect",
+    "符号执行",
+    "angr"
+  ],
+  "vulnclass": "其他",
+  "section_map": [
+    {
+      "heading": "1. LINUX ANTI-DEBUG TECHNIQUES",
+      "what": "ptrace 自附加、/proc TracerPid、rdtsc 时间检测与 SIGTRAP 信号检测及对应 LD_PRELOAD/GDB 绕过手法"
+    },
+    {
+      "heading": "2. WINDOWS ANTI-DEBUG TECHNIQUES",
+      "what": "IsDebuggerPresent、PEB 标志、NtQueryInformationProcess、硬件断点检测、INT 2D、TLS 回调与 ThreadHideFromDebugger 等检测及绕过"
+    },
+    {
+      "heading": "3. ADVANCED MULTI-LAYER TECHNIQUES",
+      "what": "fork+ptrace 自我调试看门狗、多进程互查、多点时间漂移累计与 Nanomite INT3 跳转替换等高级多层对抗"
+    },
+    {
+      "heading": "4. COUNTERMEASURE TOOLS",
+      "what": "ScyllaHide、TitanHide、Frida、LD_PRELOAD shim、GDB 脚本与 Qiling 全系统仿真等反反调试工具选型"
+    },
+    {
+      "heading": "5. SYSTEMATIC BYPASS METHODOLOGY",
+      "what": "静态定位反调试调用后按 API/标志/时间/异常/多进程分类，依序施加自动工具→TLS→定制补丁→验证的系统化绕过流程"
+    },
+    {
+      "heading": "6. DECISION TREE",
+      "what": "按崩溃时点（main 前/启动时/运行中）与失控症状定位 TLS 回调、ptrace、PEB、时间或异常类检测的排障决策树"
+    },
+    {
+      "heading": "7. CTF & REAL-WORLD PATTERNS",
+      "what": "CTF 常见反调试模式频率与快速绕过表，及 VMProtect/Themida/Enigma 等商业壳的推荐对抗工具组合"
+    },
+    {
+      "heading": "8. QUICK REFERENCE — BYPASS CHEAT SHEET",
+      "what": "LD_PRELOAD 一行绕过 ptrace、GDB catch syscall 改寄存器、Frida Interceptor.replace Hook 与 x64dbg ScyllaHide 配置速查"
+    },
+    {
+      "heading": "1. LINUX ANTI-DEBUG MATRIX",
+      "what": "14 项 Linux 反调试技术按检测方法×可靠性×绕过工具×误报情况的完整对照矩阵"
+    },
+    {
+      "heading": "2. WINDOWS ANTI-DEBUG MATRIX",
+      "what": "28 项 Windows 反调试技术（PEB/NtQuery/异常/时间/CRC 校验/窗口枚举等）与绕过方法对照矩阵"
+    },
+    {
+      "heading": "3. TOOL COMPABILITY MATRIX",
+      "what": "GDB、x64dbg+ScyllaHide、WinDbg、IDA 远程、Frida、Qiling 对各检测技术的兼容与处置方式对照表"
+    },
+    {
+      "heading": "1. JUNK CODE & OPAQUE PREDICATES",
+      "what": "垃圾代码与永真/永假虚假谓词的识别特征及基于 def-use 链、Z3 抽象解释与模式匹配的去除策略"
+    },
+    {
+      "heading": "2. SELF-MODIFYING CODE (SMC)",
+      "what": "XOR 解密循环型自修改代码的定位、断点 dump 内存与 Unicorn 仿真自动脱壳还原手法"
+    },
+    {
+      "heading": "3. CONTROL FLOW FLATTENING (CFF)",
+      "what": "控制流平坦化 dispatcher/switch 结构还原：angr 符号执行求解真实后继块、trace 重建与 D-810 插件"
+    },
+    {
+      "heading": "4. MOVFUSCATOR",
+      "what": "纯 mov 指令混淆的识别特征（查表+内存映射标志位）及 demovfuscator、trace 污点与符号执行三种还原路径"
+    },
+    {
+      "heading": "5. VM PROTECTION (VMProtect / Themida / Code Virtualizer)",
+      "what": "VM 保护壳的 pushad 入口识别、dispatcher 定位与 handler 表提取、字节码指令还原流程"
+    }
+  ]
+}

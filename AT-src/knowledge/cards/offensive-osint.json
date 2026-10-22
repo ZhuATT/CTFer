@@ -1,0 +1,88 @@
+{
+  "use_when": "在红队侦察、漏洞赏金前期与目标背景调查中需要对域名、组织、个人或加密货币地址进行开源情报收集时阅读本篇，重点涵盖Shodan/FOFA资产测绘、Amass子域名枚举、HIBP社工库泄露查询、Hunter.io邮箱收集、crt.sh证书透明监控、区块链资金流追踪及反向图片与地理定位手法，区别于具体漏洞利用与内网渗透阶段的技术。",
+  "triggers": [
+    "OSINT",
+    "开源情报",
+    "信息收集",
+    "红队侦察",
+    "攻击面测绘",
+    "Shodan",
+    "FOFA",
+    "ZoomEye",
+    "子域名枚举",
+    "Amass",
+    "theHarvester",
+    "社工库",
+    "Have I Been Pwned",
+    "邮箱收集",
+    "Hunter.io",
+    "用户名溯源",
+    "人肉搜索",
+    "证书透明",
+    "区块链追踪",
+    "反向图片搜索"
+  ],
+  "vulnclass": "信息泄露",
+  "section_map": [
+    {
+      "heading": "Workflow",
+      "what": "定义目标范围并自顶向下推进侦察，以URL+时间戳+截图+SHA-256哈希归档关键证据并用JSONL日志记录保证可复现"
+    },
+    {
+      "heading": "General OSINT",
+      "what": "通用OSINT工具书签目录与聚类/隐私优先元搜索引擎及Google Dorks高效检索入口"
+    },
+    {
+      "heading": "Username & Email Investigation",
+      "what": "用Sherlock/Maigret跨平台溯源用户名，Holehe/Epieos校验邮箱注册平台并猜测目标域名邮箱命名模式"
+    },
+    {
+      "heading": "People Search",
+      "what": "聚合人物联系方式与公司信息并借助FaceCheck/Search4Faces人脸反向搜索定位真实身份"
+    },
+    {
+      "heading": "Social Media",
+      "what": "免登录查看Instagram、snscrape抓取X/Twitter、Facebook图搜索及Reddit/Bluesky等平台的用户历史与已删内容工具"
+    },
+    {
+      "heading": "Public Records & Company Information",
+      "what": "查询公司注册与受益所有权，覆盖中俄企业信用库（企查查/天眼查/GSXT）、ICP备案及OFAC制裁合规名单"
+    },
+    {
+      "heading": "Breach & Leak Data",
+      "what": "通过HIBP/Dehashed/Snusbase等社工库查询泄露凭据并检索Hudson Rock Infostealer信息窃取数据"
+    },
+    {
+      "heading": "Infrastructure & Attack-Surface OSINT",
+      "what": "用Shodan/Censys/FOFA/ZoomEye测绘暴露资产，结合ASN/BGP分析、证书透明日志与favicon哈希聚类扩展攻击面"
+    },
+    {
+      "heading": "Threat Intel & IOCs",
+      "what": "对接MISP/OpenCTI威胁情报平台与abuse.ch等IOC源，利用沙箱、FLOSS/capa及JA3/JA4指纹分析恶意样本"
+    },
+    {
+      "heading": "Cryptocurrency OSINT",
+      "what": "借助Etherscan等区块链浏览器、Arkham/Breadcrumbs资金流图谱与跨链桥监控追踪加密货币流向并检测蜜罐代币"
+    },
+    {
+      "heading": "Media Intelligence",
+      "what": "以反向图片/人脸搜索、EXIF元数据取证与视频地理标签提取验证图像视频真实性与来源"
+    },
+    {
+      "heading": "Geospatial Intelligence",
+      "what": "利用卫星影像、街景比对、SunCalc太阳方位测算、航班ADS-B与船舶AIS追踪实现事件地理定位"
+    },
+    {
+      "heading": "AI-Assisted OSINT",
+      "what": "用大模型解析日志与大规模文档，敏感数据须走Ollama等本地模型规避云端泄露，并配合Sensity等工具检测深度伪造"
+    },
+    {
+      "heading": "Archiving & Evidence Preservation",
+      "what": "用archive.today/URLScan/ArchiveBox固化网页证据，按案例隔离浏览器容器环境并只读存储经哈希校验的文件"
+    },
+    {
+      "heading": "Telegram & Messaging Intelligence",
+      "what": "通过TGStat/Telemetr分析频道群组增长与转发关系，利用t.me/s/链接免登录查看公开频道及搜狗微信搜索"
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "use_when": "在渗透测试中当目标服务端会请求用户可控URL（Webhook、图片抓取、PDF/截图生成、URL导入等入口）需要验证并深入利用SSRF时阅读本篇，重点涵盖IP编码变形/DNS重绑定/重定向链等过滤绕过、AWS IMDSv1-v2/GCP/Azure/阿里云/Oracle六大云平台元数据凭证窃取、gopher协议打Redis/FastCGI实现RCE以及盲SSRF重定向循环数据外带，区别于仅覆盖基础探测的SSRF入门资料。",
+  "triggers": [
+    "SSRF",
+    "服务端请求伪造",
+    "云元数据",
+    "169.254.169.254",
+    "IMDSv2",
+    "AWS元数据",
+    "阿里云元数据",
+    "gopher协议",
+    "Redis未授权",
+    "DNS重绑定",
+    "DNS rebinding",
+    "盲SSRF",
+    "重定向循环外带",
+    "Burp Collaborator",
+    "Gopherus",
+    "file协议读文件",
+    "URL解析差异",
+    "过滤绕过",
+    "FastCGI",
+    "WebLogic CVE-2014-4210"
+  ],
+  "vulnclass": "SSRF",
+  "section_map": [
+    {
+      "heading": "1. QUICK START",
+      "what": "首轮SSRF探测载荷、主机校验绕过族与按攻击目标选择协议的路由速查"
+    },
+    {
+      "heading": "2. FINDING SSRF SURFACE",
+      "what": "常见url/dest/callback等参数名清单及PDF生成、Webhook、RSS导入、XFF头等隐蔽SSRF入口"
+    },
+    {
+      "heading": "3. BASIC CONFIRMATION METHODOLOGY",
+      "what": "用Burp Collaborator外带回联、端口开关时间差异对比及localhost常见服务端口确认SSRF"
+    },
+    {
+      "heading": "4. CLOUD METADATA ENDPOINTS",
+      "what": "AWS IMDSv1/IMDSv2令牌绕过、GCP/Azure/DigitalOcean/阿里云/OCI/K8s/Hetzner/OpenStack元数据端点窃取凭证"
+    },
+    {
+      "heading": "5. IP ADDRESS FILTER BYPASS TECHNIQUES",
+      "what": "localhost与169.254.169.254的十进制/十六进制/八进制/IPv6映射共12种编码变形绕过IP黑名单"
+    },
+    {
+      "heading": "6. URL SCHEME ATTACKS",
+      "what": "file/dict/gopher/sftp/ldap/ftp伪协议实现本地文件读取与Redis等内网服务探测攻击"
+    },
+    {
+      "heading": "7. BLIND SSRF DETECTION & ESCALATION",
+      "what": "盲SSRF的OOB/时间/报错检测及重定向循环耗尽客户端跳转上限迫使Go/curl目标回显内网响应"
+    },
+    {
+      "heading": "8. INTERNAL SERVICE EXPLOITATION",
+      "what": "SSRF直打内网Docker API 2375提权逃逸、Elasticsearch、Redis写webshell及Spring Boot actuator"
+    },
+    {
+      "heading": "9. SSRF + FILTER BYPASS DECISION TREE",
+      "what": "从IP被封锁到协议选择再到盲SSRF升级的完整过滤绕过决策流程图"
+    },
+    {
+      "heading": "10. URL PARSER DIFFERENTIAL TABLE",
+      "what": "Python/Java/PHP/Node.js/Go/cURL对@符号、反斜杠、#片段、空字节、IPv6括号等URL解析差异的绕过对照表"
+    },
+    {
+      "heading": "11. GOPHER PAYLOAD RECIPES",
+      "what": "gopher原始TCP载荷构造：Redis写crontab/SSH密钥/webshell、无密码MySQL、SMTP发信、FastCGI执行PHP及编码规则"
+    },
+    {
+      "heading": "12. DNS REBINDING DEEP DIVE",
+      "what": "利用校验与请求间TOCTOU时间差的DNS重绑定攻击流程、TTL=0操纵及rbndr.us等工具服务"
+    }
+  ]
+}

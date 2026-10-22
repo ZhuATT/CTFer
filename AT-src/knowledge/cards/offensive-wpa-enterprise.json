@@ -1,0 +1,80 @@
+{
+  "use_when": "在对使用 802.1X/EAP 认证的企业 WiFi（WPA/WPA2/WPA3-Enterprise）进行渗透测试时阅读本篇，重点涵盖 EAP 方法识别、eaphammer 邪恶双子恶意 RADIUS 捕获 MSCHAPv2 挑战响应、asleap/hashcat 离线破解、EAP-TLS 客户端证书窃取（DPAPI/NDES/AD CS）及域内横向，区别于 WPA-PSK 破解等预共享密钥场景（本篇网络无共享密钥，攻击点在请求者证书信任验证与内层认证协议）。",
+  "triggers": [
+    "WPA-Enterprise",
+    "802.1X",
+    "企业WiFi渗透",
+    "EAP方法识别",
+    "PEAP-MSCHAPv2",
+    "EAP-TTLS",
+    "EAP-TLS",
+    "EAP-GTC",
+    "eaphammer",
+    "邪恶双子AP",
+    "恶意RADIUS",
+    "asleap",
+    "NetNTLMv1",
+    "hashcat 5500",
+    "证书验证绕过",
+    "BYOD信任劫持",
+    "DPAPI证书窃取",
+    "NDES",
+    "SCEP",
+    "AD CS自动注册"
+  ],
+  "vulnclass": "认证绕过",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "企业 WiFi 攻击五步流程总览：识别 EAP 方法→恶意 RADIUS 捕获→离线破解域凭据→转入 AD 攻击链"
+    },
+    {
+      "heading": "EAP Method Identification",
+      "what": "用 tshark/airodump-ng 监听 802.1X 交换，按 EAP Type 编号识别 PEAP/TTLS/TLS/FAST/GTC/LEAP 方法"
+    },
+    {
+      "heading": "Evil-Twin RADIUS (PEAP-MSCHAPv2 / TTLS-MSCHAPv2)",
+      "what": "eaphammer 搭建恶意 AP+RADIUS 捕获用户名与 MSCHAPv2 挑战响应，asleap 与 hashcat -m 5500 离线破解或送 crack.sh 彩虹表"
+    },
+    {
+      "heading": "Why Evil-Twin Works",
+      "what": "解析请求者不校验 RADIUS 证书 CA 链与 CN/SAN 导致自签证书被接受的根因及 GPO 证书校验固化防御"
+    },
+    {
+      "heading": "Supplicant Validation Bypass",
+      "what": "检查 Windows 无线配置 XML 中 ServerNames/TrustedRootCA 字段缺失或通配，以及 BYOD 首次'信任'点击劫持"
+    },
+    {
+      "heading": "EAP-TLS Targets",
+      "what": "EAP-TLS 使用客户端证书无密码可抓，转向证书存储与签发路径的三类攻击面（本机窃取、NDES/SCEP、AD CS）"
+    },
+    {
+      "heading": "Cert Theft from User Profile",
+      "what": "从 Windows DPAPI 证书库、macOS Keychain、Android KeyStore（root+Frida）、iOS Keychain 窃取客户端证书私钥"
+    },
+    {
+      "heading": "NDES / SCEP Misconfig",
+      "what": "发现 NDES 端点（/certsrv/mscep/mscep.dll）并用窃取或弱质询密码经 sscep 注册客户端证书"
+    },
+    {
+      "heading": "AD CS Auto-Enrollment with Permissive ACL",
+      "what": "域用户对客户端认证模板拥有 Enroll 权限即可自助签发证书（ESC1 类滥用）"
+    },
+    {
+      "heading": "EAP-GTC",
+      "what": "GTC 内层明文传输，邪恶双子直接捕获明文密码无需离线破解"
+    },
+    {
+      "heading": "Post-Crack Pivot",
+      "what": "破解出的域凭据用 nxc 验证与全网密码喷洒，bloodhound-python 进行初始 AD 枚举"
+    },
+    {
+      "heading": "Detection Considerations",
+      "what": "WIPS 规则、RADIUS 失败日志、事件 11005 等检测信号及伪造 BSSID、CA 签名证书、时段掩护规避技巧"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "从 EAP 识别到凭据域验证的全套实战命令速查"
+    }
+  ]
+}

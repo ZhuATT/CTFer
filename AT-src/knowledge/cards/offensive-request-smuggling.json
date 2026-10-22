@@ -1,0 +1,80 @@
+{
+  "use_when": "在渗透测试中针对反向代理、负载均衡器与CDN多层架构检测HTTP请求走私（CL.TE、TE.CL、TE.TE、H2.CL/H2.TE降级）时阅读本篇，重点涵盖时间延迟与差分响应探测、Transfer-Encoding头部混淆绕过、请求/响应队列投毒、缓存投毒及客户端去同步等现代变体手法，区别于常规Web应用层漏洞测试。",
+  "triggers": [
+    "HTTP请求走私",
+    "HTTP Request Smuggling",
+    "CL.TE",
+    "TE.CL",
+    "TE.TE",
+    "Transfer-Encoding",
+    "Content-Length",
+    "去同步",
+    "proxy desync",
+    "WAF绕过",
+    "缓存投毒",
+    "cache poisoning",
+    "响应队列投毒",
+    "请求劫持",
+    "request hijacking",
+    "HTTP/2走私",
+    "h2csmuggler",
+    "客户端去同步",
+    "header obfuscation",
+    "GPOST"
+  ],
+  "vulnclass": "中间件漏洞",
+  "section_map": [
+    {
+      "heading": "Mechanisms",
+      "what": "前后端服务器对CL/TE头解析差异导致HTTP去同步的原理，及CL.TE、TE.CL、TE.TE与H2.CL/H2.TE等变体机制"
+    },
+    {
+      "heading": "Identifying Vulnerable Applications",
+      "what": "架构侦察：识别Nginx、HAProxy、Varnish、Amazon ALB/CloudFront等代理与CDN多层架构"
+    },
+    {
+      "heading": "Basic Detection Tests",
+      "what": "CL.TE与TE.CL的时间延迟探测载荷及GPOST未知方法确认技巧（注意关闭Burp自动更新CL）"
+    },
+    {
+      "heading": "Advanced Detection Techniques",
+      "what": "差分测试、Transfer-Encoding混淆变体与HTTP/2重复content-length、伪头部异常等探测手法"
+    },
+    {
+      "heading": "Vulnerabilities",
+      "what": "安全控制绕过、请求/响应队列投毒、缓存投毒及Nginx/Apache/NodeJS服务器特定解析差异与影响面"
+    },
+    {
+      "heading": "Tools",
+      "what": "Burp HTTP Request Smuggler扩展、smuggler.py、h2csmuggler、Turbo Intruder、Param Miner等工具清单"
+    },
+    {
+      "heading": "Basic Request Smuggling Test Patterns",
+      "what": "CL.TE、TE.CL、HTTP/2降级与h2c升级四类标准攻击载荷模板"
+    },
+    {
+      "heading": "Advanced Exploitation Techniques",
+      "what": "请求劫持窃取Cookie、响应队列投毒伪造响应与WebSocket升级劫持载荷构造"
+    },
+    {
+      "heading": "Defense Testing",
+      "what": "补丁后复测验证：头部大小写/空格变体、chunk大小操纵与HTTP/2严格性检查"
+    },
+    {
+      "heading": "Modern Desync Variants",
+      "what": "HTTP/3(QUIC)翻译去同步、客户端去同步(CSD)、WebSocket走私、CONNECT隧道、暂停型去同步与头部超限等新型变体"
+    },
+    {
+      "heading": "Detection Bypass Techniques (Advanced)",
+      "what": "头部名混淆（空格/制表符/空字节）、多重Content-Length变体、HTTP/2伪头部走私与TE值污染绕过"
+    },
+    {
+      "heading": "Real-World CVEs",
+      "what": "CVE-2023-45853、CVE-2023-38545、CVE-2022-31629、CVE-2020-11724等真实走私相关漏洞案例"
+    },
+    {
+      "heading": "Remediation Recommendations",
+      "what": "统一RFC解析器、网关剥离hop-by-hop头、禁用h2c升级、HTTP/2隔离与监控重复CL/TE头等修复建议"
+    }
+  ]
+}

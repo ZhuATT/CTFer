@@ -1,0 +1,72 @@
+{
+  "use_when": "在渗透测试或漏洞赏金中对 GraphQL API 开展全链路攻击时阅读本篇，重点涵盖内省查询与字段建议盲重建 schema、Relay 节点 ID 越权、批处理暴破限速绕过、深度炸弹 DoS、WebSocket 订阅劫持及 multipart 文件上传滥用，并附 InQL/CrackQL/clairvoyance/graphw00f 等工具用法，区别于通用 REST 接口渗透方法论。",
+  "triggers": [
+    "GraphQL安全",
+    "内省查询",
+    "introspection",
+    "__schema",
+    "字段建议猜测",
+    "field suggestion",
+    "clairvoyance",
+    "graphw00f",
+    "InQL",
+    "Relay节点ID",
+    "GraphQL IDOR",
+    "批处理暴破",
+    "batching attack",
+    "CrackQL",
+    "OTP绕过",
+    "深度炸弹",
+    "别名放大",
+    "订阅劫持",
+    "跨站WebSocket劫持",
+    "multipart上传"
+  ],
+  "vulnclass": "越权",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "GraphQL 攻击全流程速览：端点发现、指纹识别、schema 获取、授权测试、注入、批处理到链式升级的 12 步操作"
+    },
+    {
+      "heading": "1 -- Endpoint Discovery and Fingerprinting",
+      "what": "探测常见 GraphQL 路径、以 __typename 验证端点，并用 graphw00f 指纹与 graphql-cop 一次性配置审计"
+    },
+    {
+      "heading": "2 -- Introspection and Blind Schema Reconstruction",
+      "what": "全量 __schema 内省拖取 schema；被禁用时用 __type 查询、字段建议 oracle、clairvoyance 字典与 JS bundle 爬取盲重建"
+    },
+    {
+      "heading": "3 -- Authentication and Authorization Bypass",
+      "what": "伪造 Base64 Relay node ID 横向越权枚举、嵌套对象授权缺口、分页游标篡改及无 token/低权限调用敏感 mutation"
+    },
+    {
+      "heading": "4 -- Injection Through Resolvers",
+      "what": "经变量与参数注入 SQL/NoSQL/时间盲注、指令洪泛打崩解析器（CVE-2024-47614）及 URL 参数 SSRF 打云元数据"
+    },
+    {
+      "heading": "5 -- Batching Attacks",
+      "what": "数组批量与别名批量在单 HTTP 请求内携带数百次登录/OTP 尝试绕过限速，配合 BatchQL/CrackQL 自动化暴破"
+    },
+    {
+      "heading": "6 -- Denial of Service",
+      "what": "深度炸弹嵌套循环关系、别名放大重复调用昂贵 resolver、循环 fragment 递归及 @defer/@stream 增量投递耗尽资源"
+    },
+    {
+      "heading": "7 -- Subscription Abuse and WebSocket Hijacking",
+      "what": "空 connection_init 未授权订阅敏感事件流、长连接 JWT 过期不失效及 Origin 校验缺失导致的 CSWSH 劫持"
+    },
+    {
+      "heading": "8 -- Information Disclosure and File Upload",
+      "what": "类型不匹配触发堆栈路径泄露、Hasura x-hasura-role 头注入与 Federation _service SDL 泄露、multipart 规范上传路径穿越与类型绕过"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "各类攻击的检测与加固对照表：关闭内省、限制批量大小/查询深度/别名数、GraphQL Armor 与持久化查询等防护"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "按侦察、盲 schema 恢复、授权、注入、批量、DoS、订阅、上传、信息泄露分类的实战命令速查清单"
+    }
+  ]
+}

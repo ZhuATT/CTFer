@@ -1,0 +1,88 @@
+{
+  "use_when": "在渗透测试中需要检测并利用用户输入进入模板渲染或Java表达式求值场景的SSTI/EL注入并升级为RCE时阅读本篇，重点涵盖polyglot探测串、引擎指纹决策树、Jinja2 MRO子类遍历与沙箱绕过、FreeMarker/Twig/Velocity/Thymeleaf/Handlebars等多引擎RCE载荷、盲注与DNS外带检测、Flask PIN计算，以及SpEL/OGNL利用链（S2-045、Confluence CVE-2021-26084、Spring Cloud Gateway CVE-2022-22947），区别于XSS等客户端注入及不涉及表达式求值的其他服务端注入面。",
+  "triggers": [
+    "SSTI",
+    "服务端模板注入",
+    "模板注入",
+    "Jinja2",
+    "FreeMarker",
+    "Twig",
+    "Thymeleaf",
+    "Velocity",
+    "表达式注入",
+    "SpEL",
+    "OGNL",
+    "Struts2",
+    "S2-045",
+    "CVE-2022-22947",
+    "CVE-2021-26084",
+    "Confluence",
+    "沙箱逃逸",
+    "MRO子类遍历",
+    "blind SSTI",
+    "Flask PIN"
+  ],
+  "vulnclass": "SSTI",
+  "section_map": [
+    {
+      "heading": "1. DETECTION — POLYGLOT PROBE SEQUENCE",
+      "what": "用{{7*7}}/${7*7}/#{7*7}等数学探测串判定SSTI并通过{{7*'7'}}区分Jinja2与Twig"
+    },
+    {
+      "heading": "2. ENGINE FINGERPRINTING DECISION TREE",
+      "what": "按响应差异逐层缩小范围的模板引擎指纹判定决策树"
+    },
+    {
+      "heading": "3. JINJA2 (PYTHON FLASK) — RCE CHAINS",
+      "what": "Jinja2经config/lipsum/cycler取__globals__及MRO子类遍历定位Popen执行命令的利用链"
+    },
+    {
+      "heading": "4. JINJA2 SANDBOX BYPASS TECHNIQUES",
+      "what": "下划线、点号、关键字被过滤时用attr过滤器十六进制编码及request参数外带绕过沙箱"
+    },
+    {
+      "heading": "5. FREEMARKER (JAVA) — RCE",
+      "what": "FreeMarker经Execute/ObjectConstructor内建类执行系统命令与文件读取"
+    },
+    {
+      "heading": "6. TWIG (PHP) — RCE",
+      "what": "Twig 1.x registerUndefinedFilterCallback注册exec与2.x/3.x map('system')过滤器RCE"
+    },
+    {
+      "heading": "7. VELOCITY (JAVA) — RCE",
+      "what": "Velocity经class.forName反射调用java.lang.Runtime执行命令并回读输出"
+    },
+    {
+      "heading": "9. THYMELEAF (JAVA SPRING) — RCE",
+      "what": "Thymeleaf预处理表达式__${...}__中注入SpEL实现Runtime.exec与URL视图名注入"
+    },
+    {
+      "heading": "10. CLIENT-SIDE TEMPLATE INJECTION (AngularJS)",
+      "what": "AngularJS 1.x客户端沙箱逃逸payload与{{1+1}}表达式求值检测"
+    },
+    {
+      "heading": "13. UNIVERSAL DETECTION PAYLOADS",
+      "what": "多引擎通用polyglot探测串、各语法数学指纹及报错栈指纹引擎识别"
+    },
+    {
+      "heading": "14. BLIND SSTI DETECTION",
+      "what": "无回显场景基于时间延时与nslookup DNS外带(OOB)确认盲SSTI及各引擎报错指纹"
+    },
+    {
+      "heading": "15. FLASK PIN CALCULATION",
+      "what": "Werkzeug调试器PIN码计算所需的用户名、模块名、MAC地址与machine-id等要素"
+    },
+    {
+      "heading": "2. SpEL (SPRING EXPRESSION LANGUAGE)",
+      "what": "SpEL的T()运算符RCE与输出回显、Spring Cloud Gateway CVE-2022-22947 actuator路由注入及SimpleEvaluationContext反射绕过"
+    },
+    {
+      "heading": "3. OGNL (OBJECT-GRAPH NAVIGATION LANGUAGE)",
+      "what": "Struts2 OGNL的_memberAccess重置与excludedClasses黑名单清空绕过及S2-045、Confluence CVE-2021-26084利用"
+    },
+    {
+      "heading": "4. JAVA EL (JSP / JSF)",
+      "what": "JSP/JSF中EL表达式经getClass().forName反射调用Runtime的RCE载荷"
+    }
+  ]
+}

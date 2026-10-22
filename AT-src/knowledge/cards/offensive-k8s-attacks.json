@@ -1,0 +1,72 @@
+{
+  "use_when": "在云原生渗透测试中从失陷 Pod、窃取的 kubeconfig 或暴露的 API Server 入手对 Kubernetes 集群开展提权与横向移动时阅读本篇，重点涵盖 ServiceAccount Token 滥用、RBAC 通配符权限与 cluster-admin 绑定提权、kubelet 10250 端口命令执行、hostPID/hostPath 特权容器逃逸、etcd Secrets 导出及 EKS/GKE/AKS 云元数据凭据窃取，区别于传统主机与 Web 渗透的容器编排层攻防手法。",
+  "triggers": [
+    "Kubernetes渗透",
+    "K8s集群攻击",
+    "容器逃逸",
+    "Pod逃逸",
+    "ServiceAccount Token",
+    "服务账户令牌窃取",
+    "kubeconfig",
+    "RBAC提权",
+    "cluster-admin",
+    "clusterrolebinding",
+    "kubelet",
+    "kubeletctl",
+    "特权容器",
+    "hostPath",
+    "hostPID",
+    "nsenter",
+    "etcd",
+    "云元数据",
+    "169.254.169.254",
+    "EKS"
+  ],
+  "vulnclass": "提权",
+  "section_map": [
+    {
+      "heading": "Phase 1: Initial Enumeration",
+      "what": "判断初始立足点（Pod Shell/窃取Token/暴露API/kubeconfig）并用 curl 与 kube-hunter、peirates、kubectl auth can-i 枚举自身权限"
+    },
+    {
+      "heading": "Phase 2: Service Account Token Theft and Abuse",
+      "what": "从挂载路径、环境变量及其他 Pod 中发现窃取服务账户令牌，用 --as/--as-group 模拟用户与 system:masters 组"
+    },
+    {
+      "heading": "Phase 3: RBAC Misconfiguration Exploitation",
+      "what": "识别通配符权限与 cluster-admin 绑定关系，利用 create/patch rolebinding 及 escalate 动词完成权限提升"
+    },
+    {
+      "heading": "Phase 4: Kubelet API Exploitation",
+      "what": "访问 10255 只读端口与 10250 认证端口，经 /run 接口绕过 API Server RBAC 在节点容器内直接执行命令"
+    },
+    {
+      "heading": "Phase 5: Pod Escape via Privileged Configuration",
+      "what": "利用 hostPID 经 /proc/1/root 与 nsenter 逃逸、hostNetwork 访问宿主本机服务、hostPath 读写宿主文件并部署特权 Pod"
+    },
+    {
+      "heading": "Phase 6: Secrets Enumeration and Extraction",
+      "what": "枚举全命名空间 Secrets 并 base64 解码筛选高价值凭据，直连 etcd 2379 端口导出 /registry/secrets 明文数据"
+    },
+    {
+      "heading": "Phase 7: Cloud Metadata from Pods",
+      "what": "从 Pod 访问 169.254.169.254 窃取 AWS IMDS/IRSA、GCP 服务账户与 Azure 托管标识凭据横向至云平台"
+    },
+    {
+      "heading": "Phase 8: Admission Controller Bypass and Persistence",
+      "what": "利用 failurePolicy=Ignore 与 kube-system 静态 Pod 绕过准入控制，滥用 CRD/Operator 与 DaemonSet 建立全节点持久化"
+    },
+    {
+      "heading": "Phase 9: Network Policy Bypass",
+      "what": "通过 DNS 隧道外带、NodePort、hostNetwork Pod 与直连 Pod IP 绕过 CNI 及服务网格网络策略"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "防守视角的审计日志监控、RBAC 高危动词告警、kubelet 直连检测、Pod 安全标准与运行时防护要点"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "权限自查、集群枚举、Secrets 解码、特权 Pod 部署与 port-forward 横向移动的常用命令速查"
+    }
+  ]
+}

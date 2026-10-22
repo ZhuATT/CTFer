@@ -1,0 +1,80 @@
+{
+  "use_when": "在针对智能锁、可穿戴设备、车载BLE手机钥匙、医疗设备等物联网蓝牙外设进行渗透测试时阅读本篇，重点涵盖GATT枚举、特征值未授权读写、Just Works配对嗅探与crackle破解LTK及配套App逆向，区别于经典蓝牙与Wi-Fi等传统无线攻击手法。",
+  "triggers": [
+    "BLE",
+    "蓝牙低功耗",
+    "Bluetooth Low Energy",
+    "GATT枚举",
+    "GATT",
+    "特征值读写",
+    "未授权访问",
+    "Just Works",
+    "配对降级",
+    "LE Secure Connections",
+    "LE Legacy Pairing",
+    "LTK",
+    "crackle",
+    "Sniffle",
+    "Ubertooth",
+    "bettercap",
+    "gatttool",
+    "蓝牙中间人",
+    "中继攻击",
+    "智能锁"
+  ],
+  "vulnclass": "未授权访问",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "BLE攻击五步流程：枚举GATT树、测试未授权读写、检查配对方式、中间人配对、逆向配套App"
+    },
+    {
+      "heading": "Discovery + GATT Enumeration",
+      "what": "使用bettercap、bluetoothctl、gatttool发现设备并枚举服务/特征值，厂商自定义128位UUID即攻击面"
+    },
+    {
+      "heading": "Characteristic Auth-Free Read/Write",
+      "what": "遍历所有可读/可写特征值进行无认证读写探测，覆盖门锁unlock、灯控、PIN读取等常见缺陷"
+    },
+    {
+      "heading": "Pairing Method Identification",
+      "what": "通过bluetoothctl识别Just Works/Numeric Comparison/Passkey Entry等配对方式并评估其安全强度"
+    },
+    {
+      "heading": "Sniffing the Pairing Exchange",
+      "what": "用Sniffle(TI CC1352)或Ubertooth多信道抓取配对流量，再用crackle破解LE Legacy Pairing的LTK"
+    },
+    {
+      "heading": "Active MITM During Pairing",
+      "what": "利用btproxy/mirage在Just Works配对时充当双方合法对端，实时读取与篡改GATT操作"
+    },
+    {
+      "heading": "Companion App Reverse Engineering",
+      "what": "adb拉取APK后用jadx反编译，grep定位writeCharacteristic提取厂商专有BLE命令字节格式"
+    },
+    {
+      "heading": "Smart Locks",
+      "what": "测试unlock特征值未授权写入、滚动令牌窗口期内重放及固件硬编码LTK"
+    },
+    {
+      "heading": "Cars (BLE Phone-as-Key)",
+      "what": "用两台SDR设备扩展BLE手机钥匙通信距离实施中继攻击及配对状态机缺陷测试"
+    },
+    {
+      "heading": "Medical Devices",
+      "what": "以近距离攻击者身份经未授权GATT读取PHI遥测数据及远程配置胰岛素泵等高危功能"
+    },
+    {
+      "heading": "Beacons (iBeacon, Eddystone)",
+      "what": "利用0000/12345678等默认口令重新配置信标实施重品牌伪造攻击"
+    },
+    {
+      "heading": "Detection Considerations",
+      "what": "BLE缺乏类WIDS入侵检测，多次Just Works配对提示是主要暴露风险点"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "实战速查：bettercap侦察枚举、gatttool遍历读写、bluetoothctl配对探测、Sniffle+crackle破解的完整命令链"
+    }
+  ]
+}

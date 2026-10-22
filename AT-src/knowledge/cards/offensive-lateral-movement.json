@@ -1,0 +1,88 @@
+{
+  "use_when": "在授权红队内网渗透拿到初始立足点或有效凭据后需要横向移动扩展控制范围时阅读本篇，重点涵盖哈希传递、票据传递、NTLM中继、WMI/WinRM/PsExec/DCOM远程执行与chisel/ligolo-ng隧道穿透，区别于外网打点与单机提权类技能。",
+  "triggers": [
+    "横向移动",
+    "lateral movement",
+    "哈希传递",
+    "Pass-the-Hash",
+    "PtH",
+    "票据传递",
+    "Pass-the-Ticket",
+    "Overpass-the-hash",
+    "NTLM中继",
+    "ntlmrelayx",
+    "PetitPotam",
+    "Responder",
+    "mimikatz",
+    "crackmapexec",
+    "impacket",
+    "evil-winrm",
+    "PsExec",
+    "RDP会话劫持",
+    "chisel",
+    "ligolo-ng"
+  ],
+  "vulnclass": "网络与内网",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "横向移动整体流程：枚举存活端口、收割本机凭据、跨主机测试口令复用并按需搭建隧道"
+    },
+    {
+      "heading": "Pass-the-Hash",
+      "what": "用 mimikatz 导出 NTLM 哈希后经 crackmapexec/netexec 喷洒及 psexec/wmiexec/evil-winrm 哈希传递获取 shell"
+    },
+    {
+      "heading": "Pass-the-Ticket and Overpass-the-Hash",
+      "what": "导出并注入 Kerberos 票据，以及用 sekurlsa::pth 与 impacket-getTGT/getST 将 NTLM 哈希转为 Kerberos 票据"
+    },
+    {
+      "heading": "NTLM Relay Attacks",
+      "what": "探测 SMB 签名后用 ntlmrelayx 中继到 SMB/LDAP/ADCS，配合 PetitPotam、DFSCoerce、PrinterBug 与 Responder 强制认证"
+    },
+    {
+      "heading": "WMI Execution",
+      "what": "impacket-wmiexec 免建服务的半交互式远程命令执行及哈希传递用法"
+    },
+    {
+      "heading": "WinRM / PSRemoting",
+      "what": "evil-winrm 交互 shell、文件上传下载与 PowerShell 原生 Enter-PSSession/Invoke-Command 远程执行"
+    },
+    {
+      "heading": "PsExec and Alternatives",
+      "what": "psexec、smbexec、atexec、dcomexec 各类 impacket 远程执行工具的取证痕迹差异与用法"
+    },
+    {
+      "heading": "DCOM Lateral Movement",
+      "what": "利用 MMC20.Application 与 ShellWindows COM 对象在远程主机执行命令的横向手法"
+    },
+    {
+      "heading": "RDP Session Hijacking",
+      "what": "SYSTEM 权限下用 query user 与 tscon 劫持跳板机上断开的 RDP 会话"
+    },
+    {
+      "heading": "SSH Pivoting and Tunneling",
+      "what": "SSH 本地/动态 SOCKS/远程端口转发配合 proxychains 打通隔离网段"
+    },
+    {
+      "heading": "Chisel",
+      "what": "chisel server/client 建立反向 SOCKS5 代理隧道供 proxychains 使用"
+    },
+    {
+      "heading": "Ligolo-ng",
+      "what": "ligolo-proxy/agent 建立 TUN 接口实现攻击机 IP 层直达目标内网"
+    },
+    {
+      "heading": "Double Pivots",
+      "what": "SSH 双跳链式隧道与 chisel 级联实现多级内网穿透"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "各横向技术对应的 Windows 事件 ID 检测点及 SMB 签名、Credential Guard、LAPS、Sysmon 等防御控制"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "按手头凭据类型与开放端口速查对应横向技术与工具命令的场景速查表"
+    }
+  ]
+}

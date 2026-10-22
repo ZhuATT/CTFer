@@ -1,0 +1,80 @@
+{
+  "use_when": "在渗透测试中遭遇 WAF 拦截需要绕过，或利用 CDN 缓存缺陷窃取受害者认证数据/投毒页面时阅读本篇，重点涵盖 wafw00f 指纹识别、编码/chunked 传输/HPP/协议级绕过、Cloudflare/AWS WAF/ModSecurity/Imperva 等产品针对性弱点矩阵、Web 缓存欺骗路径混淆与 X-Forwarded-Host 未键入头投毒，区别于基础注入漏洞的常规利用手法。",
+  "triggers": [
+    "WAF绕过",
+    "WAF bypass",
+    "wafw00f",
+    "Cloudflare",
+    "AWS WAF",
+    "ModSecurity",
+    "OWASP CRS",
+    "Imperva",
+    "分块传输编码",
+    "Chunked Transfer Encoding",
+    "HTTP参数污染",
+    "HPP",
+    "Web缓存欺骗",
+    "Web Cache Deception",
+    "缓存投毒",
+    "Cache Poisoning",
+    "X-Forwarded-Host",
+    "未键入输入",
+    "路径混淆",
+    "源站IP"
+  ],
+  "vulnclass": "配置错误",
+  "section_map": [
+    {
+      "heading": "1. PHASE 0 — IDENTIFY THE WAF",
+      "what": "利用 wafw00f、nmap 脚本与行为指纹比对识别目标 WAF 厂商及拦截行为"
+    },
+    {
+      "heading": "2. GENERIC BYPASS CATEGORIES",
+      "what": "编码绕过、分块传输、HPP 参数污染、路径规范化、Content-Type 切换与关键字拆分等通用绕过手法"
+    },
+    {
+      "heading": "3. PROTOCOL-LEVEL BYPASS TECHNIQUES",
+      "what": "绝对 URI 请求行、CRLF 头注入与 keep-alive 连接状态复用等协议级绕过"
+    },
+    {
+      "heading": "4. WAF BYPASS DECISION TREE",
+      "what": "从编码、协议、路径、载荷变异到 IP 伪造的 WAF 绕过结构化决策流程"
+    },
+    {
+      "heading": "1. Cloudflare WAF",
+      "what": "Cloudflare 识别特征及全角 Unicode、MySQL 版本注释、寻找源站 IP 直连绕过手法"
+    },
+    {
+      "heading": "2. AWS WAF",
+      "what": "利用 AWS WAF 仅检查 8KB 请求体的边界填充、正则超时与 JSON 深度嵌套绕过"
+    },
+    {
+      "heading": "3. ModSecurity + OWASP CRS",
+      "what": "CRS 低 Paranoia Level 规则空缺、条件注释、Unicode 编码与文件上传字段免检绕过"
+    },
+    {
+      "heading": "5. Imperva / Incapsula",
+      "what": "Imperva 参数污染、深层 JSON 嵌套、畸形 multipart、UTF-8 BOM 与 WebSocket 升级绕过"
+    },
+    {
+      "heading": "8. QUICK REFERENCE — BYPASS-BY-WAF CHEAT SHEET",
+      "what": "主流 WAF 的首选绕过向量、请求体大小限制与核心弱点速查表"
+    },
+    {
+      "heading": "2. CACHE DECEPTION — ATTACK METHODOLOGY",
+      "what": "缓存欺骗攻击四步法：认证接口追加静态扩展名、验证缓存命中、诱导受害者访问后读取其数据"
+    },
+    {
+      "heading": "4. PATH NORMALIZATION DIFFERENCES",
+      "what": "利用 CDN、应用框架与反向代理之间路径规范化行为不一致制造缓存欺骗漏洞"
+    },
+    {
+      "heading": "1. WEB CACHE POISONING vs WEB CACHE DECEPTION",
+      "what": "对比缓存投毒与缓存欺骗在目标、触发者、危害对象与攻击流程上的本质区别"
+    },
+    {
+      "heading": "2. UNKEYED HEADER POISONING",
+      "what": "利用 X-Forwarded-Host/X-Forwarded-Scheme/X-Original-URL 等被反射但不入缓存键的头实施投毒"
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "use_when": "在活动目录域环境渗透测试中需要使用 NetExec(nxc) 对 SMB/LDAP/WinRM/MSSQL 等多协议进行批量扫描、密码喷洒、凭据抓取(SAM/NTDS.dit/LSASS/DPAPI)与 Kerberos 攻击时阅读本篇，重点涵盖 CrackMapExec 继任工具的认证语法、模块系统、RBCD/LAPS 滥用及从无凭据到域管的链式打法，区别于单点漏洞利用或 BloodHound 图形化分析工具本身的使用。",
+  "triggers": [
+    "NetExec",
+    "nxc",
+    "CrackMapExec",
+    "活动目录渗透",
+    "域内横向移动",
+    "密码喷洒",
+    "凭据抓取",
+    "SAM",
+    "NTDS.dit",
+    "LSASS",
+    "DPAPI",
+    "Kerberoasting",
+    "ASREPRoast",
+    "DCSync",
+    "BloodHound",
+    "ZeroLogon",
+    "EternalBlue",
+    "MS17-010",
+    "LAPS",
+    "RBCD"
+  ],
+  "vulnclass": "网络与内网",
+  "section_map": [
+    {
+      "heading": "Authentication",
+      "what": "用户名/密码/NTLM哈希/Kerberos票据的域与本地认证语法及输出颜色与Pwn3d!含义"
+    },
+    {
+      "heading": "Password Spraying & Brute Force",
+      "what": "密码与哈希喷洒、--no-bruteforce用户密码配对模式及--jitter防账号锁定"
+    },
+    {
+      "heading": "Enumeration",
+      "what": "SMB共享、域用户、RID爆破、密码策略、登录会话、AV/EDR与BitLocker枚举"
+    },
+    {
+      "heading": "Command Execution",
+      "what": "wmiexec/atexec/smbexec三种命令执行方式、AMSI绕过与进程注入模块"
+    },
+    {
+      "heading": "Credential Dumping via SMB",
+      "what": "SAM/LSA/NTDS.dit/LSASS/DPAPI及KeePass、Veeam、SCCM等应用凭据抓取"
+    },
+    {
+      "heading": "Vulnerability Scanning",
+      "what": "ZeroLogon、noPAC、PrintNightmare、SMBGhost、MS17-010与coerce_plus强制认证漏洞批量探测"
+    },
+    {
+      "heading": "LAPS",
+      "what": "利用LAPS密码读取权限直接获取目标本地管理员明文口令"
+    },
+    {
+      "heading": "Delegation Abuse",
+      "what": "RBCD委派滥用与S4U2Self以计算机账户模拟任意用户获取本地管理权限"
+    },
+    {
+      "heading": "Kerberos Attacks",
+      "what": "ASREPRoast与Kerberoasting哈希导出配合hashcat破解及pre2k计算机账户滥用"
+    },
+    {
+      "heading": "ACL / DACL Analysis",
+      "what": "daclread模块读取对象ACE、筛查DCSync权限持有者与拒绝ACE"
+    },
+    {
+      "heading": "BloodHound Data Collection",
+      "what": "经LDAP采集BloodHound全量或DCOnly攻击路径关系图数据"
+    },
+    {
+      "heading": "MSSQL Protocol",
+      "what": "MSSQL认证爆破、SQL查询、xp_cmdshell命令执行与mssql_priv提权至sysadmin"
+    },
+    {
+      "heading": "Modules System",
+      "what": "按协议列出模块、查看模块选项及多模块并发执行用法"
+    },
+    {
+      "heading": "Pentest Scenario Example (Chained Workflows)",
+      "what": "无凭据侦察、低权域用户、本地管理员横向到域管DCSync的分阶段链式实战流程"
+    },
+    {
+      "heading": "Quick Reference: Flag Cheatsheet",
+      "what": "认证、枚举、抓取与攻击类常用命令参数速查表"
+    }
+  ]
+}

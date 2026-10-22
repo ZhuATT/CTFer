@@ -1,0 +1,76 @@
+{
+  "use_when": "在IoT/嵌入式设备渗透测试或智能家居、工控(ICS/OT)系统评估中需要从硬件接口到云端的全链路攻击方法论时阅读本篇，重点涵盖UART/JTAG/SWD接口侦察、SPI/eMMC固件提取、binwalk解包分析、U-Boot与安全启动绕过、BLE/Zigbee/Z-Wave无线攻击及MQTT/Modbus/BACnet工控协议利用，区别于纯Web应用漏洞的单点测试视角。",
+  "triggers": [
+    "IoT渗透测试",
+    "嵌入式设备安全",
+    "UART串口",
+    "JTAG",
+    "SWD",
+    "SPI flash",
+    "flashrom",
+    "芯片拆焊",
+    "binwalk",
+    "固件提取",
+    "U-Boot",
+    "安全启动绕过",
+    "故障注入",
+    "电压毛刺",
+    "硬编码密钥",
+    "默认口令",
+    "命令注入",
+    "BLE/Zigbee/Z-Wave无线攻击",
+    "MQTT未授权订阅",
+    "Modbus/BACnet工控协议"
+  ],
+  "vulnclass": "其他",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "五步法总览：硬件侦察→获取固件→解包分析→运行时立足→横向扩展至App/云端/邻接设备"
+    },
+    {
+      "heading": "Hardware Reconnaissance",
+      "what": "识别PCB上SoC/闪存/调试焊盘，用万用表、逻辑分析仪、Bus Pirate定位UART/JTAG/SWD接口并爆破串口波特率"
+    },
+    {
+      "heading": "Flash Dumping",
+      "what": "flashrom经CH341A在线或拆焊提取SPI NOR、eMMC转SD读卡、NAND ECC处理及mitmproxy中间人抓取OTA固件"
+    },
+    {
+      "heading": "Firmware Analysis",
+      "what": "binwalk递归解包与熵分析、SquashFS/JFFS2/UBIFS文件系统挂载、挖掘硬编码密钥、shadow默认凭证、setuid及脆弱busybox/dropbear版本"
+    },
+    {
+      "heading": "Runtime Exploitation",
+      "what": "telnet/SSH默认口令与root/序列号尝试、GoAhead等CGI参数命令注入、mtd_debug重刷分区及/dev/mem物理内存读写提权"
+    },
+    {
+      "heading": "Bootloader / Secure Boot Attacks",
+      "what": "U-Boot中断自启动改bootargs注入init=/bin/sh、tftpboot加载恶意内核、签名降级/回滚绕过及ChipWhisperer电压时钟毛刺攻击"
+    },
+    {
+      "heading": "RTOS Targets",
+      "what": "FreeRTOS/Zephyr/ThreadX/ESP-IDF/QNX攻击面评估及OpenOCD/SAM-BA经SWD/JTAG读取受保护MCU固件"
+    },
+    {
+      "heading": "Wireless Protocols",
+      "what": "bettercap/gatttool枚举BLE特征写入、KillerBee嗅探重放Zigbee及Touchlink已知传输密钥、Z-Wave S0、LoRaWAN重放与rtl_433重放433MHz固定码"
+    },
+    {
+      "heading": "ICS / OT Protocols",
+      "what": "pymodbus无认证读写保持寄存器、BACnet who-is属性读取、OPC-UA None安全策略信息泄露及Snap7未认证控制西门子PLC"
+    },
+    {
+      "heading": "MQTT / CoAP",
+      "what": "mosquitto空凭证通配符#订阅全量主题窃取控制指令、coap-client无认证PUT操作及DTLS PSK固定不轮换缺陷"
+    },
+    {
+      "heading": "Companion Mobile App / Cloud API",
+      "what": "jadx/apktool反编译App提取API地址与MQTT凭证、frida绕过SSL pinning，测试序列号绑定抢设备、IDOR与无鉴权直播流"
+    },
+    {
+      "heading": "Pivoting Across Devices",
+      "what": "借ARP/DHCP投毒、Zigbee/Z-Wave网关桥接、BLE中心角色劫持与云账号失陷实现跨设备横向控制"
+    }
+  ]
+}

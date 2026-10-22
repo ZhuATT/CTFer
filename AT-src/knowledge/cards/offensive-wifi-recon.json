@@ -1,0 +1,80 @@
+{
+  "use_when": "在无线渗透测试启动阶段需要被动侦察目标空域并构建攻击前目标地图（BSSID/信道/加密/PMF/客户端画像）时阅读本篇，涵盖网卡选型、监听模式与注入验证、监管域设置、2.4/5/6 GHz多频段扫描、隐藏SSID发现及Kismet/Wigle战争驾驶，区别于deauth、evil-twin、握手包抓取等主动攻击类文档，本篇专注攻击前的信息收集。",
+  "triggers": [
+    "Wi-Fi侦察",
+    "监听模式",
+    "monitor mode",
+    "packet injection",
+    "airmon-ng",
+    "airodump-ng",
+    "aireplay-ng",
+    "Kismet",
+    "战争驾驶",
+    "war-driving",
+    "Wigle",
+    "隐藏SSID",
+    "hidden SSID",
+    "BSSID",
+    "PMF",
+    "受保护管理帧",
+    "OUI",
+    "厂商识别",
+    "监管域",
+    "Wi-Fi 6E"
+  ],
+  "vulnclass": "网络与内网",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "无线侦察六步流程：选网卡、验监听与注入、设监管域、全频段被动扫、逐BSSID钻取、主动攻击前构建结构化目标清单"
+    },
+    {
+      "heading": "Adapter Selection",
+      "what": "按频段与PHY选网卡芯片（AR9271/RTL8812AU/MT7612U/MT7921AU/AXM）并用lsusb与iw识别无线射频能力"
+    },
+    {
+      "heading": "Monitor Mode Setup",
+      "what": "airmon-ng或iw手工开启监听模式，并用aireplay-ng --test验证注入ACK率是否达标"
+    },
+    {
+      "heading": "Regulatory Domain",
+      "what": "iw reg set设置监管域以解锁合法信道（2.4/5/6 GHz）与发射功率限制"
+    },
+    {
+      "heading": "Passive Multi-Band Sweep",
+      "what": "airodump-ng对abg/ax全频段被动扫描并写入pcap/csv供后续分析"
+    },
+    {
+      "heading": "Targeted Capture",
+      "what": "锁定BSSID并固定信道定向抓包，避免跳频导致丢帧"
+    },
+    {
+      "heading": "Hidden SSIDs",
+      "what": "利用客户端探测请求或单次deauth强制重关联来泄露隐藏AP的ESSID"
+    },
+    {
+      "heading": "Kismet for War-Driving",
+      "what": "Kismet结合GPS地图标绘、IE指纹与OUI厂商标记进行长时间战争驾驶采集"
+    },
+    {
+      "heading": "Wigle Submission",
+      "what": "kismetdb_dump_devices导出CSV转Wigle格式进行地理化网络观测聚合"
+    },
+    {
+      "heading": "Vendor / OUI Identification",
+      "what": "通过OUI前缀识别厂商，推断默认口令、芯片CVE、WPS Pixie Dust可行性及KRACK/FragAttacks修补状态"
+    },
+    {
+      "heading": "Data to Record per Target",
+      "what": "逐目标记录BSSID、ESSID、信道、加密类型、PMF、RSSI、信标间隔、客户端列表与WPS状态等关键字段"
+    },
+    {
+      "heading": "Detection Considerations",
+      "what": "分析WIDS对探测请求、监听跳频与KARMA行为的检测面，保持纯被动使多数WIDS不可见"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "从环境准备、注入验证、全频段扫描到逐BSSID钻取与目标清单生成的完整命令速查"
+    }
+  ]
+}

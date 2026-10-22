@@ -70,6 +70,7 @@ describe("P2F-2 noreport endpoint 接通", () => {
 					severity: "low",
 					poc: "curl http://x.example.com/static/app.js.map",
 					evidence: "sm.txt",
+					baseline_evidence: "不适用——测试夹具",
 					endpoint: "/static/app.js.map",
 				},
 			}),
@@ -93,6 +94,7 @@ describe("P2F-2 noreport endpoint 接通", () => {
 				severity: "critical",
 				poc: "curl http://x.example.com/static/app.js.map | grep AKIA",
 				evidence: "cred.txt",
+				baseline_evidence: "不适用——测试夹具",
 				endpoint: "/static/app.js.map",
 			},
 		});
@@ -112,6 +114,7 @@ describe("P2F-2 noreport endpoint 接通", () => {
 				severity: "info",
 				poc: "curl -H 'Origin: http://evil.com' http://x.example.com/",
 				evidence: "cors.txt",
+				baseline_evidence: "不适用——测试夹具",
 			},
 		});
 		expect(r.noreport?.verdict).toBe("suspect");

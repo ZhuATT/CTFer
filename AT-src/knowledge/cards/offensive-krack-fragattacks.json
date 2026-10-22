@@ -1,0 +1,60 @@
+{
+  "use_when": "在对遗留 WPA2 客户端（嵌入式/IoT 设备、老款 Android、工控 SCADA 无线终端）做无线安全评估、验证 KRACK 密钥重装与 FragAttacks 分片聚合攻击可利用性时阅读本篇，重点涵盖 Vanhoef 官方测试脚本、四次握手 M3 重传解密、A-MSDU 欺骗注入及 hostapd-mana 流氓 AP 配合 deauth 强制关联的打法，区别于常规 WiFi 口令破解——KRACK 并不恢复 PSK，仅获得解密与注入能力。",
+  "triggers": [
+    "KRACK",
+    "密钥重装攻击",
+    "key reinstallation",
+    "FragAttacks",
+    "帧分片聚合攻击",
+    "WPA2",
+    "四次握手",
+    "4-way handshake",
+    "M3重传",
+    "PTK重装",
+    "keystream重用",
+    "TKIP降级",
+    "帧注入",
+    "A-MSDU欺骗",
+    "分片缓存投毒",
+    "CVE-2017-13077",
+    "CVE-2020-24588",
+    "krackattacks-scripts",
+    "test-fragattacks.py",
+    "hostapd-mana"
+  ],
+  "vulnclass": "密码学缺陷",
+  "section_map": [
+    {
+      "heading": "When These Apply",
+      "what": "按攻击家族对照补丁状态，圈定当今仍可打的遗留目标：嵌入式OEM设备、未打补丁的老Android(<8)、工控SCADA WiFi客户端与无名IoT"
+    },
+    {
+      "heading": "KRACK — Key Reinstallation",
+      "what": "利用四次握手M3重传诱使客户端重装PTK并重置nonce/重放计数器，密钥流重用导致帧可解密，附krack-test-client.py官方测试命令"
+    },
+    {
+      "heading": "Practical Outcomes",
+      "what": "KRACK实战收益：解密客户端与AP间的WPA2加密帧、TKIP降级实现数据包注入、恢复受影响密钥周期内的会话密钥，但拿不到PSK无线密码"
+    },
+    {
+      "heading": "FragAttacks — Frame Splicing",
+      "what": "滥用802.11分片与聚合机制，混合加密与明文分片或将攻击者分片拼接入合法帧，test-fragattacks.py约12项测试覆盖各CVE变体"
+    },
+    {
+      "heading": "Practical Outcomes",
+      "what": "FragAttacks实战收益：注入被客户端视为合法的恶意帧（HTTP重定向/DNS投毒）、读取缓存中的已解密分片、借伪造A-MSDU跨保护外带数据"
+    },
+    {
+      "heading": "Targeting Workflow",
+      "what": "四步打法：识别目标客户端(MAC/OS/厂商)→评估补丁概率→hostapd-mana搭建流氓AP并配合aireplay-ng去认证强制关联→逐CVE运行测试套件"
+    },
+    {
+      "heading": "Detection",
+      "what": "检测面分析：WIPS可识别去认证驱动的漫游行为与Vanhoef工具的特征帧模式，但协议层面的成功利用基本无声"
+    },
+    {
+      "heading": "Reporting",
+      "what": "报告要点：逐CVE记录客户端型号与固件版本、变体测试结果（易感/已修/部分）、实战影响定性（仅解密还是可注入）及WPA3+PMF修复缓解建议"
+    }
+  ]
+}

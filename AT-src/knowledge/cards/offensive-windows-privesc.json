@@ -1,0 +1,80 @@
+{
+  "use_when": "在Windows渗透测试或红队作业中已获得普通用户Shell、需要提权至NT AUTHORITY\\SYSTEM或本地管理员时阅读本篇，重点涵盖SeImpersonate令牌窃取、服务路径/DACL配置错误、AlwaysInstallElevated、DLL劫持、UAC绕过及PrintNightmare利用，区别于Linux提权与域内横向移动手法。",
+  "triggers": [
+    "Windows提权",
+    "土豆提权",
+    "SeImpersonate",
+    "令牌窃取",
+    "JuicyPotato",
+    "PrintSpoofer",
+    "GodPotato",
+    "Unquoted Service Path",
+    "Weak Service DACL",
+    "AlwaysInstallElevated",
+    "MSI提权",
+    "DLL劫持",
+    "WinPEAS",
+    "UAC Bypass",
+    "fodhelper.exe",
+    "计划任务提权",
+    "注册表Autoruns",
+    "PrintNightmare",
+    "CVE-2021-34527",
+    "Mimikatz"
+  ],
+  "vulnclass": "提权",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "从自动化枚举到令牌检查、服务/DLL/UAC/凭据逐层推进的九步提权流程"
+    },
+    {
+      "heading": "Automated Enumeration",
+      "what": "使用WinPEAS、PowerUp、SharpUp、Seatbelt、BeRoot批量收集提权面"
+    },
+    {
+      "heading": "Token Impersonation",
+      "what": "利用SeImpersonate/SeAssignPrimaryToken权限通过Potato家族工具窃取SYSTEM令牌"
+    },
+    {
+      "heading": "Service Misconfigurations",
+      "what": "未加引号服务路径、弱服务DACL与可写服务二进制的替换重启利用"
+    },
+    {
+      "heading": "AlwaysInstallElevated",
+      "what": "注册表双键为1时用msfvenom生成恶意MSI以SYSTEM权限安装提权"
+    },
+    {
+      "heading": "DLL Hijacking",
+      "what": "DLL搜索顺序劫持、幻影DLL加载与可写PATH目录注入及恶意DLL模板"
+    },
+    {
+      "heading": "UAC Bypass",
+      "what": "通过fodhelper、eventvwr、CMSTP劫持HKCU注册表从中完整性提升至高完整性"
+    },
+    {
+      "heading": "Scheduled Task Abuse",
+      "what": "枚举SYSTEM计划任务、替换可写动作二进制及新建SYSTEM任务提权"
+    },
+    {
+      "heading": "Registry Autoruns",
+      "what": "劫持Run/RunOnce自启动项指向的可写二进制等待管理员登录触发提权"
+    },
+    {
+      "heading": "PrintNightmare -- CVE-2021-34527",
+      "what": "利用Print Spooler加载任意DLL以SYSTEM身份执行实现本地/远程提权"
+    },
+    {
+      "heading": "Credential Harvesting",
+      "what": "SAM/SYSTEMhive离线导出、DPAPI解密、LSA秘密转储与凭据管理器收割"
+    },
+    {
+      "heading": "Detection / Defender View",
+      "what": "各提权技术的检测指标与Sysmon及Windows安全日志事件ID对照表"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "五阶段提权作战速查命令与收尾清理恢复清单"
+    }
+  ]
+}

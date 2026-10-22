@@ -1,0 +1,92 @@
+{
+  "use_when": "在 Web 渗透测试与漏洞赏金中需要系统化挖掘并验证远程代码执行漏洞时阅读本篇，重点涵盖命令注入、SSTI 模板注入、反序列化 gadget 链、文件上传链式利用、Log4Shell/OGNL/SpEL 注入与容器逃逸等手法，区别于单一 payload 速查表，本篇提供从输入面枚举、分引擎载荷、盲注带外检测到 SSRF/XXE/路径穿越链式升级的完整 RCE 攻击清单。",
+  "triggers": [
+    "RCE",
+    "远程代码执行",
+    "命令注入",
+    "command injection",
+    "SSTI",
+    "服务端模板注入",
+    "Jinja2",
+    "反序列化",
+    "ysoserial",
+    "Log4Shell",
+    "JNDI注入",
+    "文件上传",
+    "webshell",
+    "ImageTragick",
+    "原型污染",
+    "OGNL",
+    "SpEL",
+    "容器逃逸",
+    "WAF绕过",
+    "OAST"
+  ],
+  "vulnclass": "RCE",
+  "section_map": [
+    {
+      "heading": "Mechanisms",
+      "what": "eval 代码注入、文件包含、命令注入、反序列化、危险 YAML 解析等 RCE 成因原理速览"
+    },
+    {
+      "heading": "Command Injection",
+      "what": "OS 命令注入 API 误用对比及时间延迟与 OAST/DNS 带外检测手法"
+    },
+    {
+      "heading": "Server-Side Template Injection (SSTI)",
+      "what": "Jinja2/Twig/Freemarker/Thymeleaf/Velocity 等引擎探测标记与专属 RCE payload 及 tplmap 工具"
+    },
+    {
+      "heading": "Insecure Deserialization",
+      "what": "Java/.NET/Python pickle/PHP 反序列化 gadget 链及 ysoserial、ysoserial.net、marshalsec 载荷生成"
+    },
+    {
+      "heading": "1. Identify Input Vectors",
+      "what": "枚举命令参数、模板变量、文件上传、反序列化端点、SpEL/OGNL 表达式字段、日志路径等 RCE 攻击面"
+    },
+    {
+      "heading": "2. Test Payloads by Context",
+      "what": "Linux/Windows 命令注入 payload 库（分隔符、空格绕过、通配符混淆）及 SSTI/SpEL/OGNL/MVEL 表达式注入载荷"
+    },
+    {
+      "heading": "3. Advanced Techniques",
+      "what": "盲注 RCE 时间检测、Burp Collaborator 带外回连与大小写/编码/拼接等黑名单和 WAF 绕过技巧"
+    },
+    {
+      "heading": "1. Web Shell Upload",
+      "what": "PHP/ASP/JSP webshell 上传及扩展名变形、空字节、NTFS ADS、Content-Type 伪造与多态文件绕过"
+    },
+    {
+      "heading": "2. .htaccess / web.config Injection",
+      "what": "注入配置文件使 jpg 等图片后缀被当作 PHP/ASP 脚本解析执行"
+    },
+    {
+      "heading": "3. Archive Extraction (Zip Slip - CVE-2018-1002200)",
+      "what": "构造含路径穿越与软链接的 zip/tar 解压覆盖 cron 任务、SSH 密钥与 web 根"
+    },
+    {
+      "heading": "4. ImageMagick Exploits",
+      "what": "ImageTragick（CVE-2016-3714）与 CVE-2022-44268 图像处理任意文件读取及命令执行利用"
+    },
+    {
+      "heading": "Log4Shell (CVE-2021-44228)",
+      "what": "JNDI 注入 payload、嵌套查找混淆绕过 WAF 及 marshalsec LDAP 恶意服务搭建利用链"
+    },
+    {
+      "heading": "Prototype Pollution → RCE (Node.js)",
+      "what": "__proto__ 污染 child_process 选项与 NODE_OPTIONS 从逻辑漏洞升级为 RCE"
+    },
+    {
+      "heading": "SQL Injection → RCE",
+      "what": "MySQL INTO OUTFILE 写马与 UDF、PostgreSQL COPY TO PROGRAM 与大对象导出、MSSQL xp_cmdshell/OLE Automation"
+    },
+    {
+      "heading": "Container Escape → RCE",
+      "what": "Docker socket 挂载、特权容器挂载宿主盘及 Dirty COW/DirtyPipe 内核漏洞逃逸"
+    },
+    {
+      "heading": "Chaining and Escalation",
+      "what": "路径穿越覆盖 authorized_keys/.user.ini、SSRF 打云元数据与内网 Redis 写计划任务、XXE expect 封装与 SSTI 写文件落地 RCE"
+    }
+  ]
+}

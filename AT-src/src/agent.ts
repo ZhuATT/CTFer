@@ -26,6 +26,7 @@ import { createBashTool, createReadTool, createWriteTool } from "./tools/exec.js
 import { createSubmitFactTool, createSubmitFindingTool } from "./tools/submit.js";
 import { createRegisterAssetTool } from "./tools/assets.js";
 import { BrowserSession, createNavigateTool, createSnapshotTool } from "./tools/browser.js";
+import { createSearchKnowledgeTool, isKnowledgeReady } from "./tools/knowledge.js";
 import type { TaskJson } from "./task.js";
 import type { Secrets } from "./secrets.js";
 import { BrowserPool } from "./browser-pool.js";
@@ -134,6 +135,7 @@ export function renderStepPrompt(step: NodeRow, situational: WorkerSituationalVi
 		"4. 完成即停，不要领取或执行其他 step。",
 		"",
 		"开工按 step 方向查阅 standards/ 下相关手册（评级细则/方法论），有则先读相关节，没有就跳过。",
+		"不熟的漏洞类/绕过手法/中间件打法，先 search_knowledge 查章节地图再按行号精读。",
 	].join("\n");
 }
 
@@ -164,7 +166,8 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		// P3pre-6 ①：BrowserPool 挪进 try 防护，配合 finally shutdown 杜绝 zombie chrome
 		if (opts.browser !== false) {
 			pool = await BrowserPool.start(taskDir);
-			browserSession = new BrowserSession(pool.endpoint);
+			const harPath = join(taskDir, "evidence", "traffic", "har", `${sessionId}.har`);
+			browserSession = new BrowserSession(pool.endpoint, harPath);
 		}
 
 		const tools: AgentTool<any>[] = [
@@ -172,6 +175,17 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 			createReadTool(taskDir),
 			createWriteTool(taskDir),
 			...(browserSession ? [createNavigateTool(browserSession), createSnapshotTool(browserSession)] : []),
+			...(isKnowledgeReady()
+				? [
+						createSearchKnowledgeTool({
+							db,
+							taskId: task.name,
+							sessionId,
+							stepId: step.id,
+							workerType: "worker",
+						}),
+				  ]
+				: []),
 			createSubmitFactTool({ db, taskId: task.name, taskDir, sessionId, assetsDb: opts.assetsDb }),
 			createSubmitFindingTool({ db, taskId: task.name, taskDir, sessionId, assetsDb: opts.assetsDb }),
 			...(opts.assetsDb

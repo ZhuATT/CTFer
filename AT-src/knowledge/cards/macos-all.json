@@ -1,0 +1,88 @@
+{
+  "use_when": "在针对 macOS 端点的渗透测试中需要绕过 TCC/Gatekeeper/SIP 防护、逃逸沙箱或向签名进程注入代码时阅读本篇，重点涵盖 TCC.db 修改、com.apple.quarantine 隔离属性移除、DYLD_INSERT_LIBRARIES、dylib 劫持、XPC PID 重用及各版本 CVE（MacDirtyCow、CVE-2023-32364），区别于通用 Linux 提权与 Linux 安全绕过手法。",
+  "triggers": [
+    "TCC绕过",
+    "TCC bypass",
+    "TCC.db",
+    "Gatekeeper绕过",
+    "com.apple.quarantine",
+    "隔离属性移除",
+    "SIP绕过",
+    "csrutil",
+    "MacDirtyCow",
+    "CVE-2023-32364",
+    "DYLD_INSERT_LIBRARIES",
+    "dylib劫持",
+    "dylib hijacking",
+    "XPC PID重用",
+    "task_for_pid",
+    "entitlement滥用",
+    "完全磁盘访问",
+    "Hardened Runtime",
+    "沙箱逃逸",
+    "LaunchAgent持久化"
+  ],
+  "vulnclass": "提权",
+  "section_map": [
+    {
+      "heading": "1. TCC (TRANSPARENCY, CONSENT, CONTROL) OVERVIEW",
+      "what": "TCC 权限框架与 TCC.db 数据库位置、六类绕过机制及 Terminal FDA 继承/Finder 自动化等已知模式"
+    },
+    {
+      "heading": "2. GATEKEEPER BYPASS",
+      "what": "移除 com.apple.quarantine 隔离属性及签名/公证检查流程的多种绕过技术"
+    },
+    {
+      "heading": "3. SIP (SYSTEM INTEGRITY PROTECTION)",
+      "what": "SIP 保护路径、csrutil 配置、rootless entitlement 及 Shrootless/MacDirtyCow/Migraine 等历史 CVE 绕过"
+    },
+    {
+      "heading": "4. SANDBOX ESCAPE",
+      "what": "Office 宏对话框与 LaunchAgent 滥用、XPC/Mach 端口 IPC 逃逸及浏览器渲染进程逃逸链"
+    },
+    {
+      "heading": "5. CODE SIGNING & ENTITLEMENTS",
+      "what": "codesign 检查签名与 entitlement，滥用 disable-library-validation、get-task-allow 等绕过 Hardened Runtime 与库验证"
+    },
+    {
+      "heading": "6. PERSISTENCE AFTER BYPASS",
+      "what": "绕过后通过 LaunchAgent/LaunchDaemon、登录项、cron 与 dylib 劫持实现重启存活持久化"
+    },
+    {
+      "heading": "7. macOS SECURITY BYPASS DECISION TREE",
+      "what": "按执行未签名程序、访问 TCC 资源、绕 SIP、逃沙箱、进程注入等目标选择攻击路径的决策树"
+    },
+    {
+      "heading": "1. TCC BYPASS BY macOS VERSION",
+      "what": "Mojave 至 Sequoia 各 macOS 版本对应 TCC 绕过 CVE 与手法的版本对照矩阵"
+    },
+    {
+      "heading": "2. TCC BYPASS BY PROTECTION TYPE",
+      "what": "按摄像头麦克风、完全磁盘访问 FDA、自动化 Apple Events、定位、录屏等防护类型对应的绕过手法"
+    },
+    {
+      "heading": "3. MDM / PPPC PROFILE ABUSE",
+      "what": "利用恶意 MDM 注册或被攻陷 MDM 服务器推送 PPPC 描述文件预授权 TCC 权限"
+    },
+    {
+      "heading": "4. TCC INSPECTION & RECONNAISSANCE",
+      "what": "枚举 TCC 数据库、读取 access 表授权值与遍历运行进程 entitlement 的侦察命令"
+    },
+    {
+      "heading": "1. DYLD_INSERT_LIBRARIES INJECTION",
+      "what": "DYLD_INSERT_LIBRARIES 环境变量注入的前提条件限制与批量发现无 Hardened Runtime 可注入目标"
+    },
+    {
+      "heading": "2. DYLIB HIJACKING",
+      "what": "利用弱链接 LC_LOAD_WEAK_DYLIB、@rpath 可写目录与 dylib 代理转发实现动态库劫持"
+    },
+    {
+      "heading": "3. XPC EXPLOITATION",
+      "what": "XPC 服务发现、PID 重用竞态攻击与无校验/仅 Bundle ID 等客户端校验缺陷利用"
+    },
+    {
+      "heading": "4. MACH PORT MANIPULATION",
+      "what": "通过 task_for_pid 获取任务端口实现目标进程内存读写与线程注入及端口命名空间操纵"
+    }
+  ]
+}

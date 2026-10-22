@@ -50,6 +50,17 @@ export const FindingPayload = z.object({
 	poc: z.string().min(4).max(5000),
 	report: z.string().max(20000).optional(),
 	evidence: z.string().min(3).max(500),
+	baseline_evidence: z
+		.string({
+			required_error:
+				"[对照严门] baseline_evidence 必填，值二选一：填写对照证据文件路径（如 evidence/xxx.txt），或显式豁免 '不适用——<一句话原因>'。proof=带攻击条件的请求，baseline=去除攻击条件的请求，两者相减才能归因。",
+		})
+		.min(
+			1,
+			"[对照严门] baseline_evidence 必填，值二选一：填写对照证据文件路径（如 evidence/xxx.txt），或显式豁免 '不适用——<一句话原因>'。proof=带攻击条件的请求，baseline=去除攻击条件的请求，两者相减才能归因。",
+		)
+		.max(500),
+	baseline_note: z.string().max(1000).optional(),
 	endpoint: z.string().max(500).optional(),
 	retest: z
 		.object({

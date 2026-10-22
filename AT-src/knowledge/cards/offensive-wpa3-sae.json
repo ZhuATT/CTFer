@@ -1,0 +1,76 @@
+{
+  "use_when": "在无线渗透中目标 AP 广播 WPA3-SAE/WPA3-Personal 或运行于 6 GHz 频段需要评估降级与侧信道攻击面时阅读本篇，重点涵盖过渡模式（mixed WPA2/WPA3）降级抓握手、Dragonblood 时序/缓存侧信道（CVE-2019-9494 系列）、H2E 识别与 mdk4 SAE 认证洪泛，区别于传统 WPA2 四次握手离线破解打法。",
+  "triggers": [
+    "WPA3",
+    "SAE",
+    "对等同步认证",
+    "过渡模式降级",
+    "transition mode",
+    "Dragonblood",
+    "龙血攻击",
+    "CVE-2019-9494",
+    "时序侧信道",
+    "缓存侧信道",
+    "Hunting-and-Pecking",
+    "H2E",
+    "Hash-to-Element",
+    "SAE认证洪泛",
+    "mdk4",
+    "hostapd",
+    "PMF",
+    "管理帧保护",
+    "Wi-Fi 6E",
+    "信标伪造"
+  ],
+  "vulnclass": "网络与内网",
+  "section_map": [
+    {
+      "heading": "Quick Workflow",
+      "what": "五步决策流程：识别 WPA3 广播、判断过渡模式、指纹 hostapd 版本、侧信道测试或转向其他攻击面"
+    },
+    {
+      "heading": "Transition-Mode Downgrade",
+      "what": "伪造仅广播 WPA2 RSN 的同 BSSID/SSID 信标（airbase-ng），迫使客户端降级漫游并捕获四次握手"
+    },
+    {
+      "heading": "Dragonblood (CVE-2019-9494 / 9495 / 13377 / 13456)",
+      "what": "针对 pre-2.10 hostapd/wpa_supplicant 中 SAE Hunting-and-Pecking 算法的侧信道与降级漏洞族总述"
+    },
+    {
+      "heading": "Cache-Based Side-Channel",
+      "what": "利用缓存命中泄露口令元素推导迭代次数（dragontime.py），需与目标主机恶意代码共存、利用条件受限"
+    },
+    {
+      "heading": "Timing Side-Channel",
+      "what": "从外部观测 SAE commit 阶段时序差异泄露迭代次数（dragontime --mode timing），无需物理邻近主机"
+    },
+    {
+      "heading": "Downgrade to Weak Group",
+      "what": "诱使实现接受废弃 MODP group 5 协商，结合侧信道实现离线字典攻击（dragondrain.py）"
+    },
+    {
+      "heading": "Patched Versions",
+      "what": "各实现修复版本对照：hostapd 2.10 起修复，消费级 SOHO 嵌入式路由器仍高概率未修补"
+    },
+    {
+      "heading": "Hash-to-Element (H2E)",
+      "what": "通过 RSNXE 元素（Wireshark 过滤 wlan.rsnx.field.h2e）识别常量时间 H2E，判断 Dragonblood 类攻击是否失效并转向其他面"
+    },
+    {
+      "heading": "SAE Auth Flooding (DoS)",
+      "what": "用 mdk4 认证洪泛滥用 SAE commit 椭圆曲线计算耗尽低端 AP CPU，需关注企业级 anti-clogging token 防护"
+    },
+    {
+      "heading": "6 GHz / Wi-Fi 6E Implications",
+      "what": "6 GHz 强制 WPA3-only 与 PMF（802.11w）必开对攻击面的影响：去认证与降级失效，仅剩纯 SAE 侧信道与 evil-twin 可行"
+    },
+    {
+      "heading": "Detection Considerations",
+      "what": "WIDS 通过 IE 顺序指纹、源 MAC 关联速率与 SAE commit 失败遥测检测信标伪造与洪泛攻击"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "交战命令速查：airodump 识别模式、airbase-ng 降级、hostapd 指纹与 Dragonblood 脚本测试及转向 evil-twin/EAP 的完整流程"
+    }
+  ]
+}

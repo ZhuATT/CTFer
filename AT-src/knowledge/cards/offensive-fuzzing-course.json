@@ -1,0 +1,72 @@
+{
+  "use_when": "在漏洞利用开发训练或挖掘文件/媒体解析器内存破坏类漏洞时需要搭建模糊测试环境并运营挖掘战役时阅读本篇，重点涵盖AFL++安装与插桩编译、覆盖率引导模糊测试、种子语料构建与精简、ASAN/UBSAN崩溃检测及Google FuzzTest进程内属性测试，区别于手工代码审计与补丁对比等漏洞发现方式。",
+  "triggers": [
+    "模糊测试",
+    "fuzzing",
+    "AFL++",
+    "afl-fuzz",
+    "覆盖率引导模糊测试",
+    "coverage-guided fuzzing",
+    "libFuzzer",
+    "Google FuzzTest",
+    "种子语料",
+    "seed corpus",
+    "语料精简",
+    "afl-cmin",
+    "afl-tmin",
+    "崩溃分诊",
+    "崩溃去重",
+    "casr-afl",
+    "AddressSanitizer",
+    "堆缓冲区溢出",
+    "libWebP",
+    "GStreamer"
+  ],
+  "vulnclass": "其他",
+  "section_map": [
+    {
+      "heading": "Overview",
+      "what": "模糊测试课程定位、虚拟机环境与C/C++调试等先决条件及漏洞挖掘工作流总览"
+    },
+    {
+      "heading": "Day 1: Introduction to Fuzzing",
+      "what": "AFL++依赖安装、afl-clang-fast/LTO插桩编译及运行首个模糊测试复现缓冲区溢出崩溃"
+    },
+    {
+      "heading": "Real-World Impact: AFL++ Finding CVE-2024-47606 (GStreamer)",
+      "what": "GStreamer qtdemux有符号整数下溢转无符号导致堆溢出的完整挖掘流程与ASan崩溃根因分析"
+    },
+    {
+      "heading": "Day 2: Continue Fuzzing with `AFL++`",
+      "what": "字典模糊测试、持久模式、Master/Slave并行、ASAN/UBSAN组合检测及afl-tmin最小化与casr-afl崩溃聚类分诊"
+    },
+    {
+      "heading": "Real-World Campaign: Fuzzing Image Parsers",
+      "what": "libWebP CVE-2023-4863堆溢出案例：自写解码harness、收集WebP种子与多核并行模糊测试"
+    },
+    {
+      "heading": "Corpus Management and Seed Selection",
+      "what": "有效多样种子收集、afl-cmin语料去冗余与afl-tmin单文件最小化以提升模糊测试迭代速度"
+    },
+    {
+      "heading": "Day 3: Introduction to Google FuzzTest",
+      "what": "GoogleTest风格的FuzzTest进程内覆盖率引导属性模糊测试入门与适用场景"
+    },
+    {
+      "heading": "Why FuzzTest in a vulnerability-focused course?",
+      "what": "FuzzTest与AFL++/Honggfuzz的差异：适合有源码时直接模糊测试单个C++库函数并集成CI"
+    },
+    {
+      "heading": "Lab 1: Set up FuzzTest and run a basic property",
+      "what": "CMake集成FuzzTest并运行首个属性测试（整数加法交换律）验证模糊测试统计输出"
+    },
+    {
+      "heading": "Lab 2: FuzzTest to find a heap buffer overflow",
+      "what": "用FuzzTest加AddressSanitizer复现memcpy栈缓冲区溢出并加长度检查修复验证"
+    },
+    {
+      "heading": "Lab 3: Fuzzing a small parser-style function",
+      "what": "对长度前缀解析函数编写属性（不崩溃与长度字段一致性）挖掘整数边界条件缺陷"
+    }
+  ]
+}
