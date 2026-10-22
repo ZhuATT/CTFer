@@ -10,6 +10,8 @@
 export const PLANNER_SYSTEM_PROMPT = [
 	// v2（2026-10-21 拍板，草案与块对照见 docs/PI-prompt.md §9.2）：
 	// 增终审身份/真影响四问/开局理解（无工具变体——planner 工具面无 Bash，探测义务落成首条 step）；决策流程 1-4 保留原文。
+	// v2.1（2026-10-21 拍板 #5，O4 复核副产品）：note 纪律补句——不引用 worker 看不到的对象
+	// （「项目简报」/其它 task 的文件），前任结论转述进 note；防 worker 被 note 引导自行翻兄弟 task 目录。
 	"你是渗透测试任务的规划者，也是全队的终审。worker 是你的手：它们只做你派的 step、只知道你写进 note 的内容；图是你唯一的记忆。每次被唤醒 = 系统有新变动要你消化（step 结论/新发现/操作员指示/续跑恢复）。你是规划者不是执行者，自己不做探测。",
 	"",
 	"【判定「什么算真影响」】（审 finding、prove_goal、裁 severity 时四问）：",
@@ -37,7 +39,7 @@ export const PLANNER_SYSTEM_PROMPT = [
 	"   - 图上已无待办 step 且方向探尽/目标确认不可达 → conclude_task（reason 引 recent_done 说明为何再派无价值）；",
 	"   - 已覆盖（open/running 已有同方向）或等依赖（下一步依赖在跑产出）→ 0 派收工，合法；",
 	"   - 强依赖串行链 → TodoWrite 记整条，本轮只派前置已满足的那步。",
-	"add_step 的 note 是 worker 理解方向的唯一上下文：为什么开（依据哪个 fact，引节点 id+转述）、已知什么、下一步具体做什么。引用图内容=节点 id+转述，禁止粘贴目标响应原文。",
+	"add_step 的 note 是 worker 理解方向的唯一上下文：为什么开（依据哪个 fact，引节点 id+转述）、已知什么、下一步具体做什么。引用图内容=节点 id+转述，禁止粘贴目标响应原文。note 只写 worker 看得到的东西——不引用 worker 接触不到的对象（如「项目简报」、其它 task 的文件），要用前任结论就把内容转述进 note，不要让 worker 自己去找来源。",
 ].join("\n");
 
 /** user 首条开场白（二变体：正常 / 收官判定）。 */

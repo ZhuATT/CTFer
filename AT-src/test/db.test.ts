@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, afterAll } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import Database from "better-sqlite3";
 import { openDb, logActivity } from "../src/db.js";
 
 const dir = mkdtempSync(join(tmpdir(), "at1v4-db-"));
@@ -32,7 +33,7 @@ describe("db v2 schema", () => {
 		expect(edges.n).toBe(1);
 	});
 
-	it("logActivity 记录 kind/tool/is_error/token 四列", () => {
+	it("logActivity 记录 kind/tool/is_error/token 五列（prompt_tokens=input+cacheRead 合计）", () => {
 		logActivity(db, {
 			task_id: "t1",
 			session_id: "s1",
@@ -47,8 +48,49 @@ describe("db v2 schema", () => {
 			output_tokens: number;
 			cache_read: number;
 			cache_write: number;
+			prompt_tokens: number;
 			is_error: number;
 		};
-		expect(row).toMatchObject({ input_tokens: 100, output_tokens: 50, cache_read: 7, cache_write: 0, is_error: 0 });
+		expect(row).toMatchObject({
+			input_tokens: 100,
+			output_tokens: 50,
+			cache_read: 7,
+			cache_write: 0,
+			prompt_tokens: 107,
+			is_error: 0,
+		});
+	});
+
+	it("旧库迁移：openDb 幂等补 prompt_tokens 列并回填 input+cache_read 合计", () => {
+		const mdir = mkdtempSync(join(tmpdir(), "at1v4-db-mig-"));
+		const mpath = join(mdir, "old.db");
+		// 手造 v2.1 之前的旧 schema（activity 无 prompt_tokens 列）
+		const raw = new Database(mpath);
+		raw.exec(`CREATE TABLE activity (
+		  id INTEGER PRIMARY KEY AUTOINCREMENT,
+		  task_id TEXT, node_id INTEGER, session_id TEXT, worker TEXT,
+		  kind TEXT NOT NULL, tool TEXT, is_error INTEGER NOT NULL DEFAULT 0,
+		  summary TEXT, detail TEXT,
+		  input_tokens INTEGER NOT NULL DEFAULT 0,
+		  output_tokens INTEGER NOT NULL DEFAULT 0,
+		  cache_read INTEGER NOT NULL DEFAULT 0,
+		  cache_write INTEGER NOT NULL DEFAULT 0,
+		  created_at TEXT NOT NULL
+		);`);
+		raw
+			.prepare("INSERT INTO activity (kind, input_tokens, cache_read, created_at) VALUES ('result', 6775, 7360, 'x')")
+			.run();
+		raw.close();
+
+		const db2 = openDb(mpath); // 迁移：补列 + 回填
+		const row = db2.prepare("SELECT prompt_tokens FROM activity").get() as { prompt_tokens: number };
+		expect(row.prompt_tokens).toBe(6775 + 7360);
+		db2.close();
+
+		const db3 = openDb(mpath); // 幂等：二次打开不炸、值不被重置
+		const again = db3.prepare("SELECT prompt_tokens FROM activity").get() as { prompt_tokens: number };
+		expect(again.prompt_tokens).toBe(6775 + 7360);
+		db3.close();
+		rmSync(mdir, { recursive: true, force: true });
 	});
 });

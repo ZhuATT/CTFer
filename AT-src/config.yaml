@@ -1,9 +1,9 @@
-# AT1 v4 运行配置（2026-10-21 拍板：worker/planner 分模型分通道）
-# worker：gemini-3.8-flash-tiered 经本地中转（127.0.0.1:8045，anthropic 形态），思考 high；
-#         key 在 .secrets.env 的 AT1_WORKER_API_KEY（中转不校验也照发，保持链路一致）。
+# AT1 v4 运行配置（2026-10-21 二次拍板：worker 弃 gemini 切 glm-5.3-flash——gemini 对渗透动态验证
+# step 服务端 filter 硬拦，静态可过动态不可用，实机证据见 docs/P3-实机验收记录.md O-new）
+# worker：glm-5.3-flash 走 GLM Coding Plan /api/anthropic（AT1_API_KEY），思考 high（沿 gemini 批数值）。
 # planner：glm-5.3 走 GLM Coding Plan /api/anthropic（AT1_API_KEY 原值），思考 xhigh。
 # 两通道均 1M 上下文——contextWindow 是 pi 的输出预算钳制基准（非输入截断线），
 # 详见 docs/PI-prompt.md §8.2。可选字段全集见 config.default.yaml 头注。
 channels:
-  worker: { model: gemini-3.8-flash-tiered, api: anthropic, keyEnv: AT1_WORKER_API_KEY, baseUrl: "http://127.0.0.1:8045", thinkingLevel: high, contextWindow: 1000000, maxTokens: 65536 }
+  worker: { model: glm-5.3-flash, api: anthropic, keyEnv: AT1_API_KEY, baseUrl: "https://open.bigmodel.cn/api/anthropic", thinkingLevel: high, contextWindow: 1000000, maxTokens: 65536 }
   planner: { model: glm-5.3, api: anthropic, keyEnv: AT1_API_KEY, baseUrl: "https://open.bigmodel.cn/api/anthropic", thinkingLevel: xhigh, contextWindow: 1000000, maxTokens: 131072 }
