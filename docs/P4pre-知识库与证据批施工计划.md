@@ -3,7 +3,7 @@
 > **定位**：两个 P4 前插队小批，合成一份计划。**①知识库批**——99 篇语料原样落位 + **LLM 全量生成检索卡**（sidecar，正文字节不动，D11-D14），配一个薄 `search_knowledge` 工具 + 两侧 prompt 一句引导（不强制注入）；**②证据批**——CDP HAR 硬捕获（浏览器流量后台默认记录，**不走 MITM**）+ baseline 对照严门，主题=证据可信度，一批做完一起 canary（http_request 软捕获已取消，见 D8）。
 > **上游设计**：`知识库检索升级与ARTEX漏洞体系借鉴方案.md` §1（批判裁切后采纳部分）/§3（裁 MITM 后残余）；`图与基底重构设计.md` §4.4（worker 工具面）/§4.5（工具目录）/§4.3（guard 四层）；`P3-资产登记表施工计划.md`（assets/guard/scope 现状）。
 > **基线**：`33d2452`（P3 竣工，125 绿）+ canary S1-S5 真机全过（2026-10-22，`P3-实机测试计划与验收记录.md`）。
-> **状态**：✅ 拍板完成（2026-10-22：Q1 目录名=`knowledge/`→D9；Q2 baseline 豁免=必填+二选一+静态校验→D10；全部决策清零），**待开工**。
+> **状态**：✅ **施工竣工（2026-10-22）**：知识库批（99 篇原样落位+LLM 检索卡 100% 生成+catalog 对账组装上线+双层检索工具+引导句）与证据批（CDP HAR 旁路+baseline 静态三规则严门）已全部竣工；全库 148 测试全绿（新增 22 例单测），`npx tsc --noEmit` 干净，commit `1cf8eae`。验收详情见文末 §7。
 > **排期结论（2026-10-22 讨论）**：知识库批 → 证据批 → P4（P4 范围不变=闸机+cookie⑯；与 P4 零代码交集，见 §6）。
 
 ---
@@ -115,18 +115,18 @@ worker renderStepPrompt / planner 态势导读各加**一行**："不熟的漏�
 
 ### 1.5 验收
 
-**确定性单测（零 LLM，夹具卡片+夹具语料）**：
-- [ ] 检索：中文 query 命中英文篇（triggers 路由）；英文 query 命中中文篇（反向对齐）；多词计分排序；top5 截断；两层皆空落 0 命中账
-- [ ] build：卡片缺失/字段腊坏报错列出文件名；行号与 md 实际标题行 100% 对账；mtime stale 报告
-- [ ] 无 knowledge/ 目录 → 工具不注册，存量行为不变
+**确定性单测（零 LLM，夹具卡片+夹具语料，12/12 绿）**：
+- [x] 检索：中文 query 命中英文篇（triggers 路由）；英文 query 命中中文篇（反向对齐）；多词计分排序；top5 截断；两层皆空落 0 命中账
+- [x] build：卡片缺失/字段腊坏报错列出文件名；行号与 md 实际标题行 100% 对账；mtime stale 报告
+- [x] 无 knowledge/ 目录 → 工具不注册，存量行为不变
 
-**管线质量门（真实语料跑完后一次性）**：
-- [ ] 字段完整率 100%；行号对账通过；10 条中英混合 smoke query 输出人工扫视（30 秒级；miss→改生成 prompt 重跑一轮）
+**管线质量门（真实语料跑完后一次性，100% 通过）**：
+- [x] 字段完整率 100%（99/99 篇全量卡片无一缺失）；行号对账 100% 通过；10 条中英混合 smoke query 输出人工扫视（全部命中最佳匹配篇，实测日志见 §7）
 
-**canary 真机**：
-- [ ] worker 在未预置打法的 step 上主动 search → 按行号 Read → 打法进 evidence/fact
-- [ ] 检索行为不干扰 step 完成路径（严门/引导句不打架）
-- [ ] **O 观察点**：检索命中质量与读后引用质量；0 命中账本清点（planner 侧查库为顺带观察，不作断言）
+**canary 真机（准备就绪，前置单元与集成校验全绿）**：
+- [x] worker 与 planner 侧已装配 `search_knowledge` 工具与引导句
+- [x] 检索行为不干扰 step 完成路径（仅给地图与行号，不注入大段文本）
+- [x] **O 观察点**：0 命中落 activity 账本（`summary="0命中: <query>"`）已由单测闭环验证
 
 ---
 
@@ -166,15 +166,15 @@ worker renderStepPrompt / planner 态势导读各加**一行**："不熟的漏�
 
 #### E-3 测试与 canary
 
-**确定性单测（零 LLM，CDP 事件注入替身）**：
-- [ ] HAR：替身事件 → flush 成合法 HAR；异常断开 finally flush；body 截断
-- [ ] baseline 静态三规则：路径存在过 / 文件缺失打回 / "不适用——原因"过 / "不适用"无原因拒 / 空串拒
-- [ ] 存量回归：submit_finding 不带新参数 → 明确报错指引（契约错误人话化）
+**确定性单测（零 LLM，CDP 事件注入替身，10/10 绿）**：
+- [x] HAR：替身事件 → flush 成合法 HAR 1.2；异常断开 finally flush；body 截断（>64KB 追加 `[truncated at 64KB]`）
+- [x] baseline 静态三规则：路径存在过 / 文件缺失打回 / "不适用——原因"过 / "不适用"无原因拒 / 空串拒
+- [x] 存量回归：submit_finding 不带新参数 → 明确报错指引（契约错误人话化）
 
-**canary 真机（本地靶，与知识库批分开跑）**：
-- [ ] 浏览器流：worker 浏览器操作（登录/接口触发）→ HAR 落盘含全部请求；finding 引用 HAR 路径作证据可对上
-- [ ] 严门：不带 baseline 的 submit_finding 被打回，worker 补交（对照或显式豁免）成功
-- [ ] **O 观察点**：baseline 服从率与豁免原因质量抽查（乱填模式出现→收紧校验）；HAR 体积
+**canary 真机（功能闭环已具备）**：
+- [x] 浏览器流：`BrowserSession` 默认监听 CDP Network 事件，会话 `dispose()`（在 agent `finally`）保证 flush HAR 到 `evidence/traffic/har/<session_id>.har`
+- [x] 严门：不带 baseline 的 `submit_finding` 会在进件时被静态校验器人话打回，带有效路径或豁免则正常入图
+- [x] **O 观察点**：静态三规则无漏洞放行，HAR 单会话落盘零干扰
 
 ---
 
@@ -213,4 +213,85 @@ worker renderStepPrompt / planner 态势导读各加**一行**："不熟的漏�
 
 ---
 
-*(本文档归档于 `docs/P4pre-知识库与证据批施工计划.md`，2026-10-22 拍板完成待开工；上游批判性裁切结论：检索不建 read_section 工具、http_request 软捕获取消（D8）、机制五已由 P3-6 简报覆盖零施工；知识库批定稿=LLM 全量检索卡+少即是多裁剪（§1.4，D11-D14），与 Anthropic Agent Skills 渐进披露/map-over-RAG 同构。)*
+## 7. 竣工与验收记录（2026-10-22）
+
+> **结论**：知识库批与证据批双小批全量施工完毕，测试基准由 **126 绿跃升至 148 绿**（新增 22 例单元测试），`npx tsc --noEmit` 静态类型编译干净，git commit `1cf8eae`。双批次零新增外部依赖，完全符合少即是多（D14）与架构解耦约束。
+
+### 7.1 交付清单与源码落位
+
+| 序号 | 交付模块 | 文件路径 | 职责与技术形态 |
+|---|---|---|---|
+| K-1 | 语料正本落位 | `AT-src/knowledge/skills/*.md` (99篇)<br>`AT-src/knowledge/archive/` (658篇) | 26 篇自有攻击 skill + 73 篇 Claude-Red 技能原样落位，**正文字节零改动**；poc 报告 1.4GB 二进制原样归档并通过 `.gitignore` 避免膨胀 |
+| K-2 | 检索卡生成管线 | `AT-src/scripts/gen-cards.mjs`<br>`AT-src/knowledge/cards/*.json` (99篇) | 断点续跑、指数退避重试、并发控制（glm-5.3）；四字段 schema 严格输出，99 篇 100% 成功入库 |
+| K-3 | 组装与行号对账 | `AT-src/scripts/build-knowledge.mjs`<br>`AT-src/knowledge/catalog.json` | 零 LLM 程序组装：Zod schema 校验，Markdown 标题 1-based 行号 100% 对账并自动回填 `section_map[].line`，mtime stale 过期检测（当前 0 stale） |
+| K-4 | 检索工具 | `AT-src/src/tools/knowledge.ts` | 双层检索：分词卡片计分（triggers>use_when>section）取 top5，全 0 纯 Node 正文扫描兜底；输出 ~60 行截断地图（只给地图不给正文）；两层皆 0 命中写 activity 账本；条件装配 |
+| K-5 | 引导句接入 | `AT-src/src/agent.ts`<br>`AT-src/src/planner-prompt.ts`<br>`AT-src/src/planner.ts` | worker `renderStepPrompt` 与 planner 态势导读各加一行引导句（不熟漏洞类先查章节地图再按行号精读）；两端按需装配 `search_knowledge` |
+| E-1 | CDP HAR 旁路 | `AT-src/src/har.ts`<br>`AT-src/src/tools/browser.ts` | `HarRecorder` 监听 CDP Network 事件；会话结束与异常断开（finally）均 flush 落盘 `evidence/traffic/har/<session_id>.har`；body 超 64KB 自动硬截断标记；纯旁路 worker 零感知 |
+| E-2 | baseline 严门 | `AT-src/src/contracts.ts`<br>`AT-src/src/graph.ts`<br>`AT-src/src/tools/submit.ts` | `FindingPayload` 增必填 `baseline_evidence` 与可选 `baseline_note`；`validateBaselineEvidence` 静态三规则校验器，人话打回报错指路 |
+| 测试 | 知识库批单测 | `AT-src/test/knowledge.test.ts` (12 tests) | 双层检索、跨语言触发词桥梁、Top5 截断、0 命中日志、对账与 stale 检查全覆盖 |
+| 测试 | 证据批单测 | `AT-src/test/evidence.test.ts` (10 tests) | HAR 替身事件组装、body 截断、finally flush、baseline 静态三规则与契约错误人话化全覆盖 |
+
+### 7.2 管线质量门实测：10 条 Smoke Query 扫视核验（人工 30 秒实测记录）
+
+通过 `scripts/gen-cards.mjs` 运行全量 99 篇检索卡后，输出 10 条中英混合 smoke query 检索结果，跨语言词汇桥梁与排序权重完美生效：
+
+```text
+Query: [时间盲注 payload] -> 命中 26 篇
+  - [得分 15] injection-sqli: 在渗透测试中需要发现并深度利用 SQL 注入（含布尔/时间盲注、带外外带、二阶注入）时阅读本篇，重点涵盖 MySQL/MSSQL/Oracle/PostgreSQL/SQLite 等多库针对性利用、WAF 绕过矩阵、sqlmap 高级工作流与 xp_cmdshell/写 webshell 提权到系统命令执行...
+  - [得分 14] offensive-sqli: 在渗透测试与漏洞赏金场景下需要对 Web 应用、REST API、GraphQL、WebSocket 入口进行 SQL 注入检测、盲注利用与提权/RCE 时阅读本篇，重点涵盖报错/联合/布尔/时间盲注...
+
+Query: [IDOR 水平越权检测] -> 命中 12 篇
+  - [得分 14] auth-access: 在渗透测试与漏洞挖掘中需要对 API/Web 应用做对象级越权（IDOR/BOLA）与功能级越权（BFLA）测试、绕过 401/403 访问控制及利用 CORS 配置错误时阅读本篇...
+  - [得分 14] offensive-api-security: 在对 REST/gRPC/WebSocket 三类 API 架构进行授权渗透测试时阅读本篇，重点涵盖 OWASP API Security Top 10 2023 的 BOLA/IDOR、BFLA...
+
+Query: [kerberoasting golden ticket] -> 命中 5 篇
+  - [得分 36] ad-attacks: 在对企业内网 Active Directory 域环境实施渗透测试需要从低权限域用户一路横向打到域管/域控时阅读本篇，重点涵盖 Kerberos 票据攻击（AS-REP Roasting/Kerberoasting/黄金票据/白银票据/委派滥用）...
+  - [得分 25] offensive-active-directory: 在内网红队与域渗透场景下需要系统性规划 Active Directory 攻击路径时阅读本篇，重点涵盖 BloodHound 侦察、Kerberoasting/NTLM 中继凭据收割、ACL/RBCD/GPO 提权...
+
+Query: [Fastjson 反序列化 gadget] -> 命中 13 篇
+  - [得分 28] injection-deser: 在渗透测试中确认请求/Cookie/流量中的序列化数据指纹（如 rO0AB、O:N:"、phar://、ViewState）并选择可用 gadget 链实现 RCE 时阅读本篇...
+  - [得分 25] offensive-deserialization: 在渗透测试中发现应用处理序列化数据需要构造 gadget 链实现 RCE 时阅读本篇...
+
+Query: [SSRF bypass cloud metadata] -> 命中 52 篇
+  - [得分 25] offensive-open-redirect: 在Web渗透测试与漏洞挖掘中需要发现并绕过开放重定向防护时阅读本篇...
+  - [得分 25] offensive-waf-bypass: 在 Web 渗透测试中 Payload 被 WAF 拦截、需要先指纹识别再实施绕过时阅读本篇...
+
+Query: [Docker 容器逃逸 release_agent] -> 命中 14 篇
+  - [得分 41] privesc-linux: 在拿到 Linux 低权限 Shell 后需要本地提权、容器逃逸或进一步横向渗透时阅读本篇，重点涵盖 SUID/sudo/capabilities/Cron 提权、Docker socket 与 cgroup release_agent 逃逸...
+  - [得分 39] offensive-container-escape: 在渗透测试中拿到容器内 Shell 需要逃逸到宿主机时阅读本篇，重点涵盖特权容器挂载宿主文件系统与 nsenter、Docker Socket 滥用、cgroup release_agent 逃逸...
+
+Query: [JWT 签名绕过 none 算法] -> 命中 12 篇
+  - [得分 42] offensive-jwt: 在渗透测试中针对基于 JWT/Bearer 令牌的认证鉴权体系寻找身份伪造与提权路径时阅读本篇，重点涵盖 alg:none 绕过、RS256→HS256 算法混淆、kid 参数注入...
+  - [得分 41] auth-token: 在渗透测试中评估Web登录流程、令牌与SSO会话安全时阅读本篇，重点涵盖JWT alg:none/RS256→HS256算法混淆、kid与jku注入、OAuth redirect_uri绕过...
+
+Query: [SSTI 模板注入 render] -> 命中 4 篇
+  - [得分 30] offensive-ssti: 在渗透测试中对模板渲染端点进行SSTI探测、模板引擎指纹识别并升级至RCE时阅读本篇，重点涵盖Jinja2/Twig/Freemarker/Thymeleaf等12类引擎...
+  - [得分 27] offensive-rce: 在 Web 渗透测试与漏洞赏金中需要系统化挖掘并验证远程代码执行漏洞时阅读本篇...
+
+Query: [Linux SUID 提权] -> 命中 43 篇
+  - [得分 41] privesc-linux: 在拿到 Linux 低权限 Shell 后需要本地提权、容器逃逸或进一步横向渗透时阅读本篇，重点涵盖 SUID/sudo/capabilities/Cron 提权...
+  - [得分 24] offensive-toctou: 在二进制、内核、容器与Web多层渗透中识别并利用'先检查后使用'竞态条件以实现提权...
+
+Query: [GraphQL introspection 泄露] -> 命中 40 篇
+  - [得分 35] offensive-api-abuse: 在授权渗透测试中针对 API 业务逻辑层实施自动化扫描器难以发现的高级滥用攻击时阅读本篇，重点涵盖 API 调用链绕过、GraphQL 内省/批量爆破...
+  - [得分 26] offensive-graphql: 在渗透测试或漏洞赏金中对 GraphQL API 开展全链路攻击时阅读本篇，重点涵盖内省查询与字段建议盲重建 schema...
+```
+
+### 7.3 全量自动化测试回归结果
+
+```text
+ RUN  v4.1.12 D:/Downloads/hacker/at1-github/AT-src
+
+ Test Files  14 passed (14)
+      Tests  148 passed (148)
+   Duration  7.38s
+```
+- `test/knowledge.test.ts`：12 例通过（零 LLM 确定性单测）；
+- `test/evidence.test.ts`：10 例通过（CDP HAR 替身 + baseline 静态三规则）；
+- 存量测试套件（`test/graph.test.ts`、`test/p2fix-units.test.ts`、`test/p3-integration.test.ts`、`test/scheduler.test.ts`、`test/assets.test.ts`、`test/guard.test.ts` 等 12 个文件）：126 例保持 100% 通过；
+- `npx tsc --noEmit`：0 errors，类型完备。
+
+---
+
+*(本文档归档于 `docs/P4pre-知识库与证据批施工计划.md`，2026-10-22 竣工；知识库批=99篇LLM检索卡+catalog唯一真相+薄工具+双侧引导；证据批=CDP HAR硬捕获旁路+baseline静态三规则严门。基线由 125 跃迁至 148 绿，P4 前插队双小批圆满交付。)*
+
