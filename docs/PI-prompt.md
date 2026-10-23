@@ -132,6 +132,7 @@ add_step 的 note 是 worker 理解方向的唯一上下文：为什么开（依
 【态势预取】
 （字段导读：steps=全量含 note；recent_facts=最新 20 条，counts 给总数；findings=全量；coverage.untouched=scope 内尚无 fact 锚定的资产（未测面），量化目标核对用 coverage.anchored/scope_total 实测值。）
 （counts 里 edge:* 为边计数，如 edge:produces=step→产出的边条数。）
+不熟的漏洞类/绕过手法/中间件打法，先 search_knowledge 查章节地图再按行号精读。
 {graphOverview 原始 JSON}
 
 【跨唤醒待办】
@@ -245,7 +246,7 @@ hint=调度层建议，steer=已插进 worker 会话的纠偏；结合当前态�
   - Planner 的系统提示词明文约定：*“资产图全局共享（多任务同一份，资产计数是全局在范围内的、非本任务独有）”*。
   - 新建任务若绑定了公司/范围，系统自动认领命中已有资产，无需通过项目简报重新序列化注入。
 
-## 三、planner 工具面（`planner.ts` + `tools/assets.ts` · 七件）
+## 三、planner 工具面（`planner.ts` + `tools/assets.ts` + `tools/knowledge.ts` · 八件）
 
 ### add_step
 
@@ -301,6 +302,13 @@ note 必须写详细：为什么开（依据哪个 fact，引节点 id + 转述�
 语义导读：anchor_count=0 的资产表示尚未被任何 fact 锚定，即未测面（untouched coverage）。
 ```
 参数：`page?（页码，从 1 起）/ q?（host 或 url 模糊搜索关键词）`
+
+### search_knowledge（knowledge/catalog.json 存在才装配，K-4）
+
+```
+在通用渗透测试技能知识库中检索打法章节地图与行号。不熟的漏洞类/绕过手法/中间件打法，先查地图再按行号精读，别凭记忆编 payload。
+```
+参数：`query（检索关键词或概念，中英文均可，如 '时间盲注', 'IDOR', 'Docker 逃逸', 'Fastjson'）`
 
 ### 👥【对照】ARTEX Planner 工具面清单与工具描述（`agent/tools.go`）
 
@@ -450,10 +458,8 @@ ARTEX Planner 拥有丰富的领域探索工具面（包含 18+ 个工具，且�
 3. submit_fact（step_id 填本 step 编号）写回结论；若确认漏洞则 submit_finding；endpoint 参数写完整 host[:port]/路径 形态（锚定资产用），别写纯路径；
 3.5 若方向探不动/结果全阴性：这也是结论——submit_fact 落阴性观察（confidence=observed，summary 写明已试手段与结果），别空手收尾；
 4. 完成即停，不要领取或执行其他 step。
-全局探索态势（只读，帮你把自己这条意图放进大局看）】：
-下面是整个任务当前的探索概况。用途有两个：一是知道别人已发现什么，别重复；二是让你探自己这条意图时，能联想到它和全局的关系。
-**发散是好事**：探本意图时尽管深想、多联想。唯一的界线是——别真的动手去执行别的意图（那是别的 worker 的事，由规划者调度）。但凡你联想到有价值的线索（跨资产的联动、疑似另一条利用链的入口、全局层面的可疑点），**务必写进 fact 交规划者**——这是你重要的产出，不是可有可无。宁可多报一条让规划者判断，也别自己咽下去。
 开工按 step 方向查阅 standards/ 下相关手册（评级细则/方法论），有则先读相关节，没有就跳过。
+不熟的漏洞类/绕过手法/中间件打法，先 search_knowledge 查章节地图再按行号精读。
 ```
 
 ### 👥【对照】ARTEX Worker User 首条输入结构（`agent/worker.go`）
@@ -481,7 +487,7 @@ ARTEX Planner 拥有丰富的领域探索工具面（包含 18+ 个工具，且�
 
 ---
 
-## 六、worker 工具面（`tools/exec.ts` + `tools/browser.ts` + `tools/submit.ts` + `tools/assets.ts` · 八件）
+## 六、worker 工具面（`tools/exec.ts` + `tools/browser.ts` + `tools/submit.ts` + `tools/assets.ts` + `tools/knowledge.ts` · 九件）
 
 ### Bash
 
@@ -547,12 +553,13 @@ endpoint 参数描述（submit_fact 与 submit_finding 同款，P1 修复后的 
 - 真实触发过 + 可复现才报；CVE/指纹/漏洞库推断 ≠ 确认——那只是 inferred fact，用 submit_fact；
 - poc：最小复现命令（别人复制粘贴就能打中）；
 - evidence：证据文件相对路径（Write 进 evidence/，内容=请求/响应关键部分）；
+- baseline_evidence：对照证据文件相对路径（evidence/ 或 evidence/traffic/har/ 下），或显式豁免 '不适用——<一句话原因>'。proof=攻击条件在场（带 payload/受害者 ID）的请求；baseline=同端点去除攻击条件（匿名/不带 payload）的请求——两者相减差异才能归因。写不了对照就写清楚为什么不适用；
 - vulnclass：漏洞类（越权/注入/未授权访问/信息泄露…）；severity：info/low/medium/high/critical 自评；
 - related_fact_ids：可选，支撑该漏洞的已有 fact 编号（血缘会连 proves 边）。
 severity 定级拿不准时，Read `standards/<目标厂商>.txt` 查该厂商评级细则（Grep 关键节，不全量读）；目标厂商不在列则按通用自评。
 提交后 state=reported，等待复测（P4），不要自己反复打同一洞。
 ```
-参数：`step_id / summary / vulnclass / severity / poc / evidence / report? / endpoint?（同上）/ related_fact_ids?`
+参数：`step_id / summary / vulnclass / severity / poc / evidence / baseline_evidence / baseline_note? / report? / endpoint?（同上）/ related_fact_ids?`
 
 finding 的 endpoint 参数描述（P1 修复后）：
 
@@ -567,6 +574,13 @@ finding 的 endpoint 参数描述（P1 修复后）：
 但发现约束外新目标≠获得授权，动手与否由规划者/操作员决定。探索结论走 submit_fact，别串。
 ```
 参数：`host / type?（subdomain|ip|endpoint，默认自动判断）/ port? / url?（完整 URL 或端点路径）/ note?（线索/凭据/上下文说明）`
+
+### search_knowledge（knowledge/catalog.json 存在才装配，K-4）
+
+```
+在通用渗透测试技能知识库中检索打法章节地图与行号。不熟的漏洞类/绕过手法/中间件打法，先查地图再按行号精读，别凭记忆编 payload。
+```
+参数：`query（检索关键词或概念，中英文均可，如 '时间盲注', 'IDOR', 'Docker 逃逸', 'Fastjson'）`
 
 ### 👥【对照】ARTEX Worker 工具面清单与工具描述（`agent/tools.go` + `agent/tools_insert.go`）
 
