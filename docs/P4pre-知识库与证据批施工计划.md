@@ -16,7 +16,7 @@
 |---|---|---|
 | D1 | 知识库形态 | **A 聪明语料 + B 一个薄工具**：语料预处理为主（统一 frontmatter + 中文别名 + catalog），运行时只加 `search_knowledge` 一个工具；读正文走**原生 Read（行号映射）**，不建 read_section 类工具；不强制注入，worker/planner prompt 各一句引导 |
 | D2 | 三种资产分家 | **运行时 skills**（仓库级共享只读目录）｜**案例档案**（poc 270+ 报告，不进运行时检索，走蒸馏回流）｜**厂商细则**（standards/ per-task 快照，现状不动，engagement 特定） |
-| D3 | 检索消费面 | worker + planner 双侧装配；planner 派 step 前查打法写进 note，worker 执行时按需下钻 |
+| D3 | 检索消费面 | worker + planner 双侧装配；planner 派 step 前查打法写进 note，worker 执行时按需下钻<br>**【P4pre-fix 修订 ✅d789737】FD6 推翻双侧：检索消费面=worker 单侧，planner 无任何读文件工具，检索到也无法精读；planner 侧 search_knowledge 已砍除** |
 | D4 | 捕获不走 MITM | 唯一程序侧捕获卡点：**CDP HAR**（浏览器流量，后台默认记录，worker 零感知）；curl 类流量**不做程序捕获**（D8）；未覆盖口子（curl/python/nc/裸 socket）短期记录哲学，M5 评估 |
 | D5 | 证据批合批 | HAR 硬捕获（真实性）+ baseline 严门（逻辑完备性）同批施工同批 canary——正交但同主题，叙事与验收一体 |
 | D6 | 26 自有 skill 进库 | `hacker/.claude/skills/` 26 篇攻击 skill（除 distill-report）为**首批正本**，单向快照进 AT-src 仓库（头部标注源路径，同步方向 hacker→AT-src）；不搞跨仓引用保部署自包含 |
@@ -117,7 +117,7 @@ worker renderStepPrompt / planner 态势导读各加**一行**："不熟的漏�
 
 **确定性单测（零 LLM，夹具卡片+夹具语料，12/12 绿）**：
 - [x] 检索：中文 query 命中英文篇（triggers 路由）；英文 query 命中中文篇（反向对齐）；多词计分排序；top5 截断；两层皆空落 0 命中账
-- [x] build：卡片缺失/字段腊坏报错列出文件名；行号与 md 实际标题行 100% 对账；mtime stale 报告
+- [x] build：卡片缺失/字段腊坏报错列出文件名；行号与 md 实际标题行 100% 对账；mtime stale 报告<br>**【P4pre-fix 勘误 ✅adac22e】"100% 对账"与事实不符——F-7a 实测 1304 sections 13 错位（99.0%），四层兑底静默落错行。修复后 matchHeadingLine 标注 tier+非精确对齐警告清单；99 篇重跑后警告清零**
 - [x] 无 knowledge/ 目录 → 工具不注册，存量行为不变
 
 **管线质量门（真实语料跑完后一次性，100% 通过）**：
@@ -215,6 +215,8 @@ worker renderStepPrompt / planner 态势导读各加**一行**："不熟的漏�
 
 ## 7. 竣工与验收记录（2026-10-22）
 
+> **【P4pre-fix 勘误与收尾 ✅0594bca/adac22e】本节两处与事实不符，已由修复批纠正**：① §7.2 下方 smoke 输出出自 gen-cards 手抄计分副本，`SSRF bypass cloud metadata` top1 记成 offensive-open-redirect/waf-bypass（错）——真工具实测 offensive-ssrf 第一（对），F-6b 已换真工具实现；② "100% 对账"实为 99.0%（13 错位），见 §1.4 勘误。修复批另：HAR 保真缺口修（extraInfo 头合并+重定向链分条，修前实测 125 条 entries 全无 Cookie 头、中间跳全丢，修后回归过）、baseline 证据进哈希、Read 双根+offset/limit、planner 侧检索砍除（FD6）、99 篇卡片重跑（超30k 的 30 篇深部章节 section_map 从 0 → 全覆盖）、26 篇源路径标注。基线由 148 推进至 **161 绿**（新增 13 例），tsc 干净。详见 `P4pre-fix-修复施工计划.md`（竣工 commit `d789737`/`0594bca`/`a67456f`/`adac22e`）。
+
 > **结论**：知识库批与证据批双小批全量施工完毕，测试基准由 **126 绿跃升至 148 绿**（新增 22 例单元测试），`npx tsc --noEmit` 静态类型编译干净，git commit `1cf8eae`。双批次零新增外部依赖，完全符合少即是多（D14）与架构解耦约束。
 
 ### 7.1 交付清单与源码落位
@@ -293,5 +295,5 @@ Query: [GraphQL introspection 泄露] -> 命中 40 篇
 
 ---
 
-*(本文档归档于 `docs/P4pre-知识库与证据批施工计划.md`，2026-10-22 竣工；知识库批=99篇LLM检索卡+catalog唯一真相+薄工具+双侧引导；证据批=CDP HAR硬捕获旁路+baseline静态三规则严门。基线由 125 跃迁至 148 绿，P4 前插队双小批圆满交付。)*
+*(本文档归档于 `docs/P4pre-知识库与证据批施工计划.md`，2026-10-22 竣工；知识库批=99篇LLM检索卡+catalog唯一真相+薄工具+双侧引导；证据批=CDP HAR硬捕获旁路+baseline静态三规则严门。基线由 125 跃迁至 148 绿，P4 前插队双小批圆满交付。后续验收修复见 `P4pre-fix-修复施工计划.md`（2026-11-08 竣工，161 绿，D3 被修订为 worker 单侧、smoke 与对账勘误、99 篇卡片重跑、HAR 保真修复）。)*
 
