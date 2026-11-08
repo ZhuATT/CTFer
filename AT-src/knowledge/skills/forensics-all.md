@@ -4,6 +4,8 @@ description: >-
   Digital forensics complete playbook. Covers memory forensics (Volatility 2/3 with DKOM/injection/rootkit detection), steganography (PNG CRC/LSB/spectrograms/zero-width Unicode/polyglots), and traffic analysis (Wireshark filters/TLS decryption/DNS tunneling/USB HID/PCAP repair). Load for CTF forensics challenges or incident response analysis.
 ---
 
+<!-- src: hacker/.claude/skills/forensics-all/SKILL.md -->
+
 # Digital Forensics — Complete Playbook
 
 ## Internal Navigation

@@ -4,6 +4,8 @@ description: >-
   Mobile security complete playbook. Covers Android (Frida scripts/exported components/WebView RCE/backup extraction/root detection bypass), iOS (keychain extraction/URL scheme hijack/Universal Links/runtime manipulation/binary analysis), and SSL pinning bypass (Flutter libflutter.so hook/OkHttp4 Kotlin name mangling/React Native/Xamarin). Load when testing mobile applications.
 ---
 
+<!-- src: hacker/.claude/skills/mobile-all/SKILL.md -->
+
 # Mobile Security — Complete Playbook
 
 ## Internal Navigation

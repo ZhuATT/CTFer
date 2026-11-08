@@ -4,6 +4,8 @@ description: >-
   XSS complete attack chain. Covers reflected/stored/DOM XSS, WAF bypass by vendor (Cloudflare/Akamai/Imperva), CSP bypass (strict-dynamic/base-uri/nonce leak/JSONP/cdn.jsdelivr.net), advanced tricks (mXSS/DOM Clobbering/Service Worker persistence/CSS exfil), dangling markup injection (token theft without JS), and CSV/Formula injection (DDE / Google Sheets IMPORTXML / LibreOffice WEBSERVICE — four dangerous prefix chars =/+/-/@). Load when user input reaches HTML/JS/CSS context or spreadsheet-cell export.
 ---
 
+<!-- src: hacker/.claude/skills/injection-xss/SKILL.md -->
+
 # XSS — Complete Attack Chain
 
 ## Internal Navigation

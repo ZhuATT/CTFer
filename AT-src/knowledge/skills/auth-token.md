@@ -4,6 +4,8 @@ description: >-
   Authentication and token attack chain. Covers JWT attacks (alg confusion/kid traversal/JWKS injection), OAuth/OIDC misconfiguration (redirect URI/PKCE downgrade/state bypass), SAML assertion attacks (signature wrapping/assertion replay), and authentication bypass (bcrypt truncation/password reset poisoning/MFA bypass/2-minute Lax exemption). Load when testing login flows, tokens, or SSO.
 ---
 
+<!-- src: hacker/.claude/skills/auth-token/SKILL.md -->
+
 # Authentication & Token Attacks — Complete Chain
 
 ## Internal Navigation

@@ -4,6 +4,8 @@ description: >-
   macOS security complete playbook. Covers TCC bypass (CVE-2023-32364 SQL injection/MacDirtyCow/entitlement inheritance), Gatekeeper bypass (quarantine xattr/notarization), SIP bypass, process injection (DYLD_INSERT_LIBRARIES/ELECTRON_RUN_AS_NODE/XPC PID reuse/Electron fuses), and dylib hijacking techniques. Load when targeting macOS endpoints.
 ---
 
+<!-- src: hacker/.claude/skills/macos-all/SKILL.md -->
+
 # macOS Security — Complete Playbook
 
 ## Internal Navigation

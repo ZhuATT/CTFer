@@ -30,72 +30,72 @@
       {
         "heading": "AS-REP ROASTING",
         "what": "枚举无需 Kerberos 预认证的用户并用 GetNPUsers/Rubeus 导出哈希离线爆破口令",
-        "line": 63
+        "line": 65
       },
       {
         "heading": "KERBEROASTING",
         "what": "请求 SPN 服务账户 TGS 票据并以 hashcat 离线破解服务账户 NTLM 哈希",
-        "line": 95
+        "line": 97
       },
       {
         "heading": "TICKET FORGING — GOLDEN, SILVER, DIAMOND, SAPPHIRE",
         "what": "利用 krbtgt 或服务账户哈希伪造黄金/白银/钻石/蓝宝石票据冒充任意用户并规避检测",
-        "line": 130
+        "line": 132
       },
       {
         "heading": "DELEGATION ATTACKS",
         "what": "滥用非约束委派、约束委派 S4U2Proxy 及 RBCD 模拟管理员访问目标服务",
-        "line": 194
+        "line": 196
       },
       {
         "heading": "PASS-THE-TICKET & OVERPASS-THE-HASH",
         "what": "直接注入 ccache/kirbi 票据复用认证及用 NTLM 哈希换取 TGT 实现纯 Kerberos 登录",
-        "line": 245
+        "line": 247
       },
       {
         "heading": "CHAIN: UNCONSTRAINED DELEGATION + PRINTERBUG → DCSYNC",
         "what": "在非约束委派主机上 Rubeus 监视并经 PrinterBug/PetitPotam 强制 DC 认证捕获域控 TGT 完成 DCSync",
-        "line": 196
+        "line": 198
       },
       {
         "heading": "DANGEROUS ACE TYPES",
         "what": "梳理 GenericAll/GenericWrite/WriteDACL/WriteOwner 等危险 ACL 对用户、组、计算机对象的可利用效果",
-        "line": 608
+        "line": 610
       },
       {
         "heading": "DCSYNC ATTACK",
         "what": "利用域对象复制权限经 secretsdump/Mimikatz 拉取全域哈希包括 krbtgt 实现持久化",
-        "line": 700
+        "line": 702
       },
       {
         "heading": "SHADOW CREDENTIALS",
         "what": "用 Whisker/pyWhisker 写入 msDS-KeyCredentialLink 后经 PKINIT 证书认证获取目标 TGT 与 NT 哈希",
-        "line": 497
+        "line": 499
       },
       {
         "heading": "LAPS PASSWORD READING",
         "what": "读取 ms-Mcs-AdmPwd 属性或经 CrackMapExec laps 模块获取主机本地管理员密码",
-        "line": 764
+        "line": 766
       },
       {
         "heading": "GPO ABUSE",
         "what": "对可写 GPO 注入计划任务、启动脚本或本地管理员实现域内批量代码执行",
-        "line": 782
+        "line": 784
       },
       {
         "heading": "ESSENTIAL CYPHER QUERIES",
         "what": "BloodHound Cypher 查询定位 DCSync 权限、Kerberoastable 用户、LAPS 读取者及通往 DA 的攻击路径",
-        "line": 880
+        "line": 882
       },
       {
         "heading": "ESC1 — ENROLLEE SUPPLIES SUBJECT",
         "what": "滥用允许自定义 SAN 的证书模板经 Certipy/Certify 申请管理员证书实现域提权",
-        "line": 1197
+        "line": 1199
       },
       {
         "heading": "ESC8 — NTLM RELAY TO HTTP ENROLLMENT",
         "what": "ntlmrelayx 中继强制认证流量至 certsrv 注册端点为域控机器账户签发证书进而 DCSync",
-        "line": 1307
+        "line": 1309
       }
     ]
   },
@@ -130,77 +130,77 @@
       {
         "heading": "Part 1: API Recon & Docs",
         "what": "枚举 API 可达入口、文档与版本暴露面，在漏洞利用前完成侦察",
-        "line": 18
+        "line": 20
       },
       {
         "heading": "2. RECON CHECKLIST",
         "what": "grep 前端 JS 提取 API 路径、探测 swagger/openapi 文档路径与 v1/v2/mobile/legacy 版本漂移",
-        "line": 31
+        "line": 33
       },
       {
         "heading": "3. WHAT TO EXTRACT FROM DOCS",
         "what": "从 API 文档提取未公开可选字段、admin 请求示例、仍存活的废弃端点与 additionalProperties 宽松 schema 线索",
-        "line": 60
+        "line": 62
       },
       {
         "heading": "Part 2: API Authorization & BOLA",
         "what": "以双账号创建/读取/更新/删除流回放系统化测试对象级与功能级越权及批量赋值",
-        "line": 78
+        "line": 80
       },
       {
         "heading": "2. TEST SURFACES",
         "what": "对象读取、嵌套资源、admin 内部功能与 PUT/PATCH/DELETE 变体等同路由测试面",
-        "line": 92
+        "line": 94
       },
       {
         "heading": "3. QUICK PAYLOADS",
         "what": "role/isAdmin/org/verified 等隐藏 JSON 字段的批量赋值提权 payload",
-        "line": 102
+        "line": 104
       },
       {
         "heading": "4. WHAT TESTERS MISS",
         "what": "头部/Cookie/GraphQL 参数中的对象 ID、同路由多动词弱鉴权与父子资源校验缺失等易漏点",
-        "line": 111
+        "line": 113
       },
       {
         "heading": "Part 3: API Auth & JWT Abuse",
         "what": "JWT/Bearer/API Key 令牌信任边界、声明滥用、头部伪造与速率限制绕过",
-        "line": 125
+        "line": 127
       },
       {
         "heading": "1. TOKEN TRIAGE",
         "what": "审查 alg/kid/jku/x5u 头、角色/租户/scope 声明及签发者与受众不匹配",
-        "line": 132
+        "line": 134
       },
       {
         "heading": "2. QUICK ATTACK PICKS",
         "what": "alg:none 无签名令牌、RS256→HS256 公钥混淆、kid 注入、jku/x5u 远程密钥劫持与弱密钥离线爆破",
-        "line": 141
+        "line": 143
       },
       {
         "heading": "3. HIDDEN FIELDS AND BATCH ABUSE",
         "what": "批量赋值字段清单、X-Forwarded-For/X-Real-IP 伪造与批量登录/对象抓取请求滥用",
-        "line": 151
+        "line": 153
       },
       {
         "heading": "4. RATE LIMIT BYPASS FAMILIES",
         "what": "伪造 IP 头、User-Agent 轮换与路径大小写/斜杠变体绕过速率限制",
-        "line": 181
+        "line": 183
       },
       {
         "heading": "1. GRAPHQL FIRST PASS",
         "what": "__typename/__schema 内省查询及内省被禁时的报错提示与 __type 已知类型探测",
-        "line": 207
+        "line": 209
       },
       {
         "heading": "2. HIGH-VALUE GRAPHQL TESTS",
         "what": "GraphQL IDOR、批量操作、admin 隐藏字段与嵌套关联对象鉴权缺口",
-        "line": 224
+        "line": 226
       },
       {
         "heading": "3. HIDDEN PARAMETER DISCOVERY",
         "what": "比对 admin 文档、宽松 schema 与前端/移动端富请求体挖掘隐藏参数",
-        "line": 233
+        "line": 235
       }
     ]
   },
@@ -235,77 +235,77 @@
       {
         "heading": "3. A-B TESTING METHODOLOGY",
         "what": "双账号A-B重放请求系统性验证对象级越权的标准测试流程",
-        "line": 61
+        "line": 63
       },
       {
         "heading": "5. HORIZONTAL vs VERTICAL PRIVILEGE ESCALATION",
         "what": "区分同级用户互访数据与低权访问高权功能的越权类型及组合利用",
-        "line": 94
+        "line": 96
       },
       {
         "heading": "7. PARAMETER POLLUTION & TYPE CONFUSION",
         "what": "数组/重复参数与JSON字符串整型混淆绕过ID校验逻辑",
-        "line": 131
+        "line": 133
       },
       {
         "heading": "8. BFLA (FUNCTION LEVEL) ATTACKS",
         "what": "普通用户直调admin端点及从JS bundle/Swagger发现隐藏管理接口",
-        "line": 150
+        "line": 152
       },
       {
         "heading": "10. MASS ASSIGNMENT → PRIVILEGE ESCALATION",
         "what": "注册/更新请求注入role/isAdmin等隐藏字段实现权限提升",
-        "line": 209
+        "line": 211
       },
       {
         "heading": "14. ORM FILTER CHAIN LEAKS",
         "what": "Django/Prisma/Ransack过滤器注入逐字符盲提取密码与关系遍历泄露",
-        "line": 298
+        "line": 300
       },
       {
         "heading": "15. B端后台 IDOR 实战方法论（经验沉淀）",
         "what": "B端商家后台sellerId越权模式、JS bundle接口分析、网关302排查与报告论证要点",
-        "line": 355
+        "line": 357
       },
       {
         "heading": "1. PATH MANIPULATION BYPASSES",
         "what": "尾斜杠/大小写/URL双重编码/null字节/分号路径参数等路径变形绕过403",
-        "line": 495
+        "line": 497
       },
       {
         "heading": "2. HTTP METHOD BYPASS",
         "what": "换用POST/PUT/PATCH等动词及X-HTTP-Method-Override覆写头绕过方法级ACL",
-        "line": 595
+        "line": 597
       },
       {
         "heading": "3. HEADER-BASED BYPASS",
         "what": "X-Original-URL/X-Rewrite-URL改写路径与X-Forwarded-For伪造内网IP过白名单",
-        "line": 641
+        "line": 643
       },
       {
         "heading": "6. TECHNOLOGY-SPECIFIC BYPASSES",
         "what": "Apache/Nginx/IIS ADS/Tomcat分号/Spring后缀等服务器专属绕过技巧",
-        "line": 718
+        "line": 720
       },
       {
         "heading": "8. DECISION TREE",
         "what": "401/403按路径→方法→头→协议逐级尝试的组合绕过决策树",
-        "line": 752
+        "line": 754
       },
       {
         "heading": "5. NULL ORIGIN EXPLOITATION",
         "what": "沙箱iframe产生null源并被服务端反射以读取带凭据的API响应",
-        "line": 876
+        "line": 878
       },
       {
         "heading": "6. SUBDOMAIN XSS → CORS BYPASS CHAIN",
         "what": "子域XSS配合*.target.com通配CORS跨源读取敏感API数据",
-        "line": 911
+        "line": 913
       },
       {
         "heading": "7. VARY: ORIGIN CACHING ISSUE",
         "what": "响应缺失Vary: Origin导致CDN缓存ACAO头投毒窃取受害者凭据响应",
-        "line": 952
+        "line": 954
       }
     ]
   },
@@ -340,77 +340,77 @@
       {
         "heading": "ATTACK 1 — ALGORITHM NONE (alg:none)",
         "what": "构造alg:none空签名令牌修改role等claim直接提权绕过验签",
-        "line": 66
+        "line": 68
       },
       {
         "heading": "ATTACK 2 — RS256 TO HS256 KEY CONFUSION",
         "what": "获取公钥后将RS256降级为HS256并以公钥作HMAC密钥伪造签名",
-        "line": 95
+        "line": 97
       },
       {
         "heading": "ATTACK 3 — JWT SECRET BRUTE FORCE",
         "what": "用hashcat/john/jwt_tool跑rockyou字典破解HS256弱密钥并离线伪造令牌",
-        "line": 83
+        "line": 85
       },
       {
         "heading": "ATTACK 4 — kid (Key ID) INJECTION",
         "what": "kid头SQL注入UNION控制验签密钥或路径穿越读/dev/null实现空密钥签名",
-        "line": 141
+        "line": 143
       },
       {
         "heading": "ATTACK 5 — jku / x5u Header Injection",
         "what": "jku头指向攻击者托管的恶意JWKS使服务端用攻击者公钥验签接受伪造令牌",
-        "line": 165
+        "line": 167
       },
       {
         "heading": "OAUTH 2.0 — STATE PARAMETER MISSING (CSRF)",
         "what": "缺失state时将攻击者授权码回调给受害者实现会话绑定与账号接管",
-        "line": 196
+        "line": 198
       },
       {
         "heading": "OAUTH — REDIRECT_URI BYPASS",
         "what": "前缀匹配、路径混淆、@符号与localhost重定向绕过白名单窃取授权码",
-        "line": 213
+        "line": 215
       },
       {
         "heading": "SQL INJECTION LOGIN BYPASS",
         "what": "admin'--与' OR '1'='1'--万能密码分别注入用户名/密码字段绕过登录校验",
-        "line": 448
+        "line": 450
       },
       {
         "heading": "PASSWORD RESET VULNERABILITIES",
         "what": "重置令牌可预测/不失效、Host头投毒污染重置链接与Referer头泄露令牌",
-        "line": 83
+        "line": 85
       },
       {
         "heading": "MULTI-FACTOR AUTHENTICATION BYPASS",
         "what": "2FA未完成即发放会话直接访问后台、爆破TOTP六位码及复用一次性验证码",
-        "line": 83
+        "line": 85
       },
       {
         "heading": "SESSION MANAGEMENT FLAWS",
         "what": "登出后会话未失效、权限变更未重生成会话令牌与可预测会话ID重放",
-        "line": 695
+        "line": 697
       },
       {
         "heading": "PASSWORD RESET ATTACK MATRIX (22 Patterns)",
         "what": "22种密码重置缺陷速查：令牌不绑定用户、响应体泄露验证码、邮箱参数污染、注册覆盖账号等",
-        "line": 83
+        "line": 85
       },
       {
         "heading": "CAPTCHA/VERIFICATION BYPASS PATTERNS (20 Methods)",
         "what": "删除captcha参数、切换请求方法/Content-Type、OCR识别及短信验证码响应泄露等20种绕过手法",
-        "line": 769
+        "line": 771
       },
       {
         "heading": "INSECURE RANDOMNESS — TOKEN PREDICTION",
         "what": "UUIDv1、MongoDB ObjectId、PHP uniqid与mt_rand弱随机令牌的预测还原及guidtool等工具",
-        "line": 796
+        "line": 798
       },
       {
         "heading": "身份诊断三实验（服务端到底认谁？）",
         "what": "cookie摘除、客户端身份字段对调与签名强制性实验定位真实身份派生源与摆设字段",
-        "line": 843
+        "line": 845
       }
     ]
   },
@@ -445,52 +445,52 @@
       {
         "heading": "PHILOSOPHY",
         "what": "核心理念：先理解后测试再反思，强调渗透测试者的过程纪律而非知识堆砌",
-        "line": 12
+        "line": 14
       },
       {
         "heading": "PHASE 0: BE THE USER — MANDATORY, DO NOT SKIP",
         "what": "以真实用户身份体验产品，全量读取JS提取隐藏端点与密钥、API测绘、分析公开内容，产出含产品身份、用户模型、资金流、数据生命周期、信任边界等八要素的业务画像",
-        "line": 32
+        "line": 34
       },
       {
         "heading": "PHASE 1: ATTACK SURFACE REASONING — SELF-DERIVED",
         "what": "基于业务画像自主推导攻击面：枚举权限边界、资金操作、多租户隔离、仅客户端校验的信任边界及新功能变更信号，输出按业务影响×可能性排序的攻击计划",
-        "line": 107
+        "line": 109
       },
       {
         "heading": "PHASE 2: DEEP TESTING",
         "what": "深度测试规则：测试功能交互而非孤立功能、探测缺失防护的负空间、状态违规（跳步/重放/并发/过期续做）、边界值，并利用JS深挖、完整数据流追踪、密码学/JWT分析与状态机映射等AI优势",
-        "line": 161
+        "line": 163
       },
       {
         "heading": "PHASE 3: CHAIN BUILDING",
         "what": "漏洞链构建：对每个发现做升级利用（IDOR升级、XSS到管理员、SSRF打云元数据），交叉组合历史发现，横向扩散寻找同模式缺陷并反推开发者安全水位",
-        "line": 243
+        "line": 245
       },
       {
         "heading": "PHASE 4: REFLECTION & ITERATION",
         "what": "复盘迭代：覆盖率审计（端点/角色/HTTP方法/旧版API）、深度审计（防护绕过至少三种手法）、漏洞链审计与盲区审计，发现缺口必须回补",
-        "line": 294
+        "line": 296
       },
       {
         "heading": "ANTI-PATTERNS — DO NOT DO THESE",
         "what": "八种反模式警示：禁止清单式扫描、无上下文测试、只测广度、功能孤立测试、草率结论、单一视角、忽视低危发现、只测UI暴露面",
-        "line": 339
+        "line": 341
       },
       {
         "heading": "QUICK REFERENCE — AI-SPECIFIC CAPABILITIES TO ALWAYS USE",
         "what": "AI独有优势速查：全量JS分析、穷举API与参数发现、密码学/token分析、完整数据流追踪、系统化边界测试、大规模模式匹配与响应差分分析",
-        "line": 375
+        "line": 377
       },
       {
         "heading": "OUTPUT FORMAT",
         "what": "漏洞报告结构：按业务影响排序，含位置、业务化影响、链式潜力、复现步骤、证据与根因",
-        "line": 397
+        "line": 399
       },
       {
         "heading": "RELATED TECHNICAL SKILLS",
         "what": "按需引用的下游技术技能索引：XSS/SQLi/SSRF等核心Web漏洞、IDOR/认证绕过/OAuth等访问控制、竞态与请求走私等逻辑协议类及信息收集",
-        "line": 422
+        "line": 424
       }
     ]
   },
@@ -525,67 +525,67 @@
       {
         "heading": "1. FACTORIZATION ATTACKS",
         "what": "小n直接分解、费马分解（p≈q）、Pollard p-1 光滑攻击与多模数 Batch GCD 公因子碰撞",
-        "line": 60
+        "line": 62
       },
       {
         "heading": "2. SMALL EXPONENT ATTACKS",
         "what": "e=3 小消息开立方根、Hastad 广播攻击 CRT 合并及 Franklin-Reiter 相关消息攻击",
-        "line": 128
+        "line": 130
       },
       {
         "heading": "3. LARGE e / SMALL d ATTACKS",
         "what": "d 过小时基于连分数的 Wiener 攻击与格基规约的 Boneh-Durfee 攻击恢复私钥",
-        "line": 177
+        "line": 179
       },
       {
         "heading": "4. COPPERSMITH'S METHOD",
         "what": "利用已知明文前缀的 Stereotyped Message 与已知 p 高/低位的部分密钥暴露小根求解",
-        "line": 229
+        "line": 231
       },
       {
         "heading": "5. COMMON MODULUS ATTACK",
         "what": "同 n 不同 e 且 e 互素时用扩展欧几里得组合两份密文恢复明文",
-        "line": 268
+        "line": 270
       },
       {
         "heading": "6. ORACLE ATTACKS",
         "what": "LSB 奇偶预言机二分逼近明文、Bleichenbacher PKCS#1 v1.5 填充预言机与 Manger OAEP 攻击",
-        "line": 299
+        "line": 301
       },
       {
         "heading": "7. RSA-CRT FAULT ATTACK",
         "what": "利用单个错误 CRT 签名通过 gcd 分解 n 恢复素因子",
-        "line": 337
+        "line": 339
       },
       {
         "heading": "8. DECISION TREE",
         "what": "按已知条件（n/e/d/预言机/错误签名）选择对应 RSA 攻击路径的决策树",
-        "line": 362
+        "line": 364
       },
       {
         "heading": "9. TOOLS",
         "what": "RsaCtfTool、SageMath、factordb、yafu、gmpy2 用法与分解 n 后重建私钥解密流程",
-        "line": 413
+        "line": 415
       },
       {
         "heading": "1. PADDING ORACLE ATTACK (CBC MODE)",
         "what": "CBC 模式下利用填充有效性差异逐字节无密钥解密的 Python 实现与 PadBuster 用法",
-        "line": 924
+        "line": 926
       },
       {
         "heading": "2. CBC BIT FLIPPING",
         "what": "翻转前一块密文对应位以篡改下一块明文实现 admin=0 改 admin=1 等字段越权改写",
-        "line": 1008
+        "line": 1010
       },
       {
         "heading": "3. ECB MODE ATTACKS",
         "what": "ECB 模式重复块检测、密文块重排 Cut-and-Paste 伪造 role 字段及逐字节附加密文解密",
-        "line": 1046
+        "line": 1048
       },
       {
         "heading": "10. ATTACK CONDITIONS SUMMARY",
         "what": "各 RSA 攻击适用条件、复杂度与成功率的对照速查表",
-        "line": 868
+        "line": 870
       }
     ]
   },
@@ -620,67 +620,67 @@
       {
         "heading": "1. MEMORY ACQUISITION",
         "what": "使用LiME、WinPmem、DumpIt、AVML等工具从物理机与VMware/VirtualBox/KVM虚拟机获取内存镜像",
-        "line": 41
+        "line": 43
       },
       {
         "heading": "2. VOLATILITY 2 vs 3",
         "what": "Vol2与Vol3在Profile体系、插件命名及安装方式上的对照与迁移差异",
-        "line": 82
+        "line": 84
       },
       {
         "heading": "3. ANALYSIS METHODOLOGY",
         "what": "十步分析流程：OS识别、pslist/psscan隐藏进程、netscan网络连接、ldrmodules、malfind注入检测、hashdump/lsadump凭据提取、filescan取文件、注册表与命令历史、时间线生成",
-        "line": 99
+        "line": 101
       },
       {
         "heading": "4. LINUX MEMORY ANALYSIS",
         "what": "Linux内存分析插件（linux_bash/linux_check_syscall等）、Vol2自制Linux Profile构建及rootkit与系统调用挂钩检测",
-        "line": 232
+        "line": 234
       },
       {
         "heading": "5. MALWARE INDICATORS IN MEMORY",
         "what": "内存恶意软件指标对照表：DKOM隐藏进程、伪造svchost、MZ头注入、RWX无文件内存、SSDT/IDT挂钩，及Windows正常父子进程关系基线",
-        "line": 265
+        "line": 267
       },
       {
         "heading": "6. DECISION TREE",
         "what": "按恶意软件调查、凭据恢复、事件时间线、CTF找flag与Linux场景选择对应Volatility插件的决策树",
-        "line": 297
+        "line": 299
       },
       {
         "heading": "2. COMMON INVESTIGATION SEQUENCES",
         "what": "恶意软件快速分诊、完整取证、凭据提取、应急响应时间线与CTF挑战的常用Vol3插件组合序列",
-        "line": 448
+        "line": 450
       },
       {
         "heading": "1. IMAGE STEGANOGRAPHY",
         "what": "图像隐写：zsteg/StegSolve的LSB位平面分析、PNG隐藏chunk与CRC尺寸爆破修复、steghide/jsteg的JPEG DCT隐写、EXIF元数据与GIF调色板手法",
-        "line": 588
+        "line": 590
       },
       {
         "heading": "2. AUDIO STEGANOGRAPHY",
         "what": "音频隐写：Sonic Visualiser/sox频谱图、WavSteg音频LSB、DTMF/摩斯码/SSTV解码及WAV头部附加数据检测",
-        "line": 684
+        "line": 686
       },
       {
         "heading": "3. FILE STEGANOGRAPHY",
         "what": "文件隐写：polyglot复合文件识别、binwalk/foremost/dd嵌入数据提取、NTFS交换数据流（ADS）及stegseek/stegcracker口令爆破",
-        "line": 745
+        "line": 747
       },
       {
         "heading": "4. TEXT STEGANOGRAPHY",
         "what": "文本隐写：stegsnow空白字符编码、零宽Unicode字符（ZWSP/ZWNJ/ZWJ）与同形异义字（homoglyph）检测",
-        "line": 807
+        "line": 809
       },
       {
         "heading": "1. MULTI-PURPOSE TOOLS",
         "what": "stegoveritas一键自动化隐写分析、binwalk签名扫描与熵分析、foremost文件雕刻的安装与用法",
-        "line": 920
+        "line": 922
       },
       {
         "heading": "2. IMAGE TOOLS",
         "what": "zsteg位平面提取、StegSolve颜色平面可视化、steghide嵌入提取与stegseek高速爆破的图像隐写工具详解",
-        "line": 981
+        "line": 983
       }
     ]
   },
@@ -715,77 +715,77 @@
       {
         "heading": "1. ARP SPOOFING",
         "what": "使用arpspoof/ettercap/bettercap发送免费ARP实现中间人定位与选择性目标欺骗",
-        "line": 44
+        "line": 46
       },
       {
         "heading": "2. LLMNR / NBT-NS / mDNS POISONING",
         "what": "Responder投毒捕获NetNTLM哈希并区分NTLMv1/NTLMv2破解或改走ntlmrelayx中继",
-        "line": 82
+        "line": 84
       },
       {
         "heading": "3. WPAD ABUSE",
         "what": "伪造wpad.dat PAC代理文件诱导浏览器走攻击者代理并强制NTLM认证拿凭据",
-        "line": 125
+        "line": 127
       },
       {
         "heading": "4. DHCPv6 ATTACK — mitm6",
         "what": "mitm6应答DHCPv6抢占IPv6 DNS后配合ntlmrelayx中继LDAP实施RBCD接管域控",
-        "line": 148
+        "line": 150
       },
       {
         "heading": "5. VLAN HOPPING",
         "what": "yersinia利用DTP交换机欺骗协商trunk与scapy构造802.1Q双重标签帧跨VLAN攻击",
-        "line": 173
+        "line": 175
       },
       {
         "heading": "7. DNS SPOOFING",
         "what": "bettercap/ettercap配置域名劫持与Kaminsky递归解析器缓存投毒变体",
-        "line": 240
+        "line": 242
       },
       {
         "heading": "9. IDS/IPS EVASION",
         "what": "IP分片、TTL操纵、会话拼接、诱饵源IP与慢速扫描绕过入侵检测设备",
-        "line": 285
+        "line": 287
       },
       {
         "heading": "2. RELAY TARGET SELECTION",
         "what": "CrackMapExec筛选未强制SMB签名主机并按SMB/LDAP/MSSQL/ADCS等协议选择高价值中继链",
-        "line": 413
+        "line": 415
       },
       {
         "heading": "3. CREDENTIAL FORMAT ANALYSIS",
         "what": "NetNTLMv1/v2哈希结构、hashcat 5500/5600模式与固定challenge降级彩虹表破解优先级",
-        "line": 458
+        "line": 460
       },
       {
         "heading": "1. SSH TUNNELING",
         "what": "本地/远程/动态端口转发搭建SOCKS代理与ProxyJump多级跳板配置",
-        "line": 591
+        "line": 593
       },
       {
         "heading": "2. CHISEL",
         "what": "受控主机回连建立反向SOCKS代理及多条端口转发规则",
-        "line": 654
+        "line": 656
       },
       {
         "heading": "3. LIGOLO-NG",
         "what": "基于TUN网卡的透明路由隧道、listener反向承接与多Agent双重跳板路由叠加",
-        "line": 684
+        "line": 686
       },
       {
         "heading": "7. DNS TUNNELING",
         "what": "iodine/dnscat2将IP流量封装进DNS查询构建仅53端口出网可用的隐蔽隧道",
-        "line": 802
+        "line": 804
       },
       {
         "heading": "9. HTTP TUNNELING",
         "what": "Neo-reGeorg生成webshell隧道脚本在仅HTTP出网或仅webshell场景下建立SOCKS代理",
-        "line": 843
+        "line": 845
       },
       {
         "heading": "1. GIT EXPOSURE",
         "what": "探测/.git/HEAD与config判断仓库暴露、区分403/404并用git-dumper/GitTools恢复源码",
-        "line": 941
+        "line": 943
       }
     ]
   },
@@ -820,57 +820,57 @@
       {
         "heading": "1. TRAFFIC FINGERPRINTING — IS IT DESERIALIZATION?",
         "what": "通过 Java ac ed/rO0AB、PHP O:N:\" 与 pickle 80 03 等魔法字节指纹识别请求、Cookie、消息队列中的序列化数据",
-        "line": 46
+        "line": 48
       },
       {
         "heading": "2. JAVA — GADGET CHAINS AND TOOLS",
         "what": "ysoserial 生成利用链、URLDNS 无害 DNS 确认、Shiro rememberMe 默认密钥 AES-CBC 加密利用、WebLogic T3 与 RMI Registry 打击手法",
-        "line": 75
+        "line": 77
       },
       {
         "heading": "3. PHP — unserialize AND PHAR",
         "what": "PHP 魔术方法触发顺序、序列化对象格式、PHPGGC 框架链生成及 phar:// 文件操作触发反序列化的手法",
-        "line": 171
+        "line": 173
       },
       {
         "heading": "4. PYTHON — PICKLE",
         "what": "__reduce__ 返回可调用对象构造 RCE 载荷、pickletools 反汇编操作码与 RestrictedUnpickler 白名单绕过",
-        "line": 243
+        "line": 245
       },
       {
         "heading": "5. DETECTION METHODOLOGY",
         "what": "按语言签名分流判断反序列化类型并从探测逐步升级到 RCE 的决策树",
-        "line": 296
+        "line": 298
       },
       {
         "heading": "8. RUBY DESERIALIZATION",
         "what": "Ruby Marshal 二进制反序列化与 YAML.load 的 Gem::Requirement/Gem::Installer 利用链及 safe_load 安全差异",
-        "line": 356
+        "line": 358
       },
       {
         "heading": "9. .NET DESERIALIZATION",
         "what": "BinaryFormatter/ViewState/JSON.NET $type 流量指纹识别与 ObjectDataProvider 等 POP gadget 命令执行",
-        "line": 387
+        "line": 389
       },
       {
         "heading": "10. NODE.JS DESERIALIZATION",
         "what": "node-serialize 的 _$$ND_FUNC$$_ 标记加 IIFE 立即执行注入与 funcster constructor.constructor 绕过",
-        "line": 423
+        "line": 425
       },
       {
         "heading": "1. JAVA GADGET CHAIN VERSION COMPATIBILITY MATRIX",
         "what": "CC1-CC7/CommonsBeanutils/Spring/Jdk7u21 等利用链的依赖库版本与 JDK 约束对照及链选择决策树",
-        "line": 749
+        "line": 751
       },
       {
         "heading": "2. SNAKEYAML GADGET",
         "what": "SnakeYAML !! 标签实例化 ScriptEngineManager/URLClassLoader 加载远程恶意 JAR 实现 RCE 的利用流程",
-        "line": 832
+        "line": 834
       },
       {
         "heading": "12. .NET DESERIALIZATION",
         "what": "ViewState 未开 MAC 保护时利用泄露的 machineKey 伪造 ViewState 并用 ysoserial.net/Blacklist3r 实现代码执行",
-        "line": 645
+        "line": 647
       }
     ]
   },
@@ -905,77 +905,77 @@
       {
         "heading": "2. CL.TE VULNERABILITIES",
         "what": "前端信任 Content-Length 后端信任 chunked 的走私手法与 13 字节载荷构造",
-        "line": 106
+        "line": 108
       },
       {
         "heading": "3. TE.CL VULNERABILITIES",
         "what": "前端解析 chunked 后端只读 CL，在 chunk 体内嵌套第二个请求并精确计算长度",
-        "line": 124
+        "line": 126
       },
       {
         "heading": "4. TE.TE VULNERABILITIES",
         "what": "八种 Transfer-Encoding 混淆变体（TAB、前导空格、跨行冒号等）探测前后端解析差异",
-        "line": 160
+        "line": 162
       },
       {
         "heading": "5. HTTP/2 REQUEST SMUGGLING",
         "what": "H2 转 H1 降级时伪头部映射错乱与头部值内嵌请求字节的走私测试方向",
-        "line": 209
+        "line": 211
       },
       {
         "heading": "6. CLIENT-SIDE DESYNC",
         "what": "浏览器 fetch no-cors 请求体差异造成的客户端失步与 JavaScript PoC 形态",
-        "line": 237
+        "line": 239
       },
       {
         "heading": "7. TOOLS",
         "what": "Burp HTTP Request Smuggler、defparam/smuggler 等自动化走私探测工具",
-        "line": 258
+        "line": 260
       },
       {
         "heading": "8. DETECTION DECISION TREE",
         "what": "按代理拓扑与 CL/TE 优先级选择 CL.TE/TE.CL/TE.TE 探测路径的决策树",
-        "line": 270
+        "line": 272
       },
       {
         "heading": "1. H2.CL — HTTP/2 Content-Length Desync",
         "what": "H2 帧长度与 content-length 头不一致的字节级走私载荷及 GGET 确认法",
-        "line": 333
+        "line": 335
       },
       {
         "heading": "2. H2.TE — HTTP/2 Transfer-Encoding Desync",
         "what": "H2 违规 transfer-encoding 头被降级透传至后端触发 chunked 解析失步及混淆变体",
-        "line": 386
+        "line": 388
       },
       {
         "heading": "3. CL.0 — CONNECTION CLOSE DESYNC",
         "what": "后端完全忽略请求体的 CL.0 失步，针对重定向/静态文件/健康检查端点检测",
-        "line": 439
+        "line": 441
       },
       {
         "heading": "4. FAT GET REQUEST SMUGGLING",
         "what": "携带 body 的 GET 请求在前端转发后端忽略时形成失步及代理产品行为矩阵",
-        "line": 497
+        "line": 499
       },
       {
         "heading": "5. REQUEST SMUGGLING → CACHE POISONING CHAIN",
         "what": "走私请求响应与合法 URL 错配实现定向缓存投毒与响应队列错位利用",
-        "line": 548
+        "line": 550
       },
       {
         "heading": "6. CLIENT-SIDE DESYNC (CSD)",
         "what": "利用 fetch() 与 CL.0 端点毒化浏览器自身连接的完整 JS PoC 模板与暂停型失步",
-        "line": 619
+        "line": 621
       },
       {
         "heading": "7. CDN / REVERSE PROXY BEHAVIOR MATRIX",
         "what": "HAProxy/Nginx/Cloudflare/AWS ALB 等产品的 CL+TE 处理、H2 降级与连接复用对照表",
-        "line": 711
+        "line": 713
       },
       {
         "heading": "8. TESTING METHODOLOGY",
         "what": "架构识别、时间型失步探测的安全序列与影响升级检查清单",
-        "line": 767
+        "line": 769
       }
     ]
   },
@@ -1010,77 +1010,77 @@
       {
         "heading": "1. DETECTION — POLYGLOT PROBE SEQUENCE",
         "what": "用{{7*7}}/${7*7}/#{7*7}等数学探测串判定SSTI并通过{{7*'7'}}区分Jinja2与Twig",
-        "line": 55
+        "line": 57
       },
       {
         "heading": "2. ENGINE FINGERPRINTING DECISION TREE",
         "what": "按响应差异逐层缩小范围的模板引擎指纹判定决策树",
-        "line": 365
+        "line": 367
       },
       {
         "heading": "3. JINJA2 (PYTHON FLASK) — RCE CHAINS",
         "what": "Jinja2经config/lipsum/cycler取__globals__及MRO子类遍历定位Popen执行命令的利用链",
-        "line": 105
+        "line": 107
       },
       {
         "heading": "4. JINJA2 SANDBOX BYPASS TECHNIQUES",
         "what": "下划线、点号、关键字被过滤时用attr过滤器十六进制编码及request参数外带绕过沙箱",
-        "line": 152
+        "line": 154
       },
       {
         "heading": "5. FREEMARKER (JAVA) — RCE",
         "what": "FreeMarker经Execute/ObjectConstructor内建类执行系统命令与文件读取",
-        "line": 182
+        "line": 184
       },
       {
         "heading": "6. TWIG (PHP) — RCE",
         "what": "Twig 1.x registerUndefinedFilterCallback注册exec与2.x/3.x map('system')过滤器RCE",
-        "line": 199
+        "line": 201
       },
       {
         "heading": "7. VELOCITY (JAVA) — RCE",
         "what": "Velocity经class.forName反射调用java.lang.Runtime执行命令并回读输出",
-        "line": 215
+        "line": 217
       },
       {
         "heading": "9. THYMELEAF (JAVA SPRING) — RCE",
         "what": "Thymeleaf预处理表达式__${...}__中注入SpEL实现Runtime.exec与URL视图名注入",
-        "line": 243
+        "line": 245
       },
       {
         "heading": "10. CLIENT-SIDE TEMPLATE INJECTION (AngularJS)",
         "what": "AngularJS 1.x客户端沙箱逃逸payload与{{1+1}}表达式求值检测",
-        "line": 256
+        "line": 258
       },
       {
         "heading": "13. UNIVERSAL DETECTION PAYLOADS",
         "what": "多引擎通用polyglot探测串、各语法数学指纹及报错栈指纹引擎识别",
-        "line": 311
+        "line": 313
       },
       {
         "heading": "14. BLIND SSTI DETECTION",
         "what": "无回显场景基于时间延时与nslookup DNS外带(OOB)确认盲SSTI及各引擎报错指纹",
-        "line": 750
+        "line": 752
       },
       {
         "heading": "15. FLASK PIN CALCULATION",
         "what": "Werkzeug调试器PIN码计算所需的用户名、模块名、MAC地址与machine-id等要素",
-        "line": 347
+        "line": 349
       },
       {
         "heading": "2. SpEL (SPRING EXPRESSION LANGUAGE)",
         "what": "SpEL的T()运算符RCE与输出回显、Spring Cloud Gateway CVE-2022-22947 actuator路由注入及SimpleEvaluationContext反射绕过",
-        "line": 852
+        "line": 854
       },
       {
         "heading": "3. OGNL (OBJECT-GRAPH NAVIGATION LANGUAGE)",
         "what": "Struts2 OGNL的_memberAccess重置与excludedClasses黑名单清空绕过及S2-045、Confluence CVE-2021-26084利用",
-        "line": 930
+        "line": 932
       },
       {
         "heading": "4. JAVA EL (JSP / JSF)",
         "what": "JSP/JSF中EL表达式经getClass().forName反射调用Runtime的RCE载荷",
-        "line": 986
+        "line": 988
       }
     ]
   },
@@ -1115,77 +1115,77 @@
       {
         "heading": "1. DETECTION & QUICK START",
         "what": "首轮注入探测 payload 家族、报错指纹路由各 DBMS 与行为差异及全参数类型（URL/POST/JSON/头/Cookie）判定手法",
-        "line": 51
+        "line": 53
       },
       {
         "heading": "3. UNION-BASED DATA EXTRACTION",
         "what": "ORDER BY 列数探测、NULL 定位字符串列及各库拼接语法实现联合查询回显脱库",
-        "line": 136
+        "line": 138
       },
       {
         "heading": "4. BLIND INJECTION — INFERENCE TECHNIQUES",
         "what": "布尔盲注逐字符推断与 MSSQL WAITFOR DELAY、MySQL SLEEP、Oracle、PostgreSQL pg_sleep 等分库时间盲注手法",
-        "line": 168
+        "line": 170
       },
       {
         "heading": "5. OUT-OF-BAND (OOB) EXFILTRATION",
         "what": "OPENROWSET、UTL_HTTP/UTL_INADDR DNS 外带与 MySQL LOAD_FILE UNC 路径带外脱库及 SMB 抓 NTLMv2 哈希",
-        "line": 202
+        "line": 204
       },
       {
         "heading": "6. ESCALATION — OS COMMAND EXECUTION",
         "what": "xp_cmdshell 开启与调用、MySQL UDF 提权及 Oracle Java 存储过程执行系统命令",
-        "line": 274
+        "line": 276
       },
       {
         "heading": "7. SECOND-ORDER INJECTION",
         "what": "二阶注入原理：存储输入被信任后拼入新查询，以注册恶意用户名实现修改管理员密码为例",
-        "line": 297
+        "line": 299
       },
       {
         "heading": "8. PARAMETERIZED QUERY BYPASS SCENARIOS",
         "what": "预编译失效场景：表列名拼接、部分参数化、IN 子句动态拼接与 PDO 模拟预编译下的堆叠注入",
-        "line": 314
+        "line": 316
       },
       {
         "heading": "9. FILTER EVASION TECHNIQUES",
         "what": "内联注释断词、大小写变换、URL 编码、空白字符替代与 CHAR/CHR 构造字符串绕过关键字过滤",
-        "line": 348
+        "line": 350
       },
       {
         "heading": "12. WAF BYPASS MATRIX",
         "what": "空格/逗号/引号/OR/SELECT/information_schema 被拦截时的绕过矩阵、无空格无逗号 payload 与 polyglot 注入",
-        "line": 444
+        "line": 446
       },
       {
         "heading": "16. DB-SPECIFIC: SQLITE — INJECTION TO RCE",
         "what": "SQLite ATTACH DATABASE 写 webshell 与 cron 计划任务、load_extension RCE 及 RANDOMBLOB 重查询延时盲注",
-        "line": 610
+        "line": 612
       },
       {
         "heading": "17. DB-SPECIFIC: POSTGRESQL — ADVANCED",
         "what": "PostgreSQL 美元符引号绕过引号过滤、COPY 读写文件落地 webshell、大对象与 PL/pgSQL 命令执行",
-        "line": 674
+        "line": 676
       },
       {
         "heading": "18. DB-SPECIFIC: MSSQL — ADVANCED",
         "what": "MSSQL 链接服务器双跳横向、xp_dirtree UNC 触发窃取 NTLM 哈希、CLR 程序集与 Agent Job 命令执行",
-        "line": 722
+        "line": 724
       },
       {
         "heading": "19. DB-SPECIFIC: ORACLE — ADVANCED",
         "what": "Oracle DBMS_PIPE/DBMS_LOCK 时间盲注、DBMS_SCHEDULER 执行系统命令与 XMLTYPE XXE 带外外带",
-        "line": 771
+        "line": 773
       },
       {
         "heading": "20. DB-SPECIFIC: MYSQL — ADVANCED",
         "what": "MySQL HANDLER 语句绕 SELECT 过滤、hex 预编译执行、innodb_table_stats 与 sys 库绕 information_schema 拦截",
-        "line": 814
+        "line": 816
       },
       {
         "heading": "22. INSERT / UPDATE / DELETE INJECTION PATTERNS",
         "what": "INSERT/UPDATE/DELETE 写操作注入：附加元组回显脱库、改写 is_admin 列提权与时间盲注外带手法",
-        "line": 931
+        "line": 933
       }
     ]
   },
@@ -1220,62 +1220,62 @@
       {
         "heading": "1. QUICK START",
         "what": "首轮SSRF探测载荷、主机校验绕过族与按攻击目标选择协议的路由速查",
-        "line": 36
+        "line": 38
       },
       {
         "heading": "2. FINDING SSRF SURFACE",
         "what": "常见url/dest/callback等参数名清单及PDF生成、Webhook、RSS导入、XFF头等隐蔽SSRF入口",
-        "line": 70
+        "line": 72
       },
       {
         "heading": "3. BASIC CONFIRMATION METHODOLOGY",
         "what": "用Burp Collaborator外带回联、端口开关时间差异对比及localhost常见服务端口确认SSRF",
-        "line": 93
+        "line": 95
       },
       {
         "heading": "4. CLOUD METADATA ENDPOINTS",
         "what": "AWS IMDSv1/IMDSv2令牌绕过、GCP/Azure/DigitalOcean/阿里云/OCI/K8s/Hetzner/OpenStack元数据端点窃取凭证",
-        "line": 116
+        "line": 118
       },
       {
         "heading": "5. IP ADDRESS FILTER BYPASS TECHNIQUES",
         "what": "localhost与169.254.169.254的十进制/十六进制/八进制/IPv6映射共12种编码变形绕过IP黑名单",
-        "line": 299
+        "line": 301
       },
       {
         "heading": "6. URL SCHEME ATTACKS",
         "what": "file/dict/gopher/sftp/ldap/ftp伪协议实现本地文件读取与Redis等内网服务探测攻击",
-        "line": 350
+        "line": 352
       },
       {
         "heading": "7. BLIND SSRF DETECTION & ESCALATION",
         "what": "盲SSRF的OOB/时间/报错检测及重定向循环耗尽客户端跳转上限迫使Go/curl目标回显内网响应",
-        "line": 378
+        "line": 380
       },
       {
         "heading": "8. INTERNAL SERVICE EXPLOITATION",
         "what": "SSRF直打内网Docker API 2375提权逃逸、Elasticsearch、Redis写webshell及Spring Boot actuator",
-        "line": 513
+        "line": 515
       },
       {
         "heading": "9. SSRF + FILTER BYPASS DECISION TREE",
         "what": "从IP被封锁到协议选择再到盲SSRF升级的完整过滤绕过决策流程图",
-        "line": 554
+        "line": 556
       },
       {
         "heading": "10. URL PARSER DIFFERENTIAL TABLE",
         "what": "Python/Java/PHP/Node.js/Go/cURL对@符号、反斜杠、#片段、空字节、IPv6括号等URL解析差异的绕过对照表",
-        "line": 585
+        "line": 587
       },
       {
         "heading": "11. GOPHER PAYLOAD RECIPES",
         "what": "gopher原始TCP载荷构造：Redis写crontab/SSH密钥/webshell、无密码MySQL、SMTP发信、FastCGI执行PHP及编码规则",
-        "line": 691
+        "line": 693
       },
       {
         "heading": "12. DNS REBINDING DEEP DIVE",
         "what": "利用校验与请求间TOCTOU时间差的DNS重绑定攻击流程、TTL=0操纵及rbndr.us等工具服务",
-        "line": 802
+        "line": 804
       }
     ]
   },
@@ -1310,77 +1310,77 @@
       {
         "heading": "1. INJECTION CONTEXT MATRIX",
         "what": "按 HTML 主体/属性/JS 字符串/URL 等反射上下文选择对应 payload 的判定矩阵",
-        "line": 77
+        "line": 79
       },
       {
         "heading": "2. MULTI-REFLECTION ATTACKS",
         "what": "同一页面多处反射时利用双反射、三反射与双参数组合触发 XSS 的 payload 构造",
-        "line": 96
+        "line": 98
       },
       {
         "heading": "3. ADVANCED INJECTION VECTORS",
         "what": "PHP_SELF 路径注入、文件名/SVG/EXIF 上传 XSS、postMessage 无 origin 校验与 XML 命名空间注入等进阶注入面",
-        "line": 117
+        "line": 119
       },
       {
         "heading": "4. CSP BYPASS TECHNIQUES",
         "what": "利用 JSONP 端点、AngularJS CDN、base-uri 缺失与悬空标记绕过 CSP 脚本限制",
-        "line": 184
+        "line": 186
       },
       {
         "heading": "5. FILTER AND WAF BYPASS",
         "what": "参数名攻击、编码链、标签变形与碎片化注入等过滤与 WAF 绕过手法",
-        "line": 223
+        "line": 225
       },
       {
         "heading": "6. SECOND-ORDER XSS",
         "what": "输入先存储编码、后于另一上下文未再转义渲染的二阶 XSS 触发与打到后台管理员的思路",
-        "line": 269
+        "line": 271
       },
       {
         "heading": "7. BLIND XSS METHODOLOGY",
         "what": "对不回显参数注入远程 JS 回调 payload 并用收集器窃取 Cookie/DOM 的盲打流程",
-        "line": 283
+        "line": 285
       },
       {
         "heading": "8. XSS EXPLOITATION CHAIN",
         "what": "Cookie 窃取、键盘记录、CSRF token 读取及 WordPress XSS 到 RCE 的完整利用链",
-        "line": 307
+        "line": 309
       },
       {
         "heading": "10. XSS TESTING PROCESS (ZSEANO METHOD)",
         "what": "先无害标签再残缺标签再编码探测的五步过滤器测试流程与同过滤器横向扩展思路",
-        "line": 387
+        "line": 389
       },
       {
         "heading": "3. HttpOnly Bypass Strategies",
         "what": "代理浏览器请求、CSRF via XSS、会话骑劫与键盘记录等绕过 HttpOnly 的替代利用方式",
-        "line": 432
+        "line": 434
       },
       {
         "heading": "4. XS-Leaks (Cross-Site Leak) Scenarios",
         "what": "利用搜索时间侧信道、帧计数与缓存探测推断跨站页面信息的 XS-Leaks 手法",
-        "line": 448
+        "line": 450
       },
       {
         "heading": "8. WAF BYPASS BY VENDOR",
         "what": "针对 Cloudflare/Akamai/Imperva/WordFence/Fortiweb 的厂商定制绕过 payload 集",
-        "line": 535
+        "line": 537
       },
       {
         "heading": "10. CSS INJECTION DATA EXFILTRATION",
         "what": "属性选择器逐字符爆破与 @font-face unicode-range 侧信道实现 CSS 数据外带",
-        "line": 633
+        "line": 635
       },
       {
         "heading": "3. Modern Framework XSS",
         "what": "React dangerouslySetInnerHTML、Vue v-html、Angular 沙箱逃逸与 Next.js SSR 的框架型 XSS 触发点",
-        "line": 725
+        "line": 727
       },
       {
         "heading": "5. Service Worker XSS Persistence",
         "what": "注册恶意 Service Worker 拦截 fetch 请求实现补丁修复后仍存活的 XSS 持久化",
-        "line": 787
+        "line": 789
       }
     ]
   },
@@ -1415,62 +1415,62 @@
       {
         "heading": "1. PRICE AND VALUE MANIPULATION",
         "what": "价格与数值篡改手法：负数/小数数量0元购、删除必填字段骗取免费档、32位整数溢出清零与舍入、汇率差套利",
-        "line": 47
+        "line": 49
       },
       {
         "heading": "2. RACE CONDITIONS",
         "what": "并发竞争攻击：礼品卡双花兑换、Burp Repeater 分组并行发包、Turbo Intruder 突破短信限频及多设备并发锁定新人优惠叠加VIP时长",
-        "line": 116
+        "line": 118
       },
       {
         "heading": "3. WORKFLOW / STEP SKIP BYPASS",
         "what": "业务流程跳步绕过：直发订单确认接口、跳过2FA与密码重置中间步骤、百分百折扣券免付款发货",
-        "line": 185
+        "line": 187
       },
       {
         "heading": "Filter Path Truncation Bypass — `..//` and `;`",
         "what": "Java Filter 鉴权绕过：../.. 路径折叠与分号路径参数截断使基于 getRequestURI 的登录校验失效，修复应改用 getServletPath",
-        "line": 227
+        "line": 229
       },
       {
         "heading": "4. COUPON AND REFERRAL ABUSE",
         "what": "优惠券叠加超100%折扣、固定金额券购买低价商品套现余额与推荐返利无限循环刷取积分",
-        "line": 283
+        "line": 285
       },
       {
         "heading": "5. ACCOUNT / PRIVILEGE LOGIC FLAWS",
         "what": "账户权限逻辑缺陷：邮箱改绑免二次验证、重置令牌复用、OAuth 邮箱匹配账号劫持、Cookie 替换水平/垂直越权与 rand() 弱随机重置令牌爆破",
-        "line": 309
+        "line": 311
       },
       {
         "heading": "6. API BUSINESS LOGIC FLAWS",
         "what": "API 业务逻辑：客户端自改订单状态触发退款、transaction_id 复用、限额计数绕过及无 Filter/Spring Security antMatchers 覆盖缺口的未授权接口审计",
-        "line": 381
+        "line": 383
       },
       {
         "heading": "7. SUBSCRIPTION / TIER CONFUSION",
         "what": "订阅层级混淆：降级后保留付费功能、响应中泄露 .flv/.m3u8 媒体直链匿名播放与免费课ID置换付费课资源越权",
-        "line": 434
+        "line": 436
       },
       {
         "heading": "8. FILE UPLOAD BUSINESS LOGIC",
         "what": "上传业务逻辑：Zip 炸弹解压 DoS、CSV 公式注入、按 UID 预测存储路径越权覆盖及图片转换器 CVE 打击面",
-        "line": 473
+        "line": 475
       },
       {
         "heading": "9. TESTING APPROACH",
         "what": "业务流程八问测试方法论：跳步、极端值、重复幂等、步骤乱序、双用户并发与可信状态字段篡改，从资金影响角度排序赏金",
-        "line": 496
+        "line": 498
       },
       {
         "heading": "10. HIGH-IMPACT CHECKLISTS",
         "what": "30分钟高收益清单：电商支付篡改、认证账户绕过、订阅限额与资源三大攻击面的优先测试项",
-        "line": 514
+        "line": 516
       },
       {
         "heading": "11. CONSOLIDATED CHECKLIST (2-Hour Full Sweep)",
         "what": "2小时九大业务面全面扫查表：登录注册、密码找回、会话令牌、支付订单、IDOR越权、验证码、文件上传与CSRF/SSRF/XXE逐项条目",
-        "line": 562
+        "line": 564
       }
     ]
   },
@@ -1505,77 +1505,77 @@
       {
         "heading": "1. TCC (TRANSPARENCY, CONSENT, CONTROL) OVERVIEW",
         "what": "TCC 权限框架与 TCC.db 数据库位置、六类绕过机制及 Terminal FDA 继承/Finder 自动化等已知模式",
-        "line": 41
+        "line": 43
       },
       {
         "heading": "2. GATEKEEPER BYPASS",
         "what": "移除 com.apple.quarantine 隔离属性及签名/公证检查流程的多种绕过技术",
-        "line": 95
+        "line": 97
       },
       {
         "heading": "3. SIP (SYSTEM INTEGRITY PROTECTION)",
         "what": "SIP 保护路径、csrutil 配置、rootless entitlement 及 Shrootless/MacDirtyCow/Migraine 等历史 CVE 绕过",
-        "line": 148
+        "line": 150
       },
       {
         "heading": "4. SANDBOX ESCAPE",
         "what": "Office 宏对话框与 LaunchAgent 滥用、XPC/Mach 端口 IPC 逃逸及浏览器渲染进程逃逸链",
-        "line": 192
+        "line": 194
       },
       {
         "heading": "5. CODE SIGNING & ENTITLEMENTS",
         "what": "codesign 检查签名与 entitlement，滥用 disable-library-validation、get-task-allow 等绕过 Hardened Runtime 与库验证",
-        "line": 223
+        "line": 225
       },
       {
         "heading": "6. PERSISTENCE AFTER BYPASS",
         "what": "绕过后通过 LaunchAgent/LaunchDaemon、登录项、cron 与 dylib 劫持实现重启存活持久化",
-        "line": 266
+        "line": 268
       },
       {
         "heading": "7. macOS SECURITY BYPASS DECISION TREE",
         "what": "按执行未签名程序、访问 TCC 资源、绕 SIP、逃沙箱、进程注入等目标选择攻击路径的决策树",
-        "line": 279
+        "line": 281
       },
       {
         "heading": "1. TCC BYPASS BY macOS VERSION",
         "what": "Mojave 至 Sequoia 各 macOS 版本对应 TCC 绕过 CVE 与手法的版本对照矩阵",
-        "line": 357
+        "line": 359
       },
       {
         "heading": "2. TCC BYPASS BY PROTECTION TYPE",
         "what": "按摄像头麦克风、完全磁盘访问 FDA、自动化 Apple Events、定位、录屏等防护类型对应的绕过手法",
-        "line": 426
+        "line": 428
       },
       {
         "heading": "3. MDM / PPPC PROFILE ABUSE",
         "what": "利用恶意 MDM 注册或被攻陷 MDM 服务器推送 PPPC 描述文件预授权 TCC 权限",
-        "line": 473
+        "line": 475
       },
       {
         "heading": "4. TCC INSPECTION & RECONNAISSANCE",
         "what": "枚举 TCC 数据库、读取 access 表授权值与遍历运行进程 entitlement 的侦察命令",
-        "line": 512
+        "line": 514
       },
       {
         "heading": "1. DYLD_INSERT_LIBRARIES INJECTION",
         "what": "DYLD_INSERT_LIBRARIES 环境变量注入的前提条件限制与批量发现无 Hardened Runtime 可注入目标",
-        "line": 575
+        "line": 577
       },
       {
         "heading": "2. DYLIB HIJACKING",
         "what": "利用弱链接 LC_LOAD_WEAK_DYLIB、@rpath 可写目录与 dylib 代理转发实现动态库劫持",
-        "line": 632
+        "line": 634
       },
       {
         "heading": "3. XPC EXPLOITATION",
         "what": "XPC 服务发现、PID 重用竞态攻击与无校验/仅 Bundle ID 等客户端校验缺陷利用",
-        "line": 698
+        "line": 700
       },
       {
         "heading": "4. MACH PORT MANIPULATION",
         "what": "通过 task_for_pid 获取任务端口实现目标进程内存读写与线程注入及端口命名空间操纵",
-        "line": 749
+        "line": 751
       }
     ]
   },
@@ -1610,72 +1610,72 @@
       {
         "heading": "1. SSL PINNING BYPASS",
         "what": "Frida多Hook点通用绕过、Objection一键禁用、Network Security Config与Magisk/LSPosed模块四条安卓抓包路径",
-        "line": 42
+        "line": 44
       },
       {
         "heading": "2. COMPONENT EXPOSURE",
         "what": "adb与aapt枚举导出Activity/Provider/Receiver/Service并利用SQL注入、路径穿越与恶意广播",
-        "line": 100
+        "line": 102
       },
       {
         "heading": "3. WEBVIEW VULNERABILITIES",
         "what": "addJavascriptInterface反射RCE、file域同源绕过与深链到WebView的XSS调用JS桥攻击链",
-        "line": 162
+        "line": 164
       },
       {
         "heading": "4. INTENT REDIRECTION",
         "what": "Intent-in-Intent转发放大漏洞，借导出组件启动非导出内部Activity或打开任意URL",
-        "line": 198
+        "line": 200
       },
       {
         "heading": "5. ROOT DETECTION BYPASS",
         "what": "Hook File.exists、Build.TAGS、PackageManager与Runtime.exec绕过su/Magisk/RootBeer检测",
-        "line": 224
+        "line": 226
       },
       {
         "heading": "6. PLAY INTEGRITY / SAFETYNET BYPASS",
         "what": "Zygisk DenyList、PIF模块伪造设备指纹与Shamiko隐藏root对抗完整性校验",
-        "line": 248
+        "line": 250
       },
       {
         "heading": "7. TAPJACKING (OVERLAY ATTACKS)",
         "what": "透明悬浮窗Activity覆盖界面诱导误触及各安卓版本防护差异与绕过",
-        "line": 264
+        "line": 266
       },
       {
         "heading": "8. BACKUP EXTRACTION",
         "what": "利用allowBackup默认开启通过adb backup提取SharedPreferences与SQLite中的令牌凭据",
-        "line": 284
+        "line": 286
       },
       {
         "heading": "10. ANDROID PENTESTING DECISION TREE",
         "what": "从抓包绕过、组件、WebView、Intent到root检测的全流程测试路径决策图",
-        "line": 344
+        "line": 346
       },
       {
         "heading": "3. METHOD TRACER",
         "what": "Frida批量trace目标类所有方法入参与返回值以理解应用逻辑",
-        "line": 515
+        "line": 517
       },
       {
         "heading": "4. CRYPTO HOOK (KEY & PLAINTEXT EXTRACTION)",
         "what": "Hook Cipher.init/doFinal、SecretKeySpec与MessageDigest抓取加密密钥、明文及哈希运算",
-        "line": 553
+        "line": 555
       },
       {
         "heading": "8. BIOMETRIC BYPASS",
         "what": "Hook BiometricPrompt认证回调压制失败事件强行通过指纹/面容认证",
-        "line": 717
+        "line": 719
       },
       {
         "heading": "1. JAILBREAK VS NON-JAILBREAK TESTING",
         "what": "越狱与非越狱设备测试能力差异及重签名注入Frida gadget的非越狱Hook方案",
-        "line": 803
+        "line": 805
       },
       {
         "heading": "2. KEYCHAIN EXTRACTION",
         "what": "钥匙串各保护等级风险评估与keychain-dumper/Objection提取密码令牌手法",
-        "line": 831
+        "line": 833
       }
     ]
   },
@@ -8570,82 +8570,82 @@
       {
         "heading": "1. ENUMERATION CHECKLIST",
         "what": "落地 Shell 后立即执行的信息收集清单：系统版本、sudo 权限、SUID/SGID、Cron、可写文件、凭据与网络服务探测",
-        "line": 27
+        "line": 29
       },
       {
         "heading": "2. SUID/SGID EXPLOITATION",
         "what": "GTFOBins 查证方法论与 find/vim/python/bash 等 SUID 快速提权命令及 SUID 二进制共享库劫持",
-        "line": 86
+        "line": 88
       },
       {
         "heading": "3. CAPABILITIES ABUSE",
         "what": "getcap 枚举后针对 cap_setuid/cap_dac_override/cap_sys_admin 等各能力的具体提权利用手法",
-        "line": 121
+        "line": 123
       },
       {
         "heading": "4. CRON / TIMER ABUSE",
         "what": "可写 Cron 脚本注入 payload、Cron PATH 劫持、tar 通配符注入及 pspy 无 root 监控后台进程",
-        "line": 145
+        "line": 147
       },
       {
         "heading": "5. NFS NO_ROOT_SQUASH",
         "what": "利用 NFS no_root_squash 配置从攻击机植入 SUID bash 到共享目录获取目标 root shell",
-        "line": 191
+        "line": 193
       },
       {
         "heading": "6. WRITABLE /etc/passwd OR /etc/shadow",
         "what": "对可写 passwd 追加 UID 为 0 的用户或直接替换 shadow 中 root 口令哈希实现提权",
-        "line": 209
+        "line": 211
       },
       {
         "heading": "7. LD_PRELOAD / LD_LIBRARY_PATH WITH SUDO",
         "what": "sudo env_keep 保留 LD_PRELOAD 时编译带 setresuid 的恶意 .so 劫持允许的二进制提权",
-        "line": 235
+        "line": 237
       },
       {
         "heading": "8. DOCKER GROUP → ROOT",
         "what": "docker 组成员通过运行挂载宿主根目录或 /root 的容器写入 SSH 公钥获取宿主 root",
-        "line": 246
+        "line": 248
       },
       {
         "heading": "11. PRIVILEGE ESCALATION DECISION TREE",
         "what": "从低权限 Shell 出发按 sudo/SUID/capabilities/cron/可写文件/内核版本逐层排查的提权决策树",
-        "line": 293
+        "line": 295
       },
       {
         "heading": "3. KERNEL EXPLOIT STABILITY NOTES",
         "what": "内核漏洞稳定性三档分级、运行前版本/架构/发行版补丁/安全模块检查与崩溃失败排查",
-        "line": 409
+        "line": 411
       },
       {
         "heading": "4. SPECIFIC EXPLOIT QUICK REFERENCES",
         "what": "DirtyPipe、PwnKit、GameOver(lay)、DirtyCow、Baron Samedit 等经典内核提权漏洞速查与 PoC 用法",
-        "line": 466
+        "line": 468
       },
       {
         "heading": "3. CUSTOM SUID BINARY EXPLOITATION",
         "what": "自定义 SUID 二进制的 strace/ltrace 逆向分析与 PATH 劫持、RPATH/RUNPATH 库劫持、TOCTOU 竞争利用",
-        "line": 690
+        "line": 692
       },
       {
         "heading": "2. PRIVILEGED CONTAINER ESCAPE",
         "what": "特权容器通过挂载宿主磁盘、nsenter 进入宿主 PID 1 命名空间及 hostPID 场景逃逸",
-        "line": 836
+        "line": 838
       },
       {
         "heading": "4. DOCKER SOCKET ESCAPE (/var/run/docker.sock)",
         "what": "利用挂载的 docker.sock 借助 Docker CLI 或 curl 直接调 API 创建特权容器挂载宿主根目录逃逸",
-        "line": 939
+        "line": 941
       },
       {
         "heading": "5. CGROUP V1 RELEASE_AGENT ESCAPE",
         "what": "CAP_SYS_ADMIN 下 cgroup v1 的 release_agent 写入宿主路径命令实现宿主机任意执行",
-        "line": 958
+        "line": 960
       },
       {
         "heading": "8. RUNTIME VULNERABILITIES",
         "what": "runc CVE-2019-5736、containerd CVE-2020-15257、cgroups CVE-2022-0492 等容器运行时漏洞逃逸手法",
-        "line": 1021
+        "line": 1023
       }
     ]
   },
@@ -8680,77 +8680,77 @@
       {
         "heading": "1. ENUMERATION CHECKLIST",
         "what": "提权前信息收集：系统版本、令牌权限、服务与计划任务、已装补丁及存储凭证的检查命令",
-        "line": 51
+        "line": 53
       },
       {
         "heading": "2. TOKEN MANIPULATION & POTATO EXPLOITS",
         "what": "利用 SeImpersonate/SeDebug 权限通过 Potato 家族工具与进程注入提升至 SYSTEM",
-        "line": 104
+        "line": 106
       },
       {
         "heading": "3. SERVICE MISCONFIGURATIONS",
         "what": "未加引号服务路径植入、弱服务 ACL 重配 binpath 与可写服务二进制替换提权",
-        "line": 141
+        "line": 143
       },
       {
         "heading": "4. DLL HIJACKING",
         "what": "利用 DLL 搜索顺序与幽灵 DLL 缺失项在可写目录植入恶意 DLL",
-        "line": 182
+        "line": 184
       },
       {
         "heading": "5. ALWAYSINSTALLELEVATED",
         "what": "检查 HKLM/HKCU 双注册表键并用 msfvenom 生成 MSI 载荷以 SYSTEM 静默安装提权",
-        "line": 215
+        "line": 217
       },
       {
         "heading": "6. SCHEDULED TASK ABUSE",
         "what": "枚举 SYSTEM 计划任务的可写或缺失二进制并替换以获取提权执行",
-        "line": 231
+        "line": 233
       },
       {
         "heading": "8. NAMED PIPE IMPERSONATION",
         "what": "创建命名管道诱使 SYSTEM 进程连接并模拟客户端令牌实现提权",
-        "line": 271
+        "line": 273
       },
       {
         "heading": "3. DETAILED COMPARISON MATRIX",
         "what": "Juicy/Rogue/Print/Sweet/God/Efs Potato 各系统版本兼容性、协议依赖与检测风险对比",
-        "line": 395
+        "line": 397
       },
       {
         "heading": "5. SeBackupPrivilege EXPLOITATION",
         "what": "用 reg save 与 robocopy /b 绕过 DACL 导出 SAM/SYSTEM/NTDS.dit 离线提取哈希",
-        "line": 475
+        "line": 477
       },
       {
         "heading": "1. REMOTE EXECUTION METHODS COMPARISON",
         "what": "PsExec/WMI/WinRM/DCOM/RDP 等横向方法的端口、凭证类型、落盘与 OPSEC 对比表",
-        "line": 591
+        "line": 593
       },
       {
         "heading": "6. PASS-THE-HASH (PTH)",
         "what": "NTLM 哈希直接横向至 Impacket/evil-winrm/Mimikatz 并利用 Restricted Admin RDP",
-        "line": 736
+        "line": 738
       },
       {
         "heading": "7. OVERPASS-THE-HASH (PASS-THE-KEY)",
         "what": "将 NTLM 哈希兑换 Kerberos TGT 实现纯 Kerberos 认证规避 NTLM 日志检测",
-        "line": 770
+        "line": 772
       },
       {
         "heading": "9. PIVOTING THROUGH COMPROMISED HOSTS",
         "what": "SSH 动态 SOCKS 代理、Chisel 反向隧道与 Ligolo-ng 转发进入内网",
-        "line": 817
+        "line": 819
       },
       {
         "heading": "1. LSASS MEMORY DUMP TECHNIQUES",
         "what": "comsvcs/ProcDump/Mimikatz/nanodump/handlekatz/PPLdump 等转储 LSASS 并离线解析凭证",
-        "line": 904
+        "line": 906
       },
       {
         "heading": "10. LATERAL MOVEMENT DECISION TREE",
         "what": "按凭证类型、隐蔽性优先级与目标加固情况选择横向方法与隧道方案的决策树",
-        "line": 858
+        "line": 860
       }
     ]
   },
@@ -8785,77 +8785,77 @@
       {
         "heading": "1. PTMALLOC2 STRUCTURE QUICK REFERENCE",
         "what": "malloc_chunk 布局、tcache/fastbin/unsortedbin/smallbin/largebin 分类与 main_arena 等全局结构速查",
-        "line": 56
+        "line": 58
       },
       {
         "heading": "2. LEAK METHODS",
         "what": "经 unsortedbin fd/bk 泄露 libc 基址、tcache fd 泄露堆地址及 safe-linking 异或编解码",
-        "line": 93
+        "line": 95
       },
       {
         "heading": "3. ATTACK CATEGORIES BY GLIBC VERSION",
         "what": "按 glibc 版本划分可用攻击：无 tcache、tcache key、safe-linking 及 2.34 后 hook 移除的适配变化",
-        "line": 127
+        "line": 129
       },
       {
         "heading": "4. COMMON VULNERABILITY PATTERNS",
         "what": "UAF、double free、堆溢出、off-by-one/off-by-null、未初始化读等原语到利用路径的映射",
-        "line": 176
+        "line": 178
       },
       {
         "heading": "6. CORE DECISION TREE",
         "what": "从漏洞原语出发选择泄露方式与 tcache 投毒、hook 覆写或 _IO_FILE 攻击链的决策树",
-        "line": 217
+        "line": 219
       },
       {
         "heading": "7. HOUSE OF FORCE",
         "what": "覆写 top chunk size 为 -1 后以巨量 malloc 将下一次分配移至任意地址（glibc<2.29）",
-        "line": 252
+        "line": 254
       },
       {
         "heading": "10. HOUSE OF ORANGE",
         "what": "无 free 调用下缩小 top chunk 触发 sysmalloc 入 unsortedbin，攻击 _IO_list_all 伪造 FILE 拿 shell",
-        "line": 310
+        "line": 312
       },
       {
         "heading": "11. HOUSE OF EINHERJAR",
         "what": "off-by-null 清除 PREV_INUSE 并伪造 prev_size 触发向后合并制造重叠堆块",
-        "line": 332
+        "line": 334
       },
       {
         "heading": "15. HOUSE OF CAT",
         "what": "经 _IO_wfile_jumps 宽字符 vtable 间接调用绕过 vtable 范围检查（glibc≥2.35）",
-        "line": 395
+        "line": 397
       },
       {
         "heading": "16. HOUSE OF APPLE (1, 2, 3)",
         "what": "largebin 攻击写 _IO_list_all 后伪造 wide_data/_wide_vtable 链实现泄露与 RCE 的三种变体",
-        "line": 416
+        "line": 418
       },
       {
         "heading": "17. TCACHE-SPECIFIC ATTACKS",
         "what": "tcache 投毒（含 safe-linking 编码）、key 清零绕过双重释放检测、House of Botcake 与 stashing unlink",
-        "line": 437
+        "line": 439
       },
       {
         "heading": "20. FSOP — FILE STREAM ORIENTED PROGRAMMING",
         "what": "覆写 _IO_list_all 插入伪造 FILE，在 exit/abort 触发 _IO_flush_all_lockp 调用伪造 vtable",
-        "line": 520
+        "line": 522
       },
       {
         "heading": "21. VTABLE HIJACK",
         "what": "glibc 2.24 前直接伪造 vtable 调 system，2.24 后用 _IO_str_jumps/_IO_wfile_jumps 绕过范围检查",
-        "line": 567
+        "line": 569
       },
       {
         "heading": "23. STDOUT ARBITRARY READ (LIBC LEAK)",
         "what": "篡改 _IO_2_1_stdout_ 的 _IO_write_base/_IO_write_ptr 与 flags 在 puts/printf 时泄露任意内存",
-        "line": 619
+        "line": 621
       },
       {
         "heading": "26. FSOP + HOUSE OF APPLE 2 TEMPLATE",
         "what": "glibc≥2.34 下 largebin 任意写接 wide_data 伪造 FILE 触发 exit 拿 shell 的完整 exp 模板",
-        "line": 693
+        "line": 695
       }
     ]
   },
@@ -8890,77 +8890,77 @@
       {
         "heading": "2. ENVIRONMENT SETUP",
         "what": "QEMU 自编译内核启动、GDB 远程调试与 initramfs 重打包的实验环境搭建",
-        "line": 60
+        "line": 62
       },
       {
         "heading": "3. COMMON VULNERABILITY TYPES",
         "what": "UAF/OOB读写/竞态/整数溢出/类型混淆/双重释放等内核漏洞类型及对应CVE示例",
-        "line": 113
+        "line": 115
       },
       {
         "heading": "4. PRIVILEGE ESCALATION TARGETS",
         "what": "commit_creds(prepare_kernel_cred(0))、modprobe_path覆写、cred结构清零、命名空间逃逸四类提权手法",
-        "line": 127
+        "line": 129
       },
       {
         "heading": "5. KERNEL ROP",
         "what": "通过ops函数指针与seq_operations劫持获取RIP控制及内核栈迁移gadget选择",
-        "line": 176
+        "line": 178
       },
       {
         "heading": "7. RETURNING TO USERSPACE",
         "what": "swapgs+iretq、KPTI trampoline跳板与信号处理器三种提权后干净返回用户态的路径",
-        "line": 227
+        "line": 229
       },
       {
         "heading": "1. SLUB ALLOCATOR OVERVIEW",
         "what": "SLUB分配器slab/cache/freelist机制及freelist随机化与硬化对喷射手感的影响",
-        "line": 326
+        "line": 328
       },
       {
         "heading": "3. CROSS-CACHE ATTACK",
         "what": "通过排空目标缓存、整页释放交还buddy再重分配实现跨slab缓存的页级UAF利用",
-        "line": 388
+        "line": 390
       },
       {
         "heading": "4. msg_msg EXPLOITATION",
         "what": "msg_msg结构布局及篡改m_ts/next指针配合MSG_COPY实现越界读与链式任意读",
-        "line": 429
+        "line": 431
       },
       {
         "heading": "5. pipe_buffer EXPLOITATION",
         "what": "劫持pipe_buffer的ops指针控制RIP与泄露内核地址及DirtyPipe页缓存任意覆写",
-        "line": 469
+        "line": 471
       },
       {
         "heading": "7. setxattr / userfaultfd / FUSE PRIMITIVES",
         "what": "setxattr任意大小堆写原语与userfaultfd/FUSE挂起页错误稳定竞态窗口",
-        "line": 539
+        "line": 541
       },
       {
         "heading": "1. KASLR (Kernel Address Space Layout Randomization)",
         "what": "kallsyms/dmesg/OOB读/eBPF等多渠道泄露内核基址及9位熵爆破与基址计算",
-        "line": 618
+        "line": 620
       },
       {
         "heading": "2. SMEP (Supervisor Mode Execution Prevention)",
         "what": "SMEP禁止内核执行用户页下的纯内核ROP及旧内核CR4位翻转绕过",
-        "line": 647
+        "line": 649
       },
       {
         "heading": "3. SMAP (Supervisor Mode Access Prevention)",
         "what": "SMAP禁止内核访问用户内存下用copy_from_user gadget与内核堆伪造结构绕过",
-        "line": 674
+        "line": 676
       },
       {
         "heading": "4. KPTI (Kernel Page Table Isolation)",
         "what": "利用swapgs_restore_regs_and_return_to_usermode跳板切换页表后安全返回用户态的ROP收尾",
-        "line": 702
+        "line": 704
       },
       {
         "heading": "5. FG-KASLR (Function Granularity KASLR)",
         "what": "函数级地址随机化下转向.data段modprobe_path/core_pattern数据攻击与函数指针泄露",
-        "line": 744
+        "line": 746
       }
     ]
   },
@@ -8995,77 +8995,77 @@
       {
         "heading": "1. PROTECTION IDENTIFICATION",
         "what": "用 checksec/readelf 快速识别 RELRO/NX/PIE/Canary/FORTIFY 等各项保护及对应编译选项",
-        "line": 41
+        "line": 43
       },
       {
         "heading": "2. ASLR BYPASS",
         "what": "信息泄露/部分覆盖/ret2dlresolve/SROP 等绕过地址随机化并给出各区域 ASLR 熵位表",
-        "line": 68
+        "line": 70
       },
       {
         "heading": "3. PIE BYPASS",
         "what": "泄露 .text 返回地址推算 PIE 基址及利用页偏移末 12 位固定的 1/16 部分覆盖",
-        "line": 93
+        "line": 95
       },
       {
         "heading": "4. NX / DEP BYPASS",
         "what": "ROP/ret2libc/ret2csu/SROP/mprotect 链与 JIT spray 打开代码执行路径",
-        "line": 117
+        "line": 119
       },
       {
         "heading": "5. RELRO BYPASS",
         "what": "按 RELRO 等级选择 GOT 直写或改打 __malloc_hook/_IO_FILE/exit_funcs 等替代目标",
-        "line": 145
+        "line": 147
       },
       {
         "heading": "6. CANARY BYPASS",
         "what": "%N$p 泄露 canary、fork 子进程逐字节爆破及覆写 fs:[0x28] TLS canary 源头",
-        "line": 169
+        "line": 171
       },
       {
         "heading": "8. CET (Control-flow Enforcement Technology)",
         "what": "Intel 影子栈/IBT 检测原理及转 JOP、ENDBR gadget 链与纯数据攻击绕过",
-        "line": 214
+        "line": 216
       },
       {
         "heading": "9. MTE (Memory Tagging Extension, ARM)",
         "what": "ARM MTE 4bit 内存标签的 1/16 爆破、同标签区越界利用与标签侧信道推断",
-        "line": 243
+        "line": 245
       },
       {
         "heading": "10. DECISION TREE",
         "what": "按 NX/Canary/PIE/ASLR/RELRO/CET/MTE 保护组合逐层决策的完整利用路径选择树",
-        "line": 266
+        "line": 268
       },
       {
         "heading": "2. COMBINED PROTECTION SCENARIOS",
         "what": "典型 CTF 保护组合(如 NX+ASLR+Canary+Full RELRO+PIE)的泄露-覆写-触发组合拳流程",
-        "line": 391
+        "line": 393
       },
       {
         "heading": "1. TARGET SELECTION BY GLIBC VERSION",
         "what": "覆盖目标×glibc 版本兼容矩阵，标明 __malloc_hook 等钩子在 2.34 已移除等差异",
-        "line": 499
+        "line": 501
       },
       {
         "heading": "2. GOT OVERWRITE",
         "what": "将 printf/free/atoi 等 GOT 改写为 system 并以 /bin/sh 参数触发，附 fmtstr_payload 用法",
-        "line": 521
+        "line": 523
       },
       {
         "heading": "3. __malloc_hook / __free_hook (glibc < 2.34)",
         "what": "one_gadget 覆盖堆钩子及 realloc+N 跳过 push 调整栈约束的技巧",
-        "line": 551
+        "line": 553
       },
       {
         "heading": "4. _IO_FILE VTABLE",
         "what": "FSOP 经 _IO_list_all 触发及 _IO_str_jumps/_IO_wfile_jumps/House of Cat 分版本打法",
-        "line": 586
+        "line": 588
       },
       {
         "heading": "6. TLS_dtor_list (glibc ≥ 2.34)",
         "what": "glibc 2.34+ 首选目标：伪造经 pointer guard 混淆的线程局部析构链并经 exit 触发",
-        "line": 640
+        "line": 642
       }
     ]
   },
@@ -9100,82 +9100,82 @@
       {
         "heading": "RETURN-TO-LIBC",
         "what": "NX 开启时劫持执行流到 libc 函数：32/64 位参数布局、puts/write 泄露 libc 基址与 one_gadget 约束检查",
-        "line": 70
+        "line": 72
       },
       {
         "heading": "ROP CHAIN CONSTRUCTION",
         "what": "ROPgadget/ropper/pwntools 工具对比、pop rdi 等核心 gadget 模式及 system 调用前 movaps 的 16 字节栈对齐修复",
-        "line": 128
+        "line": 130
       },
       {
         "heading": "ret2csu — Universal 3-Argument Control",
         "what": "利用 __libc_csu_init 两段 gadget 控制 rdi/rsi/rdx 三参数并经 call [r12+rbx*8] 间接调用 GOT 函数",
-        "line": 154
+        "line": 156
       },
       {
         "heading": "ret2dlresolve",
         "what": "伪造 Elf_Rel/Elf_Sym 重定位结构让 _dl_runtime_resolve 解析 system，在无 libc 泄露时直接执行命令",
-        "line": 183
+        "line": 185
       },
       {
         "heading": "SROP — Sigreturn-Oriented Programming",
         "what": "构造伪造 Signal Frame 经 sigreturn 系统调用一次性设置全部寄存器直接 execve(/bin/sh)",
-        "line": 217
+        "line": 219
       },
       {
         "heading": "STACK PIVOTING",
         "what": "leave;ret/xchg rsp/pop rsp 等手法将 RSP 迁移到可控缓冲区，解决溢出长度不足的 ROP 链放置问题",
-        "line": 241
+        "line": 243
       },
       {
         "heading": "CANARY BYPASS",
         "what": "fork 服务器逐字节爆破 canary(256×7=1792 次)、格式化字符串泄露及覆写 TLS fs:[0x28] 处 stack_guard",
-        "line": 264
+        "line": 266
       },
       {
         "heading": "DECISION TREE",
         "what": "按 NX/Canary/PIE/RELRO 保护组合选择 ret2shellcode、ret2libc、ret2dlresolve、SROP 或 hook 覆写的利用路线",
-        "line": 288
+        "line": 290
       },
       {
         "heading": "BLIND ROP (BROP)",
         "what": "无二进制远程盲打六阶段：stop gadget 探测、csu 六连 pop 的 BROP gadget 识别、PLT 定位与逐页 dump 二进制",
-        "line": 323
+        "line": 325
       },
       {
         "heading": "PARTIAL OVERWRITE (PIE Bypass)",
         "what": "利用页内低 12 位固定特性仅覆写返回地址低 1-2 字节，16 次半字节爆破绕过 PIE",
-        "line": 380
+        "line": 382
       },
       {
         "heading": "JOP — Jump-Oriented Programming",
         "what": "以 jmp [reg] 调度器 gadget 加功能 gadget 的表驱动链替代 ret 链，规避 Intel CET 影子栈校验",
-        "line": 412
+        "line": 414
       },
       {
         "heading": "STACK-BASED ORW (open-read-write)",
         "what": "seccomp 禁用 execve 时构造 open/read/write 系统调用的 ROP 链直接读取 flag 文件",
-        "line": 463
+        "line": 465
       },
       {
         "heading": "READING MEMORY",
         "what": "用 %N$p/%N$s 探测输入偏移并泄露 canary、PIE 基址、libc 基址及任意地址内存内容",
-        "line": 606
+        "line": 608
       },
       {
         "heading": "WRITING MEMORY (%n)",
         "what": "%n/%hn/%hhn 分字节精确任意写，含 64 位地址含 null 字节必须置于格式串之后的布局技巧与 fmtstr_payload 自动化",
-        "line": 652
+        "line": 654
       },
       {
         "heading": "GOT OVERWRITE VIA FORMAT STRING",
         "what": "printf/atoi/strlen 等 GOT 覆写为 system 的触发方式及 glibc<2.34 下 __malloc_hook/__free_hook 目标选择",
-        "line": 745
+        "line": 747
       },
       {
         "heading": "FORTIFY_SOURCE BYPASS",
         "what": "绕过 __printf_chk 禁用位置参数 %N$n 的限制：顺序 %hn 写、结合堆漏洞或 ROP 回调未加固 printf",
-        "line": 814
+        "line": 816
       }
     ]
   },
@@ -9210,82 +9210,82 @@
       {
         "heading": "1. LINUX ANTI-DEBUG TECHNIQUES",
         "what": "ptrace 自附加、/proc TracerPid、rdtsc 时间检测与 SIGTRAP 信号检测及对应 LD_PRELOAD/GDB 绕过手法",
-        "line": 51
+        "line": 53
       },
       {
         "heading": "2. WINDOWS ANTI-DEBUG TECHNIQUES",
         "what": "IsDebuggerPresent、PEB 标志、NtQueryInformationProcess、硬件断点检测、INT 2D、TLS 回调与 ThreadHideFromDebugger 等检测及绕过",
-        "line": 131
+        "line": 133
       },
       {
         "heading": "3. ADVANCED MULTI-LAYER TECHNIQUES",
         "what": "fork+ptrace 自我调试看门狗、多进程互查、多点时间漂移累计与 Nanomite INT3 跳转替换等高级多层对抗",
-        "line": 222
+        "line": 224
       },
       {
         "heading": "4. COUNTERMEASURE TOOLS",
         "what": "ScyllaHide、TitanHide、Frida、LD_PRELOAD shim、GDB 脚本与 Qiling 全系统仿真等反反调试工具选型",
-        "line": 262
+        "line": 264
       },
       {
         "heading": "5. SYSTEMATIC BYPASS METHODOLOGY",
         "what": "静态定位反调试调用后按 API/标志/时间/异常/多进程分类，依序施加自动工具→TLS→定制补丁→验证的系统化绕过流程",
-        "line": 275
+        "line": 277
       },
       {
         "heading": "6. DECISION TREE",
         "what": "按崩溃时点（main 前/启动时/运行中）与失控症状定位 TLS 回调、ptrace、PEB、时间或异常类检测的排障决策树",
-        "line": 302
+        "line": 304
       },
       {
         "heading": "7. CTF & REAL-WORLD PATTERNS",
         "what": "CTF 常见反调试模式频率与快速绕过表，及 VMProtect/Themida/Enigma 等商业壳的推荐对抗工具组合",
-        "line": 347
+        "line": 349
       },
       {
         "heading": "8. QUICK REFERENCE — BYPASS CHEAT SHEET",
         "what": "LD_PRELOAD 一行绕过 ptrace、GDB catch syscall 改寄存器、Frida Interceptor.replace Hook 与 x64dbg ScyllaHide 配置速查",
-        "line": 372
+        "line": 374
       },
       {
         "heading": "1. LINUX ANTI-DEBUG MATRIX",
         "what": "14 项 Linux 反调试技术按检测方法×可靠性×绕过工具×误报情况的完整对照矩阵",
-        "line": 427
+        "line": 429
       },
       {
         "heading": "2. WINDOWS ANTI-DEBUG MATRIX",
         "what": "28 项 Windows 反调试技术（PEB/NtQuery/异常/时间/CRC 校验/窗口枚举等）与绕过方法对照矩阵",
-        "line": 447
+        "line": 449
       },
       {
         "heading": "3. TOOL COMPABILITY MATRIX",
         "what": "GDB、x64dbg+ScyllaHide、WinDbg、IDA 远程、Frida、Qiling 对各检测技术的兼容与处置方式对照表",
-        "line": 482
+        "line": 484
       },
       {
         "heading": "1. JUNK CODE & OPAQUE PREDICATES",
         "what": "垃圾代码与永真/永假虚假谓词的识别特征及基于 def-use 链、Z3 抽象解释与模式匹配的去除策略",
-        "line": 566
+        "line": 568
       },
       {
         "heading": "2. SELF-MODIFYING CODE (SMC)",
         "what": "XOR 解密循环型自修改代码的定位、断点 dump 内存与 Unicorn 仿真自动脱壳还原手法",
-        "line": 609
+        "line": 611
       },
       {
         "heading": "3. CONTROL FLOW FLATTENING (CFF)",
         "what": "控制流平坦化 dispatcher/switch 结构还原：angr 符号执行求解真实后继块、trace 重建与 D-810 插件",
-        "line": 651
+        "line": 653
       },
       {
         "heading": "4. MOVFUSCATOR",
         "what": "纯 mov 指令混淆的识别特征（查表+内存映射标志位）及 demovfuscator、trace 污点与符号执行三种还原路径",
-        "line": 701
+        "line": 703
       },
       {
         "heading": "5. VM PROTECTION (VMProtect / Themida / Code Virtualizer)",
         "what": "VM 保护壳的 pushad 入口识别、dispatcher 定位与 handler 表提取、字节码指令还原流程",
-        "line": 723
+        "line": 725
       }
     ]
   },
@@ -9320,77 +9320,77 @@
       {
         "heading": "Step 2: Route by observed behavior",
         "what": "按输入反射、服务端外联、文件接受等信号将现象路由到 XSS、SSRF、XXE、IDOR、请求走私等漏洞方向的路由表",
-        "line": 59
+        "line": 61
       },
       {
         "heading": "1. RECON HIERARCHY",
         "what": "从目标选定、范围定义到资产发现、技术指纹、端点发现、逐类漏洞测试的侦察层级模型",
-        "line": 195
+        "line": 197
       },
       {
         "heading": "2. SUBDOMAIN ENUMERATION (CRITICAL FIRST STEP)",
         "what": "被动证书透明查询与主动 DNS 爆破解析子域，subfinder/amass/crt.sh/massdns/ffuf 实操命令",
-        "line": 208
+        "line": 210
       },
       {
         "heading": "Virtual Host Discovery",
         "what": "ffuf 与 gobuster 的 vhost 模式通过 Host 头爆破探测隐藏虚拟主机",
-        "line": 241
+        "line": 243
       },
       {
         "heading": "3. SERVICE AND PORT DISCOVERY",
         "what": "nmap/masscan 快速与全量端口扫描并用 httpx 批量探测存活 HTTP 服务",
-        "line": 253
+        "line": 255
       },
       {
         "heading": "4. WEB TECHNOLOGY FINGERPRINTING",
         "what": "借助 Server 头、X-Powered-By、会话 Cookie、HTML 注释与 JS 框架文件识别目标技术栈",
-        "line": 271
+        "line": 273
       },
       {
         "heading": "5. ENDPOINT DISCOVERY",
         "what": "目录爆破、arjun/x8 隐藏参数挖掘、JS 源码与 Wayback 历史 URL 提取及 Swagger/GraphQL 接口发现",
-        "line": 294
+        "line": 296
       },
       {
         "heading": "6. SOURCE CODE RECON",
         "what": "GitHub dorks、trufflehog/gitleaks 密钥扫描与 .env、备份文件等敏感路径暴露检查",
-        "line": 348
+        "line": 350
       },
       {
         "heading": "7. ZSEANO'S TESTING METHODOLOGY",
         "what": "深耕单一项目的测试哲学、单页输入点测试序列与按参数语义推断漏洞类型",
-        "line": 384
+        "line": 386
       },
       {
         "heading": "8. BUG BOUNTY PROGRAM TRIAGE (WHERE TO SPEND TIME)",
         "what": "按范围大小、P2/P3 支付与技术迁移选择高价值项目并按认证、上传、支付流等功能排序测试优先级",
-        "line": 416
+        "line": 418
       },
       {
         "heading": "9. NUCLEI TEMPLATES (AUTOMATED SCANNING)",
         "what": "nuclei 按 CVE、暴露、配置错误分类与严重度过滤对目标及子域名列表自动化扫描",
-        "line": 439
+        "line": 441
       },
       {
         "heading": "10. COMMON MISCONFIGURATIONS (QUICK WINS)",
         "what": "CORS 通配、S3 桶公开、目录列出、.git/.env 泄露、默认凭据、GraphQL 内省等快速得分检查清单",
-        "line": 456
+        "line": 458
       },
       {
         "heading": "12. JAVA MIDDLEWARE FINGERPRINT MATRIX",
         "what": "Tomcat/JBoss/WebLogic/Spring Boot Actuator/Jenkins/GlassFish 的识别路径、默认口令及 env/heapdump/jolokia 利用优先级",
-        "line": 494
+        "line": 496
       },
       {
         "heading": "13. INFORMATION LEAK DETECTION CHECKLIST",
         "what": "版本控制元数据、备份文件、API 文档调试端点与云凭据等泄露路径检测清单",
-        "line": 523
+        "line": 525
       },
       {
         "heading": "浏览器侦察四步（Playwright MCP——headless 会话必读）",
         "what": "headless 会话先等待 MCP 就绪再按 navigate/snapshot/网络请求抓取/点击四步做浏览器侦察与 JS 蒸馏",
-        "line": 575
+        "line": 577
       }
     ]
   },
@@ -9425,67 +9425,67 @@
       {
         "heading": "1. PHASE 0 — IDENTIFY THE WAF",
         "what": "利用 wafw00f、nmap 脚本与行为指纹比对识别目标 WAF 厂商及拦截行为",
-        "line": 43
+        "line": 45
       },
       {
         "heading": "2. GENERIC BYPASS CATEGORIES",
         "what": "编码绕过、分块传输、HPP 参数污染、路径规范化、Content-Type 切换与关键字拆分等通用绕过手法",
-        "line": 67
+        "line": 69
       },
       {
         "heading": "3. PROTOCOL-LEVEL BYPASS TECHNIQUES",
         "what": "绝对 URI 请求行、CRLF 头注入与 keep-alive 连接状态复用等协议级绕过",
-        "line": 210
+        "line": 212
       },
       {
         "heading": "4. WAF BYPASS DECISION TREE",
         "what": "从编码、协议、路径、载荷变异到 IP 伪造的 WAF 绕过结构化决策流程",
-        "line": 242
+        "line": 244
       },
       {
         "heading": "1. Cloudflare WAF",
         "what": "Cloudflare 识别特征及全角 Unicode、MySQL 版本注释、寻找源站 IP 直连绕过手法",
-        "line": 312
+        "line": 314
       },
       {
         "heading": "2. AWS WAF",
         "what": "利用 AWS WAF 仅检查 8KB 请求体的边界填充、正则超时与 JSON 深度嵌套绕过",
-        "line": 338
+        "line": 340
       },
       {
         "heading": "3. ModSecurity + OWASP CRS",
         "what": "CRS 低 Paranoia Level 规则空缺、条件注释、Unicode 编码与文件上传字段免检绕过",
-        "line": 364
+        "line": 366
       },
       {
         "heading": "5. Imperva / Incapsula",
         "what": "Imperva 参数污染、深层 JSON 嵌套、畸形 multipart、UTF-8 BOM 与 WebSocket 升级绕过",
-        "line": 418
+        "line": 420
       },
       {
         "heading": "8. QUICK REFERENCE — BYPASS-BY-WAF CHEAT SHEET",
         "what": "主流 WAF 的首选绕过向量、请求体大小限制与核心弱点速查表",
-        "line": 496
+        "line": 498
       },
       {
         "heading": "2. CACHE DECEPTION — ATTACK METHODOLOGY",
         "what": "缓存欺骗攻击四步法：认证接口追加静态扩展名、验证缓存命中、诱导受害者访问后读取其数据",
-        "line": 556
+        "line": 558
       },
       {
         "heading": "4. PATH NORMALIZATION DIFFERENCES",
         "what": "利用 CDN、应用框架与反向代理之间路径规范化行为不一致制造缓存欺骗漏洞",
-        "line": 640
+        "line": 642
       },
       {
         "heading": "1. WEB CACHE POISONING vs WEB CACHE DECEPTION",
         "what": "对比缓存投毒与缓存欺骗在目标、触发者、危害对象与攻击流程上的本质区别",
-        "line": 734
+        "line": 736
       },
       {
         "heading": "2. UNKEYED HEADER POISONING",
         "what": "利用 X-Forwarded-Host/X-Forwarded-Scheme/X-Original-URL 等被反射但不入缓存键的头实施投毒",
-        "line": 764
+        "line": 766
       }
     ]
   }

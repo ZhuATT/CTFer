@@ -4,6 +4,8 @@ description: >-
   Object-layer injection (deserialization & prototype pollution). Covers Java gadget chains (CC1-CC7/SnakeYAML/Hessian/Shiro), PHP Phar/unserialize, Python pickle, .NET BinaryFormatter/ViewState, Node.js node-serialize, prototype pollution (EJS/child_process/Lodash RCE gadgets), Ghost Bits cast attack (Java char-to-byte WAF bypass), and XXE/LFI (XML External Entity, FTP OOB / XInclude / OOXML / PHP expect://, PHP wrapper LFI). Load when untrusted data is deserialized, object properties are merged, or XML/file paths are attacker-controlled.
 ---
 
+<!-- src: hacker/.claude/skills/injection-deser/SKILL.md -->
+
 # Object-Layer Injection — Deserialization & Prototype Pollution
 
 ## Internal Navigation

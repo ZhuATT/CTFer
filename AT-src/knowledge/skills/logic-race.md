@@ -4,6 +4,8 @@ description: >-
   Business logic and race condition attacks. Covers payment manipulation (decimal quantity/integer overflow/rounding arbitrage), workflow bypass (state machine abuse/multi-device concurrent), race conditions (HTTP/2 single-packet/TOCTOU/advisory lock bypass), and business logic methodology (coupon/inventory/SMS bombing/masked field reconstruction). Load when testing payment flows, one-time operations, or business process integrity.
 ---
 
+<!-- src: hacker/.claude/skills/logic-race/SKILL.md -->
+
 # Business Logic & Race Conditions
 
 ## Internal Navigation

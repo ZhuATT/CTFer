@@ -4,6 +4,8 @@ description: >-
   SSRF complete attack playbook. Covers URL filter bypass (12 IP encoding variants/DNS rebinding/redirect chains), cloud metadata (AWS IMDSv1-v2/GCP/Azure/Alibaba/Oracle 6-platform matrix), protocol exploitation (gopher Redis RCE/file/dict), blind SSRF escalation (redirect loop exfiltration for Go/curl targets), URL parser differentials (Node.js/PHP/Python/Java/Go), and PDF/headless browser SSRF. Load when server fetches user-supplied URLs.
 ---
 
+<!-- src: hacker/.claude/skills/injection-ssrf/SKILL.md -->
+
 # SKILL: Server-Side Request Forgery (SSRF) — Complete Attack Playbook
 
 > Expert SSRF techniques. Covers URL filter bypass, cloud metadata endpoints, protocol exploitation, blind SSRF detection, redirect loop exfiltration, URL parser differentials, PDF/headless browser SSRF, and chaining to RCE.

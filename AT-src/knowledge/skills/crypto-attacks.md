@@ -4,6 +4,8 @@ description: >-
   Cryptography attacks complete playbook. Covers RSA (Wiener/Coppersmith/Hastad/Bleichenbacher/CRT fault/common factor/partial key), symmetric (CBC padding oracle/ECB cut-paste/bit-flip/stream key reuse/LFSR), lattice (LLL/BKZ/HNP/knapsack/Coppersmith multivariate), hash (length extension/MD5-SHA1 collision/HMAC timing/0e magic), classical (frequency analysis/Vigenere/Kasiski/XOR), and PHP/JS type juggling weak comparison (0e magic hash collision, in_array loose, strcmp array bypass). Load for any crypto CTF challenge, real-world cryptographic weakness, or loose-comparison auth bypass.
 ---
 
+<!-- src: hacker/.claude/skills/crypto-attacks/SKILL.md -->
+
 # Cryptography Attacks — Complete Playbook
 
 ## Internal Navigation

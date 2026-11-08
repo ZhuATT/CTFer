@@ -4,6 +4,8 @@ description: >-
   Heap exploitation complete playbook. Covers ptmalloc2 internals, tcache/fastbin/unsortedbin/largebin attacks, House of techniques (Force/Orange/Spirit/Lore/Cat/Apple/Emma), _IO_FILE exploitation (FSOP/vtable hijack/stdout leak/wide_data chains), and glibc version-specific constraints (safe-linking 2.32+, vtable check 2.24+, setcontext RDX 2.29+). Load for CTF heap pwn or real-world glibc exploitation.
 ---
 
+<!-- src: hacker/.claude/skills/pwn-heap/SKILL.md -->
+
 # Heap Exploitation — Complete Playbook
 
 > Expert glibc heap exploitation techniques. Covers ptmalloc2 internals, bin structures, tcache mechanics, libc/heap leak methods, attack selection by glibc version, named House techniques, _IO_FILE abuse (FSOP/vtable hijack/stdout leak/wide_data chains), and modern post-2.34 exploitation paths.

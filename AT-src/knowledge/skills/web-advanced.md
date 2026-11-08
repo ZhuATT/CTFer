@@ -4,6 +4,8 @@ description: >-
   Advanced web techniques. Covers WAF bypass (AWS 8KB limit/Cloudflare/Imperva/ModSecurity CRS), web cache deception/poisoning (path confusion/X-Forwarded-Scheme/parameter cloaking), HTTP Host header attacks (password reset poisoning/routing SSRF), DNS rebinding (Chrome 60s cache/multiple A records/rbndr.us), subdomain takeover (NS vs CNAME/S3 NoSuchBucket/SPF takeover), and open redirect (backslash/Unicode/reverse tabnabbing). Load for advanced web exploitation beyond basic injection.
 ---
 
+<!-- src: hacker/.claude/skills/web-advanced/SKILL.md -->
+
 # Advanced Web Techniques
 
 ## Internal Navigation

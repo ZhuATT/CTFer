@@ -4,6 +4,8 @@ description: >-
   Authorization and access control attacks. Covers IDOR/BOLA (Django ORM filter injection/Prisma nested traversal/Ransack predicates), 401/403 bypass (Tomcat path param/IIS ADS/HTTP verb tamper/connection-state), CORS misconfiguration (null origin/Vary missing/regex bypass), CSRF (SameSite Lax 2-min exemption/CSPT2CSRF/JSON CSRF), and clickjacking. Load when testing object-level authorization or access boundaries.
 ---
 
+<!-- src: hacker/.claude/skills/auth-access/SKILL.md -->
+
 # Authorization & Access Control Attacks
 
 ## Internal Navigation

@@ -4,6 +4,8 @@ description: >-
   SQL injection complete playbook. Covers multi-DB exploitation (MySQL/PostgreSQL/MSSQL/Oracle/SQLite/DB2/Cassandra/BigQuery), blind techniques (time-based per-DB/boolean/error-based/OOB), WAF bypass matrix, advanced sqlmap workflows (tamper scripts/second-order/OS shell), HANDLER bypass, innodb_table_stats filter evasion, and NTLM hash exfil via xp_dirtree. Load when input reaches SQL queries.
 ---
 
+<!-- src: hacker/.claude/skills/injection-sqli/SKILL.md -->
+
 # SQL Injection — Complete Attack Playbook
 
 > Advanced SQLi techniques covering per-database exploitation, out-of-band exfiltration, second-order injection, parameterized query bypass scenarios, filter evasion, escalation to OS, INSERT/UPDATE/DELETE patterns, GraphQL+SQLi, and CTF-oriented tricks.

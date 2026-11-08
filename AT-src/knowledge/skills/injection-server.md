@@ -4,6 +4,8 @@ description: >-
   Server-side expression/template injection chain. Covers SSTI (15+ engines: Jinja2/Twig/Pebble/Mako/EJS/Handlebars with fingerprinting and RCE), Expression Language injection (SpEL/OGNL/Java EL), JNDI injection (Log4Shell patterns/JDK version bypass/RMI-LDAP chains), and XSLT injection (document() file read, system-property fingerprinting, PHP registerPHPFunctions / Saxon Java extensions / .NET msxsl:script RCE). Load when template expressions, JNDI lookups, or XSLT transformations process attacker input.
 ---
 
+<!-- src: hacker/.claude/skills/injection-server/SKILL.md -->
+
 # Server-Side Injection — Templates, EL & JNDI
 
 ## Internal Navigation

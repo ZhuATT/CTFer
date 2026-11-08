@@ -4,6 +4,8 @@ description: >-
   Active Directory complete attack chain. Covers Kerberos attacks (AS-REP roasting/Kerberoasting/Golden/Silver/Diamond tickets/delegation abuse/RBCD), ACL abuse (DCSync/WriteDACL/GenericAll/Shadow Credentials with BloodHound paths), AD CS exploitation (ESC1-ESC13/Golden Certificate), and NTLM relay/coercion (PetitPotam/PrinterBug/WebDAV/SMB signing bypass). Load when targeting AD environments.
 ---
 
+<!-- src: hacker/.claude/skills/ad-attacks/SKILL.md -->
+
 # Active Directory — Complete Attack Chain
 
 ## Internal Navigation

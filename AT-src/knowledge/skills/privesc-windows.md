@@ -4,6 +4,8 @@ description: >-
   Windows complete privilege escalation chain. Covers local privesc (token abuse/Potato family/service misconfig/DLL hijack/UAC bypass), lateral movement (PsExec/WMI/WinRM/DCOM/PTH/PTT/RDP), credential dumping (LSASS/SAM/NTDS/DCC2/handlekatz), and AV/EDR evasion (AMSI bypass/ETW patch/indirect syscalls/sleep obfuscation/module stomping). Load when you have a Windows shell and need to escalate, move laterally, or evade defenses.
 ---
 
+<!-- src: hacker/.claude/skills/privesc-windows/SKILL.md -->
+
 # Windows Privilege Escalation — Complete Attack Chain
 
 ## Internal Navigation

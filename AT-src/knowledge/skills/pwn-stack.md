@@ -4,6 +4,8 @@ description: >-
   Stack exploitation playbook. Covers buffer overflow, ROP chains (ret2libc/ret2csu/ret2dlresolve/SROP), advanced ROP (BROP/partial overwrite/JOP), RSP alignment for system(), fork-server canary brute-force (1792 attempts), and format string exploitation (%n write/stack pointer chains/FORTIFY bypass). Load for stack-based CTF pwn or userland binary exploitation.
 ---
 
+<!-- src: hacker/.claude/skills/pwn-stack/SKILL.md -->
+
 # Stack Exploitation — Complete Playbook
 
 ## Internal Navigation

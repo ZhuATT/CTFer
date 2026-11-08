@@ -4,6 +4,8 @@ description: >-
   API security complete playbook. Covers API reconnaissance (OpenAPI/Swagger/hidden endpoints), authorization testing (BOLA/BFLA/mass assignment), JWT and API key abuse, and GraphQL exploitation (introspection/batching/hidden parameters). Load when testing REST APIs, GraphQL, or mobile backends.
 ---
 
+<!-- src: hacker/.claude/skills/api-all/SKILL.md -->
+
 # API Security — Complete Playbook
 
 ## Internal Navigation

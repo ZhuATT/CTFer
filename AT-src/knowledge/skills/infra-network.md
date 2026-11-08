@@ -4,6 +4,8 @@ description: >-
   Network infrastructure attacks. Covers network protocol attacks (ARP/LLMNR/NBT-NS/mDNS poisoning/DHCPv6/VLAN hopping/802.1Q double-tag), tunneling & pivoting (SSH/Chisel/Ligolo-ng/iodine DNS/ICMP/Neo-reGeorg), insecure source code management (.git/.svn recovery), dependency confusion (npm/pip/gem registry hijack), and WebSocket security (CSWSH/Origin bypass). Load when pivoting through networks or exploiting infrastructure services.
 ---
 
+<!-- src: hacker/.claude/skills/infra-network/SKILL.md -->
+
 # Network Infrastructure Attacks
 
 ## Internal Navigation

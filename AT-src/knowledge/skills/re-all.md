@@ -4,6 +4,8 @@ description: >-
   Reverse engineering complete playbook. Covers anti-debugging (PEB/ptrace/timing/signal tricks with bypass), code obfuscation (CFF/movfuscator/API hashing/anti-disassembly), symbolic execution (angr/Z3/Unicorn with cookbook patterns), and custom VM/bytecode reverse (dispatcher identification/Sleigh modules/maze solving). Load for CTF reversing or protected binary analysis.
 ---
 
+<!-- src: hacker/.claude/skills/re-all/SKILL.md -->
+
 # Reverse Engineering — Complete Playbook
 
 ## Internal Navigation

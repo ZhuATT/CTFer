@@ -4,6 +4,8 @@ description: >-
   Binary exploitation misc. Covers protection bypass (ASLR entropy/CET/MTE/canary neutralization/Full RELRO targets), arbitrary write to RCE (GOT/__malloc_hook/TLS_dtor_list/_IO_FILE/exit_funcs), sandbox escape (chroot/seccomp/Lua/Python pyjail/Nanomite), and V8/browser exploitation (JIT type confusion/sandbox pointer/WASM W^X). Load for advanced binary challenges requiring protection bypass or sandbox escape.
 ---
 
+<!-- src: hacker/.claude/skills/pwn-misc/SKILL.md -->
+
 # Binary Exploitation — Protections, Sandbox & Browser
 
 ## Internal Navigation

@@ -4,6 +4,8 @@ description: >-
   HTTP protocol-layer injection. Covers request smuggling (CL.TE/TE.CL/CL.0/Fat GET with 8 TE obfuscation variants), HTTP/2 smuggling (H2.CL/H2.TE/HPACK/h2c upgrade), CRLF injection (header splitting/log injection), HTTP parameter pollution (9-platform behavior matrix), HTTP/2 specific attacks, and Email Header Injection (PHP mail() 5th-param RCE, subject splitting, IMAP command injection, SMTP smuggling). Load when HTTP framing anomalies, header injection, or mail header parsing is suspected.
 ---
 
+<!-- src: hacker/.claude/skills/injection-protocol/SKILL.md -->
+
 # HTTP Protocol-Layer Injection
 
 ## Internal Navigation

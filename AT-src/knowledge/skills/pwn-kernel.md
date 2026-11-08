@@ -4,6 +4,8 @@ description: >-
   Kernel exploitation playbook. Covers vulnerability types (UAF/race/OOB/type confusion), exploitation primitives (msg_msg/pipe_buffer/sk_buff/setxattr), privilege escalation (commit_creds/modprobe_path/core_pattern), mitigation bypass (KASLR 9-bit/SMEP/SMAP/KPTI trampoline/kCFI), and cross-cache techniques. Load for kernel CTF pwn or real-world LPE via kernel bugs.
 ---
 
+<!-- src: hacker/.claude/skills/pwn-kernel/SKILL.md -->
+
 # Kernel Exploitation — Complete Playbook
 
 ## Internal Navigation

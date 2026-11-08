@@ -4,6 +4,8 @@ description: >-
   Linux complete privilege escalation chain. Covers local privesc (SUID/capabilities/kernel exploits/cron/sudo), container escape (Docker socket/cgroup/privileged mode), security mechanism bypass (SELinux/AppArmor/seccomp/noexec), lateral movement (SSH hijack/credential reuse), and Kubernetes exploitation (RBAC abuse/kubelet API/pod escape). Load when you have a Linux shell and need to escalate or pivot.
 ---
 
+<!-- src: hacker/.claude/skills/privesc-linux/SKILL.md -->
+
 # Linux Privilege Escalation — Complete Attack Chain
 
 ## Internal Navigation

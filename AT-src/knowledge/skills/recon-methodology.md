@@ -4,6 +4,8 @@ description: >-
   Reconnaissance and methodology. Covers the master routing skill (phenomenon-to-skill mapping), cognitive testing framework (black-box pentest thinking discipline), and recon methodology (asset discovery/fingerprinting/endpoint inventory/Java middleware matrix). Load at engagement start to establish testing approach and route to deeper skills.
 ---
 
+<!-- src: hacker/.claude/skills/recon-methodology/SKILL.md -->
+
 # Reconnaissance & Methodology
 
 ## Internal Navigation
