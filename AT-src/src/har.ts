@@ -47,16 +47,50 @@ interface InFlightEntry {
 	responseBody?: string;
 	responseSize: number;
 	errorText?: string;
+	redirectUrl?: string; // F-9b：重定向 A 跳的 Location（buildHar → response.redirectURL）
+}
+
+/** F-9a：extraInfo 头合并——伪头剔除（: 开头非 HAR 语义）→ 头名小写归一 → extraInfo 同名覆盖 base（网络层真实值，权威）。 */
+function mergeHeaders(base: HarHeader[], extra: any): HarHeader[] {
+	const out = new Map<string, HarHeader>();
+	for (const h of base) out.set(h.name.toLowerCase(), { name: h.name, value: h.value });
+	if (extra?.headers && typeof extra.headers === "object") {
+		for (const [k, v] of Object.entries(extra.headers)) {
+			if (k.startsWith(":")) continue;
+			out.set(k.toLowerCase(), { name: k, value: String(v) });
+		}
+	}
+	return Array.from(out.values());
 }
 
 export class HarRecorder {
 	private entries = new Map<string, InFlightEntry>();
 	private completed: InFlightEntry[] = [];
 	private flushed = false;
+	// F-9a：全生命周期索引（在飞+已完成，extraInfo 可能迟到）+ 早到 extraInfo 暂存（先于骨架到达是 CDP 常态）
+	private byId = new Map<string, InFlightEntry>();
+	private pendingExtra = new Map<string, { req?: any; resp?: any }>();
 
 	onRequestWillBeSent(params: any): void {
 		const reqId = String(params?.requestId ?? "");
 		if (!reqId) return;
+
+		// F-9b：重定向复用 requestId——旧在飞条目按 A 跳终态（redirectResponse 捾带）落 completed
+		const prev = this.entries.get(reqId);
+		const rd = params.redirectResponse;
+		if (prev && rd) {
+			prev.status = Number(rd.status ?? 302);
+			prev.statusText = String(rd.statusText ?? "");
+			prev.protocol = String(rd.protocol ?? prev.protocol);
+			prev.mimeType = String(rd.mimeType ?? prev.mimeType);
+			prev.responseHeaders = Object.entries(rd.headers ?? {}).map(([k, v]) => ({ name: k, value: String(v) }));
+			prev.endTimestamp = Number(params.timestamp ?? prev.startTimestamp);
+			// body 留空（3xx body 无证据价值）；redirectURL 取 Location 头
+			const loc = Object.entries(rd.headers ?? {}).find(([k]) => k.toLowerCase() === "location");
+			prev.redirectUrl = loc ? String(loc[1]) : "";
+			this.completed.push(prev);
+			this.entries.delete(reqId);
+		}
 
 		const req = params.request ?? {};
 		const wallTime = typeof params.wallTime === "number" ? params.wallTime : Date.now() / 1000;
@@ -110,6 +144,41 @@ export class HarRecorder {
 		};
 
 		this.entries.set(reqId, entry);
+
+		// F-9a：回捞早到的 extraInfo（extraInfo 先于骨架到达）合并进新条目
+		const pending = this.pendingExtra.get(reqId);
+		if (pending) {
+			if (pending.req) entry.requestHeaders = mergeHeaders(entry.requestHeaders, pending.req);
+			if (pending.resp) entry.responseHeaders = mergeHeaders(entry.responseHeaders, pending.resp);
+			this.pendingExtra.delete(reqId);
+		}
+		// F-9a：全生命周期索引（建/换条目同步换新；重定向后指向 B 跳新条目）
+		this.byId.set(reqId, entry);
+	}
+
+	/** F-9a：requestWillBeSentExtraInfo——网络层真实发包头（Cookie、部分 Authorization 只在这里） */
+	onRequestExtraInfo(params: any): void {
+		const reqId = String(params?.requestId ?? "");
+		if (!reqId) return;
+		const e = this.byId.get(reqId);
+		if (e) {
+			e.requestHeaders = mergeHeaders(e.requestHeaders, params);
+		} else {
+			// extraInfo 早于骨架到达（CDP 常态）→ 暂存待骨架回捞
+			this.pendingExtra.set(reqId, { ...this.pendingExtra.get(reqId), req: params });
+		}
+	}
+
+	/** F-9a：responseReceivedExtraInfo——Set-Cookie 等网络层真实响应头（responseReceived 骨架不含） */
+	onResponseExtraInfo(params: any): void {
+		const reqId = String(params?.requestId ?? "");
+		if (!reqId) return;
+		const e = this.byId.get(reqId);
+		if (e) {
+			e.responseHeaders = mergeHeaders(e.responseHeaders, params);
+		} else {
+			this.pendingExtra.set(reqId, { ...this.pendingExtra.get(reqId), resp: params });
+		}
 	}
 
 	onResponseReceived(params: any): void {
@@ -175,6 +244,12 @@ export class HarRecorder {
 			case "Network.requestWillBeSent":
 				this.onRequestWillBeSent(params);
 				break;
+			case "Network.requestWillBeSentExtraInfo": // F-9a 替身测试通道
+				this.onRequestExtraInfo(params);
+				break;
+			case "Network.responseReceivedExtraInfo": // F-9a 替身测试通道
+				this.onResponseExtraInfo(params);
+				break;
 			case "Network.responseReceived":
 				this.onResponseReceived(params);
 				break;
@@ -232,7 +307,7 @@ export class HarRecorder {
 						mimeType: e.mimeType,
 						text: e.responseBody ?? "",
 					},
-					redirectURL: "",
+					redirectURL: e.redirectUrl ?? "",
 					headersSize: -1,
 					bodySize: e.responseSize,
 				},
@@ -262,6 +337,9 @@ export class HarRecorder {
 	flush(outputPath: string): void {
 		if (this.flushed) return;
 		this.flushed = true;
+		// F-9a：孤儿 extraInfo 丢弃、索引内存有界（completed/entries 保留供 buildHar）
+		this.byId.clear();
+		this.pendingExtra.clear();
 		try {
 			mkdirSync(dirname(outputPath), { recursive: true });
 			const harJson = JSON.stringify(this.buildHar(), null, 2);

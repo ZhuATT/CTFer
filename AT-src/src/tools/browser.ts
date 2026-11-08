@@ -41,6 +41,9 @@ export class BrowserSession {
 				this.cdpSession.on("Network.requestWillBeSent", (params) => {
 					this.recorder.onRequestWillBeSent(params);
 				});
+				// F-9a：网络层真实头（Cookie/Set-Cookie/部分 Authorization 只在 extraInfo 事件里）
+				this.cdpSession.on("Network.requestWillBeSentExtraInfo", (p) => this.recorder.onRequestExtraInfo(p));
+				this.cdpSession.on("Network.responseReceivedExtraInfo", (p) => this.recorder.onResponseExtraInfo(p));
 				this.cdpSession.on("Network.responseReceived", (params) => {
 					this.recorder.onResponseReceived(params);
 				});

@@ -264,6 +264,11 @@ export function submitFinding(db: Database, args: SubmitFindingArgs): SubmitResu
 	}
 
 	const sha = hashEvidence(taskDir, payload.evidence);
+	// F-10：baseline 证据同算 sha256 存 payload——proof−baseline 归因等式两边都贴防篡改封条。
+	// 豁免型（"不适用——"开头）无文件不算；路径型此时文件必存在（严门 rule 2 已先行验证）。
+	if (!payload.baseline_evidence.startsWith("不适用——")) {
+		payload.baseline_sha256 = hashEvidence(taskDir, payload.baseline_evidence);
+	}
 
 	// noreport 前置（P2-4）：进件时跑，reject 硬拒不入图；suspect 放行但回执带公诉意见
 	// p2fix P2F-2：endpoint 接通 worker 提交的参数（此前硬编码空串，.map 终审规则是死代码）

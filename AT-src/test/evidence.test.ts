@@ -282,4 +282,188 @@ describe("submit_finding 严门回归与契约错误人话化", () => {
 			rmSync(dir, { recursive: true, force: true });
 		}
 	});
+
+	it("F-10：路径型 baseline → payload 含 baseline_sha256（64位hex）；豁免型 → 无该键", () => {
+		const dir = mkdtempSync(join(tmpdir(), "at1-finding-sha-"));
+		const db = openDb(join(dir, "g.db"));
+		try {
+			const { stepIds } = initTask(db, TASK);
+			const evidence = writeEvidenceFile(dir, "proof-sha.txt", "payload proof with hash");
+			const baseline = writeEvidenceFile(dir, "baseline-sha.txt", "匿名对照请求 401 Unauthorized");
+
+			const r1 = submitFinding(db, {
+				taskId: TASK.name,
+				taskDir: dir,
+				stepId: stepIds[0],
+				payload: {
+					summary: "路径型对照的越权漏洞可归因",
+					vulnclass: "越权",
+					severity: "high",
+					poc: "curl -H 'Cookie: user=1001' https://target.example.com/api/user/1002",
+					evidence,
+					baseline_evidence: baseline,
+				},
+			});
+			const p1 = JSON.parse(getNode(db, TASK.name, r1.id)!.payload);
+			expect(p1.baseline_sha256).toMatch(/^[0-9a-f]{64}$/);
+
+			const r2 = submitFinding(db, {
+				taskId: TASK.name,
+				taskDir: dir,
+				stepId: stepIds[0],
+				payload: {
+					summary: "豁免型对照的越权观察另一条",
+					vulnclass: "越权",
+					severity: "low",
+					poc: "curl -H 'Cookie: user=1001' https://target.example.com/api/user/1003",
+					evidence,
+					baseline_evidence: "不适用——已由 proof 与 baseline-sha 双账号直接归因",
+				},
+			});
+			const p2 = JSON.parse(getNode(db, TASK.name, r2.id)!.payload);
+			expect(p2.baseline_sha256).toBeUndefined();
+		} finally {
+			db.close();
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("F-9 HAR 保真：extraInfo 头合并 + 重定向链分条", () => {
+	function skeleton(rec: HarRecorder, id: string, url: string, headers: Record<string, string> = {}) {
+		rec.recordCdpEvent("Network.requestWillBeSent", {
+			requestId: id,
+			wallTime: 1700000000.1,
+			timestamp: 100.0,
+			request: { method: "GET", url, headers },
+		});
+	}
+	const names = (e: any) => Object.fromEntries((e.request?.headers ?? []).map((h) => [h.name.toLowerCase(), h.value]));
+	const respNames = (e: any) => Object.fromEntries((e.response?.headers ?? []).map((h) => [h.name.toLowerCase(), h.value]));
+
+	it("F-9a 骨架先到→extraInfo 后到：Cookie 进 requestHeaders，同名头被 extraInfo 覆盖，伪头剔除", () => {
+		const rec = new HarRecorder();
+		skeleton(rec, "r1", "http://t.example.com/a", { "User-Agent": "ua-1", Accept: "*/*" });
+		rec.recordCdpEvent("Network.requestWillBeSentExtraInfo", {
+			requestId: "r1",
+			headers: { cookie: "foo=bar", "User-Agent": "ua-extra", ":method": "GET" },
+		});
+		rec.recordCdpEvent("Network.loadingFinished", { requestId: "r1", timestamp: 100.2 });
+		const e = rec.buildHar().log.entries[0];
+		const h = names(e);
+		expect(h["cookie"]).toBe("foo=bar");
+		expect(h["user-agent"]).toBe("ua-extra"); // extraInfo=网络层真实值，同名覆盖 base
+		expect(h["accept"]).toBe("*/*"); // base 保留
+		expect(h[":method"]).toBeUndefined(); // 伪头不进 HAR
+	});
+
+	it("F-9a extraInfo 先到→骨架后到（回捞路径）：同样合并成功", () => {
+		const rec = new HarRecorder();
+		rec.recordCdpEvent("Network.requestWillBeSentExtraInfo", { requestId: "r2", headers: { cookie: "sid=xyz" } });
+		skeleton(rec, "r2", "http://t.example.com/b", { Host: "t.example.com" });
+		rec.recordCdpEvent("Network.loadingFinished", { requestId: "r2", timestamp: 100.2 });
+		const h = names(rec.buildHar().log.entries[0]);
+		expect(h["cookie"]).toBe("sid=xyz");
+		expect(h["host"]).toBe("t.example.com");
+	});
+
+	it("F-9a responseReceivedExtraInfo 的 Set-Cookie 进 responseHeaders", () => {
+		const rec = new HarRecorder();
+		skeleton(rec, "r3", "http://t.example.com/c");
+		rec.recordCdpEvent("Network.responseReceived", {
+			requestId: "r3",
+			response: { status: 200, statusText: "OK", protocol: "http/1.1", mimeType: "text/plain", headers: { "Content-Type": "text/plain" } },
+		});
+		rec.recordCdpEvent("Network.responseReceivedExtraInfo", { requestId: "r3", headers: { "set-cookie": "k=v; Path=/" } });
+		rec.recordCdpEvent("Network.loadingFinished", { requestId: "r3", timestamp: 100.2 });
+		const h = respNames(rec.buildHar().log.entries[0]);
+		expect(h["set-cookie"]).toBe("k=v; Path=/");
+		expect(h["content-type"]).toBe("text/plain");
+	});
+
+	it("F-9a 孤儿 extraInfo：flush 不崩、不进产物", () => {
+		const tmp = mkdtempSync(join(tmpdir(), "at1-har-orphan-"));
+		const harPath = join(tmp, "t", "s.har");
+		try {
+			const rec = new HarRecorder();
+			rec.recordCdpEvent("Network.requestWillBeSentExtraInfo", { requestId: "ghost", headers: { cookie: "x=y" } });
+			rec.recordCdpEvent("Network.responseReceivedExtraInfo", { requestId: "ghost", headers: { "set-cookie": "a=b" } });
+			expect(() => rec.flush(harPath)).not.toThrow();
+			const har = JSON.parse(readFileSync(harPath, "utf-8"));
+			expect(har.log.entries).toHaveLength(0);
+		} finally {
+			rmSync(tmp, { recursive: true, force: true });
+		}
+	});
+
+	it("F-9b A(带Cookie)→302(redirectResponse)→B→200：恰好 2 条 entry，A=302+redirectURL+Cookie，B=200", () => {
+		const rec = new HarRecorder();
+		skeleton(rec, "rd", "http://t.example.com/login", { cookie: "prev=1" });
+		// A 跳 extraInfo（byId 仍指 A → 合并进 A）
+		rec.recordCdpEvent("Network.requestWillBeSentExtraInfo", { requestId: "rd", headers: { cookie: "user=a" } });
+		// B 跳骨架带 redirectResponse（A 跳终态捎带）
+		rec.recordCdpEvent("Network.requestWillBeSent", {
+			requestId: "rd",
+			wallTime: 1700000000.5,
+			timestamp: 100.5,
+			request: { method: "GET", url: "http://t.example.com/home", headers: {} },
+			redirectResponse: {
+				status: 302,
+				statusText: "Found",
+				protocol: "http/1.1",
+				mimeType: "text/plain",
+				headers: { Location: "/home", "Set-Cookie": "sess=s1" },
+			},
+		});
+		rec.recordCdpEvent("Network.responseReceived", {
+			requestId: "rd",
+			response: { status: 200, statusText: "OK", protocol: "http/1.1", mimeType: "text/html", headers: { "Content-Type": "text/html" } },
+		});
+		rec.recordCdpEvent("Network.loadingFinished", { requestId: "rd", timestamp: 101.0 });
+		const har = rec.buildHar();
+		expect(har.log.entries).toHaveLength(2);
+		const [a, b] = har.log.entries;
+		expect(a.response.status).toBe(302);
+		expect(a.response.redirectURL).toBe("/home");
+		expect(names(a)["cookie"]).toBe("user=a"); // extraInfo 同名覆盖骨架值
+		expect(respNames(a)["set-cookie"]).toBe("sess=s1");
+		expect(names(b)["cookie"]).toBeUndefined(); // B 换新条目，A 的 extraInfo 不串
+		expect(b.response.status).toBe(200);
+	});
+
+	it("F-9b 三跳链 A→B→C：3 条 entry 逐跳齐全", () => {
+		const rec = new HarRecorder();
+		skeleton(rec, "c3", "http://t.example.com/a");
+		rec.recordCdpEvent("Network.requestWillBeSent", {
+			requestId: "c3",
+			wallTime: 1700000000.2,
+			timestamp: 100.2,
+			request: { method: "GET", url: "http://t.example.com/b", headers: {} },
+			redirectResponse: { status: 301, statusText: "Moved", protocol: "http/1.1", mimeType: "text/plain", headers: { Location: "/b" } },
+		});
+		rec.recordCdpEvent("Network.requestWillBeSent", {
+			requestId: "c3",
+			wallTime: 1700000000.3,
+			timestamp: 100.3,
+			request: { method: "GET", url: "http://t.example.com/c", headers: {} },
+			redirectResponse: { status: 302, statusText: "Found", protocol: "http/1.1", mimeType: "text/plain", headers: { Location: "/c" } },
+		});
+		rec.recordCdpEvent("Network.responseReceived", {
+			requestId: "c3",
+			response: { status: 200, statusText: "OK", protocol: "http/1.1", mimeType: "text/html", headers: {} },
+		});
+		rec.recordCdpEvent("Network.loadingFinished", { requestId: "c3", timestamp: 100.9 });
+		const har = rec.buildHar();
+		expect(har.log.entries).toHaveLength(3);
+		expect(har.log.entries.map((e: any) => e.request.url)).toEqual([
+			"http://t.example.com/a",
+			"http://t.example.com/b",
+			"http://t.example.com/c",
+		]);
+		expect(har.log.entries[0].response.status).toBe(301);
+		expect(har.log.entries[0].response.redirectURL).toBe("/b");
+		expect(har.log.entries[1].response.status).toBe(302);
+		expect(har.log.entries[1].response.redirectURL).toBe("/c");
+		expect(har.log.entries[2].response.status).toBe(200);
+	});
 });

@@ -61,6 +61,7 @@ export const FindingPayload = z.object({
 		)
 		.max(500),
 	baseline_note: z.string().max(1000).optional(),
+	baseline_sha256: z.string().optional(), // F-10：baseline 证据也进哈希（zod 默认 strip 未知键，必须显式声明）
 	endpoint: z.string().max(500).optional(),
 	retest: z
 		.object({
