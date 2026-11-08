@@ -3,7 +3,7 @@
 > **定位**：P4pre 双小批（`1cf8eae` 竣工，148 绿）之后的**验收修复批**。来源=2026-10-23 对竣工结果的批判性审查 + 四项离线实测（真工具+真 catalog 重跑 14 条 query；1304 个 section 行号对账；30k 截断影响面量化；dist 产物核验）。修复批不改 P4pre 的架构决策（LLM 全量卡片/薄工具/CDP HAR/baseline 严门全部保留），只修链路断裂、装配错配、产物陈旧与验收声明与事实的偏差。
 > **上游**：`P4pre-知识库与证据批施工计划.md` §7（竣工记录）；`图与基底重构设计.md` §4.6（微纪律住工具描述）/§4.4（工具面）。
 > **基线**：`a18551b`（148 绿 + tsc --noEmit 干净）。
-> **状态**：✅ 竣工（2026-11-08 施工完成：commit1=`d789737` A组 / commit2=`0594bca` B组 / commit3=`a67456f` F-7c / commit4=`adac22e` C组管线+99篇重跑产物；161 绿 + tsc 干净；F-8 微烟测修前证实预判、修后回归过；唯一留拍项 F-3 preflight 加成按默认"不做"处理）。下一步=真实环境实跑（目标由操作员提供，前置=canary 剧本与通过线成稿）。
+> **状态**：✅ 竣工（2026-11-08 施工完成：commit1=`bff8afa` A组 / commit2=`d9b448e` B组 / commit3=`7e3540f` F-7c / commit4=`192674f` C组管线+99篇重跑产物；161 绿 + tsc 干净；F-8 微烟测修前证实预判、修后回归过；唯一留拍项 F-3 preflight 加成按默认"不做"处理）。下一步=真实环境实跑（目标由操作员提供，前置=canary 剧本与通过线成稿）。
 > **与 P4 的关系**：零代码交集不变。顺序=P4pre-fix 三组施工 → F-8 微烟测 → **真实环境实跑**（目标后供，canary 剧本届时成稿）→ P4 开工。本地 B 靶 S1 式复跑取消（FD14）。
 
 ---
@@ -79,7 +79,7 @@
 
 ## 1. 施工卡（A 组：实跑前必修，一次提交）
 
-### F-1 Read 工具双根 + offset/limit 行窗口（FD2）✅d789737
+### F-1 Read 工具双根 + offset/limit 行窗口（FD2）✅bff8afa
 
 **背景**：① 路径守卫 resolveInside 只认 taskDir，search_knowledge 输出的 `knowledge/skills/x.md` 从 taskDir 解析必报"文件不存在"，`../../` 修正又被守卫拒；② Read 只有 path 参数，检索输出里"[L412] 再用 Read(offset,limit) 精读"指向不存在的调用方式；③ 整读 64KB 截断，336KB 长文档后段不可达。148 绿对这条链零覆盖；worker 唯一活路是 Bash sed -n + 猜相对布局，不可靠、浪费回合。
 
@@ -115,7 +115,7 @@ const KNOWLEDGE_PREFIX = "knowledge/";
 **真机闭环**：挂真实环境首跑（FD14 挂账③）。
 **禁止**：不动 resolveInside 本体；不动 Write/Bash；不新增依赖。
 
-### F-2 引导句条件渲染 + 知识库寻址去 cwd（FD3）✅d789737
+### F-2 引导句条件渲染 + 知识库寻址去 cwd（FD3）✅bff8afa
 
 **背景**：引导句"不熟的漏洞类…先 search_knowledge 查章节地图再按行号精读"在 worker step prompt 无条件渲染（agent.ts L138），工具注册却在 isKnowledgeReady() 条件后（agent.ts L178）——该函数查 `process.cwd()/knowledge/catalog.json`，取决于进程从哪个目录启动。装配失败时 prompt 仍教模型调不存在的工具——静默错配，排查时会错怪模型。
 
@@ -139,7 +139,7 @@ it("knowledgeReady=false → 无引导句；true → 有", () => {
 **验收命令**：`npx vitest --run test/knowledge.test.ts`；去 cwd 验证（build 后任意目录）——`cd %TEMP% && node -e "import('file:///D:/Downloads/hacker/at1-github/AT-src/dist/tools/knowledge.js').then(m=>console.log(m.isKnowledgeReady()))"` 应打印 true（Windows cmd）。注意：**不要**在 vitest 里用 process.chdir 验证（threads 模式 chdir 是进程级，会污染并行测试）。
 **禁止**：不动 planner.ts/planner-prompt.ts（那是 F-5 的活）；isKnowledgeReady 的 customPath 参数保留。
 
-### F-3 启动即构建 + 清理孤儿产物（FD4）✅d789737（preflight 加成未做，按默认）
+### F-3 启动即构建 + 清理孤儿产物（FD4）✅bff8afa（preflight 加成未做，按默认）
 
 **原因**：项目有三条互不相干的路径，P4pre 验收只走了后两条——
 
@@ -170,7 +170,7 @@ ls dist/tools/submit-fact.js   # 期望：No such file（僵尸产物已清）
 ```
 **禁止**：不动 tsconfig；不新增 npm 依赖（rimraf 等）；不改 index.ts 代码（纯 package.json 卡）。
 
-### F-4 知识工具文案两处修正（FD5 + HAR 描述句）✅d789737
+### F-4 知识工具文案两处修正（FD5 + HAR 描述句）✅bff8afa
 
 **F-4a formatSearchResults 纪律句删除**
 
@@ -188,7 +188,7 @@ ls dist/tools/submit-fact.js   # 期望：No such file（僵尸产物已清）
 
 **禁止**：不动 validateBaselineEvidence 三规则；不动 baseline_note 参数。
 
-### F-5 planner 侧 search_knowledge 砍除（FD6，修订 D3）✅d789737
+### F-5 planner 侧 search_knowledge 砍除（FD6，修订 D3）✅bff8afa
 
 **背景**：planner 工具面无任何读文件工具，检索到卡片也无法精读，最多把技能名写 note（glm-5.3 xhigh 凭自身知识即可）；每次唤醒多一句引导+工具面多一项+0 命中账本多一个来源，预期使用率≈0，纯成本。
 
@@ -205,7 +205,7 @@ npm test && npx tsc --noEmit
 ```
 **禁止**：不动 agent.ts 的 worker 侧装配；不动 knowledge.ts。
 
-### F-11 PI-prompt.md 同步收编（FD12，随 A 组同批提交）✅d789737
+### F-11 PI-prompt.md 同步收编（FD12，随 A 组同批提交）✅bff8afa
 
 **背景**：A 组多项修复改变 prompt/工具描述现行文案，`docs/PI-prompt.md` 是 prompt 现行汇编唯一真相源，不同步则文档与现实分叉，后续调优失去基线。
 
@@ -271,7 +271,7 @@ private pendingExtra = new Map<string, { req?: any; resp?: any }>(); // 早到 e
 ```
 维护点仅两处：onRequestWillBeSent 建/换条目时 `this.byId.set(reqId, entry)`；flush() 内（置 flushed 后）`this.byId.clear(); this.pendingExtra.clear();`（孤儿丢弃、内存有界）。其余生命周期方法零改动。内存可忽略（条目本就在 completed，只多指针）。
 
-#### F-9a extraInfo 头合并（~25 行）✅0594bca
+#### F-9a extraInfo 头合并（~25 行）✅d9b448e
 
 **背景**：CDP 把一次请求拆两个事件——requestWillBeSent=骨架（URL/方法/多数头），requestWillBeSentExtraInfo=网络层真实发包头（**Cookie、部分 Authorization**）；响应侧 responseReceivedExtraInfo 携带 Set-Cookie。现代码只听骨架（browser.ts L44-62）→ HAR 所有请求无 Cookie 头：身份归因核心缺失，越权证明无法自证，curl -b 无法重放同身份。
 
@@ -301,7 +301,7 @@ this.cdpSession.on("Network.responseReceivedExtraInfo", (p) => this.recorder.onR
 **验收命令**：`npx vitest --run test/evidence.test.ts && npx tsc --noEmit`；F-8 修后跑核①（Cookie 在场）。
 **禁止**：不动 Network.enable 参数（5MB 缓冲边界是观察项）；不动 getResponseBody/body 逻辑。
 
-#### F-9b 重定向链分条（~20 行）✅0594bca
+#### F-9b 重定向链分条（~20 行）✅d9b448e
 
 **背景**：CDP 对重定向**复用同一 requestId**——A→302→B 时 requestWillBeSent 带同一 id 再发一次（内容为 B），A 的完整响应放在参数 redirectResponse 字段捎带。现代码收到第二次事件直接 `entries.set` 覆盖旧条目（har.ts L112 附近）→ A 跳的请求（含 Cookie/POST body）与响应全丢：HAR 里 A→302→B→302→C 只剩 C，而丢失的 A 跳常是登录提交（302 多发生在 POST 后），恰是最需要证据的那条。
 
@@ -341,7 +341,7 @@ if (prev && rd) {
 
 **明确不修（观察项）**：① body 逐出——`maxResourceBufferSize` 5MB 上限下资源多的页面旧 body 被挤掉（`browser.ts:38`），渗透关心 API 响应不关心图片；② dispose 时在飞的 getResponseBody 竞态丢一两个 body——影响极小。
 
-### F-10 baseline 证据哈希（FD11，~3 行）✅0594bca
+### F-10 baseline 证据哈希（FD11，~3 行）✅d9b448e
 
 **背景**：evidence_sha256 只对 proof 的 evidence 计算（graph.ts submitFinding 内 `const sha = hashEvidence(taskDir, payload.evidence)`，约 L266），baseline_evidence 指向的对照文件不进哈希——翻案/复测时可替换对照文件而图内无感知，proof−baseline 归因的后半边裸奔。
 
@@ -366,7 +366,7 @@ if (!payload.baseline_evidence.startsWith("不适用——")) {
 
 ## 3. 施工卡（C 组：离线管线，不阻塞 A/B 组施工，但须先于真实环境批完成）
 
-### F-6a gen-cards 输入改"全文标题清单 + 前 30k 正文"（FD9）✅adac22e
+### F-6a gen-cards 输入改"全文标题清单 + 前 30k 正文"（FD9）✅192674f
 
 **背景**：生成输入=文档前 30,000 字符（gen-cards.mjs L183 `mdContent.slice(0, 30_000)`），实测 99 篇中 **30 篇超 30k**（injection-deser 62% 标题在截断线后 / logic-race 78% / crypto-attacks 71% / offensive-windows-mitigations 92%——511KB 只看到前 6%）；卡片中来自 30k 之后的章节数=0（全部 30 篇无一例外）。worker 查深部概念→卡片命中但 section_map 无行号→退回手动 grep；兜底全文扫描救不了（仅 99 卡全零分时触发）。
 
@@ -392,7 +392,7 @@ await agent.prompt(
 备选（不推荐，触发判据挂账真实环境批）：>30k 文档分块多次调用合并，成本 3-5 倍，收益仅深部 what 更准。
 **禁止**：不动 cards schema/normalizeCardJson；不动重试与并发逻辑。
 
-### F-6b runSmokeCheck 换真实现（FD7）✅adac22e
+### F-6b runSmokeCheck 换真实现（FD7）✅192674f
 
 **背景**：gen-cards 末尾 smoke 打分器（gen-cards.mjs L302-344）是手抄简化副本——空格分词、无中文 bigram、计分与真工具不同。已发生事故：竣工记录 §7.2 的 smoke 出自副本，SSRF query top1 记成 open-redirect/waf-bypass（错），真工具实测 offensive-ssrf:53 第一（对）。两份计分逻辑=永久漂移源。
 
@@ -421,7 +421,7 @@ async function runSmokeCheck() {
 **验收**：`npm run build && node scripts/gen-cards.mjs --file ad-attacks`（单篇轻跑触发 smoke）→ 输出中 `SSRF bypass cloud metadata` 的 top1=offensive-ssrf（与真工具实测一致）。
 **禁止**：不删 SMOKE_QUERIES；不新抄计分逻辑。
 
-### F-7 build-knowledge 双警告（FD10，卫生级）✅adac22e
+### F-7 build-knowledge 双警告（FD10，卫生级）✅192674f
 
 **F-7a unmatched-heading 警告**
 
@@ -445,7 +445,7 @@ async function runSmokeCheck() {
 - **验收**：改一张 cards/*.json 后只跑 `node scripts/gen-cards.mjs --file <name>` → catalog 自动同步（mtime 变新）；`node scripts/build-knowledge.mjs` 单独跑时能报出人工改卡不 build 的 stale。
 - **禁止**：不自动改写 card/md 内容。
 
-### F-7c（顺手，1 个脚本）D6 源路径标注落地（FD13 已拍板：加行）✅a67456f
+### F-7c（顺手，1 个脚本）D6 源路径标注落地（FD13 已拍板：加行）✅7e3540f
 
 **背景**：D6 拍板"26 自有 skill 头部标注源路径"未实施（privesc-linux.md 等直接 frontmatter 开头）——hacker→AT-src 单向快照的溯源约定空转，两侧漂移无法对账。
 
