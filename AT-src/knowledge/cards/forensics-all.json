@@ -1,80 +1,88 @@
 {
-  "use_when": "在CTF取证题或应急响应事件中需要对内存镜像、隐写载体文件与流量抓包进行深度取证分析时阅读本篇，重点涵盖Volatility 2/3隐藏进程与代码注入检测、凭据提取、LSB/PNG CRC尺寸修复/频谱图/零宽字符隐写及PCAP流量分析，区别于漏洞利用类技能，聚焦事后取证与隐藏数据提取。",
+  "use_when": "在CTF取证题或应急响应中需要对内存镜像、隐写文件、抓包流量进行取证分析时阅读本篇，重点涵盖Volatility 2/3十步分析法（隐藏进程DKOM检测/代码注入malfind/rootkit排查/凭证提取）、图像音频文本隐写（LSB/PNG CRC尺寸爆破/零宽字符/steghide爆破）及Wireshark协议分析（TLS解密/DNS隧道/USB HID键盘还原/文件雕刻），区别于漏洞利用与攻击向类技能。",
   "triggers": [
     "内存取证",
-    "memory forensics",
+    "Memory Forensics",
     "Volatility",
     "malfind",
     "DKOM",
     "隐藏进程",
     "hashdump",
-    "mimikatz",
-    "rootkit",
+    "凭证提取",
     "隐写",
+    "Steganography",
     "LSB隐写",
     "zsteg",
     "steghide",
-    "stegseek",
-    "频谱图",
     "零宽字符",
+    "频谱图",
     "binwalk",
-    "polyglot",
-    "PNG CRC",
-    "流量分析"
+    "流量分析",
+    "PCAP",
+    "Wireshark",
+    "DNS隧道"
   ],
-  "vulnclass": "信息泄露",
+  "vulnclass": "其他",
   "section_map": [
     {
       "heading": "1. MEMORY ACQUISITION",
-      "what": "使用LiME、WinPmem、DumpIt、AVML等工具从物理机与VMware/VirtualBox/KVM虚拟机获取内存镜像"
+      "what": "使用LiME/AVML/WinPmem/DumpIt及VMware .vmem、VBoxManage、virsh dump等提取物理机与虚拟机内存镜像"
     },
     {
       "heading": "2. VOLATILITY 2 vs 3",
-      "what": "Vol2与Vol3在Profile体系、插件命名及安装方式上的对照与迁移差异"
+      "what": "Vol2 --profile与Vol3自动符号表的差异及pslist/netscan/malfind等插件命名对照"
     },
     {
       "heading": "3. ANALYSIS METHODOLOGY",
-      "what": "十步分析流程：OS识别、pslist/psscan隐藏进程、netscan网络连接、ldrmodules、malfind注入检测、hashdump/lsadump凭据提取、filescan取文件、注册表与命令历史、时间线生成"
+      "what": "十步分析法：OS识别、pslist对比psscan隐藏进程、netscan网络连接、ldrmodules、malfind注入检测、hashdump凭证、filescan/dumpfiles提取、注册表、命令历史与时间线生成"
     },
     {
       "heading": "4. LINUX MEMORY ANALYSIS",
-      "what": "Linux内存分析插件（linux_bash/linux_check_syscall等）、Vol2自制Linux Profile构建及rootkit与系统调用挂钩检测"
+      "what": "linux_bash/linux_check_syscall/linux_check_afinfo等Linux插件用法及Vol2手工编译Linux profile"
     },
     {
       "heading": "5. MALWARE INDICATORS IN MEMORY",
-      "what": "内存恶意软件指标对照表：DKOM隐藏进程、伪造svchost、MZ头注入、RWX无文件内存、SSDT/IDT挂钩，及Windows正常父子进程关系基线"
+      "what": "内存恶意软件指标判定：DKOM隐藏、伪svchost父子关系异常、RWX无文件shellcode、SSDT/IDT hook rootkit"
     },
     {
-      "heading": "6. DECISION TREE",
-      "what": "按恶意软件调查、凭据恢复、事件时间线、CTF找flag与Linux场景选择对应Volatility插件的决策树"
+      "heading": "1. COMMAND COMPARISON TABLE",
+      "what": "Vol2与Vol3在进程、DLL、网络、凭证、文件、注册表、rootkit/hooking、时间线上的全量插件速查对照"
     },
     {
       "heading": "2. COMMON INVESTIGATION SEQUENCES",
-      "what": "恶意软件快速分诊、完整取证、凭据提取、应急响应时间线与CTF挑战的常用Vol3插件组合序列"
+      "what": "恶意软件快速分诊、完整取证、凭证提取、应急时间线、CTF找flag、Linux rootkit检测的标准插件执行序列"
     },
     {
       "heading": "1. IMAGE STEGANOGRAPHY",
-      "what": "图像隐写：zsteg/StegSolve的LSB位平面分析、PNG隐藏chunk与CRC尺寸爆破修复、steghide/jsteg的JPEG DCT隐写、EXIF元数据与GIF调色板手法"
+      "what": "zsteg/StegSolve/stegoveritas的LSB分析、PNG隐藏chunk与CRC尺寸爆破、steghide/jsteg JPEG隐写、EXIF元数据、GIF调色板"
     },
     {
       "heading": "2. AUDIO STEGANOGRAPHY",
-      "what": "音频隐写：Sonic Visualiser/sox频谱图、WavSteg音频LSB、DTMF/摩斯码/SSTV解码及WAV头部附加数据检测"
+      "what": "Sonic Visualiser/Audacity频谱图查看、WavSteg音频LSB、multimon-ng DTMF解码、摩斯码、SSTV及WAP追加数据检测"
     },
     {
       "heading": "3. FILE STEGANOGRAPHY",
-      "what": "文件隐写：polyglot复合文件识别、binwalk/foremost/dd嵌入数据提取、NTFS交换数据流（ADS）及stegseek/stegcracker口令爆破"
+      "what": "多态文件识别、binwalk/foremost/dd嵌入数据提取、NTFS备用数据流ADS、stegcracker/stegseek口令爆破"
     },
     {
       "heading": "4. TEXT STEGANOGRAPHY",
-      "what": "文本隐写：stegsnow空白字符编码、零宽Unicode字符（ZWSP/ZWNJ/ZWJ）与同形异义字（homoglyph）检测"
+      "what": "stegsnow空白字符编码、零宽Unicode字符（U+200B/ZWNJ/ZWJ）二进制解码、同形字homoglyph检测"
     },
     {
-      "heading": "1. MULTI-PURPOSE TOOLS",
-      "what": "stegoveritas一键自动化隐写分析、binwalk签名扫描与熵分析、foremost文件雕刻的安装与用法"
+      "heading": "2. WIRESHARK ESSENTIAL FILTERS",
+      "what": "按IP/主机、协议、TCP流、HTTP、DNS、TLS及内容搜索的Wireshark显示过滤语法速查"
     },
     {
-      "heading": "2. IMAGE TOOLS",
-      "what": "zsteg位平面提取、StegSolve颜色平面可视化、steghide嵌入提取与stegseek高速爆破的图像隐写工具详解"
+      "heading": "3. PROTOCOL ANALYSIS",
+      "what": "HTTP流跟踪与对象导出、SSLKEYLOGFILE/私钥解密TLS、DNS隧道识别、FTP明文凭证、SMTP邮件提取、USB HID键码还原、WPA握手抓取、ICMP数据外传检测"
+    },
+    {
+      "heading": "4. DATA EXTRACTION",
+      "what": "Export Objects文件雕刻、明文与NTLMSSP凭证收集（hashcat -m 5600格式）及隐蔽通道检测"
+    },
+    {
+      "heading": "6. TSHARK COMMAND-LINE ANALYSIS",
+      "what": "tshark命令行按字段提取与流量统计分析用法"
     }
   ]
 }

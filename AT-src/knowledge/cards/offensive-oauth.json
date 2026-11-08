@@ -1,88 +1,88 @@
 {
-  "use_when": "在渗透测试或漏洞赏金中评估 Web 应用 OAuth 2.0/OIDC 第三方登录与授权实现的安全性时阅读本篇，重点涵盖 redirect_uri 绕过、state 缺失 CSRF、PKCE 绕过、授权码注入及开放重定向链至账户接管的完整手法，区别于普通登录接口的单点逻辑漏洞测试。",
+  "use_when": "在渗透测试与漏洞赏金中需要审计 Web/移动应用第三方登录（OAuth 2.0/OIDC）与开放授权实现安全性时阅读本篇，重点涵盖 redirect_uri 绕过、state 参数 CSRF、PKCE 绕过、授权码劫持/注入、scope 提权、token 泄露及账号接管利用链与 Burp/JWT_Tool 实战手法，区别于普通表单登录与 Session 类认证漏洞的通用测试。",
   "triggers": [
-    "OAuth 2.0",
+    "OAuth",
     "OAuth攻击",
     "OIDC",
     "授权码",
     "authorization code",
-    "redirect_uri bypass",
+    "授权码劫持",
+    "code substitution",
+    "授权码注入",
     "redirect_uri绕过",
-    "开放重定向",
+    "redirect_uri bypass",
     "state参数",
     "OAuth CSRF",
-    "PKCE bypass",
     "PKCE绕过",
-    "scope escalation",
-    "权限范围提升",
-    "token leakage",
-    "令牌泄露",
-    "账户接管",
+    "scope提权",
+    "token泄露",
+    "开放重定向",
+    "账号接管",
     "account takeover",
-    "授权码注入",
+    "强制账号绑定",
     "JWT算法混淆"
   ],
   "vulnclass": "认证绕过",
   "section_map": [
     {
       "heading": "Mechanisms",
-      "what": "OAuth 2.0 授权码/客户端凭证等核心流程、四方角色令牌体系及 PAR/JAR/JARM/DPoP/mTLS 加固扩展机制"
+      "what": "OAuth 2.0/OIDC 授权机制、四种核心角色、授权码/客户端凭证等流程与 PAR/JAR/JARM/DPoP/mTLS 加固扩展速览"
     },
     {
       "heading": "OAuth/OIDC Considerations",
-      "what": "PKCE 全场景强制、nonce/state 绑定、redirect_uri 精确匹配与令牌 aud/azp/iss 校验等安全审计要点"
+      "what": "PKCE 强制、nonce/state 绑定、redirect_uri 精确匹配、aud/iss 校验与刷新令牌轮换等 OIDC 审计要点"
     },
     {
       "heading": "OAuth 2.1 Updates",
-      "what": "OAuth 2.1 废弃隐式流程与密码授权、全客户端强制 PKCE 及刷新令牌发送方约束等新规变化"
-    },
-    {
-      "heading": "Financial-grade API (FAPI) Security",
-      "what": "FAPI 1.0/2.0 金融级安全配置中 JAR 签名请求、混合流程、mTLS 绑定令牌与 PAR/DPoP 要求"
+      "what": "OAuth 2.1 弃用 Implicit/ROPC、全员强制 PKCE 与精确重定向匹配等新规对漏洞判定的影响"
     },
     {
       "heading": "Hunt",
-      "what": "Burp/ZAP 拦截 OAuth 流量后篡改 redirect_uri、删除 state、测试 PKCE 与排查 client secret 泄露的挖掘步骤"
+      "what": "用 Burp/ZAP 截获 OAuth 流量并篡改 redirect_uri、剔除 state、测试 PKCE 与密钥泄露的挖掘清单"
     },
     {
       "heading": "Authorization Code Flow",
-      "what": "授权码流程 authorization 请求与 callback 回调参数格式及后端以 code 换 token 的交互时序"
+      "what": "授权码流程 response_type=code 的请求/回调参数格式与时序及后端换取令牌过程"
     },
     {
       "heading": "Implicit Flow",
-      "what": "隐式流程 access_token 经 URL fragment 直接返回前端导致令牌暴露的高危处理分析"
+      "what": "隐式流程 response_type=token 在 URL fragment 直接返回 access token 的高危前端令牌处理面分析"
     },
     {
       "heading": "Vulnerabilities",
-      "what": "redirect_uri 校验缺陷、CSRF、Referer 令牌泄露、scope 提升、JWT 弱校验、会话固定等 OAuth 漏洞全景清单"
+      "what": "redirect_uri 校验不当、CSRF、token 泄露、scope 提升、账号接管与 JWT 缺陷等 OAuth 漏洞全景清单"
     },
     {
       "heading": "Authorization Code Injection / Code Substitution",
-      "what": "将受害者授权码注入攻击者会话以绑定其账号的代码替换攻击及 state/nonce 与 PKCE 防御"
+      "what": "将受害者授权码注入攻击者会话以绑定其账号的手法及 state-nonce 绑定与 PKCE 缓解"
     },
     {
       "heading": "Method 1: Auth Bypass in OAuth Implicit Flow",
-      "what": "隐式流程中保留 access token 仅篡改 email/username 参数冒充其他用户的认证绕过手法"
+      "what": "隐式流程下保留 access token 篡改 email/username 参数冒充其他用户的认证绕过手法"
     },
     {
       "heading": "Method 2: Forced Profile Linking",
-      "what": "利用账号绑定接口缺失 state 参数构造 CSRF 将攻击者社交账号强制绑定至受害者账户"
+      "what": "利用缺失 state 的授权 URL 构造 CSRF 将攻击者社交账号强制绑定到受害者账户"
     },
     {
       "heading": "Method 3: Account Hijacking via redirect_uri",
-      "what": "篡改 redirect_uri 指向攻击者 webhook 截获授权码并完成 OAuth 流程接管受害者账户"
+      "what": "篡改 redirect_uri 指向攻击者 webhook 窃取授权码并完成账户劫持的完整利用步骤"
     },
     {
       "heading": "Methodologies",
-      "what": "Burp OAuth Scanner、JWT_Tool 等工具清单与流量操纵、令牌重放、PAR 端点利用、DPoP 校验测试等技术"
+      "what": "Burp OAuth Scanner、OWASP ZAP、JWT_Tool 等工具及流量操纵、重放、token 交换与 DPoP/mTLS 校验测试技术"
     },
     {
-      "heading": "Chaining and Escalation",
-      "what": "开放重定向窃取授权码、CSRF 绑号、XSS 偷 token、JWT RS256/HS256 算法混淆、SSRF 打云元数据及 token exchange 横向移动组合链"
+      "heading": "OAuth → Full Account Takeover",
+      "what": "开放重定向窃取授权码、CSRF 强绑社交账号、XSS 偷 localStorage 令牌三条通往完整账号接管的利用链"
     },
     {
-      "heading": "Remediation Recommendations",
-      "what": "落地 OAuth 2.1、强制加密随机 state、严格校验 aud/iss/exp、短期令牌、刷新令牌轮换与 DPoP/mTLS 绑定等修复方案"
+      "heading": "OAuth → Lateral Movement",
+      "what": "RFC 8693 token 交换冒充服务、刷新令牌换发 scope 提权与多租户 IdP 混淆实现跨租户横向移动"
+    },
+    {
+      "heading": "OAuth → Backend Exploitation",
+      "what": "RS256→HS256 算法混淆伪造 JWT、借 redirect_uri 触发 SSRF 打云元数据及无绑定令牌重放劫持会话"
     }
   ]
 }

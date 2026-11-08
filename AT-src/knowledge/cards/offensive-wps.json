@@ -1,68 +1,76 @@
 {
-  "use_when": "在无线渗透中对家用/SOHO路由器发起 Wi-Fi WPS PIN 攻击时阅读本篇，重点涵盖 wash 扫描发现 WPS AP、Pixie Dust 离线秒破 PIN（Ralink/Realtek/Broadcom/MediaTek 脆弱芯片组）、reaver/bully 在线爆破与锁定规避、PBC 按键窗口利用及由 PIN 直接推导 PSK，区别于抓 WPA 握手包跑字典的常规破解路径。",
+  "use_when": "在针对家用路由器/ISP 设备的无线渗透中需要攻击开启 WPS 的接入点、恢复 PIN 并推导 WPA PSK 时阅读本篇，重点涵盖 wash 探测、Pixie Dust 离线攻击、reaver/bully 在线爆破、锁定绕过、PBC 按键窗口与 wpspin 厂商默认 PIN 推算，区别于抓取 WPA 四次握手后离线跑字典的常规破解思路。",
   "triggers": [
     "WPS",
-    "WPS PIN攻击",
+    "WPS PIN",
+    "WPS破解",
+    "Wi-Fi Protected Setup",
     "Pixie Dust",
     "Pixie Dust攻击",
-    "尘埃攻击",
-    "离线破解PIN",
+    "离线PIN破解",
     "reaver",
     "bully",
     "wash",
     "pixiewps",
-    "WPS在线爆破",
-    "WPS lockout",
-    "锁定绕过",
-    "PBC",
-    "按键配对",
     "wpspin",
-    "默认PIN推算",
-    "PIN推导PSK",
-    "EAPOL-Start",
-    "airodump-ng"
+    "在线爆破",
+    "WPS锁定",
+    "lockout",
+    "PBC",
+    "Push-Button",
+    "推按钮配对",
+    "WPA PSK",
+    "EAPOL-Start"
   ],
-  "vulnclass": "网络与内网",
+  "vulnclass": "认证绕过",
   "section_map": [
     {
+      "heading": "WPS PIN Attacks",
+      "what": "总述 8 位 PIN 拆分为两半加校验位致仅 1.1 万有效组合的弱设计及攻击总览"
+    },
+    {
       "heading": "Quick Workflow",
-      "what": "WPS 攻击决策流程：先扫描发现，优先尝试 Pixie Dust 离线攻击，芯片组不可行时再评估在线爆破与锁定策略"
+      "what": "四步攻击流程：探测 WPS AP、优先 Pixie Dust 离线攻击、评估锁定策略下的在线爆破可行性、爆破兜底"
     },
     {
       "heading": "Detection",
-      "what": "使用 wash 与 airodump-ng --wps 扫描发现启用 WPS 的 AP 及其版本、锁定状态、配置状态与厂商信息"
+      "what": "用 wash 或 airodump-ng --wps 扫描开启 WPS 的 AP 及其版本、Locked 状态与厂商信息"
     },
     {
       "heading": "Pixie Dust (Offline)",
-      "what": "利用脆弱芯片组弱随机数生成离线恢复 WPS PIN，reaver -K 1 / bully 捕获一轮 M1-M4 握手即离线算出 PIN 与 PSK"
+      "what": "利用芯片组弱 nonce 生成缺陷离线恢复 PIN：reaver -K 1 与 bully 命令及 Ralink/Realtek/Broadcom/MediaTek 受影响对照表"
     },
     {
       "heading": "Online PIN Brute-Force",
-      "what": "reaver 在线逐个尝试 PIN（EAPOL-Start→M1-M7 交互），通过 -d/-t/-r 参数控制节奏规避检测"
+      "what": "reaver 在线模式逐 PIN 发起 EAPOL-Start/M1-M3 交换的爆破命令与 -L/-N/-d/-t/-T/-r 各标志位详解"
     },
     {
       "heading": "Lockout Handling",
-      "what": "识别 AP 锁定状态（EAPOL 无响应、beacon Locked 标志）并采用等待自动解锁、重启 AP、低流量时段分散尝试等绕过策略"
+      "what": "识别 AP 锁死信号（EAPOL 无响应、beacon Locked 标志翻转）及等待自动解锁、重启 AP、错峰分散尝试的绕过策略"
     },
     {
       "heading": "Time Estimate",
-      "what": "估算在线爆破 11000 种有效 PIN 组合的耗时及锁定策略带来的 5-20 倍时间放大影响"
+      "what": "在线爆破 1.1 万次尝试的最优/现实耗时估算与锁定惩罚倍数对比"
     },
     {
       "heading": "Push-Button (PBC) Method",
-      "what": "利用按键配对的 120 秒无 PIN 接入窗口，或探测部分 AP 常开 PBC 窗口漏洞直接发起配对"
+      "what": "利用 AP 按键后 120 秒免 PIN 配对窗口，用 reaver -p 00000000 -P 触发 PBC 关联测试永久窗口漏洞"
     },
     {
       "heading": "PIN-Default Patterns",
-      "what": "用 wpspin 基于 BSSID/MAC+序列号推算厂商默认 PIN（Belkin/ZyXEL/Linksys 命中率高），优先于暴力破解"
+      "what": "基于 BSSID/MAC+序列号的厂商算法用 wpspin 计算默认 PIN 候选优先于爆破尝试"
     },
     {
       "heading": "Detection Considerations",
-      "what": "防御视角对照：WIPS 规则、PIN 失败锁定标志、审计日志对各类 WPS 攻击的检测能力，指出 Pixie Dust 在线侧不可检测"
+      "what": "防御视角攻击信号对照：WIPS 快速 WPS 交换规则、PIN 失败激增、Pixie Dust 离线攻击的不可检测性"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "完整命令速查：airmon-ng 建监听、wash 扫描、Pixie Dust 优先、厂商默认 PIN、在线爆破兜底到 M7 报文取 PSK"
+      "what": "六步实战命令速查：开监听、wash 找目标、Pixie Dust、厂商 PIN 候选、在线爆破、由 M7 消息自动推导 PSK"
+    },
+    {
+      "heading": "Key References",
+      "what": "pixiewps、reaver-wps-fork-t6x、bully 工具仓库及 Pixie Dust 原始披露文献（Bongard, 2014）索引"
     }
   ]
 }

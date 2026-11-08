@@ -1,76 +1,84 @@
 {
-  "use_when": "在授权内网渗透测试中需要评估二层/三层网络攻击面、劫持流量并截获凭据时阅读本篇，重点涵盖ARP欺骗、LLMNR/NBT-NS/mDNS投毒、NTLM中继、VLAN跳跃、DHCP饥饿与流氓DHCP、802.1X/NAC绕过及IPv6 SLAAC劫持等手法与Bettercap、Responder、ntlmrelayx、mitm6、Yersinia工具链，区别于Web应用层漏洞利用，聚焦网络基础设施未认证信任机制的滥用与横向移动凭据收割。",
+  "use_when": "在授权内网渗透中针对二层/三层网络基础设施实施中间人攻击与凭据收割时阅读本篇，重点涵盖ARP欺骗、LLMNR/NBT-NS/mDNS投毒、Responder抓NTLM哈希、ntlmrelayx中继、DNS投毒、SSL剥离与HSTS绕过、VLAN跳跃、DHCP耗尽、802.1X/NAC绕过及mitm6 IPv6接管，区别于Web应用层漏洞测试的内网横向攻击面。",
   "triggers": [
     "ARP欺骗",
-    "ARP spoofing",
-    "LLMNR投毒",
-    "NBT-NS投毒",
+    "ARP投毒",
+    "中间人攻击",
+    "Bettercap",
+    "LLMNR/NBT-NS投毒",
     "Responder",
     "NTLM中继",
     "ntlmrelayx",
-    "中间人攻击",
-    "MITM",
-    "VLAN跳跃",
-    "双重标签",
-    "DHCP饥饿攻击",
-    "流氓DHCP",
-    "NAC绕过",
-    "802.1X",
-    "MAC欺骗",
+    "WPAD劫持",
     "mitm6",
-    "SLAAC",
-    "Bettercap",
-    "WPAD"
+    "DNS投毒",
+    "DNS重绑定",
+    "SSL剥离",
+    "HSTS绕过",
+    "VLAN跳跃",
+    "802.1Q双重标签",
+    "DHCP耗尽",
+    "流氓DHCP",
+    "NAC/802.1X绕过",
+    "SLAAC滥用"
   ],
   "vulnclass": "网络与内网",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "内网二层/三层攻击标准流程：定位VLAN网关、被动嗅探、Responder投毒捕哈希、ntlmrelayx中继、ARP欺骗MITM、跨VLAN探测与IPv6接管"
+      "what": "内网二/三层攻击八步流程：测绘定位、被动嗅探、Responder投毒、NTLM中继、ARP欺骗MITM、VLAN边界探测与IPv6自动配置滥用"
     },
     {
       "heading": "ARP Spoofing",
-      "what": "利用ARP无认证特性伪造免费ARP应答将网关流量引向攻击机，涵盖Bettercap、arpspoof、Ettercap、Scapy手法及静态ARP条目绕过"
+      "what": "利用ARP无认证特性，以Bettercap/arpspoof/Ettercap/Scapy免费ARP欺骗网关MAC实施双向毒化劫持流量，并给出静态ARP条目绕过思路"
     },
     {
       "heading": "LLMNR / NBT-NS / mDNS Poisoning",
-      "what": "应答Windows名称解析回退广播查询诱捕NTLMv2/v1哈希，含Responder投毒、WPAD利用、Inveigh原生投毒及ntlmrelayx中继至SMB/LDAP/ADCS ESC8"
+      "what": "应答Windows广播名称解析（UDP 5355/137/5353）迫使受害者向流氓服务认证，或用Inveigh在Windows主机上原生投毒规避PowerShell日志"
+    },
+    {
+      "heading": "Responder Setup and Hash Capture",
+      "what": "Responder分析模式与全投毒模式参数、WPAD恶意配置捕获NTLM认证，抓取NTLMv2/v1哈希后用hashcat 5600/5500模式破解"
+    },
+    {
+      "heading": "NTLMv1/v2 Relay with ntlmrelayx",
+      "what": "破解失败时用ntlmrelayx将NTLM认证中继到无SMB签名主机执行命令、LDAP提权授权及ADCS ESC8模板证书窃取，并用PetitPotam/PrinterBug/DFSCoerce强制认证"
     },
     {
       "heading": "DNS Poisoning",
-      "what": "通过流氓DHCP Option 6下发恶意DNS、Scapy洪泛伪造响应实施缓存投毒与Kaminsky式攻击，以及singularity DNS重绑定绕过同源策略"
+      "what": "通过DHCP Option 6部署dnsmasq流氓DNS、Scapy洪泛伪造响应实现Kaminsky式缓存投毒，以及singularity DNS重绑定绕过同源策略"
     },
     {
       "heading": "Man-in-the-Middle (MITM)",
-      "what": "完成流量定位后实施代理拦截与篡改，含Bettercap SSL剥离、sslstrip+重写域名配合dns2proxy绕过HSTS、tshark/PCredz凭据提取"
+      "what": "Bettercap HTTP代理SSL剥离凭据拦截、sslstrip+域名改写配合dns2proxy绕过HSTS，并从代理流量提取HTTP/FTP明文凭据"
     },
     {
       "heading": "VLAN Hopping",
-      "what": "Yersinia DTP协商实施交换机欺骗建立trunk、Scapy构造802.1Q双重标签向目标VLAN单向注入（含跨VLAN ARP投毒）及STP根桥劫持"
+      "what": "Yersinia DTP动态协商冒充交换机建立Trunk、Scapy构造802.1Q双重标签单向打入目标VLAN并进行跨VLAN ARP投毒，辅以STP根桥接管与CDP洪泛"
     },
     {
       "heading": "DHCP Attacks",
-      "what": "dhcpstarv/Yersinia/Scapy伪造DISCOVER耗尽地址池实施DHCP饥饿，再以dnsmasq搭建流氓DHCP下发恶意网关与DNS劫持流量"
+      "what": "dhcpstarv/Yersinia/Scapy随机MAC洪泛耗尽地址池后，部署流氓DHCP以自身为网关与DNS并iptables NAT转发流量"
     },
     {
       "heading": "802.1X / NAC Bypass",
-      "what": "MAB环境仿冒授权MAC、Linux网桥插入共享已认证端口会话、伪造EAP-TLS客户端证书及匹配OUI/主机名/TTL指纹规避NAC设备画像"
+      "what": "MAB场景欺骗已授权MAC、网桥共享已认证端口会话、伪造EAP-TLS客户端证书冒充设备，及匹配OUI/主机名/TTL指纹规避NAC画像"
     },
     {
       "heading": "IPv6 Attacks",
-      "what": "利用mitm6应答DHCPv6实现DNS接管、Scapy伪造路由通告RA、THC-IPV6工具集投毒，并将NTLM中继至LDAPS委派或ADCS窃取证书"
+      "what": "mitm6应答DHCPv6接管Windows IPv6 DNS、Scapy伪造RA通告注入RDNSS、THC-IPV6假路由与邻居欺骗，及将NTLM中继至LDAPS/ADCS窃取证书"
     },
     {
       "heading": "Sniffing and Traffic Analysis",
-      "what": "tcpdump按协议端口抓包与Wireshark显示过滤语法（ntlmssp、wpad、llmnr、vlan等），PCredz/net-creds从流量自动提取NTLM/HTTP/FTP凭据"
+      "what": "tcpdump按协议端口全量/定向抓包、Wireshark过滤NTLM SSP/FTP/SNMP/Kerberos/WPAD等认证流量，及PCredz/net-creds从pcap自动提取凭据"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "各攻击对应的检测指标与防御对策：动态ARP检测、DHCP Snooping、端口安全、RA Guard、SMB/LDAP签名与信道绑定、原生VLAN加固"
+      "what": "各类攻击的检测指标对照表及DAI、DHCP Snooping、端口安全、RA Guard、SMB/LDAP签名、原生VLAN加固等防御对策"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "按实战场景速查技术选型：被动收割凭据、哈希无法破解转中继、指定主机MITM、跨VLAN、绕NAC与IPv6 DNS接管对应工具命令"
+      "what": "按实战场景速查对应技术与命令的对照表（凭据收割、中继、HTTPS拦截、跨VLAN、DHCP接管、NAC绕过、IPv6接管）及MITRE ATT&CK T1557/T1040编号"
     }
   ]
 }

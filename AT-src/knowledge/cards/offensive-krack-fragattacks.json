@@ -1,60 +1,64 @@
 {
-  "use_when": "在对遗留 WPA2 客户端（嵌入式/IoT 设备、老款 Android、工控 SCADA 无线终端）做无线安全评估、验证 KRACK 密钥重装与 FragAttacks 分片聚合攻击可利用性时阅读本篇，重点涵盖 Vanhoef 官方测试脚本、四次握手 M3 重传解密、A-MSDU 欺骗注入及 hostapd-mana 流氓 AP 配合 deauth 强制关联的打法，区别于常规 WiFi 口令破解——KRACK 并不恢复 PSK，仅获得解密与注入能力。",
+  "use_when": "在无线渗透测试中针对 WPA2 客户端（嵌入式设备、IoT、老安卓、工控 WiFi）验证 KRACK 密钥重装与 FragAttacks 分片聚合注入漏洞时阅读本篇，重点涵盖 Vanhoef 官方测试脚本、Rogue AP + 去认证强制关联执行流程与逐 CVE 变体报告要点，区别于破解 WiFi 密码/PSK 恢复类常规无线攻击思路。",
   "triggers": [
     "KRACK",
-    "密钥重装攻击",
-    "key reinstallation",
     "FragAttacks",
-    "帧分片聚合攻击",
+    "密钥重装",
+    "Key Reinstallation",
     "WPA2",
     "四次握手",
     "4-way handshake",
-    "M3重传",
-    "PTK重装",
-    "keystream重用",
-    "TKIP降级",
+    "PTK",
+    "nonce重用",
+    "重放计数器",
+    "帧分片",
+    "帧聚合",
+    "A-MSDU",
     "帧注入",
-    "A-MSDU欺骗",
-    "分片缓存投毒",
-    "CVE-2017-13077",
-    "CVE-2020-24588",
-    "krackattacks-scripts",
-    "test-fragattacks.py",
-    "hostapd-mana"
+    "TKIP降级",
+    "Rogue AP",
+    "去认证",
+    "deauth",
+    "hostapd-mana",
+    "aireplay-ng"
   ],
   "vulnclass": "密码学缺陷",
   "section_map": [
     {
       "heading": "When These Apply",
-      "what": "按攻击家族对照补丁状态，圈定当今仍可打的遗留目标：嵌入式OEM设备、未打补丁的老Android(<8)、工控SCADA WiFi客户端与无名IoT"
+      "what": "两族攻击适用范围与补丁状态对照表，指出当前仅嵌入式 OEM、老安卓(<8)、工控 SCADA 及杂牌 IoT 客户端大概率可利用"
     },
     {
       "heading": "KRACK — Key Reinstallation",
-      "what": "利用四次握手M3重传诱使客户端重装PTK并重置nonce/重放计数器，密钥流重用导致帧可解密，附krack-test-client.py官方测试命令"
+      "what": "四次握手 M3 重传致客户端重装 PTK 并重置 nonce/重放计数器的原理，附 Vanhoef krack-test-client.py 官方测试脚本用法"
     },
     {
       "heading": "Practical Outcomes",
-      "what": "KRACK实战收益：解密客户端与AP间的WPA2加密帧、TKIP降级实现数据包注入、恢复受影响密钥周期内的会话密钥，但拿不到PSK无线密码"
+      "what": "KRACK 成功效果：解密 WPA2 加密帧、TKIP 降级实现包注入、恢复会话密钥，但无法直接恢复无线密码 PSK"
     },
     {
       "heading": "FragAttacks — Frame Splicing",
-      "what": "滥用802.11分片与聚合机制，混合加密与明文分片或将攻击者分片拼接入合法帧，test-fragattacks.py约12项测试覆盖各CVE变体"
+      "what": "滥用 802.11 分片/聚合拼接密文与明文分片的原理，附 fragattacks 测试套件命令及 CVE-2020-24586..26140 各变体机制表"
     },
     {
       "heading": "Practical Outcomes",
-      "what": "FragAttacks实战收益：注入被客户端视为合法的恶意帧（HTTP重定向/DNS投毒）、读取缓存中的已解密分片、借伪造A-MSDU跨保护外带数据"
+      "what": "FragAttacks 成果：注入被客户端信任的恶意帧（HTTP 重定向/DNS 投毒）、读取缓存解密分片、经伪造 A-MSDU 外带数据"
     },
     {
       "heading": "Targeting Workflow",
-      "what": "四步打法：识别目标客户端(MAC/OS/厂商)→评估补丁概率→hostapd-mana搭建流氓AP并配合aireplay-ng去认证强制关联→逐CVE运行测试套件"
+      "what": "目标筛选与执行流程：识别客户端、估算补丁概率，用 hostapd-mana 建 Rogue AP 并以 aireplay-ng 去认证强制客户端关联后运行测试"
     },
     {
       "heading": "Detection",
-      "what": "检测面分析：WIPS可识别去认证驱动的漫游行为与Vanhoef工具的特征帧模式，但协议层面的成功利用基本无声"
+      "what": "检测面分析：WIPS 可识别去认证漫游与 Vanhoef 工具特征帧，而协议层成功利用本身几乎静默"
     },
     {
       "heading": "Reporting",
-      "what": "报告要点：逐CVE记录客户端型号与固件版本、变体测试结果（易感/已修/部分）、实战影响定性（仅解密还是可注入）及WPA3+PMF修复缓解建议"
+      "what": "报告要点：逐 CVE 记录客户端型号与固件版本、变体测试结果、实际影响（仅解密或可注入）及 WPA3+PMF 缓解修复建议"
+    },
+    {
+      "heading": "Key References",
+      "what": "关键参考链接：krackattacks.com、fragattacks.com、USENIX 2017/2021 原论文及 CISA 嵌入式厂商补丁通告"
     }
   ]
 }

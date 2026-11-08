@@ -1,84 +1,88 @@
 {
-  "use_when": "在代码审计、漏洞挖掘或补丁复盘场景中需要系统性定位软件漏洞与攻击面时阅读本篇，重点涵盖攻击面识别、静态代码审计、补丁对比(Patch Diffing)、污点分析与模糊测试方法论，区别于具体漏洞利用开发类文档。",
+  "use_when": "在漏洞研究、挖洞项目或代码审计中需要系统性开展补丁比对、静态/动态分析与模糊测试时阅读本篇，重点涵盖攻击面识别（内核/驱动/eBPF/浏览器/移动端/云原生）、Patch Diffing工作流、污点分析、符号执行及IDA/Ghidra/BinDiff/syzkaller工具链，区别于具体漏洞利用开发类文档。",
   "triggers": [
     "漏洞挖掘",
-    "bug identification",
     "代码审计",
-    "code review",
-    "补丁对比",
+    "bug identification",
+    "补丁比对",
     "patch diffing",
-    "污点分析",
-    "taint analysis",
-    "攻击面识别",
-    "attack surface mapping",
-    "模糊测试",
-    "fuzzing",
-    "IOCTL",
-    "内核漏洞",
+    "BinDiff",
+    "Diaphora",
     "Ghidra",
     "IDA Pro",
-    "BinDiff",
-    "类型混淆",
-    "type confusion",
-    "symlink路径穿越"
+    "静态分析",
+    "动态分析",
+    "模糊测试",
+    "fuzzing",
+    "符号执行",
+    "污点分析",
+    "攻击面",
+    "内核漏洞",
+    "IOCTL",
+    "V8",
+    "类型混淆"
   ],
   "vulnclass": "其他",
   "section_map": [
     {
       "heading": "Vulnerability Research Methodology",
-      "what": "五阶段漏洞研究流程：侦察枚举、静态分析、动态分析、模糊测试到漏洞利用的全链路方法论"
+      "what": "五阶段漏洞研究流程：侦察枚举、静态分析、动态分析、Fuzzing与利用原语开发"
     },
     {
       "heading": "Attack Surface Identification",
-      "what": "枚举多平台攻击面：Windows用户态/内核、eBPF/XDP、容器、云原生、网络协议解析器、WASM、浏览器、固件、供应链、TEE与GPU"
-    },
-    {
-      "heading": "Drivers",
-      "what": "分析DriverEntry与IOCTL处理函数危险模式，识别未校验PHYSICAL_ADDRESS导致的物理内存读写与RDMSR/WRMSR原语（CVE-2025-8061案例）"
+      "what": "梳理Windows用户态、内核、驱动、eBPF、容器、云原生、浏览器、固件等多平台攻击面入口"
     },
     {
       "heading": "Browser / JS Engine Exploitation",
-      "what": "V8多层JIT架构、Maglev整数溢出与类型混淆、WASM JSPI堆喷、Spectre-BHB缓解及Mojo IPC沙箱逃逸实战工作流"
-    },
-    {
-      "heading": "Cloud‑Native & IAM Bugs",
-      "what": "IAM提权API、SSRF访问云元数据服务（IMDSv2绕过）、Kubernetes控制面竞态与Lambda层投毒等Serverless漏洞模式"
-    },
-    {
-      "heading": "Supply Chain Attack Surface",
-      "what": "依赖混淆、typosquatting、lock文件投毒及GitHub Actions/Jenkins/Docker CI/CD流水线攻击面分析"
+      "what": "V8多层JIT架构、Maglev/JSPI漏洞原语、Spectre-BHB缓解与沙箱逃逸实战工作流"
     },
     {
       "heading": "Mobile Platforms (iOS/Android)",
-      "what": "iOS PAC/PPL/SEP绕过与Android MTE/GKI/Scudo利用面，以及Flutter/React Native/Unity跨平台框架漏洞"
+      "what": "iOS PAC/PPL绕过与Android MTE/GKI/Scudo加固下的移动端利用攻击面"
+    },
+    {
+      "heading": "Cloud‑Native & IAM Bugs",
+      "what": "IAM提权API、SSRF打云元数据服务IMDSv2绕过与Serverless/K8s攻击向量"
     },
     {
       "heading": "EDR Driver Vulnerability Research",
-      "what": "EDR驱动授权绕过、IOCTL内存破坏与竞态漏洞类型及IDA/Ghidra/WinDbg驱动分析工具链与崩溃triage准则"
-    },
-    {
-      "heading": "Manual Code Review",
-      "what": "人工代码审计步骤：安装目标、枚举输入入口、检查文件格式与网络协议、定位逻辑漏洞与内存破坏"
+      "what": "EDR驱动常见漏洞类型、IOCTL逆向分析方法与崩溃后快速分诊标准"
     },
     {
       "heading": "Patch Diffing",
-      "what": "补丁对比原理与函数级差异分析流程，含BinDiff/Diaphora/Ghidriff工具对比及7-Zip符号链接路径穿越案例根因剖析"
+      "what": "补丁比对原理、收益与挑战、BinDiff/Diaphora/Ghidriff工具及四步比对工作流"
     },
     {
-      "heading": "Apple Patch Diffing",
-      "what": "下载IPSW固件（ipsw.me）并用ipsw工具差异对比，映射二进制到CVE并逆向定位漏洞根因"
+      "heading": "Case Study: 7‑Zip Symlink Path Traversal",
+      "what": "7-Zip WSL符号链接绝对路径校验缺陷导致任意路径写入的最小diff定位与复现"
     },
     {
       "heading": "Windows 11 Patch Diffing",
-      "what": "winbindex收集补丁前后PE文件、symchk获取符号、BinDiff/Ghidriff差异分析及95%相似度阈值筛选可疑函数"
+      "what": "KB补丁下载、符号获取、BinDiff/Ghidriff函数级比对与月度自动化差异分析"
     },
     {
       "heading": "Linux Kernel Patch Diffing",
-      "what": "Ubuntu/RHEL内核镜像与debuginfo获取、vmlinux提取、模块级快速差异对比与源码级triage及oops符号化"
+      "what": "vmlinux提取、debuginfod调试符号、模块树比对与oops回溯符号化流程"
     },
     {
-      "heading": "Kernel network parser identification heuristics (SMB2-inspired, broadly applicable)",
-      "what": "内核网络解析器中长度/偏移/next跨字段不变量校验缺陷的识别启发式与加宽类型校验要点"
+      "heading": "Case Study: EvilESP Vulnerability (CVE-2022-34718)",
+      "what": "Windows TCP/IP IPv6栈漏洞的补丁比对定位、利用过程与经验总结"
+    },
+    {
+      "heading": "Static Analysis Methods",
+      "what": "人工代码审查手法与IDA Pro、现代静态分析及弃用工具盘点"
+    },
+    {
+      "heading": "Dynamic Analysis Methods",
+      "what": "混合逆向、动态二进制插桩、污点分析、符号执行与eBPF动态追踪"
+    },
+    {
+      "heading": "Fuzzing",
+      "what": "Fuzzer与Harness关系、崩溃检测、哑/智能/进化/并发/LLM引导模糊测试及工具选型"
+    },
+    {
+      "heading": "AI/ML-Assisted Vulnerability Discovery",
+      "what": "LLM崩溃分诊、AI扫描器与LLM辅助Fuzzing的本地化实战集成与局限"
     }
   ]
 }

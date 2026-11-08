@@ -65,18 +65,20 @@ function normalizeHeading(s) {
 }
 
 /**
- * 针对 section_map 中的 heading，在 md 标题列表中寻找最佳匹配行号
+ * 针对 section_map 中的 heading，在 md 标题列表中寻找最佳匹配行号。
+ * 返回 { line, tier }（F-7a：五层各标 tier，非 exact 对齐收集进警告清单——
+ * 规范化差异（em-dash/U+2011/LLM 改写编号）曾静默落错行 13 处被"100%对账"掩盖）。
  */
 export function matchHeadingLine(heading, headings, mdContent) {
-	if (!headings || headings.length === 0) return 1;
+	if (!headings || headings.length === 0) return { line: 1, tier: "none" };
 
 	const normTarget = normalizeHeading(heading);
-	if (!normTarget) return 1;
+	if (!normTarget) return { line: 1, tier: "none" };
 
 	// 1. 精确规范化匹配
 	for (const h of headings) {
 		if (h.normText === normTarget) {
-			return h.line;
+			return { line: h.line, tier: "exact" };
 		}
 	}
 
@@ -88,7 +90,7 @@ export function matchHeadingLine(heading, headings, mdContent) {
 
 	for (const h of headings) {
 		if (h.normText.includes(normTarget) || normTarget.includes(h.normText)) {
-			return h.line;
+			return { line: h.line, tier: "contains" };
 		}
 
 		// 3. Token Jaccard 重叠度计分
@@ -104,18 +106,18 @@ export function matchHeadingLine(heading, headings, mdContent) {
 	}
 
 	if (bestMatch && maxScore >= 1) {
-		return bestMatch;
+		return { line: bestMatch, tier: "tokens" };
 	}
 
 	// 4. 兜底：正文文本搜索 heading
 	const lines = mdContent.split(/\r?\n/);
 	for (let i = 0; i < lines.length; i++) {
 		if (lines[i].toLowerCase().includes(heading.toLowerCase().trim())) {
-			return i + 1;
+			return { line: i + 1, tier: "text" };
 		}
 	}
 
-	return 1;
+	return { line: 1, tier: "none" };
 }
 
 /**
@@ -130,12 +132,26 @@ export function buildKnowledge(rootDir = DEFAULT_ROOT) {
 		throw new Error(`skills 目录不存在: ${skillsDir}`);
 	}
 
+	// F-7b：card→catalog stale 双保险——catalog 旧于任一 card = 有人改卡忘重组，运行时零告警用旧图
+	const staleCatalog = [];
+	if (existsSync(catalogPath)) {
+		const catalogMtimeMs = statSync(catalogPath).mtimeMs;
+		for (const f of readdirSync(cardsDir)) {
+			if (!f.endsWith(".json")) continue;
+			const m = statSync(join(cardsDir, f)).mtimeMs;
+			if (m > catalogMtimeMs) {
+				staleCatalog.push({ card: f, cardMtime: new Date(m).toISOString() });
+			}
+		}
+	}
+
 	const mdFiles = readdirSync(skillsDir)
 		.filter((f) => f.endsWith(".md"))
 		.sort();
 
 	const errors = [];
 	const staleList = [];
+	const warnings = []; // F-7a：非精确对齐清单
 	const catalog = [];
 
 	for (const file of mdFiles) {
@@ -185,7 +201,10 @@ export function buildKnowledge(rootDir = DEFAULT_ROOT) {
 		const headings = extractHeadingsFromMd(mdContent);
 
 		const sectionMapWithLines = card.section_map.map((sec) => {
-			const line = matchHeadingLine(sec.heading, headings, mdContent);
+			const { line, tier } = matchHeadingLine(sec.heading, headings, mdContent);
+			if (tier !== "exact") {
+				warnings.push({ name, heading: sec.heading, line, tier });
+			}
 			return {
 				heading: sec.heading,
 				what: sec.what,
@@ -218,6 +237,8 @@ export function buildKnowledge(rootDir = DEFAULT_ROOT) {
 		catalog,
 		count: catalog.length,
 		stale: staleList,
+		staleCatalog, // F-7b：catalog 旧于卡片的清单
+		warnings, // F-7a：非精确对齐清单
 	};
 }
 
@@ -234,6 +255,18 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
 			}
 		} else {
 			console.log("✓ 全部卡片与语料 mtime 对账一致 (零 stale)");
+		}
+		if (res.staleCatalog.length > 0) {
+			console.warn(`! catalog 旧于 ${res.staleCatalog.length} 张卡片 (card mtime 晚于 catalog——改卡后需重组 catalog):`);
+			for (const s of res.staleCatalog) {
+				console.warn(`  - ${s.card}: card=${s.cardMtime}`);
+			}
+		}
+		if (res.warnings.length > 0) {
+			console.warn(`! ${res.warnings.length} 个 heading 非精确对齐 (tier 清单——错位会把精读窗口带偏):`);
+			for (const w of res.warnings) {
+				console.warn(`  - [${w.name}] "${w.heading}" → L${w.line} (${w.tier})`);
+			}
 		}
 	} catch (e) {
 		console.error("✗ 构建失败:\n", e.message);

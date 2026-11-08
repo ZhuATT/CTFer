@@ -1,76 +1,80 @@
 {
-  "use_when": "在授权渗透测试中对消费级/SMB 的 WPA/WPA2-PSK（个人模式）无线网络需要离线破解预共享密钥时阅读本篇，重点涵盖 PMKID 无客户端抓取、定向反认证触发四次握手、hcxdumptool/hcxpcapngtool 转 hashcat hc22000 格式、字典/掩码/厂商默认密钥生成器破解及 802.11r FT 与 OKC 场景，区别于前期无线侦察与 WPA2-Enterprise 认证攻击。",
+  "use_when": "在授权渗透测试中面对 WPA/WPA2-PSK（个人模式）无线网络需要抓取握手包或 PMKID 离线破解 Wi-Fi 预共享密钥时阅读本篇，重点涵盖 hcxdumptool 无客户端抓取 PMKID、定向 deauth 逼出四次握手、hcxpcapngtool 转换 hc22000 格式及 hashcat 字典/掩码/厂商默认密码爆破，区别于 WPA2-Enterprise 认证体系攻击与无线侦察阶段。",
   "triggers": [
+    "WPA2破解",
     "WPA/WPA2-PSK",
-    "无线密码破解",
+    "PMKID",
     "PMKID攻击",
-    "四次握手",
-    "抓握手包",
-    "反认证攻击",
+    "four-way handshake",
+    "四次握手抓取",
     "deauth",
-    "EAPOL",
+    "去认证攻击",
     "hcxdumptool",
     "hcxpcapngtool",
     "hashcat",
     "hc22000",
-    "aircrack-ng",
-    "字典攻击",
+    "airodump-ng",
+    "aireplay-ng",
+    "airmon-ng",
+    "字典爆破",
     "掩码攻击",
-    "rockyou",
-    "厂商默认密钥",
-    "802.11r FT",
-    "OKC",
-    "WIDS"
+    "厂商默认密码",
+    "upc_keys",
+    "802.11r FT"
   ],
-  "vulnclass": "网络与内网",
+  "vulnclass": "密码学缺陷",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "五步速查流程：定位目标 BSSID/信道→优先 PMKID→回退四次握手抓取→转 hashcat 格式→离线爆破"
+      "what": "整体攻击流程：识别目标后优先 PMKID、失败转四次握手、转换格式并离线破解"
     },
     {
       "heading": "PMKID Attack (Preferred When Possible)",
-      "what": "用 hcxdumptool 对目标 AP 发关联请求无客户端抓取 PMKID 并经 hcxpcapngtool 转 hc22000"
+      "what": "hcxdumptool 按白名单扫全 AP 的 PMKID，无真实客户端即可单次关联请求获取"
     },
     {
       "heading": "Four-Way Handshake Capture",
-      "what": "airodump-ng 锁定信道抓包，配合 aireplay-ng 对单个客户端定向低量反认证触发握手"
+      "what": "airodump-ng 锁定信道监听并对单个客户端低量定向 deauth 逼出握手包"
     },
     {
       "heading": "Verifying the Capture",
-      "what": "hcxpcapngtool 校验 M1/M2 AUTHORIZED 标记以判定握手包完整可破解"
+      "what": "hcxpcapngtool 检查 M1+M2 AUTHORIZED 标记以确认握手完整可破解"
+    },
+    {
+      "heading": "Cracking",
+      "what": "hashcat -m 22000 对 hc22000 哈希进行离线破解的总体入口"
     },
     {
       "heading": "Dictionary + Rules",
-      "what": "hashcat 22000 模式配合 rockyou/weakpass/crackstation 字典与 OneRuleToRuleThemAll 规则变换爆破"
+      "what": "rockyou/weakpass 等字典配合 OneRuleToRuleThemAll 规则集爆破"
     },
     {
       "heading": "Mask Attacks for Common Default Patterns",
-      "what": "针对运营商/路由器默认规律的 10 位/8 位纯数字、8 位十六进制及手机号掩码爆破"
+      "what": "针对运营商默认密码的 10 位/8 位数字、8 位十六进制及手机号掩码爆破"
     },
     {
       "heading": "Vendor Default Generators",
-      "what": "upc_keys、skylogin、BT-Hub-PSK-Generator、ZyxelKeygen 按 SSID 前缀+序列号推导默认 PSK"
+      "what": "upc_keys、skylogin、ZyxelKeygen 等按 SSID+序列号算法生成厂商默认 PSK 候选"
     },
     {
       "heading": "802.11r FT Cracking",
-      "what": "快速漫游开启时捕获 AP 间密钥传递，经 PMK 派生获得同 hc22000 格式的替代破解路径"
+      "what": "Fast Transition 漫游事件中捕获 AP 间密钥协商作为替代破解路径"
     },
     {
       "heading": "Tuning Cracking Performance",
-      "what": "hashcat 基准调优 GPU 负载，并用 hashtopolis 或 -s/-l 分段实现分布式破解"
+      "what": "hashcat 基准测试按 GPU 调优负载及 hashtopolis 分布式分段破解"
     },
     {
       "heading": "Opportunistic Key Cache (OKC)",
-      "what": "OKC 缓存 PMK 复用绕过完整握手，对空中 M1/M2 可见数量的影响分析"
+      "what": "分析 OKC 缓存 PMK 复用绕过完整握手对空中抓包的影响"
     },
     {
       "heading": "Detection Considerations",
-      "what": "反认证洪泛、PMKID 关联风暴与监听模式网卡触发 WIDS 的特征及最小化暴露的规避措施"
+      "what": "WIDS 对 deauth 突发、PMKID 泛洪与监听接口的检测规则及低噪声规避"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "从监听模式建立到 PMKID 扫描、握手抓取、格式转换与字典/掩码破解的完整实战命令速查"
+      "what": "从建立监听到 PMKID 扫描、握手捕获、转换与爆破的实战速查命令"
     }
   ]
 }

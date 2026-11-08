@@ -1,5 +1,5 @@
 {
-  "use_when": "在渗透测试中需要发现并深度利用 SQL 注入（含布尔/时间盲注、带外外带、二阶注入）时阅读本篇，重点涵盖 MySQL/MSSQL/Oracle/PostgreSQL/SQLite 等多库针对性利用、WAF 绕过矩阵、sqlmap 高级工作流与 xp_cmdshell/写 webshell 提权到系统命令执行，区别于仅覆盖基础探测语法或单数据库的入门手册。",
+  "use_when": "在渗透测试与CTF中需要对Web应用做SQL注入检测、后端数据库指纹识别、盲注取数及提权到OS命令执行时阅读本篇，重点涵盖UNION提取、布尔/时间盲注、OOB带外外传、二阶注入、WAF绕过矩阵、多数据库(MySQL/MSSQL/Oracle/PostgreSQL/SQLite/DB2/Cassandra/BigQuery)专项手法及sqlmap tamper进阶工作流，区别于入门级注入科普的完整攻击手册。",
   "triggers": [
     "SQL注入",
     "SQL injection",
@@ -8,81 +8,81 @@
     "UNION SELECT",
     "布尔盲注",
     "时间盲注",
-    "WAITFOR DELAY",
+    "报错注入",
     "带外注入",
-    "UTL_HTTP",
-    "DNS外带",
-    "xp_cmdshell",
-    "二阶注入",
-    "万能密码",
+    "DNS外传",
     "WAF绕过",
     "sqlmap",
     "tamper脚本",
-    "HANDLER",
-    "innodb_table_stats",
-    "xp_dirtree"
+    "xp_cmdshell",
+    "二阶注入",
+    "万能密码",
+    "命令执行",
+    "xp_dirtree",
+    "NTLM哈希",
+    "innodb_table_stats"
   ],
   "vulnclass": "SQL注入",
   "section_map": [
     {
       "heading": "1. DETECTION & QUICK START",
-      "what": "首轮注入探测 payload 家族、报错指纹路由各 DBMS 与行为差异及全参数类型（URL/POST/JSON/头/Cookie）判定手法"
+      "what": "首轮注入探针payload族、稳定小探针集与基于报错格式的DBMS路由提示及行为差异判断"
+    },
+    {
+      "heading": "2. DATABASE FINGERPRINTING",
+      "what": "利用各库版本函数与报错信息格式识别MySQL/MSSQL/Oracle/PostgreSQL指纹"
     },
     {
       "heading": "3. UNION-BASED DATA EXTRACTION",
-      "what": "ORDER BY 列数探测、NULL 定位字符串列及各库拼接语法实现联合查询回显脱库"
+      "what": "ORDER BY探测列数、NULL定位字符串列与各库连接函数回显提取数据"
     },
     {
       "heading": "4. BLIND INJECTION — INFERENCE TECHNIQUES",
-      "what": "布尔盲注逐字符推断与 MSSQL WAITFOR DELAY、MySQL SLEEP、Oracle、PostgreSQL pg_sleep 等分库时间盲注手法"
+      "what": "布尔条件差异与WAITFOR/SLEEP/pg_sleep/DBMS_PIPE等各库时间盲注逐字符推断"
     },
     {
       "heading": "5. OUT-OF-BAND (OOB) EXFILTRATION",
-      "what": "OPENROWSET、UTL_HTTP/UTL_INADDR DNS 外带与 MySQL LOAD_FILE UNC 路径带外脱库及 SMB 抓 NTLMv2 哈希"
+      "what": "OpenRowSet、UTL_HTTP/UTL_INADDR、LOAD_FILE UNC路径及SMB带外外传与NTLM哈希捕获"
     },
     {
       "heading": "6. ESCALATION — OS COMMAND EXECUTION",
-      "what": "xp_cmdshell 开启与调用、MySQL UDF 提权及 Oracle Java 存储过程执行系统命令"
+      "what": "xp_cmdshell开启与执行、MySQL UDF、Oracle Java存储过程提升至系统命令执行"
     },
     {
       "heading": "7. SECOND-ORDER INJECTION",
-      "what": "二阶注入原理：存储输入被信任后拼入新查询，以注册恶意用户名实现修改管理员密码为例"
+      "what": "输入安全入库后被当作可信数据拼接进新查询的二次注入攻击流程与审计要点"
     },
     {
       "heading": "8. PARAMETERIZED QUERY BYPASS SCENARIOS",
-      "what": "预编译失效场景：表列名拼接、部分参数化、IN 子句动态拼接与 PDO 模拟预编译下的堆叠注入"
+      "what": "表名列名拼接、部分参数化、IN子句与PDO模拟预处理等预编译查询失效场景"
     },
     {
       "heading": "9. FILTER EVASION TECHNIQUES",
-      "what": "内联注释断词、大小写变换、URL 编码、空白字符替代与 CHAR/CHR 构造字符串绕过关键字过滤"
+      "what": "注释拆词、大小写变换、URL编码、空白替代与CHAR/chr构造绕过字符串检测"
     },
     {
       "heading": "12. WAF BYPASS MATRIX",
-      "what": "空格/逗号/引号/OR/SELECT/information_schema 被拦截时的绕过矩阵、无空格无逗号 payload 与 polyglot 注入"
+      "what": "无空格/无逗号/无引号/无SELECT及information_schema被封的绕过矩阵与多语料、路由注入"
     },
     {
       "heading": "16. DB-SPECIFIC: SQLITE — INJECTION TO RCE",
-      "what": "SQLite ATTACH DATABASE 写 webshell 与 cron 计划任务、load_extension RCE 及 RANDOMBLOB 重查询延时盲注"
-    },
-    {
-      "heading": "17. DB-SPECIFIC: POSTGRESQL — ADVANCED",
-      "what": "PostgreSQL 美元符引号绕过引号过滤、COPY 读写文件落地 webshell、大对象与 PL/pgSQL 命令执行"
+      "what": "SQLite枚举、无SLEEP重查询延时盲注、ATTACH DATABASE写webshell与cron任务提权RCE"
     },
     {
       "heading": "18. DB-SPECIFIC: MSSQL — ADVANCED",
-      "what": "MSSQL 链接服务器双跳横向、xp_dirtree UNC 触发窃取 NTLM 哈希、CLR 程序集与 Agent Job 命令执行"
-    },
-    {
-      "heading": "19. DB-SPECIFIC: ORACLE — ADVANCED",
-      "what": "Oracle DBMS_PIPE/DBMS_LOCK 时间盲注、DBMS_SCHEDULER 执行系统命令与 XMLTYPE XXE 带外外带"
+      "what": "链接服务器双重跳横向、xp_dirtree抓NTLM哈希、CLR程序集与Agent Jobs执行命令"
     },
     {
       "heading": "20. DB-SPECIFIC: MYSQL — ADVANCED",
-      "what": "MySQL HANDLER 语句绕 SELECT 过滤、hex 预编译执行、innodb_table_stats 与 sys 库绕 information_schema 拦截"
+      "what": "HANDLER绕过SELECT过滤、hex预编译绕关键词、innodb_table_stats/sys schema绕库表枚举限制"
     },
     {
       "heading": "22. INSERT / UPDATE / DELETE INJECTION PATTERNS",
-      "what": "INSERT/UPDATE/DELETE 写操作注入：附加元组回显脱库、改写 is_admin 列提权与时间盲注外带手法"
+      "what": "写操作语句注入改值提权、子查询外传数据与sqlmap --risk=3非SELECT测试手法"
+    },
+    {
+      "heading": "25. SQLMap — Advanced Workflow",
+      "what": "tamper脚本矩阵与WAF绕过链配方、--technique/--risk组合、二阶注入与OS shell命令速查"
     }
   ]
 }

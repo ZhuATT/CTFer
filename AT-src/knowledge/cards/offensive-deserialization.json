@@ -1,76 +1,88 @@
 {
-  "use_when": "在渗透测试中发现应用处理序列化数据（cookie、ViewState、消息队列、JMX/RMI 端点）需要构造 gadget 链实现 RCE 时阅读本篇，重点涵盖 ysoserial/phpggc/ysoserial.net 跨语言利用链生成、phar:// 触发、pickle __reduce__、ViewState 篡改与 WAF 编码绕过，区别于漏洞原理科普，提供多语言 sink 识别、序列化格式指纹签名与实战 payload 命令。",
+  "use_when": "在渗透测试中发现 Cookie、ViewState、消息队列或 RPC 载荷中存在序列化数据并需要构建利用链实现 RCE 时阅读本篇，重点涵盖 ysoserial/phpggc/ysoserial.net 利用链生成、ObjectInputStream/BinaryFormatter/pickle 各语言 sink 识别、phar:// 触发与 ViewState 伪造及 WAF 编码绕过，区别于仅覆盖单一语言或只讲防御检测的反序列化资料。",
   "triggers": [
     "反序列化",
-    "gadget chain",
-    "POP链",
+    "反序列化利用链",
+    "魔术方法",
     "ysoserial",
     "phpggc",
     "ysoserial.net",
-    "CC链",
     "CommonsCollections",
     "URLDNS",
+    "ObjectInputStream",
+    "JRMPClient",
+    "marshalsec",
+    "enableDefaultTyping",
+    "JNDI",
     "phar://",
-    "魔术方法",
     "pickle __reduce__",
-    "yaml.load",
-    "Marshal.load",
-    "node-serialize",
     "BinaryFormatter",
     "ViewState",
     "TypeNameHandling",
-    "JNDI",
-    "WAF绕过"
+    "_$$ND_FUNC$$_",
+    "Marshal.load"
   ],
   "vulnclass": "反序列化",
   "section_map": [
     {
-      "heading": "Quick Workflow",
-      "what": "反序列化利用七步流程：枚举序列化数据入口、指纹识别格式、匹配 gadget 链并先以 DNS/sleep payload 安全验证"
-    },
-    {
       "heading": "Recognition Signatures",
-      "what": "各语言序列化格式魔术字节速查表（ac ed 00 05、rO0AB、AAEAAAD///// 等）用于快速指纹识别"
+      "what": "按魔法字节与编码特征指纹识别各语言序列化格式（Java ac ed 00 05/rO0AB、.NET AAEAAAD、PHP O:前缀、Ruby \\x04\\x08 等）"
     },
     {
       "heading": "Java Deserialization",
-      "what": "ObjectInputStream/XMLDecoder/XStream/Jackson 多态类型 sink 识别、serialVersionUID 约束、ysoserial 生成 CC/Spring/Hibernate 链及 JMX/RMI 打点"
+      "what": "识别 Java 反序列化 sink：ObjectInputStream、XMLDecoder、XStream、Jackson 多态及 JMX/RMI 端点"
     },
     {
-      "heading": "PHP Deserialization",
-      "what": "unserialize 魔术方法（__wakeup/__destruct）利用、phpggc 生成 Laravel/Symfony/Monolog 链及 phar:// 流包装器经文件操作函数触发"
+      "heading": "ysoserial Gadget Chains",
+      "what": "按目标 classpath 选择 CC1/CC5/CC7、Spring、Hibernate、URLDNS 探测链与 JRMPClient 回连并生成载荷命令"
+    },
+    {
+      "heading": "Jackson Polymorphic Typing",
+      "what": "enableDefaultTyping 下以 JdbcRowSetImpl 指向 LDAP 的 JNDI 注入载荷及绕过 Jackson 黑名单的替代类"
+    },
+    {
+      "heading": "phpggc Gadget Chains",
+      "what": "生成 Laravel/Symfony/Monolog/Guzzle/WordPress 利用链并以 PHAR 格式或 JPEG polyglot 伪装输出"
+    },
+    {
+      "heading": "phar:// Exploitation",
+      "what": "构造含恶意元数据的 PHAR 归档，经 file_exists 等文件函数触发反序列化从而绕过对 unserialize 的审计"
     },
     {
       "heading": ".NET Deserialization",
-      "what": "BinaryFormatter/LosFormatter/Json.NET TypeNameHandling sink 识别、ysoserial.net 生成 TypeConfuseDelegate 等链及已知 machineKey 下 ViewState 篡改"
+      "what": "识别 BinaryFormatter、LosFormatter、SoapFormatter 与 Json.NET TypeNameHandling 等 .NET 反序列化 sink"
     },
     {
-      "heading": "Python Deserialization",
-      "what": "pickle __reduce__ 执行任意命令与反弹 shell、yaml.load !!python/object 标签实例化及 shelve/marshal/jsonpickle 附加向量"
+      "heading": "ysoserial.net Payloads",
+      "what": "以 TypeConfuseDelegate/WindowsIdentity/TextFormattingRunProperties/PSObject 等 gadget 配合不同 formatter 生成载荷"
     },
     {
-      "heading": "Node.js Deserialization",
-      "what": "node-serialize 库 _$$ND_FUNC$$_ 标记追加 () 构造 IIFE 即时执行及 funcster __js_function 注入"
+      "heading": "ViewState Exploitation",
+      "what": "在 web.config 泄露或默认 machine key 已知时携带密钥参数伪造签名 ViewState 注入利用链"
     },
     {
-      "heading": "Ruby Deserialization",
-      "what": "Marshal.load/YAML.load gadget 链（Gem::Requirement、ERB 模板）及利用 secret_key_base 伪造 Rails session cookie"
+      "heading": "Json.NET TypeNameHandling",
+      "what": "利用 $type 属性指定 ObjectDataProvider 与 Process 对象实现 .NET JSON 反序列化命令执行"
     },
     {
-      "heading": "Modern Attack Vectors",
-      "what": "K8s 准入 webhook 注解投毒、Kafka/Redis/Celery 消息队列消费者污染与 S3/SNS Serverless 事件触发的集群级 RCE"
+      "heading": "pickle RCE",
+      "what": "通过 __reduce__ 构造 os.system、反弹 shell 与链式多步执行的 pickle 恶意载荷"
     },
     {
-      "heading": "Evasion Techniques",
-      "what": "双重 Base64、gzip 压缩、URL/Unicode 编码与 Content-Type 切换绕过 WAF，以及多层加密签名匹配的 payload 封装"
+      "heading": "yaml.load RCE",
+      "what": "利用 !!python/object/apply:os.system 等 YAML 标签触发任意对象实例化并 grep 定位代码库中的非安全 load 调用"
     },
     {
-      "heading": "Detection / Defender View",
-      "what": "防守方网络特征（魔术字节、$type、_$$ND_FUNC$$_）、JEP 290/SerializationBinder/allowed_classes 运行时防御及对应绕过思路"
+      "heading": "node-serialize IIFE Pattern",
+      "what": "在 _$$ND_FUNC$$_ 序列化函数体尾部追加括号构成 IIFE 实现反序列化即时代码执行"
     },
     {
-      "heading": "Engagement Cheatsheet",
-      "what": "按 Java/PHP/.NET/Python/Node/Ruby/K8s 场景速查工具、payload 与验证方式的作战表及安全确认顺序"
+      "heading": "Marshal.load Gadgets",
+      "what": "构造 Ruby Gem::Requirement/ERB 模板链，并结合 secret_key_base 伪造旧版 Rails 会话 Cookie 注入 gadget"
+    },
+    {
+      "heading": "WAF and Filter Bypass",
+      "what": "以双重 Base64、Gzip 压缩、URL 编码及 $type Unicode 转义改变字节特征绕过 WAF 序列化模式检测"
     }
   ]
 }

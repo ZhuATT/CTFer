@@ -1,68 +1,68 @@
 {
-  "use_when": "在渗透测试中针对智能家居或商业 mesh 部署（Zigbee 门锁、照明、传感网络）需要嗅探与攻击 802.15.4 系协议时阅读本篇，重点涵盖 KillerBee/zbdump 信道嗅探、Touchlink 已知传输密钥滥用、入网密钥捕获与 ZCL 集群命令伪造开锁，区别于 WiFi/蓝牙攻击的低功耗 mesh 链路层与配网链路视角。",
+  "use_when": "在对智能家居与物联网无线 mesh 部署（Zigbee 门锁、灯控、传感器网络、Thread/Matter 设备）做渗透测试时需要嗅探 802.15.4 流量、滥用 Touchlink 已知传输密钥入网、窃取网络密钥并注入 ZCL 控制命令时阅读本篇，重点涵盖 KillerBee/z3sec/scapy-dot15d4 工具链、默认信任中心链路密钥解密与 Thread PSKc 凭据窃取，区别于传统 Wi-Fi/蓝牙无线攻击视角。",
   "triggers": [
     "Zigbee攻击",
-    "802.15.4嗅探",
+    "Thread",
+    "Matter配网",
+    "802.15.4",
     "KillerBee",
     "zbstumbler",
     "zbdump",
-    "Touchlink滥用",
-    "Z3sec",
-    "已知传输密钥",
-    "factory_reset_request",
-    "网络密钥捕获",
-    "ZigBeeAlliance09",
-    "信任中心链路密钥",
-    "ZCL集群命令",
-    "智能门锁解锁",
     "scapy-dot15d4",
-    "CC2531",
-    "Thread",
+    "Touchlink",
+    "z3sec",
+    "ZigBeeAlliance09",
+    "网络密钥捕获",
+    "信任中心链路密钥",
     "PSKc窃取",
-    "6LoWPAN路由攻击",
-    "Matter配网"
+    "6LoWPAN",
+    "智能家居渗透",
+    "智能门锁开锁",
+    "重放注入",
+    "无线mesh攻击",
+    "CC2531"
   ],
   "vulnclass": "密码学缺陷",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "五步攻击流程：嗅探 11-26 信道、定位协调器与入网设备、Touchlink 攻击、抓取入网密钥、重放或注入 ZCL/ZHA 命令"
+      "what": "五步攻击流程：嗅探信道、识别协调器与入网设备、Touchlink 已知密钥入网、抓取入网密钥交换、重放或注入 ZCL/ZHA 集群命令"
     },
     {
       "heading": "Hardware",
-      "what": "嗅探硬件选型表：TI CC2531/CC2540/CC2652、Sonoff Zigbee Dongle E、ApiMote、HackRF 各自适用场景"
+      "what": "列举 TI CC2531/CC2540/CC2652、Sonoff Zigbee Dongle E、ApiMote、HackRF 等 802.15.4 嗅探与注入硬件适配器选型"
     },
     {
       "heading": "Discovery + Sniffing",
-      "what": "KillerBee 套件探测网络（zbstumbler/zbid/zbdump 抓 pcap）与 scapy-dot15d4 构造帧、Wireshark 解析帧计数与 ZCL 命令"
+      "what": "使用 KillerBee 套件与 scapy-dot15d4 进行网络发现、指定信道抓包存 pcap 及自定义帧构造，配合 Wireshark 解析"
     },
     {
       "heading": "Touchlink Commissioning Abuse",
-      "what": "利用 Zigbee 3.0 众所周知传输密钥滥用 Touchlink 配网，用 Z3sec 远程工厂重置设备（DoS）或将其拉拢入攻击者网络并读取密钥"
+      "what": "利用 Zigbee 3.0 Touchlink 众所周知的传输密钥以 z3sec 远程恢复出厂、窃取灯泡/传感器入攻击者网络并读取网络密钥"
     },
     {
       "heading": "Network Key Capture During Joins",
-      "what": "抓取协调器与入网设备交互捕获网络密钥，利用 ZigBeeAlliance09 默认信任中心链路密钥在 Wireshark 解密全网格流量"
+      "what": "抓取协调器与入网设备的密钥交换，利用 ZigBee 1.x 默认信任中心链路密钥 ZigBeeAlliance09 解密全网 mesh 流量"
     },
     {
       "heading": "ZCL / ZHA Cluster Command Abuse",
-      "what": "持有网络密钥后伪造 ZCL 集群命令：解锁门锁、开关切换、调光或洪泛控制流量"
+      "what": "持有网络密钥后以任意设备身份发送 scapy 构造的 ZCL 帧实现门锁开锁、开关切换、调光及控制流量洪泛"
     },
     {
       "heading": "Thread Specifics",
-      "what": "Thread 攻击面：从 commissioner 配套 App（Apple Home/Nest）窃取 PSKc 凭据复用入网，以及 6LoWPAN rank 操纵与 sinkhole 路由攻击"
+      "what": "针对 Thread 网络的 commissioner 分发 PSKc 凭据窃取、泄露凭据复用入网及 6LoWPAN 路由攻击（rank 操纵、sinkhole）"
     },
     {
       "heading": "Matter Commissioning",
-      "what": "Matter 配网链路攻击面：setup code 重放（配网窗口未关闭）、BLE 初始配网中间人、早期实现 Fabric attestation 缺陷"
+      "what": "分析 Matter 配网链路攻击面：二维码/设置码重放、BLE 初始配网中间人及早期实现的 fabric 证明缺陷"
     },
     {
       "heading": "Detection",
-      "what": "防守方检测面：协调器异常入网日志、Hub 新设备通知常被忽略、多数环境不监控 802.15.4"
+      "what": "协调器异常入网日志、Hub 应用新设备告警被忽视及环境普遍缺乏 802.15.4 监控等检测要点"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "实战命令速查：从 zbstumbler 识别网络、zbdump 抓包到 Z3sec Touchlink 攻击与自定义 scapy 帧注入的完整操作序列"
+      "what": "六步实战速查：从 zbstumbler 网络识别、zbdump 抓包、z3sec Touchlink 攻击到 ZCL 命令直发与 Thread PSKc 窃取"
     }
   ]
 }

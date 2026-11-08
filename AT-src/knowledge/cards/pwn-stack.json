@@ -1,92 +1,88 @@
 {
-  "use_when": "在 CTF pwn 或用户态二进制利用中遇到栈溢出/格式化字符串漏洞需要构造 ROP 链获取 shell 时阅读本篇，重点涵盖 ret2libc、ret2csu、ret2dlresolve、SROP、BROP 盲打、栈迁移、canary 绕过及 %n 任意写与 GOT/hook 覆写，区别于堆漏洞利用与纯防护机制原理类文档。",
+  "use_when": "在 CTF pwn 或用户态二进制利用中需要利用栈溢出与格式化字符串漏洞构造 ROP 链实现任意代码执行时阅读本篇，重点涵盖 ret2libc、ret2csu、ret2dlresolve、SROP、栈迁移、canary 爆破、BROP 盲打及 %n 任意写/GOT 覆写与 pwntools 自动化，区别于堆漏洞利用与单纯防护机制绕过的分析视角。",
   "triggers": [
     "栈溢出",
-    "buffer overflow",
-    "ROP",
+    "stack overflow",
+    "缓冲区溢出",
     "ROP链",
     "ret2libc",
     "ret2csu",
     "ret2dlresolve",
     "SROP",
     "sigreturn",
-    "BROP",
-    "盲ROP",
+    "one_gadget",
     "栈迁移",
     "stack pivot",
+    "leave;ret",
     "canary绕过",
-    "格式化字符串漏洞",
+    "格式化字符串",
     "format string",
     "%n任意写",
+    "fmtstr_payload",
     "GOT覆写",
-    "one_gadget",
-    "部分覆写"
+    "__free_hook"
   ],
   "vulnclass": "RCE",
   "section_map": [
     {
-      "heading": "RETURN-TO-LIBC",
-      "what": "NX 开启时劫持执行流到 libc 函数：32/64 位参数布局、puts/write 泄露 libc 基址与 one_gadget 约束检查"
+      "heading": "1. STACK LAYOUT FUNDAMENTALS",
+      "what": "栈帧返回地址/Saved EBP/canary 布局及 32/64 位调用约定与覆盖目标"
     },
     {
-      "heading": "ROP CHAIN CONSTRUCTION",
-      "what": "ROPgadget/ropper/pwntools 工具对比、pop rdi 等核心 gadget 模式及 system 调用前 movaps 的 16 字节栈对齐修复"
+      "heading": "2. RETURN-TO-LIBC",
+      "what": "NX 开启时返回 libc 调 system，含 puts/write 泄露 libc 基址与 one_gadget 单 gadget RCE"
     },
     {
-      "heading": "ret2csu — Universal 3-Argument Control",
-      "what": "利用 __libc_csu_init 两段 gadget 控制 rdi/rsi/rdx 三参数并经 call [r12+rbx*8] 间接调用 GOT 函数"
+      "heading": "3. ROP CHAIN CONSTRUCTION",
+      "what": "ROPgadget/ropper/pwntools 工具对比与 pop rdi 等关键 gadget、movaps 16 字节栈对齐修复"
     },
     {
-      "heading": "ret2dlresolve",
-      "what": "伪造 Elf_Rel/Elf_Sym 重定位结构让 _dl_runtime_resolve 解析 system，在无 libc 泄露时直接执行命令"
+      "heading": "4. ret2csu — Universal 3-Argument Control",
+      "what": "利用 __libc_csu_init 两段 gadget 控制 rdi/rsi/rdx 三参数间接调用 GOT"
     },
     {
-      "heading": "SROP — Sigreturn-Oriented Programming",
-      "what": "构造伪造 Signal Frame 经 sigreturn 系统调用一次性设置全部寄存器直接 execve(/bin/sh)"
+      "heading": "5. ret2dlresolve",
+      "what": "伪造 Elf_Rel/Elf_Sym 动态链接结构免 libc 泄露直接解析 system，含 32/64 位差异"
     },
     {
-      "heading": "STACK PIVOTING",
-      "what": "leave;ret/xchg rsp/pop rsp 等手法将 RSP 迁移到可控缓冲区，解决溢出长度不足的 ROP 链放置问题"
+      "heading": "6. SROP — Sigreturn-Oriented Programming",
+      "what": "伪造 Signal Frame 借 rt_sigreturn 系统调用一次性控制全部寄存器执行 execve"
     },
     {
-      "heading": "CANARY BYPASS",
-      "what": "fork 服务器逐字节爆破 canary(256×7=1792 次)、格式化字符串泄露及覆写 TLS fs:[0x28] 处 stack_guard"
+      "heading": "7. STACK PIVOTING",
+      "what": "溢出长度不足时用 leave;ret、xchg rsp,rax、pop rsp 将栈迁移到受控缓冲区"
     },
     {
-      "heading": "DECISION TREE",
-      "what": "按 NX/Canary/PIE/RELRO 保护组合选择 ret2shellcode、ret2libc、ret2dlresolve、SROP 或 hook 覆写的利用路线"
+      "heading": "8. CANARY BYPASS",
+      "what": "fork 服务器逐字节爆破(64位1792次)、格式化字符串泄露、TLS stack_guard 覆写等绕过栈保护"
     },
     {
-      "heading": "BLIND ROP (BROP)",
-      "what": "无二进制远程盲打六阶段：stop gadget 探测、csu 六连 pop 的 BROP gadget 识别、PLT 定位与逐页 dump 二进制"
+      "heading": "1. BLIND ROP (BROP)",
+      "what": "无二进制条件下分六阶段盲打：暴力定位偏移、stop/BROP gadget 识别、泄露 PLT 并 dump 内存"
     },
     {
-      "heading": "PARTIAL OVERWRITE (PIE Bypass)",
-      "what": "利用页内低 12 位固定特性仅覆写返回地址低 1-2 字节，16 次半字节爆破绕过 PIE"
+      "heading": "3. PARTIAL OVERWRITE (PIE Bypass)",
+      "what": "利用页内末 12 位固定特性低位部分覆写返回地址，半字节 16 次爆破绕过 PIE"
     },
     {
-      "heading": "JOP — Jump-Oriented Programming",
-      "what": "以 jmp [reg] 调度器 gadget 加功能 gadget 的表驱动链替代 ret 链，规避 Intel CET 影子栈校验"
+      "heading": "6. STACK-BASED ORW (open-read-write)",
+      "what": "seccomp 禁 execve 时用 open/read/write 系统调用 ROP 链直接读 flag 文件"
     },
     {
-      "heading": "STACK-BASED ORW (open-read-write)",
-      "what": "seccomp 禁用 execve 时构造 open/read/write 系统调用的 ROP 链直接读取 flag 文件"
+      "heading": "2. READING MEMORY",
+      "what": "%p/%N$p 定位输入偏移并泄露 canary/PIE/libc 基址，%s 任意地址读取"
     },
     {
-      "heading": "READING MEMORY",
-      "what": "用 %N$p/%N$s 探测输入偏移并泄露 canary、PIE 基址、libc 基址及任意地址内存内容"
+      "heading": "3. WRITING MEMORY (%n)",
+      "what": "%hn/%hhn 分次任意写技术及 64 位地址空字节需后置的 payload 布局"
     },
     {
-      "heading": "WRITING MEMORY (%n)",
-      "what": "%n/%hn/%hhn 分字节精确任意写，含 64 位地址含 null 字节必须置于格式串之后的布局技巧与 fmtstr_payload 自动化"
+      "heading": "5. GOT OVERWRITE VIA FORMAT STRING",
+      "what": "覆写 printf/atoi/strlen GOT 到 system 及 glibc<2.34 的 __malloc_hook/__free_hook 劫持"
     },
     {
-      "heading": "GOT OVERWRITE VIA FORMAT STRING",
-      "what": "printf/atoi/strlen 等 GOT 覆写为 system 的触发方式及 glibc<2.34 下 __malloc_hook/__free_hook 目标选择"
-    },
-    {
-      "heading": "FORTIFY_SOURCE BYPASS",
-      "what": "绕过 __printf_chk 禁用位置参数 %N$n 的限制：顺序 %hn 写、结合堆漏洞或 ROP 回调未加固 printf"
+      "heading": "8. FORTIFY_SOURCE BYPASS",
+      "what": "__printf_chk 禁用位置参数 %n 时的顺序 %hn、堆漏洞组合与 return-to-printf 绕过手法"
     }
   ]
 }

@@ -1,88 +1,88 @@
 {
-  "use_when": "在红队无线安全评估、战争驾驶或企业无线隔离测试场景下需要对 Wi-Fi/802.11 网络实施攻击（握手包捕获、PSK 离线破解、企业级 EAP 凭据窃取、恶意双胞胎热点搭建）时阅读本篇，重点涵盖 monitor 模式配置、四次握手与 PMKID 抓取、WPA3 SAE 降级与 Dragonblood、MSCHAPv2 破解与 eaphammer/hostapd-mana、KRACK/FragAttacks、WPS Pixie Dust 及去认证攻击，区别于 Web 应用与内网横向渗透方法论，专注无线空口攻击、认证破解与 BLE/Zigbee 等侧带频段。",
+  "use_when": "在红队物理临近场景下需要对目标 WiFi 网络开展无线渗透评估（破解 WPA2/WPA3、攻击企业级 802.1X、搭建钓鱼热点）时阅读本篇，重点涵盖四次握手/PMKID 捕获、hashcat 离线破解、eaphammer 恶意 RADIUS、KARMA/Mana 与 Dragonblood 降级攻击，区别于传统 Web 应用与内网主机渗透的网络无线侧打法。",
   "triggers": [
-    "无线渗透",
-    "监听模式",
-    "握手包捕获",
-    "PMKID",
+    "WiFi渗透",
+    "无线攻击",
+    "monitor mode",
+    "aircrack-ng",
     "WPA2-PSK",
+    "四次握手",
+    "PMKID",
     "hashcat",
-    "WPA3",
-    "SAE",
+    "hcxdumptool",
+    "WPA3/SAE降级",
     "Dragonblood",
-    "降级攻击",
     "802.1X",
     "MSCHAPv2",
     "eaphammer",
-    "邪恶双胞胎",
-    "KARMA",
-    "KRACK",
-    "FragAttacks",
-    "WPS",
+    "Evil Twin",
+    "恶意双胞胎钓鱼",
+    "KARMA/Mana",
     "Pixie Dust",
-    "去认证攻击"
+    "去认证攻击",
+    "KRACK/FragAttacks"
   ],
   "vulnclass": "网络与内网",
   "section_map": [
     {
-      "heading": "Quick Workflow",
-      "what": "无线攻击五步流程：选适配器、被动侦察、选择攻击路径、离线破解、企业网走凭据横向"
-    },
-    {
       "heading": "Hardware & Adapter Selection",
-      "what": "支持监听与注入的双频/Wi-Fi 6E 网卡芯片选型（AR9271/RTL8812AU/MT7921AU）及 airmon-ng 验证命令"
+      "what": "按频段/PHY 选择支持监听与注入的网卡芯片（AR9271/RTL8812AU/MT7921AU）并用 airmon-ng、aireplay-ng 验证能力"
     },
     {
       "heading": "Reconnaissance",
-      "what": "airodump-ng 全频段扫描、隐藏 SSID 暴露与 Kismet/Wigle 战争驾驶信息收集"
+      "what": "airodump-ng 多频段扫描、定向锁定 BSSID、隐藏 SSID 定位与 Kismet/Wigle 战争驾驶侦察"
     },
     {
       "heading": "WPA / WPA2-PSK",
-      "what": "定向去认证触发四次握手捕获、无客户端 PMKID 抓取与 hashcat 字典/掩码离线破解"
+      "what": "四次握手捕获（定向 deauth 迫使重连）、无客户端 PMKID 抓取及 hashcat -m 22000 GPU 字典/掩码离线破解"
     },
     {
       "heading": "WPA3 / SAE",
-      "what": "过渡模式降级至 WPA2、Dragonblood 侧信道泄露口令与 mdk4 SAE 认证洪泛资源耗尽"
+      "what": "过渡模式降级到 WPA2、Dragonblood 侧信道（dragondrain/dragontime）与 mdk4 SAE 认证洪泛资源耗尽 DoS"
     },
     {
       "heading": "WPA-Enterprise (802.1X / EAP)",
-      "what": "EAP 方法指纹识别与内层方法攻击：MSCHAPv2 离线破解、EAP-GTC 明文窃取、EAP-TLS 证书盗取及 eaphammer 恶意 RADIUS"
+      "what": "tshark 指纹识别 EAP 内层方法、eaphammer 恶意双胞胎 RADIUS 捕获 MSCHAPv2 散列及 EAP-TLS 证书窃取路径（DPAPI/NDES/ADCS）"
     },
     {
       "heading": "WPS",
-      "what": "Pixie Dust 离线秒破 PIN（Ralink/Realtek/Broadcom 芯片）与 reaver 在线爆破及锁定规避"
+      "what": "reaver/bully Pixie Dust 离线 PIN 恢复与在线 PIN 爆破（受锁定限制的最后手段）"
     },
     {
       "heading": "Evil Twin / KARMA / Mana",
-      "what": "wifiphisher 钓鱼门户、KARMA/Mana 利用 PNL 探测请求伪造 AP 及 MAC 随机化识别反制"
+      "what": "wifiphisher/airgeddon 强制门户钓鱼、hostapd-mana 探测帧利用与 MAC 随机化追踪去匿名"
     },
     {
       "heading": "KRACK & FragAttacks",
-      "what": "KRACK 密钥重装与 FragAttacks 碎片聚合漏洞的官方检测脚本及补丁状态验证"
+      "what": "使用 Vanhoef 官方脚本测试 WPA2 密钥重装（KRACK）与分片聚合（FragAttacks）补丁状态"
     },
     {
       "heading": "Deauth / Disassociation Attacks",
-      "what": "aireplay-ng 单客户端去认证抓握手、mdk4 广播洪泛 DoS 及 802.11w PMF 防护与 Action 帧绕过"
+      "what": "aireplay-ng 定向单客户端去认证、mdk4 广播 DoS 与认证洪泛组合及 802.11w PMF 的限制"
     },
     {
       "heading": "802.1X / Wired NAC Bypass (Adjacent)",
-      "what": "tcpdump 嗅探有线 802.1X 认证交换与 silentbridge 透明桥接已认证主机绕过 NAC"
+      "what": "有线侧嗅探 EAPOL 交换并用 silentbridge 透明桥接穿透已认证主机的 NAC 旁路"
     },
     {
       "heading": "Wi-Fi 6 / 6E / 7 Considerations",
-      "what": "6 GHz 强制 WPA3+PMF 的缓解效果、OFDMA/TWT 对注入的影响与 Wi-Fi 7 MLO 多链路捕获要点"
+      "what": "6GHz 强制 WPA3+PMF、OFDMA/TWT 对注入的影响与 Wi-Fi 7 MLO 多链路捕获要求"
     },
     {
       "heading": "Sidebands & Adjacent Wireless",
-      "what": "蓝牙/BLE/Zigbee/Z-Wave/LoRa/433MHz 副频段攻击工具矩阵（bettercap、KillerBee、HackRF 等）"
+      "what": "蓝牙/BLE/Zigbee/Z-Wave/LoRa/Sub-GHz 侧频段攻击工具矩阵（crackle、KillerBee、HackRF 等）"
     },
     {
       "heading": "RADIUS / Backend Pivots Post-Compromise",
-      "what": "利用破解的 PEAP-MSCHAPv2 域凭据经 nxc 横向至 AD，及 FreeRADIUS/NPS 服务账号后渗透"
+      "what": "破解 PEAP-MSCHAPv2 域用户凭据后经 NetExec 横向至 AD、FreeRADIUS users 文件与 NPS 服务账户上下文利用"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "七步无线测试速查流程：建卡→被动侦察→PMKID 扫描→定向抓取→离线破解→企业网 eaphammer→记录证据"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "WIDS 对去认证频率、Rogue AP、Karma 应答异常的检测阈值与对应规避策略"
+      "what": "WIDS 检测指标（deauth 频率、流氓 BSSID、Karma 应答异常）及对应蓝队规避策略"
     }
   ]
 }

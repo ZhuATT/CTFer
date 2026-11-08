@@ -1,80 +1,88 @@
 {
-  "use_when": "在 CTF 密码学解题或授权渗透测试中遇到 RSA 弱参数（小指数/小私钥/部分密钥泄露/共模）、CBC/ECB 分组密码模式缺陷及哈希弱比较认证绕过时阅读本篇，重点涵盖 Wiener/Coppersmith/格归约 LLL、Bleichenbacher 填充预言机、CBC Bit Flipping、ECB 切块拼接、长度扩展与 0e 魔术哈希类型混淆，区别于直接利用 Web 漏洞的打法，本篇从数学结构层面恢复密钥与明文。",
+  "use_when": "在 CTF 密码学题或授权测试中遇到 RSA 弱参数、CBC/ECB 模式缺陷、哈希伪造或 PHP 弱比较认证绕过时阅读本篇，重点涵盖 Wiener/Boneh-Durfee/Coppersmith 格攻击、Hastad 广播、填充预言机、长度扩展、MD5 碰撞与 0e 魔术哈希，区别于常规 Web 漏洞利用文档，专注密码学数学缺陷与弱类型比较的攻击推导路径。",
   "triggers": [
     "RSA攻击",
-    "Wiener攻击",
-    "Coppersmith",
+    "维纳攻击",
+    "Boneh-Durfee",
+    "Coppersmith小根",
     "Hastad广播攻击",
     "共模攻击",
-    "Bleichenbacher",
     "填充预言机",
-    "padding oracle",
-    "CBC Bit Flipping",
-    "ECB Cut-and-Paste",
+    "Bleichenbacher",
     "LSB奇偶预言机",
-    "RSA-CRT故障攻击",
-    "Pollard p-1",
-    "Batch GCD",
-    "格攻击",
-    "LLL",
+    "CBC位翻转",
+    "ECB逐字节解密",
     "长度扩展攻击",
+    "HashPump",
+    "MD5碰撞",
     "0e魔术哈希",
-    "类型混淆",
-    "RsaCtfTool"
+    "PHP类型混淆",
+    "strcmp数组绕过",
+    "LLL格归约",
+    "ECDSA nonce泄露",
+    "维吉尼亚密码"
   ],
   "vulnclass": "密码学缺陷",
   "section_map": [
     {
-      "heading": "1. FACTORIZATION ATTACKS",
-      "what": "小n直接分解、费马分解（p≈q）、Pollard p-1 光滑攻击与多模数 Batch GCD 公因子碰撞"
-    },
-    {
-      "heading": "2. SMALL EXPONENT ATTACKS",
-      "what": "e=3 小消息开立方根、Hastad 广播攻击 CRT 合并及 Franklin-Reiter 相关消息攻击"
+      "heading": "Part 1: RSA Attack Techniques",
+      "what": "RSA 攻击总纲：按已知 n/e/密文/预言机条件选择分解、小指数、格归约等攻击路径的快速选择表"
     },
     {
       "heading": "3. LARGE e / SMALL d ATTACKS",
-      "what": "d 过小时基于连分数的 Wiener 攻击与格基规约的 Boneh-Durfee 攻击恢复私钥"
-    },
-    {
-      "heading": "4. COPPERSMITH'S METHOD",
-      "what": "利用已知明文前缀的 Stereotyped Message 与已知 p 高/低位的部分密钥暴露小根求解"
-    },
-    {
-      "heading": "5. COMMON MODULUS ATTACK",
-      "what": "同 n 不同 e 且 e 互素时用扩展欧几里得组合两份密文恢复明文"
+      "what": "大 e 对应小 d 场景：Wiener 连分数展开恢复 d，Boneh-Durfee 格攻击扩展至 n^0.292"
     },
     {
       "heading": "6. ORACLE ATTACKS",
-      "what": "LSB 奇偶预言机二分逼近明文、Bleichenbacher PKCS#1 v1.5 填充预言机与 Manger OAEP 攻击"
+      "what": "LSB 奇偶预言机二分解密、Bleichenbacher 攻击 PKCS#1 v1.5 填充预言机与 Manger 攻击 OAEP"
     },
     {
       "heading": "7. RSA-CRT FAULT ATTACK",
-      "what": "利用单个错误 CRT 签名通过 gcd 分解 n 恢复素因子"
-    },
-    {
-      "heading": "8. DECISION TREE",
-      "what": "按已知条件（n/e/d/预言机/错误签名）选择对应 RSA 攻击路径的决策树"
-    },
-    {
-      "heading": "9. TOOLS",
-      "what": "RsaCtfTool、SageMath、factordb、yafu、gmpy2 用法与分解 n 后重建私钥解密流程"
+      "what": "利用 CRT 故障签名与正确值之差做 gcd 分解 n，单条故障签名即可完成因式分解"
     },
     {
       "heading": "1. PADDING ORACLE ATTACK (CBC MODE)",
-      "what": "CBC 模式下利用填充有效性差异逐字节无密钥解密的 Python 实现与 PadBuster 用法"
+      "what": "CBC 填充预言机逐字节构造前一密文块恢复中间值实现无密钥解密，附 PadBuster 用法与假阳性校验"
     },
     {
       "heading": "2. CBC BIT FLIPPING",
-      "what": "翻转前一块密文对应位以篡改下一块明文实现 admin=0 改 admin=1 等字段越权改写"
+      "what": "对前一密文块异或修改实现目标明文字节翻转（如 admin=0 改 1）及损坏块的容忍处理"
     },
     {
       "heading": "3. ECB MODE ATTACKS",
-      "what": "ECB 模式重复块检测、密文块重排 Cut-and-Paste 伪造 role 字段及逐字节附加密文解密"
+      "what": "ECB 重复块检测、cut-and-paste 块重排伪造 role=admin 及 byte-at-a-time 试探解出附加密文"
     },
     {
-      "heading": "10. ATTACK CONDITIONS SUMMARY",
-      "what": "各 RSA 攻击适用条件、复杂度与成功率的对照速查表"
+      "heading": "4. LCG STATE RECOVERY",
+      "what": "由三个连续输出解出 LCG 参数 a、b，截断输出场景构造格经 LLL 恢复未知低位"
+    },
+    {
+      "heading": "5. MERSENNE TWISTER STATE RECOVERY",
+      "what": "对 MT19937 tempering 逆向恢复内部状态数组以预测 Python random 后续输出"
+    },
+    {
+      "heading": "Part 5: Lattice Crypto Attacks",
+      "what": "格密码分析总纲：LLL/BKZ 基归约、格质量度量与攻击格构造通用方法论及嵌入技巧"
+    },
+    {
+      "heading": "5. HIDDEN NUMBER PROBLEM (HNP) — DSA/ECDSA NONCE RECOVERY",
+      "what": "利用 ECDSA/DSA nonce 偏差构造 HNP 格，LLL 归约后从短向量提取私钥并验证"
+    },
+    {
+      "heading": "1. LENGTH EXTENSION ATTACK",
+      "what": "Merkle-Damgård 结构长度扩展伪造 MAC，HashPump/hash_extender 工具用法与手工填充计算"
+    },
+    {
+      "heading": "2. MD5 COLLISION ATTACKS",
+      "what": "fastcoll 同前缀、hashclash 选择前缀碰撞、UniColl 及 CTF 相等比较碰撞技巧"
+    },
+    {
+      "heading": "Part 7: Classical Cipher Analysis",
+      "what": "古典密码识别方法论：字符集/词频/重合指数 IC/Kasiski 分析及维吉尼亚、栅栏等求解流程"
+    },
+    {
+      "heading": "Part 8: Type Juggling & Weak Comparison",
+      "what": "PHP == 松散比较传递性、0e 魔术哈希、in_array/switch 混淆与 strcmp 数组参数绕过实现认证绕过"
     }
   ]
 }

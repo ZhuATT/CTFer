@@ -1,88 +1,88 @@
 {
-  "use_when": "在授权红队评估企业软件供应链安全时需要从内部包名侦察到恶意包注册与回调验证的完整打法时阅读本篇，重点涵盖依赖混淆、typosquatting 抢注、setup.py/npm postinstall 构建钩子注入、GitHub Actions 流水线滥用、容器镜像投毒及 confused 扫描工具，区别于针对单体 Web 应用的传统漏洞渗透视角。",
+  "use_when": "在授权红队评估目标软件供应链安全、需要复现依赖解析与构建流程信任链攻击时阅读本篇，重点涵盖 npm/PyPI/NuGet 依赖混淆、Typosquatting 包名抢注、setup.py 与 npm postinstall 生命周期钩子、GitHub Actions pull_request_target 注入、容器镜像投毒与代码签名滥用（对应 MITRE ATT&CK T1195），区别于传统 Web 漏洞渗透，聚焦包管理器解析逻辑、CI/CD 流水线与上游仓库的投毒利用。",
   "triggers": [
     "供应链攻击",
-    "supply chain attack",
     "依赖混淆",
-    "dependency confusion",
-    "typosquatting",
-    "包名抢注",
-    "恶意包投毒",
-    "npm postinstall",
-    "preinstall",
-    "setup.py 安装钩子",
-    "Makefile 注入",
+    "Dependency Confusion",
+    "Typosquatting",
+    "拼写抢注",
     "pull_request_target",
-    "CI/CD 产物篡改",
-    "容器镜像投毒",
-    "基础镜像木马",
-    "registry confusion",
-    "代码签名滥用",
-    "维护者账号接管",
+    "postinstall",
+    "preinstall",
+    "setup.py install hook",
+    ".npmrc",
+    "--extra-index-url",
+    "package-lock.json",
     "confused",
+    "PyPI",
+    "NuGet",
+    "基础镜像投毒",
+    "Registry Confusion",
+    "Authenticode",
+    "维护者账号接管",
     "T1195"
   ],
   "vulnclass": "RCE",
   "section_map": [
     {
-      "heading": "Quick Workflow",
-      "what": "从 lock 文件枚举内部包名、选定攻击向量、发布带 DNS canary 回调的 PoC 包并监控确认目标环境执行的七步攻击流程"
-    },
-    {
       "heading": "Dependency Confusion",
-      "what": "利用私有与公共源并存时包管理器优先选取高版本的解析顺序缺陷，以公共包遮蔽内部依赖包"
+      "what": "利用包管理器公私注册表并存时的解析优先级，使高版本恶意公共包覆盖内部私有依赖"
     },
     {
       "heading": "npm Dependency Confusion",
-      "what": "从 package-lock.json 提取包名、curl 探测公共 npm 源 404 未占用名并以 99.0.0 高版本恶意 package.json 抢注"
+      "what": "从 package-lock.json/yarn.lock 提取内部包名并检测 npm 公共源可抢注名，.npmrc 未固定注册表时回退公共源执行 preinstall 回调"
     },
     {
       "heading": "PyPI Dependency Confusion",
-      "what": "利用 pip --extra-index-url 双源解析机制，通过 setup.py 重写 install 命令类在安装时发起 HTTP 回传"
+      "what": "pip --extra-index-url 双索引取最高版本导致恶意包胜出，setup.py 安装钩子触发 DNS/HTTP 回调"
+    },
+    {
+      "heading": "NuGet Feed Priority",
+      "what": "nuget.config 多 Feed 并存时最高版本取胜的利用及公共 NuGet 注册表未占用名探测"
     },
     {
       "heading": "Automated Scanning with confused",
-      "what": "使用 Go 编写的 confused 工具批量扫描 npm/pip/nuget 锁文件中可被抢注混淆的内部包名"
+      "what": "用 Go 工具 confused 批量扫描 npm/pip/nuget 锁文件中可混淆抢注的包名"
     },
     {
       "heading": "Typosquatting Attacks",
-      "what": "生成常见误拼、连字符/下划线与复数变体包名在公共源抢注并植入安全回调 PoC"
+      "what": "生成拼写错误、复数、连字符/下划线变体抢注仿冒包并通过安装钩子回连 canary"
     },
     {
-      "heading": "Makefile Injection",
-      "what": "在 Makefile 默认构建目标前插入 backdoor 目标，实现编译阶段的隐式代码执行"
+      "heading": "Build System Attacks",
+      "what": "针对构建/安装期隐式执行脚本钩子的攻击面，含 Makefile 注入先于默认构建执行的后门目标"
     },
     {
       "heading": "setup.py Install Hooks (Python)",
-      "what": "重写 install/develop/egg_info 命令类的 run 方法，在打包安装各环节触发回调"
+      "what": "重写 install/develop/egg_info 命令类在 Python 打包安装各阶段植入回调代码"
     },
     {
       "heading": "npm postinstall / preinstall Scripts",
-      "what": "利用 package.json 生命周期脚本在安装时回传主机名、用户名与 CI 环境变量等元数据"
-    },
-    {
-      "heading": "GitHub Actions Workflow Injection",
-      "what": "滥用 pull_request_target 触发器使攻击者 PR 代码以仓库 secrets 权限执行并外带 DEPLOY_TOKEN"
+      "what": "利用 npm 生命周期脚本采集主机名、用户与 CI 环境变量元数据并 POST 外传"
     },
     {
       "heading": "CI/CD Artifact Tampering",
-      "what": "替换 S3 产物存储中无校验和保护的构建产物，并在被攻陷 CI 任务中枚举外带 token 与密钥环境变量"
+      "what": "篡改构建产物存储与传输环节：替换 S3/发布目录制品、验证无校验和、枚举外传流水线密钥"
+    },
+    {
+      "heading": "GitHub Actions Workflow Injection",
+      "what": "借 pull_request_target 触发器使攻击者 PR 代码以仓库 secrets 权限执行并窃取 DEPLOY_TOKEN"
     },
     {
       "heading": "Container Image Supply Chain",
-      "what": "发布木马化基础镜像、利用未限定镜像名解析到 Docker Hub 的仓库混淆及可变 tag 替换与 digest 比对攻击"
+      "what": "容器供应链攻击全集：基础镜像木马化 ENTRYPOINT 持久化、未限定镜像名回退 Docker Hub 的注册表混淆、可变标签篡改与 digest 校验"
     },
     {
       "heading": "Code Signing Abuse",
-      "what": "用 openssl 自签名证书仿冒可信发布者签名恶意二进制，并从 CI 环境变量与 gnupg 目录窃取签名私钥"
+      "what": "openssl 自签名仿冒合法发布者证书并以 Authenticode 签名恶意二进制，从 CI 环境变量窃取签名私钥"
     },
     {
       "heading": "Upstream Repository Compromise",
-      "what": "接管无 2FA 的维护者账号后以良性提交信息向深层文件注入隐蔽后门并赶在审查前快速合并"
+      "what": "枚举无 2FA、弱口令维护者账号与未签名提交，接管后修改冷门函数注入隐蔽后门并赶在评审前快速合并"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "防御侧 registry 独占固定、lock 文件完整性监控、可复现构建、dependency-check 扫描、镜像 digest 固定与 cosign 校验等八项控制措施"
+      "what": "防御控制清单：注册表独占固定、锁文件完整性、可复现构建、依赖扫描、镜像 digest 固定、cosign 验签与内部包名预留"
     }
   ]
 }

@@ -1,84 +1,88 @@
 {
-  "use_when": "在面向具备 EDR/AMSI 与成熟蓝队的目标开展红队演练（假定失陷、外到内、内部威胁等场景）需要规划从授权、C2 基建、防御规避到紫队复盘的全生命周期对抗行动时阅读本篇，重点涵盖三层 C2 基础设施与重定向器/域名养号、Cobalt Strike 可塑性 Profile 流量伪装、AMSI/ETW 绕过与 SysWhispers3 直接系统调用、OPSEC 归因规避及痕迹清理，区别于以漏洞发现为核心、范围固定的常规渗透测试。",
+  "use_when": "在面向成熟防御体系的红队对抗模拟交战中需要完成从ROE谈判、分层C2基础设施搭建到EDR/AMSI规避与数据外传的全流程作业时阅读本篇，重点涵盖Malleable Profile流量伪装、nginx重定向器、域名养号、SysWhispers3直接系统调用与LOLBins白利用，区别于以漏洞发现为导向、固定范围的常规渗透测试。",
   "triggers": [
-    "红队",
-    "Red Team",
+    "红队交战",
+    "red team",
     "C2",
     "Cobalt Strike",
     "Malleable Profile",
-    "可塑性配置",
     "Beacon",
     "重定向器",
     "域名养号",
     "AMSI绕过",
-    "ETW Patch",
-    "SysWhispers3",
+    "ETW补丁",
     "直接系统调用",
-    "ntdll脱钩",
+    "SysWhispers3",
+    "HellsGate",
     "LOLBins",
-    "OPSEC",
-    "归因规避",
+    "白利用",
+    "certutil",
+    "Mimikatz",
     "LSASS转储",
-    "紫队复盘",
-    "MITRE ATT&CK"
+    "kerberoast",
+    "去冲突"
   ],
   "vulnclass": "其他",
   "section_map": [
     {
-      "heading": "Engagement Planning",
-      "what": "规划阶段界定目标与禁入范围、签署ROE法律授权、建立可信代理人去冲突与端到端加密通信"
+      "heading": "Quick Workflow",
+      "what": "红队交战全生命周期八步速览：谈判ROE、搭基础设施、C2伪装、执行、取证、规避、报告与紫队复盘"
     },
     {
-      "heading": "Infrastructure Setup",
-      "what": "搭建抗归因、可分割的攻击基础设施并对应ATT&CK资源开发战术TA0042"
+      "heading": "Rules of Engagement (ROE)",
+      "what": "交战规则法律授权要素：授权窗口、许可ATT&CK技术、通知阈值、24/7紧急联系人及法规引用"
+    },
+    {
+      "heading": "Deconfliction",
+      "what": "可信代理人、代号系统与时间戳去冲突日志机制，供蓝队区分红队演练与真实入侵"
     },
     {
       "heading": "Tiered Architecture",
-      "what": "T1投递/T2短程C2/T3长程C2三层域名与VPS分离及烧毁容忍度设计"
+      "what": "投递/短程C2/长程C2三层基础设施分割、烧毁容忍度与独立域名VPS隔离设计"
+    },
+    {
+      "heading": "Domain Aging and Reputation",
+      "what": "域名提前14-30天养号、放置落地页并向Bluecoat/Fortiguard提交分类验证信誉"
     },
     {
       "heading": "Redirectors and Traffic Filtering",
-      "what": "nginx按URI与User-Agent过滤仅转发合法beacon回调，并用Cloudflare隧道保护团队服务器"
+      "what": "nginx智能重定向器按URI与User-Agent过滤Beacon回连，team server仅绑localhost并经cloudflared隧道管理"
     },
     {
       "heading": "Malleable Profiles and Traffic Blending",
-      "what": "编写模仿Office 365 API请求的Cobalt Strike可塑性Profile实现流量隐匿"
+      "what": "Cobalt Strike Malleable配置伪装Microsoft 365 API流量的http-get/post事务与元数据编码"
+    },
+    {
+      "heading": "Sleep, Jitter, and Beacon Management",
+      "what": "按交互/闲置/长程/外传四类Beacon分级设置sleep与jitter并强制配置kill date"
     },
     {
       "heading": "Fallback Channels",
-      "what": "HTTPS→DoH→DNS TXT→ICMP的C2多级降级链与指数退避休眠重试策略"
+      "what": "HTTPS→DoH→DNS TXT→ICMP多级回退信道链设计与指数退避休眠策略"
     },
     {
-      "heading": "OPSEC Discipline",
-      "what": "一次性身份注册、剥离EXIF等文件元数据、改造CS/Mimikatz默认签名的归因规避与痕迹清理"
-    },
-    {
-      "heading": "Data Handling",
-      "what": "GPG即时加密战利品、DNS TXT分块渗出绕过DLP阈值与SHA-256监管链保全"
+      "heading": "Attribution Avoidance",
+      "what": "exiftool清除钓鱼文档元数据、strip剥离二进制编译路径及跨交战基础设施防归因隔离"
     },
     {
       "heading": "AMSI Bypass",
-      "what": "反射置amsiInitFailed或补丁AmsiScanBuffer返回RET以绕过脚本与程序集扫描"
+      "what": "置amsiInitFailed字段或对amsi.dll的AmsiScanBuffer入口写入RET(0xC3)的内存补丁绕过"
+    },
+    {
+      "heading": "ETW Patching",
+      "what": "定位ntdll.dll的EtwEventWrite函数并补RET指令致盲ETW遥测阻断EDR上报"
     },
     {
       "heading": "Unhooking and Direct Syscalls",
-      "what": "磁盘加载干净ntdll覆盖.text段脱钩EDR内联hook并用SysWhispers3/HellsGate直调内核"
+      "what": "用磁盘清洁ntdll覆写.text段脱EDR内联钩子，配合SysWhispers3/HellsGate运行时解析syscall号直调内核"
     },
     {
       "heading": "LOLBins and Living Off the Land",
-      "what": "活用certutil/mshta/rundll32/msbuild等系统自带二进制下载与执行载荷"
+      "what": "certutil下载、mshta执行HTA、MSBuild内联C#任务等白名单程序利用及ATT&CK编号映射"
     },
     {
-      "heading": "Reporting",
-      "what": "高管摘要、攻击叙事、ATT&CK热力图与IOC附录的分层报告结构"
-    },
-    {
-      "heading": "Purple Team Debrief",
-      "what": "红蓝协同逐步复盘攻击链检测时效并共同开发检测规则与调优工具"
-    },
-    {
-      "heading": "Engagement Scenarios",
-      "what": "假定失陷、外到内、内部威胁、物理网络混合四类演练场景及对应ATT&CK战术"
+      "heading": "Staging and Exfiltration",
+      "what": "数据先暂存压缩加密再base32分块经DNS TXT查询外传以规避DLP阈值"
     }
   ]
 }

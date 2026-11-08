@@ -1,84 +1,88 @@
 {
-  "use_when": "在移动App渗透测试中需要对Android/iOS应用开展抓包、攻击面枚举与本地数据利用时阅读本篇，重点涵盖Frida/Objection Hook脚本、SSL Pinning绕过、导出组件、WebView RCE、Intent重定向、Keychain提取与Root/Play Integrity检测绕过，区别于后端API与纯Web端漏洞测试。",
+  "use_when": "在移动App（Android/iOS）渗透测试需要流量拦截、运行时Hook与攻击面挖掘时阅读本篇，重点涵盖SSL Pinning绕过（Frida/Objection/Magisk/LSPosed）、导出组件滥用、WebView RCE、Keychain提取、URL Scheme/Universal Links劫持及Flutter/React Native/Xamarin框架级解绑，区别于Web后端API与纯网络层的测试场景。",
   "triggers": [
     "移动安全",
     "Android渗透",
     "iOS渗透",
-    "Frida脚本",
-    "Objection",
-    "SSL Pinning绕过",
+    "SSL Pinning",
     "证书固定绕过",
+    "Frida",
+    "Objection",
+    "Magisk DenyList",
+    "Root检测绕过",
+    "越狱检测",
     "导出组件",
     "Content Provider",
     "WebView RCE",
-    "addJavascriptInterface",
-    "Intent重定向",
+    "Intent Redirection",
+    "意图重定向",
+    "Keychain提取",
+    "钥匙串",
     "URL Scheme劫持",
     "Universal Links",
-    "Root检测绕过",
-    "Magisk DenyList",
-    "Play Integrity绕过",
-    "Keychain提取",
-    "生物识别绕过",
-    "adb backup提取"
+    "Drozer"
   ],
-  "vulnclass": "未授权访问",
+  "vulnclass": "其他",
   "section_map": [
     {
       "heading": "1. SSL PINNING BYPASS",
-      "what": "Frida多Hook点通用绕过、Objection一键禁用、Network Security Config与Magisk/LSPosed模块四条安卓抓包路径"
+      "what": "Android端Frida通用脚本、Objection一键命令、Network Security Config与Magisk/LSPosed模块四类证书固定绕过手法及hook点覆盖表"
     },
     {
       "heading": "2. COMPONENT EXPOSURE",
-      "what": "adb与aapt枚举导出Activity/Provider/Receiver/Service并利用SQL注入、路径穿越与恶意广播"
+      "what": "adb直接拉起导出Activity、Content Provider的SQL注入与路径穿越、伪造广播与服务绑定等组件滥用测试"
     },
     {
       "heading": "3. WEBVIEW VULNERABILITIES",
-      "what": "addJavascriptInterface反射RCE、file域同源绕过与深链到WebView的XSS调用JS桥攻击链"
+      "what": "addJavascriptInterface反射RCE、file域同源/跨源越权读取及Deep Link到WebView的XSS攻击链"
     },
     {
       "heading": "4. INTENT REDIRECTION",
-      "what": "Intent-in-Intent转发放大漏洞，借导出组件启动非导出内部Activity或打开任意URL"
+      "what": "利用Intent-in-Intent模式通过导出Activity重定向拉起未导出的内部敏感组件"
     },
     {
       "heading": "5. ROOT DETECTION BYPASS",
-      "what": "Hook File.exists、Build.TAGS、PackageManager与Runtime.exec绕过su/Magisk/RootBeer检测"
+      "what": "针对su路径、Build.TAGS、RootBeer等检测点的Frida hook清单与Magisk DenyList隐藏方案"
     },
     {
       "heading": "6. PLAY INTEGRITY / SAFETYNET BYPASS",
-      "what": "Zygisk DenyList、PIF模块伪造设备指纹与Shamiko隐藏root对抗完整性校验"
-    },
-    {
-      "heading": "7. TAPJACKING (OVERLAY ATTACKS)",
-      "what": "透明悬浮窗Activity覆盖界面诱导误触及各安卓版本防护差异与绕过"
+      "what": "Basic/Device/Strong三级设备完整性认证的绕过难度与Zygisk、PIF、Shamiko模块对抗手法"
     },
     {
       "heading": "8. BACKUP EXTRACTION",
-      "what": "利用allowBackup默认开启通过adb backup提取SharedPreferences与SQLite中的令牌凭据"
+      "what": "利用默认allowBackup=true通过adb backup提取shared_prefs与SQLite中的令牌凭据"
     },
     {
-      "heading": "10. ANDROID PENTESTING DECISION TREE",
-      "what": "从抓包绕过、组件、WebView、Intent到root检测的全流程测试路径决策图"
-    },
-    {
-      "heading": "3. METHOD TRACER",
-      "what": "Frida批量trace目标类所有方法入参与返回值以理解应用逻辑"
-    },
-    {
-      "heading": "4. CRYPTO HOOK (KEY & PLAINTEXT EXTRACTION)",
-      "what": "Hook Cipher.init/doFinal、SecretKeySpec与MessageDigest抓取加密密钥、明文及哈希运算"
-    },
-    {
-      "heading": "8. BIOMETRIC BYPASS",
-      "what": "Hook BiometricPrompt认证回调压制失败事件强行通过指纹/面容认证"
-    },
-    {
-      "heading": "1. JAILBREAK VS NON-JAILBREAK TESTING",
-      "what": "越狱与非越狱设备测试能力差异及重签名注入Frida gadget的非越狱Hook方案"
+      "heading": "9. ADDITIONAL TRICKS",
+      "what": "debuggable应用run-as直接读数据目录、Drozer攻击面扫描与剪贴板窃听等杂项利用技巧"
     },
     {
       "heading": "2. KEYCHAIN EXTRACTION",
-      "what": "钥匙串各保护等级风险评估与keychain-dumper/Objection提取密码令牌手法"
+      "what": "iOS钥匙串kSecAttrAccessible各保护等级风险对比及keychain-dumper/Objection提取方法"
+    },
+    {
+      "heading": "3. URL SCHEME HIJACKING",
+      "what": "从Info.plist发现自定义URL Scheme并劫持认证回调的攻击手法及与Universal Links的安全对比"
+    },
+    {
+      "heading": "4. UNIVERSAL LINKS EXPLOITATION",
+      "what": "AASA文件通配路径等配置错误检测及破坏Universal Links降级回URL Scheme的利用链"
+    },
+    {
+      "heading": "7. DATA STORAGE ISSUES",
+      "what": "检查iOS沙盒中NSUserDefaults、SQLite数据库与缓存文件里的明文敏感数据"
+    },
+    {
+      "heading": "4. CRYPTO HOOK (KEY & PLAINTEXT EXTRACTION)",
+      "what": "Frida钩取Cipher.init/doFinal与SecretKeySpec以捕获加密密钥、明文与密文"
+    },
+    {
+      "heading": "8. BIOMETRIC BYPASS",
+      "what": "钩取BiometricPrompt认证回调压制失败事件实现指纹/人脸认证绕过"
+    },
+    {
+      "heading": "4. FRAMEWORK-SPECIFIC BYPASSES",
+      "what": "Flutter、React Native、Xamarin应用各自SSL验证机制的专用绕过手法"
     }
   ]
 }

@@ -1,88 +1,88 @@
 {
-  "use_when": "在Web应用渗透测试或漏洞赏金(SRC)中挖掘不安全直接对象引用及水平/垂直越权时阅读本篇，重点涵盖双账号对比测试、对象ID枚举、GUID/UUID替换、编码与哈希ID绕过、HTTP参数污染、Mass Assignment批量赋值及API/GraphQL/gRPC端点IDOR手法，区别于侧重访问控制架构设计与修复方案的通用Broken Access Control资料。",
+  "use_when": "在Web应用渗透测试与漏洞赏金中挖掘不安全直接对象引用（IDOR/BOLA）越权漏洞时阅读本篇，重点涵盖对象ID枚举与参数篡改、水平/垂直越权、盲测与批量检测、参数污染、请求走私、Mass Assignment等绕过手法及GraphQL、gRPC、云预签名URL等现代场景，区别于仅涉及认证绕过或注入类的其他漏洞类型。",
   "triggers": [
     "IDOR",
     "不安全的直接对象引用",
-    "越权",
+    "越权漏洞",
     "水平越权",
     "垂直越权",
+    "horizontal privilege escalation",
+    "vertical privilege escalation",
     "BOLA",
-    "broken access control",
-    "访问控制失效",
     "对象枚举",
     "GUID",
     "UUID",
-    "批量赋值",
     "mass assignment",
-    "HTTP参数污染",
-    "盲打IDOR",
-    "GraphQL IDOR",
-    "API越权",
+    "批量赋值",
+    "参数污染",
+    "HTTP Parameter Pollution",
     "请求走私",
     "request smuggling",
-    "Burp Suite"
+    "盲测IDOR",
+    "GraphQL",
+    "Autorize"
   ],
   "vulnclass": "越权",
   "section_map": [
     {
       "heading": "Shortcut",
-      "what": "IDOR测试速查流程：双账号建号、代理抓包换ID、未果则尝试防护绕过并监控导出文件等信息泄露"
-    },
-    {
-      "heading": "Mechanisms",
-      "what": "IDOR成因机制：缺失鉴权校验、客户端传ID、可预测标识符、依赖混淆及水平/垂直/上下文三类越权表现"
-    },
-    {
-      "heading": "Preparation",
-      "what": "测试准备：多权限测试账号、基线行为与端点映射、Burp/ZAP代理配置及移动端CA证书安装抓包"
+      "what": "IDOR测试速查流程：建立攻击者/受害者双账号、代理拦截并替换请求中的ID，失败后转向防护绕过与信息泄露监控"
     },
     {
       "heading": "Finding IDOR Vulnerabilities",
-      "what": "请求参数分析与篡改手法：直接改数值ID、补加缺失ID、GUID替换、base64解码改值、数组/JSON对象包裹及通配符测试"
+      "what": "请求参数分析与篡改手法：直改数字ID、补加缺失user_id、GUID替换、base64解码、数组/JSON对象包装与文件类型变换"
     },
     {
       "heading": "Blind IDOR Detection",
-      "what": "盲打IDOR检测：有效与无效资源响应差异对比、带外回调URL注入及时间与响应大小侧信道分析"
+      "what": "盲测IDOR手法：对比有效/无效ID的响应差异、注入跟踪URL带外回调与时间及大小侧信道分析"
     },
     {
       "heading": "Mass IDOR Testing",
-      "what": "批量IDOR测试：Python脚本循环枚举ID范围、Burp Intruder并行测试与响应模式识别"
+      "what": "批量IDOR测试：Python脚本枚举ID范围、Burp Intruder/Turbo Intruder并行测试与Grep识别成功访问"
     },
     {
-      "heading": "ID Obfuscation Bypass",
-      "what": "ID混淆绕过：收集哈希ID建立用户映射、解码base64/hex编码ID修改后回填、分析加密ID规律测试相邻ID"
+      "heading": "Bypass Techniques",
+      "what": "绕过技术总集：ID混淆解码、访问控制绕过、请求走私、Mass Assignment与引用泄露利用五大类手法"
     },
     {
       "heading": "Access Control Bypass",
-      "what": "访问控制绕过：GET改POST/PUT方法切换、Content-Type变换、HTTP/JSON参数污染、大小写与路径规范化及旧版API端点测试"
+      "what": "访问控制绕过：HTTP方法切换、Content-Type篡改、HTTP/JSON参数污染、路径穿越与旧版API端点测试"
     },
     {
       "heading": "Request Smuggling for IDOR",
-      "what": "利用CL.TE/TE.CL HTTP请求走私在前端剥离user_id后向后端注入受害者ID实现越权"
+      "what": "利用CL.TE/TE.CL请求走私在前端剥离user_id后向后端注入受害者ID实现越权"
     },
     {
       "heading": "Mass Assignment IDOR",
-      "what": "批量赋值IDOR：注入role/is_admin等额外字段、camelCase与snake_case变体测试及嵌套对象注入越权字段"
+      "what": "批量赋值IDOR：注入role/is_admin等隐藏字段、大小写变体测试与嵌套对象注入实现提权"
     },
     {
       "heading": "Reference Leakage Exploitation",
-      "what": "引用泄露利用：从页面源码/JS文件、API列表响应、错误信息、分析埋点与搜索补全接口收割其他用户标识符"
+      "what": "引用泄露利用：从HTML/JS源码、API列表响应、错误信息、日志端点收集他人对象ID供越权利用"
     },
     {
       "heading": "Function-Specific Vulnerabilities",
-      "what": "功能型IDOR：账户管理、金融支付、内容管理、OAuth/OIDC的state与code、2FA备份码与TOTP密钥及通知Webhook端点越权"
+      "what": "分功能IDOR场景：账号管理、金融支付、内容管理、OAuth/OIDC、2FA/MFA及通知/Webhook与实时协作功能"
     },
     {
       "heading": "GraphQL",
-      "what": "GraphQL IDOR测试：字段级鉴权检查、aliasing/fragment/批量查询换id、introspection限制与错误信息收集"
+      "what": "GraphQL越权测试：按字段鉴权校验、aliasing/批量/持久化查询篡改id参数与内省限制检查"
+    },
+    {
+      "heading": "Cloud-Native Object URLs",
+      "what": "云原生预签名URL利用：篡改S3/GCS/Azure的Key路径、查询参数与凭证重放他人文件及跨租户复用"
     },
     {
       "heading": "High-Impact IDOR Targets",
-      "what": "高价值IDOR目标清单：个人资料设置、支付金融端点、管理功能、MFA/会话端点、通知偏好与socket.io实时房间接口"
+      "what": "高价值IDOR目标清单：个人设置、支付端点、管理功能、MFA备份码/TOTP及通知与协作房间端点"
     },
     {
       "heading": "Chaining and Escalation",
-      "what": "IDOR漏洞链利用：配合信息泄露接口获取UUID再打IDOR、越权改数据升级为存储型XSS及替他人操作的功能滥用"
+      "what": "IDOR链式升级：结合信息泄露获取UUID、升级为存储型XSS及替他人操作的功能滥用"
+    },
+    {
+      "heading": "Remediation Recommendations",
+      "what": "修复建议：服务端资源归属校验、间接引用映射、RBAC/ABAC框架、默认拒绝与CDN缓存按鉴权分区"
     }
   ]
 }

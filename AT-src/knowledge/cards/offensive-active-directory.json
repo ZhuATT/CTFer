@@ -1,72 +1,92 @@
 {
-  "use_when": "在内网红队与域渗透场景下需要系统性规划 Active Directory 攻击路径时阅读本篇，重点涵盖 BloodHound 侦察、Kerberoasting/NTLM 中继凭据收割、ACL/RBCD/GPO 提权、ADCS ESC1-15 证书滥用、黄金票据/DCSync 持久化及 Entra ID 混合云打点与 MDI 规避，区别于 Web 应用层漏洞测试，聚焦域内横向移动与 Tier 0 权限夺取。",
+  "use_when": "在红队内网渗透需要评估并攻陷 Windows Active Directory 域环境时阅读本篇，重点涵盖 BloodHound/PowerView 域侦察、Responder 毒化与 NTLM 中继、Kerberoasting、ACL/RBCD/GPO 提权、ADCS ESC1-ESC15 滥用、黄金票据与 DCSync 持久化及 MDI 绕过，区别于单机本地提权或 Web 应用渗透的域级全链路攻击方法论。",
   "triggers": [
     "Active Directory",
-    "AD域渗透",
+    "域渗透",
     "BloodHound",
+    "PowerView",
     "Kerberoasting",
     "ASREProasting",
     "NTLM中继",
-    "LLMNR/NBT-NS毒化",
+    "NTLM Relay",
+    "LLMNR投毒",
     "Responder",
+    "PetitPotam",
+    "RBCD",
+    "资源型约束委派",
+    "ADCS滥用",
+    "ESC8",
     "Pass-the-Hash",
     "哈希传递",
-    "Pass-the-Ticket",
     "黄金票据",
-    "白银票据",
     "DCSync",
-    "DCShadow",
-    "ADCS攻击",
-    "RBCD",
-    "PetitPotam",
-    "GPO滥用",
-    "LSASS转储"
+    "krbtgt"
   ],
   "vulnclass": "网络与内网",
   "section_map": [
     {
-      "heading": "Quick Workflow",
-      "what": "五步域渗透流程：离线侦察、凭据收割、攻击路径规划、低噪执行与持久化留痕"
-    },
-    {
       "heading": "Reconnaissance",
-      "what": "BloodHound/SharpHound 采集、PowerView 无落地枚举与 ADExplorer 快照离线分析域结构"
+      "what": "BloodHound/SharpHound 节流收集、PowerView 无二进制落地枚举与 ADExplorer 低权快照离线转 BloodHound 格式的域侦察手法"
     },
     {
       "heading": "Credential Harvesting",
-      "what": "LLMNR/NBT-NS 毒化抓 NetNTLMv2、NTLM 中继、Kerberoasting/ASREProasting 烤票与 LSASS 转储"
+      "what": "凭据收割总纲：LLMNR/NBT-NS/mDNS 毒化、NTLM 中继、Kerberoast/ASREPRoast 与 LSASS/SAM 转储"
+    },
+    {
+      "heading": "NTLM Relay",
+      "what": "筛选无 SMB 签名目标，中继至 LDAP 实现 ACL 提权或 ADCS Web Enrollment 申请证书（ESC8 链）"
+    },
+    {
+      "heading": "Kerberoasting",
+      "what": "用 Rubeus/impacket-GetUserSPNs 请求 SPN 账户 TGS 并以 hashcat 13100 离线爆破 RC4/AES 票据"
     },
     {
       "heading": "Privilege Escalation Within AD",
-      "what": "ACL 滥用（GenericAll/WriteDacl）、Kerberos 委派与 RBCD、PetitPotam 等强制认证原语及 GPO 计划任务提权"
+      "what": "域内提权总纲：ACL 滥用、Kerberos 委派、强制认证原语与 GPO 滥用四大路径"
+    },
+    {
+      "heading": "ACL Abuse",
+      "what": "GenericAll/WriteDacl/AllExtendedRights 等危险权限利用表与定向 Kerberoast 写 SPN、自授 DCSync 权限操作"
+    },
+    {
+      "heading": "Kerberos Delegation",
+      "what": "非约束委派捕获 TGT、约束委派 S4U2self/S4U2proxy 冒充任意用户及 RBCD 写 msDS-AllowedToActOnBehalfOfOtherIdentity"
+    },
+    {
+      "heading": "Coercion Primitives",
+      "what": "PetitPotam/PrinterBug/DFSCoerce/ShadowCoerce 等协议强制主机认证并衔接中继打 RBCD 的完整攻击链"
+    },
+    {
+      "heading": "GPO Abuse",
+      "what": "定位可编辑 GPO 并用 SharpGPOAbuse 注入立即计划任务将攻击者账户加入 Domain Admins"
     },
     {
       "heading": "ADCS Abuse — ESC1 through ESC15",
-      "what": "certipy 枚举证书模板错误配置并利用 ESC1-ESC15 获取任意用户证书冒充身份"
+      "what": "ADCS 证书服务攻击面总览，certipy 漏洞模板枚举与 ESC1 任意 UPN 申请证书后 UnPAC-the-Hash 取 NT hash"
+    },
+    {
+      "heading": "Common Misconfigurations",
+      "what": "ESC1-ESC15 证书模板与 CA 错误配置速查表及对应利用方式"
     },
     {
       "heading": "Lateral Movement",
-      "what": "哈希传递/票据传递及 WinRM、atexec、WMI、DCOM 等低检测噪声横向执行手法"
+      "what": "哈希传递/Overpass-the-Hash/票据传递及 WinRM/atexec/WMI/DCOM 等低噪横向移动工具"
     },
     {
       "heading": "Persistence",
-      "what": "黄金/白银/Diamond 票据伪造、DCSync、DCShadow 与 AdminSDHolder 后门持久化"
+      "what": "黄金/白银/钻石票据伪造、DCSync、DCShadow 注册伪 DC 推送更改与 AdminSDHolder 后门持久化"
     },
     {
       "heading": "Forest & Trust Attacks",
-      "what": "跨林信任 SID History 注入与域间票据伪造实现林间提权"
+      "what": "信任关系映射、SID History/ExtraSids 跨林提权注入与 inter-realm 信任票据伪造"
     },
     {
       "heading": "Hybrid AD / Entra ID (Azure AD) Pivots",
-      "what": "AAD Connect 凭据提取、Seamless SSO、PTA 代理劫持、Golden SAML 与 Pass-the-PRT 混合云打点"
+      "what": "AAD Connect MSOL 凭据、无缝 SSO 伪造 AZUREADSSOACC$ 票据、PTA 劫持、PHS 哈希读取、Golden SAML 与 Pass-the-PRT 云上打点路径"
     },
     {
       "heading": "Detection Evasion (MDI / Defender for Identity)",
-      "what": "识别 MDI 传感器并针对蜜罐账户、SAMR 侦察、票据伪造检测等规避 Defender for Identity"
-    },
-    {
-      "heading": "Engagement Cheatsheet",
-      "what": "匿名 LDAP/SMB 枚举、低速率密码喷洒与认证后 BloodHound 全量采集实战速查"
+      "what": "针对 MDI 蜜罐账户、SAMR 侦察、票据伪造与 DCSync 检测的绕过策略及事前识别 AATPSensor 传感器"
     }
   ]
 }

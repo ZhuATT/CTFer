@@ -1,84 +1,100 @@
 {
-  "use_when": "在Web渗透测试与漏洞挖掘（Bug Bounty）中需要发现并绕过开放重定向防护时阅读本篇，重点涵盖redirect/url/next等重定向参数识别、域名欺骗、URL编码与双重编码、javascript与data伪协议、CRLF及CDN反向代理解析差异等绕过手法，并结合OAuth redirect_uri测试与钓鱼/XSS/SSRF攻击链升级，区别于仅覆盖基础跳转探测的入门教程。",
+  "use_when": "在Web应用渗透测试与SRC/众测中挖掘任意URL跳转漏洞并绕过域名白名单校验时阅读本篇，重点涵盖redirect/url/next等跳转参数识别、URL编码与双重编码、CRLF、协议混淆（javascript:/data:）、路径反斜杠及@特殊字符绕过，以及OAuth redirect_uri劫持、SSRF/XSS/钓鱼利用链，区别于单纯的注入类漏洞或社工钓鱼话术。",
   "triggers": [
     "开放重定向",
-    "open redirect",
-    "URL重定向",
-    "重定向绕过",
+    "Open Redirect",
+    "URL跳转漏洞",
+    "任意跳转",
     "redirect bypass",
+    "重定向绕过",
+    "redirect_uri",
+    "OAuth redirect",
+    "OAuth劫持",
+    "CRLF注入",
     "URL编码绕过",
     "双重编码",
-    "CRLF注入",
     "协议混淆",
     "javascript伪协议",
-    "data URI",
-    "OAuth redirect_uri",
-    "重定向链",
-    "redirect chain",
-    "SSRF链",
     "域名欺骗",
-    "协议相对URL",
-    "Referer重定向",
     "钓鱼攻击",
-    "OpenRedireX"
+    "SSRF链",
+    "OpenRedireX",
+    "Waybackurls",
+    "URL短链接"
   ],
   "vulnclass": "逻辑漏洞",
   "section_map": [
     {
       "heading": "Shortcut",
-      "what": "快速搜索重定向URL参数与Referer跳转页面并按序测试、串联漏洞链的操作捷径"
+      "what": "快速定位跳转参数与Referer跳转页面并测试利用的速查流程"
     },
     {
       "heading": "Mechanisms",
-      "what": "开放重定向成因原理、URL校验缺陷类型及参数/路径/Referer/短链接等多种实现形态"
+      "what": "开放重定向成因（URL校验不足/白名单缺陷）与参数型、路径型、Referer型等实现模式"
     },
     {
-      "heading": "Hunt",
-      "what": "常见重定向参数名清单、跳转端点发现方法与OAuth redirect_uri基础测试"
+      "heading": "Modern Browser Behaviors",
+      "what": "Chrome 120+跨站跳转限制、SameSite、Referrer-Policy与COOP头对跳转利用的影响"
     },
     {
-      "heading": "Bypass Techniques",
-      "what": "防护绕过技术总览：域名欺骗、编码、协议混淆、路径混淆与特殊字符滥用"
+      "heading": "Target Discovery",
+      "what": "redirect/url/next/return等跳转参数名字典与登录、支付、短链、SSO等跳转端点发现"
+    },
+    {
+      "heading": "Testing Methodologies",
+      "what": "绝对URL、协议相对//与相对路径遍历基础测试及OAuth redirect_uri校验测试手法"
     },
     {
       "heading": "Domain Spoofing Techniques",
-      "what": "利用target.com.attacker.com子域伪装与?拼接目标域名绕过域名校验"
+      "what": "target.com.attacker.com子域伪造与问号拼接绕过域名白名单校验"
     },
     {
       "heading": "CDN/Reverse Proxy Quirks",
-      "what": "利用CDN与反向代理混合协议解析、双重解码及X-Original-URL头注入的绕过手法"
+      "what": "CDN/反向代理双层解码差异（%252F）与X-Original-URL、X-Forwarded-Proto头滥用绕过"
     },
     {
       "heading": "Encoding Bypass Techniques",
-      "what": "对跳转目标进行URL全编码与多层编码绕过过滤校验"
+      "what": "URL编码与十六进制全编码绕过跳转目标校验的载荷构造"
     },
     {
       "heading": "Protocol Confusion Bypasses",
-      "what": "利用javascript:、data:text/html伪协议及https;/畸形协议绕过验证"
+      "what": "javascript:、data:text/html伪协议与https;/畸形协议绕过手法"
     },
     {
       "heading": "Path-Based Bypasses",
-      "what": "利用/\\、////、\\/\\/等多斜杠与反斜杠路径混淆绕过跳转校验"
+      "what": "/\\、////、\\/\\/反斜杠与多斜杠组合的路径型绕过载荷"
     },
     {
       "heading": "Special Character Abuse",
-      "what": "利用@认证段、#片段截断与反斜杠转义绕过域名字符串校验"
+      "what": "@用户信息符、#锚点与反斜杠等特殊字符欺骗域名校验"
     },
     {
-      "heading": "Vulnerabilities",
-      "what": "Spring/Laravel/Express/Next.js等框架及OAuth/社交登录的典型重定向漏洞模式"
+      "heading": "Implementation-Specific Vulnerabilities",
+      "what": "Spring/Laravel/Express/Next.js/SvelteKit等框架及OAuth、Facebook/Google社交登录跳转漏洞模式"
     },
     {
       "heading": "Impact Scenarios",
-      "what": "钓鱼、CSRF增强、XSS与SSRF跳转及OAuth令牌窃取的攻击链升级路径"
+      "what": "钓鱼域名信誉滥用、CSRF增强与XSS/SSRF/OAuth令牌窃取攻击链场景"
     },
     {
-      "heading": "Tools",
-      "what": "OWASP ZAP、Burp Collaborator、OpenRedireX、Waybackurls等检测工具与Python自定义脚本"
+      "heading": "Advanced Attack Chains",
+      "what": "javascript URI实现XSS、重定向打内网SSRF与redirect_uri篡改窃取OAuth令牌"
+    },
+    {
+      "heading": "Open Redirect Detection Tools",
+      "what": "OWASP ZAP、Burp Collaborator、OpenRedireX、Gxss、Waybackurls、Param Spider等检测工具及自定义Python探测脚本"
+    },
+    {
+      "heading": "Comprehensive Open Redirect Testing Process",
+      "what": "发现、初始测试、绕过测试、利用PoC到文档化的完整测试流程"
+    },
+    {
+      "heading": "Real-World Testing Examples",
+      "what": "OAuth redirect_uri、登录后跳转与URL短链接三类实战测试示例"
     },
     {
       "heading": "Remediation Recommendations",
-      "what": "域名白名单、服务端校验、间接引用映射与安全跳转提示页等修复方案"
+      "what": "服务端域名白名单、间接ID引用映射、外链告警页与协议/深链校验等修复建议"
     }
   ]
 }

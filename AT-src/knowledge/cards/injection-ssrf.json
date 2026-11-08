@@ -1,76 +1,88 @@
 {
-  "use_when": "在渗透测试中当目标服务端会请求用户可控URL（Webhook、图片抓取、PDF/截图生成、URL导入等入口）需要验证并深入利用SSRF时阅读本篇，重点涵盖IP编码变形/DNS重绑定/重定向链等过滤绕过、AWS IMDSv1-v2/GCP/Azure/阿里云/Oracle六大云平台元数据凭证窃取、gopher协议打Redis/FastCGI实现RCE以及盲SSRF重定向循环数据外带，区别于仅覆盖基础探测的SSRF入门资料。",
+  "use_when": "在渗透测试中发现服务端会请求用户提供的URL（webhook/图片加载/PDF生成/导入功能）需要验证并利用SSRF时阅读本篇，重点涵盖六大云平台元数据窃取（AWS IMDSv1/v2、GCP、Azure、阿里云）、IP过滤绕过（进制变换/DNS重绑定/URL解析器差异）、gopher协议打内网Redis/FastCGI成RCE及盲SSRF重定向循环外带，区别于仅讲基础payload探测的入门文档。",
   "triggers": [
     "SSRF",
+    "Server-Side Request Forgery",
     "服务端请求伪造",
     "云元数据",
     "169.254.169.254",
     "IMDSv2",
-    "AWS元数据",
-    "阿里云元数据",
-    "gopher协议",
-    "Redis未授权",
+    "100.100.100.200",
+    "gopher://",
+    "file://",
+    "dict://",
+    "Gopherus",
     "DNS重绑定",
     "DNS rebinding",
+    "rbndr.us",
     "盲SSRF",
-    "重定向循环外带",
-    "Burp Collaborator",
-    "Gopherus",
-    "file协议读文件",
+    "重定向循环",
     "URL解析差异",
     "过滤绕过",
-    "FastCGI",
-    "WebLogic CVE-2014-4210"
+    "Burp Collaborator",
+    "CVE-2014-4210"
   ],
   "vulnclass": "SSRF",
   "section_map": [
     {
       "heading": "1. QUICK START",
-      "what": "首轮SSRF探测载荷、主机校验绕过族与按攻击目标选择协议的路由速查"
+      "what": "首轮回环与元数据探测payload、主机校验绕过家族及按目标选协议的路由速查"
     },
     {
       "heading": "2. FINDING SSRF SURFACE",
-      "what": "常见url/dest/callback等参数名清单及PDF生成、Webhook、RSS导入、XFF头等隐蔽SSRF入口"
+      "what": "url/callback/imageUrl等常见参数名与webhook、PDF截图、OAuth回调等隐蔽入口识别"
     },
     {
       "heading": "3. BASIC CONFIRMATION METHODOLOGY",
-      "what": "用Burp Collaborator外带回联、端口开关时间差异对比及localhost常见服务端口确认SSRF"
+      "what": "Burp Collaborator外带回连、时间差测内网端口开放与localhost常见服务探测三步确认法"
     },
     {
       "heading": "4. CLOUD METADATA ENDPOINTS",
-      "what": "AWS IMDSv1/IMDSv2令牌绕过、GCP/Azure/DigitalOcean/阿里云/OCI/K8s/Hetzner/OpenStack元数据端点窃取凭证"
+      "what": "AWS IMDSv1/v2、GCP、Azure、阿里云、Oracle、K8s服务账号等平台元数据端点及所需认证头矩阵"
     },
     {
       "heading": "5. IP ADDRESS FILTER BYPASS TECHNIQUES",
-      "what": "localhost与169.254.169.254的十进制/十六进制/八进制/IPv6映射共12种编码变形绕过IP黑名单"
+      "what": "127.0.0.1与169.254.169.254的十进制/十六进制/八进制/IPv6映射变体及自建DNS指向绕过"
     },
     {
       "heading": "6. URL SCHEME ATTACKS",
-      "what": "file/dict/gopher/sftp/ldap/ftp伪协议实现本地文件读取与Redis等内网服务探测攻击"
+      "what": "file读本地文件、dict探测Redis、gopher注入原始TCP数据打内网明文协议的手法"
     },
     {
       "heading": "7. BLIND SSRF DETECTION & ESCALATION",
-      "what": "盲SSRF的OOB/时间/报错检测及重定向循环耗尽客户端跳转上限迫使Go/curl目标回显内网响应"
+      "what": "盲SSRF的OOB/时间差/报错分析检测与重定向循环强制外带响应内容及HTTP客户端指纹识别"
     },
     {
       "heading": "8. INTERNAL SERVICE EXPLOITATION",
-      "what": "SSRF直打内网Docker API 2375提权逃逸、Elasticsearch、Redis写webshell及Spring Boot actuator"
+      "what": "打Docker 2375未授权API建特权容器逃逸、Elasticsearch、Redis写webshell与Spring Boot actuator"
     },
     {
       "heading": "9. SSRF + FILTER BYPASS DECISION TREE",
-      "what": "从IP被封锁到协议选择再到盲SSRF升级的完整过滤绕过决策流程图"
+      "what": "从发现参数到绕过过滤、选择协议、盲SSRF升级的完整决策流程图"
     },
     {
       "heading": "10. URL PARSER DIFFERENTIAL TABLE",
-      "what": "Python/Java/PHP/Node.js/Go/cURL对@符号、反斜杠、#片段、空字节、IPv6括号等URL解析差异的绕过对照表"
+      "what": "Python/Java/PHP/Node/Go/cURL对@、反斜杠、#、%00、IPv6括号等歧义URL的解析差异对比利用"
     },
     {
       "heading": "11. GOPHER PAYLOAD RECIPES",
-      "what": "gopher原始TCP载荷构造：Redis写crontab/SSH密钥/webshell、无密码MySQL、SMTP发信、FastCGI执行PHP及编码规则"
+      "what": "gopher打Redis写crontab反弹shell/SSH公钥/webshell、MySQL、SMTP、FastCGI、Memcached的payload配方与编码规则"
     },
     {
       "heading": "12. DNS REBINDING DEEP DIVE",
-      "what": "利用校验与请求间TOCTOU时间差的DNS重绑定攻击流程、TTL=0操纵及rbndr.us等工具服务"
+      "what": "DNS重绑定原理、TTL=0操纵、rbndr.us/singularity工具、TOCTOU区分及IMDSv2与浏览器侧绕过"
+    },
+    {
+      "heading": "13. PDF / SCREENSHOT GENERATOR SSRF",
+      "what": "wkhtmltopdf、WeasyPrint、Chrome Headless、PhantomJS截图生成场景SSRF检测指纹与输出不可见时的数据外带"
+    },
+    {
+      "heading": "14. ADDITIONAL BYPASS TECHNIQUES",
+      "what": "开放重定向链、短链接、Unicode全角字符、CRLF注入、HTTPS降级等附加绕过手法"
+    },
+    {
+      "heading": "15. CVE CASE STUDIES",
+      "what": "WebLogic CVE-2014-4210扫内网打Redis写crontab与Kubernetes CVE-2020-8555/8562实战复现"
     }
   ]
 }

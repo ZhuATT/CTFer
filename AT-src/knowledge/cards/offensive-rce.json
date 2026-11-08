@@ -1,92 +1,88 @@
 {
-  "use_when": "在 Web 渗透测试与漏洞赏金中需要系统化挖掘并验证远程代码执行漏洞时阅读本篇，重点涵盖命令注入、SSTI 模板注入、反序列化 gadget 链、文件上传链式利用、Log4Shell/OGNL/SpEL 注入与容器逃逸等手法，区别于单一 payload 速查表，本篇提供从输入面枚举、分引擎载荷、盲注带外检测到 SSRF/XXE/路径穿越链式升级的完整 RCE 攻击清单。",
+  "use_when": "在Web渗透测试与漏洞赏金中需要系统性挖掘、验证远程代码执行（RCE）及各类漏洞链升级时阅读本篇，重点涵盖命令注入、多引擎SSTI（Jinja2/Twig/Freemarker）、SpEL/OGNL表达式注入、反序列化、文件上传RCE链、Log4Shell、容器逃逸与WAF绕过，区别于只讲单一注入点的payload字典，本篇提供从输入向量识别到无害命令确认的全流程RCE作战清单。",
   "triggers": [
     "RCE",
     "远程代码执行",
     "命令注入",
-    "command injection",
+    "Command Injection",
     "SSTI",
     "服务端模板注入",
     "Jinja2",
+    "Freemarker",
     "反序列化",
     "ysoserial",
+    "pickle",
     "Log4Shell",
     "JNDI注入",
-    "文件上传",
-    "webshell",
-    "ImageTragick",
-    "原型污染",
     "OGNL",
     "SpEL",
-    "容器逃逸",
+    "文件上传RCE",
+    "Webshell",
+    "原型污染",
     "WAF绕过",
-    "OAST"
+    "容器逃逸"
   ],
   "vulnclass": "RCE",
   "section_map": [
     {
       "heading": "Mechanisms",
-      "what": "eval 代码注入、文件包含、命令注入、反序列化、危险 YAML 解析等 RCE 成因原理速览"
-    },
-    {
-      "heading": "Command Injection",
-      "what": "OS 命令注入 API 误用对比及时间延迟与 OAST/DNS 带外检测手法"
-    },
-    {
-      "heading": "Server-Side Template Injection (SSTI)",
-      "what": "Jinja2/Twig/Freemarker/Thymeleaf/Velocity 等引擎探测标记与专属 RCE payload 及 tplmap 工具"
-    },
-    {
-      "heading": "Insecure Deserialization",
-      "what": "Java/.NET/Python pickle/PHP 反序列化 gadget 链及 ysoserial、ysoserial.net、marshalsec 载荷生成"
+      "what": "RCE六大成因总览：代码注入eval、文件包含、命令注入、SSTI、反序列化与不安全YAML/上传解析链"
     },
     {
       "heading": "1. Identify Input Vectors",
-      "what": "枚举命令参数、模板变量、文件上传、反序列化端点、SpEL/OGNL 表达式字段、日志路径等 RCE 攻击面"
+      "what": "梳理命令参数、模板引擎、上传处理、反序列化端点、EL字段、webhook等可致代码执行的输入入口"
     },
     {
       "heading": "2. Test Payloads by Context",
-      "what": "Linux/Windows 命令注入 payload 库（分隔符、空格绕过、通配符混淆）及 SSTI/SpEL/OGNL/MVEL 表达式注入载荷"
+      "what": "分上下文投递payload：Linux/Windows命令注入（时间盲测/OAST带外/空格绕过/通配符混淆）与Jinja2/Twig/Freemarker/Thymeleaf/ERB/Velocity/Handlebars各引擎SSTI利用"
+    },
+    {
+      "heading": "Expression Language (EL) Injection",
+      "what": "Spring SpEL、Struts2 OGNL（含CVE-2017-5638 Content-Type利用）与MVEL表达式注入RCE及黑名单拼接绕过"
+    },
+    {
+      "heading": "Deserialization Payloads",
+      "what": "Java ysoserial利用链、.NET ysoserial.net gadget、Python pickle __reduce__与PHP魔法方法反序列化payload生成"
     },
     {
       "heading": "3. Advanced Techniques",
-      "what": "盲注 RCE 时间检测、Burp Collaborator 带外回连与大小写/编码/拼接等黑名单和 WAF 绕过技巧"
+      "what": "盲RCE时间/OAST带外检测（DNS外带、HTTP回连）与大小写、编码、注释、变量拼接等黑名单/WAF绕过"
     },
     {
-      "heading": "1. Web Shell Upload",
-      "what": "PHP/ASP/JSP webshell 上传及扩展名变形、空字节、NTFS ADS、Content-Type 伪造与多态文件绕过"
+      "heading": "4. Confirm the Vulnerability",
+      "what": "用whoami/sleep等无害命令与proof文件安全验证RCE并给出实战确认战术"
     },
     {
-      "heading": "2. .htaccess / web.config Injection",
-      "what": "注入配置文件使 jpg 等图片后缀被当作 PHP/ASP 脚本解析执行"
-    },
-    {
-      "heading": "3. Archive Extraction (Zip Slip - CVE-2018-1002200)",
-      "what": "构造含路径穿越与软链接的 zip/tar 解压覆盖 cron 任务、SSH 密钥与 web 根"
-    },
-    {
-      "heading": "4. ImageMagick Exploits",
-      "what": "ImageTragick（CVE-2016-3714）与 CVE-2022-44268 图像处理任意文件读取及命令执行利用"
+      "heading": "File Upload → RCE Chains",
+      "what": "Webshell上传（扩展名/Content-Type/多态文件绕过）、.htaccess注入、Zip Slip路径穿越、ImageMagick/PDF LaTeX/Office文档处理RCE"
     },
     {
       "heading": "Log4Shell (CVE-2021-44228)",
-      "what": "JNDI 注入 payload、嵌套查找混淆绕过 WAF 及 marshalsec LDAP 恶意服务搭建利用链"
+      "what": "Log4j JNDI注入payload、大小写/环境变量/嵌套lookup混淆绕过及marshalsec LDAP服务利用搭建"
     },
     {
       "heading": "Prototype Pollution → RCE (Node.js)",
-      "what": "__proto__ 污染 child_process 选项与 NODE_OPTIONS 从逻辑漏洞升级为 RCE"
+      "what": "Node.js __proto__污染提权并借child_process argv0/NODE_OPTIONS升级至RCE"
+    },
+    {
+      "heading": "FFmpeg / ExifTool Exploits",
+      "what": "FFmpeg playlist/HLS SSRF（CVE-2016-1897）与ExifTool DjVu元数据RCE（CVE-2021-22204）"
     },
     {
       "heading": "SQL Injection → RCE",
-      "what": "MySQL INTO OUTFILE 写马与 UDF、PostgreSQL COPY TO PROGRAM 与大对象导出、MSSQL xp_cmdshell/OLE Automation"
+      "what": "MySQL OUTFILE写shell/UDF、PostgreSQL COPY TO PROGRAM/大对象导出、MSSQL xp_cmdshell与OLE自动化执行命令"
     },
     {
       "heading": "Container Escape → RCE",
-      "what": "Docker socket 挂载、特权容器挂载宿主盘及 Dirty COW/DirtyPipe 内核漏洞逃逸"
+      "what": "docker.sock挂载逃逸、特权容器挂载宿主磁盘与Dirty COW/DirtyPipe内核漏洞利用"
     },
     {
       "heading": "Chaining and Escalation",
-      "what": "路径穿越覆盖 authorized_keys/.user.ini、SSRF 打云元数据与内网 Redis 写计划任务、XXE expect 封装与 SSTI 写文件落地 RCE"
+      "what": "路径穿越覆盖SSH/cron、SSRF打云元数据/Redis、XXE expect/JAR协议与SSTI写webshell的组合升级链"
+    },
+    {
+      "heading": "Real-World CVEs and Cases",
+      "what": "Log4Shell、Spring4Shell、Laravel、Struts2、Ghostcat等十大关键RCE CVE案例与影响等级划分"
     }
   ]
 }

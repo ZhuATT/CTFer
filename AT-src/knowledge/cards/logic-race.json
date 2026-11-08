@@ -1,76 +1,88 @@
 {
-  "use_when": "在对电商、支付、会员订阅类 Web/App 做渗透测试或众测时需要挖掘业务流程缺陷与并发竞争漏洞时阅读本篇，重点涵盖负数/小数数量0元购、整数溢出、金额篡改、优惠券叠加、Burp 并发分组与 Turbo Intruder 双花竞争、跳过支付/2FA 步骤、Cookie 替换越权及 Spring Security antMatchers 覆盖缺口，区别于自动化扫描器可发现的技术型漏洞、强调需人工业务推理的高赏金攻击面。",
+  "use_when": "在渗透测试与众测中需要对电商支付、会员订阅、优惠券及账户流程挖掘业务逻辑缺陷与并发竞态漏洞时阅读本篇，重点涵盖小数数量0元购、整数溢出、支付流程跳步、HTTP/2单包攻击/Turbo Intruder双花、验证码绕过与密码重置缺陷，附五阶段方法论与全模块checklist，区别于SQL注入/XSS等可被扫描器发现的常规技术漏洞。",
   "triggers": [
     "业务逻辑漏洞",
-    "逻辑漏洞",
-    "竞争条件",
-    "race condition",
+    "竞态条件",
+    "Race Condition",
+    "TOCTOU",
+    "HTTP/2单包攻击",
+    "Single-Packet Attack",
     "双花",
-    "double spend",
+    "Double-Spend",
     "0元购",
-    "负数数量",
     "整数溢出",
-    "integer overflow",
-    "金额篡改",
-    "支付绕过",
+    "支付篡改",
     "优惠券叠加",
-    "薅羊毛",
+    "验证码绕过",
     "短信轰炸",
-    "Turbo Intruder",
-    "Burp并发",
-    "工作流绕过",
-    "workflow bypass",
-    "2FA绕过"
+    "SMS Bombing",
+    "密码重置",
+    "状态机绕过",
+    "越权",
+    "IDOR",
+    "Turbo Intruder"
   ],
   "vulnclass": "逻辑漏洞",
   "section_map": [
     {
       "heading": "1. PRICE AND VALUE MANIPULATION",
-      "what": "价格与数值篡改手法：负数/小数数量0元购、删除必填字段骗取免费档、32位整数溢出清零与舍入、汇率差套利"
+      "what": "负数/小数数量实现0元购、删除prizeIdList必填字段转免费档、整数溢出、舍入与汇率延迟套利手法"
     },
     {
       "heading": "2. RACE CONDITIONS",
-      "what": "并发竞争攻击：礼品卡双花兑换、Burp Repeater 分组并行发包、Turbo Intruder 突破短信限频及多设备并发锁定新人优惠叠加VIP时长"
+      "what": "并发双花/重复兑换、Burp组并行发送与Turbo Intruder绕过短信限速、多设备并发VIP订阅叠加"
     },
     {
       "heading": "3. WORKFLOW / STEP SKIP BYPASS",
-      "what": "业务流程跳步绕过：直发订单确认接口、跳过2FA与密码重置中间步骤、百分百折扣券免付款发货"
-    },
-    {
-      "heading": "Filter Path Truncation Bypass — `..//` and `;`",
-      "what": "Java Filter 鉴权绕过：../.. 路径折叠与分号路径参数截断使基于 getRequestURI 的登录校验失效，修复应改用 getServletPath"
-    },
-    {
-      "heading": "4. COUPON AND REFERRAL ABUSE",
-      "what": "优惠券叠加超100%折扣、固定金额券购买低价商品套现余额与推荐返利无限循环刷取积分"
+      "what": "跳步直达订单确认、绕过2FA与多步验证、..//与;号截断绕过Java Filter鉴权、实名认证重置回环"
     },
     {
       "heading": "5. ACCOUNT / PRIVILEGE LOGIC FLAWS",
-      "what": "账户权限逻辑缺陷：邮箱改绑免二次验证、重置令牌复用、OAuth 邮箱匹配账号劫持、Cookie 替换水平/垂直越权与 rand() 弱随机重置令牌爆破"
+      "what": "邮箱验证绕过、Cookie替换实现水平/垂直越权、md5(rand())弱随机重置token全量爆破、RBAC表权限残留"
     },
     {
       "heading": "6. API BUSINESS LOGIC FLAWS",
-      "what": "API 业务逻辑：客户端自改订单状态触发退款、transaction_id 复用、限额计数绕过及无 Filter/Spring Security antMatchers 覆盖缺口的未授权接口审计"
+      "what": "对象状态篡改自触发退款、交易ID重放、Java无Filter反模式与Spring Security antMatchers覆盖缺口导致的未授权"
     },
     {
       "heading": "7. SUBSCRIPTION / TIER CONFUSION",
-      "what": "订阅层级混淆：降级后保留付费功能、响应中泄露 .flv/.m3u8 媒体直链匿名播放与免费课ID置换付费课资源越权"
+      "what": "VIP媒体直链泄露绕过付费墙、免费课程ID替换为付费课程ID的资源越权"
     },
     {
-      "heading": "8. FILE UPLOAD BUSINESS LOGIC",
-      "what": "上传业务逻辑：Zip 炸弹解压 DoS、CSV 公式注入、按 UID 预测存储路径越权覆盖及图片转换器 CVE 打击面"
+      "heading": "11.5 Payment / Order",
+      "what": "支付订单2小时清单：金额数量篡改、回调伪造、签名绕过、并发超卖与退款不退货套利"
     },
     {
-      "heading": "9. TESTING APPROACH",
-      "what": "业务流程八问测试方法论：跳步、极端值、重复幂等、步骤乱序、双用户并发与可信状态字段篡改，从资金影响角度排序赏金"
+      "heading": "1. Five-Phase Workflow / 五阶段工作流",
+      "what": "业务建模→状态机分析→攻击面5×N矩阵→清单驱动→人脑判断的五阶段业务逻辑测试方法论"
     },
     {
-      "heading": "10. HIGH-IMPACT CHECKLISTS",
-      "what": "30分钟高收益清单：电商支付篡改、认证账户绕过、订阅限额与资源三大攻击面的优先测试项"
+      "heading": "3. Captcha Bypass Techniques",
+      "what": "丢弃验证请求复用旧码、删除verifycode参数走无校验代码路径、清cookie重置失败计数、tesseract OCR识别"
     },
     {
-      "heading": "11. CONSOLIDATED CHECKLIST (2-Hour Full Sweep)",
-      "what": "2小时九大业务面全面扫查表：登录注册、密码找回、会话令牌、支付订单、IDOR越权、验证码、文件上传与CSRF/SSRF/XXE逐项条目"
+      "heading": "4. Arbitrary Password Reset Vulnerabilities",
+      "what": "可预测重置token、会话替换攻击篡改受害人密码、注册覆盖合并账户劫持"
+    },
+    {
+      "heading": "11. Payment Vulnerability Cases / 支付逻辑漏洞实战场景",
+      "what": "prizeIdList删除0元购、小数数量下单、半价充值舍入套利、负数优惠券与响应状态字段伪造跳过真实支付"
+    },
+    {
+      "heading": "13. Password Recovery Real-World Cases / 找回密码实战场景",
+      "what": "Windows PHP md5(rand())密钥空间爆破、会话替换重置、token未绑定账号与邮箱变更后重放"
+    },
+    {
+      "heading": "14. IDOR / Authorization — Reproducible Drills",
+      "what": "水平越权单字段替换演练、垂直越权is_admin改包、UID与token不一致校验及多渠道差异排查"
+    },
+    {
+      "heading": "4. HTTP/2 SINGLE-PACKET ATTACK",
+      "what": "HTTP/2单包攻击利用帧合并实现毫秒级请求同步的竞态窗口利用"
+    },
+    {
+      "heading": "10. DATABASE ISOLATION LEVEL EXPLOITATION MATRIX",
+      "what": "READ COMMITTED下TOCTOU、REPEATABLE READ幻读插入、SERIALIZABLE咨询锁绕过的数据库隔离级别利用矩阵"
     }
   ]
 }

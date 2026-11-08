@@ -1,72 +1,76 @@
 {
-  "use_when": "在渗透测试中针对智能家居 Z-Wave 设备（智能门锁、传感器、车库控制器）需要评估无线协议攻击面时阅读本篇，重点涵盖 EZ-Wave/HackRF 入网嗅探、S0 全零 PSK 网络密钥推导缺陷、S2 ECDH 配网分析、无认证节点重放注入及 SmartThings/Home Assistant 网关横向渗透，区别于 Zigbee/Wi-Fi 等其他 IoT 无线协议攻击手法。",
+  "use_when": "在对智能家居 Z-Wave 无线网络（US 908.4 MHz / EU 868.4 MHz）做无线安全评估、需嗅探 S0 入网密钥交换或分析 S2 ECDH 配对实现缺陷时阅读本篇，涵盖 EZ-Wave/HackRF/RTL-SDR+ZniffMobile 嗅探、S0 全零 PSK 密钥推导离线解密、未认证节点明文重放注入、默认 Home ID 爆破及 SmartThings/Home Assistant 网关横向渗透，区别于 Wi-Fi/Zigbee 等其他无线协议的攻击方法论。",
   "triggers": [
     "Z-Wave",
-    "S0",
-    "S2",
+    "S0安全缺陷",
+    "S2 ECDH",
+    "DSK",
+    "inclusion嗅探",
     "EZ-Wave",
     "HackRF",
     "RTL-SDR",
-    "ZniffMobile",
     "Z-Force",
-    "入网嗅探",
+    "ZniffMobile",
+    "Wireshark",
     "网络密钥",
     "全零PSK",
-    "ECDH",
-    "DSK",
     "重放攻击",
-    "报文注入",
-    "无认证节点",
-    "智能门锁",
+    "明文注入",
+    "scapy-zwave",
+    "默认Home ID",
     "网关渗透",
     "SmartThings",
-    "Home Assistant"
+    "智能门锁"
   ],
-  "vulnclass": "密码学缺陷",
+  "vulnclass": "网络与内网",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "四步攻击流程：识别区域频段、嗅探入网密钥交换流量、判定 S0/S2 并分别选择密钥推导重放或 ECDH 实现缺陷分析"
+      "what": "Z-Wave 攻击总流程：定区域频段、嗅探入网配对流量、按帧格式判别 S0/S2 再分支利用"
     },
     {
       "heading": "Hardware",
-      "what": "硬件选型对照：Z-Force、EZ-Wave（HackRF 自定义固件）、Aeotec Z-Stick、RTL-SDR+ZniffMobile 等嗅探与收发设备的用途差异"
+      "what": "硬件选型对比：Z-Force、EZ-Wave（HackRF 自定义固件）、Aeotec Z-Stick、RTL-SDR+ZniffMobile 被动嗅探"
     },
     {
       "heading": "Sniffing",
-      "what": "使用 EZ-Wave 在 908.4/868.4 MHz 捕获流量并用 Wireshark Z-Wave 解析器定位入网阶段的网络密钥交换"
+      "what": "用 ezwave-sniff 指定频段抓 pcap 并经 Wireshark Z-Wave 解析器定位入网阶段的密钥交换"
     },
     {
       "heading": "S0 Security Flaw",
-      "what": "S0 以全零 PSK 固定推导网络密钥，触发或等待入网并嗅探约 2 秒密钥交换窗口即可离线推导密钥解密全网后续流量"
+      "what": "S0 用固定全零 PSK 派生网络密钥，嗅探约 2 秒入网密钥交换窗口即可离线解密全网后续流量"
     },
     {
       "heading": "S2 (Z-Wave Plus / S2 Authenticated)",
-      "what": "S2 采用 Curve25519 ECDH 配网与 DSK 带外校验，攻击面集中在实现缺陷：配网模式常开、固件验证漏洞、ECDH 侧信道及 DSK 贴纸物理窃取"
+      "what": "S2 采用 Curve25519 ECDH 与 DSK 带外校验，攻击面转为入网常开配置、固件验证缺陷、ECDH 侧信道与 DSK 标签物理窃取"
     },
     {
       "heading": "Replay / Injection on Unauthenticated Nodes",
-      "what": "低端传感器与开关不强制 S0/S2 而直接接受明文命令，用 scapy-zwave 构造帧实现开锁、开关与撤防传感器"
+      "what": "低端设备接受明文指令，用 scapy-zwave 构造 ZWaveBasic 帧注入实现开锁、开关灯与撤防"
     },
     {
       "heading": "Key Brute-Force",
-      "what": "对使用默认 home ID/网络密钥的老旧测试部署做爆破遍历，仅对默认配置的 IoT 实验设备有效"
+      "what": "对使用默认 Home ID/网络密钥的老旧测试部署用 ezwave-test 逐个爆破（生产环境命中率低）"
     },
     {
       "heading": "Hub Pivots",
-      "what": "攻陷 SmartThings、Home Assistant、Hubabit 类网关以获取明文存储的 Z-Wave PSK 并接管全部已配对设备的命令权限"
+      "what": "攻陷 SmartThings/Home Assistant/Hubitat 等网关，从 zwave_js.json 等明文存储窃取 Z-Wave PSK 与全部配对设备控制权"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "实战速查命令：识别区域频段→嗅探→判定 S0/S2→S0 捕获入网推导密钥/S2 转向网关沦陷与 DSK 窃取→测试明文设备"
+      "what": "六步实战速查：定频段→嗅探→判 S0/S2→S0 抓入网推密钥→S2 打网关/DSK/实现缺陷→测明文设备注入"
     },
     {
       "heading": "Detection",
-      "what": "Z-Wave 部署普遍缺乏 IDS、网关异常命令日志不展示给用户、配网模式常开被管理员忽视等检测盲区"
+      "what": "检测盲区：Z-Wave 普遍缺乏 IDS、网关日志不上浮异常指令、入网模式常开被管理员忽视"
     },
     {
       "heading": "Reporting",
-      "what": "报告要点：逐设备记录芯片组/固件版本（ZW0500/ZW7000 系列）、按节点标注 S0/S2 混用情况并单独记录网关沦陷路径"
+      "what": "报告要点：逐设备标注芯片/固件版本（ZW0500/ZW7000）、逐节点标注 S0 与 S2 混用情况并单独记录网关攻陷路径"
+    },
+    {
+      "heading": "Key References",
+      "what": "EZ-Wave 与 Z-Force 原始研究、Silicon Labs 700 系列规范等参考链接"
     }
   ]
 }

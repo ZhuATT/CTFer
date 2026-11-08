@@ -1,84 +1,88 @@
 {
-  "use_when": "在对企业内网 Active Directory 域环境实施渗透测试需要从低权限域用户一路横向打到域管/域控时阅读本篇，重点涵盖 Kerberos 票据攻击（AS-REP Roasting/Kerberoasting/黄金票据/白银票据/委派滥用）、ACL 滥用（DCSync/WriteDACL/GenericAll/Shadow Credentials）、AD CS 证书服务利用（ESC1-ESC8/黄金证书）及 NTLM 中继强制认证（PetitPotam/PrinterBug），区别于单点 Web 漏洞利用与边界渗透类文档。",
+  "use_when": "在域渗透已获得域内初始凭据或立足点后需要横向移动与提升至域管理员/DCSync 时阅读本篇，重点涵盖 Kerberos 票据攻击、ACL 滥用、AD CS ESC1-ESC13 及 NTLM 中继/强制认证，区别于单点 Web 漏洞利用文档——本篇提供从低权限域用户到 Domain Admin 的完整攻击链与决策树。",
   "triggers": [
     "Active Directory",
-    "域渗透",
-    "Kerberos攻击",
-    "AS-REP Roasting",
+    "AD域渗透",
+    "域提权",
+    "Kerberos",
     "Kerberoasting",
-    "黄金票据",
+    "AS-REP Roasting",
     "Golden Ticket",
-    "白银票据",
+    "黄金票据",
     "Silver Ticket",
-    "Diamond Ticket",
-    "DCSync",
     "RBCD",
-    "约束委派",
+    "DCSync",
     "Shadow Credentials",
-    "影子凭证",
+    "影子凭据",
+    "BloodHound",
     "AD CS",
     "ESC8",
     "NTLM中继",
     "PetitPotam",
-    "PrinterBug"
+    "PrinterBug",
+    "Responder"
   ],
-  "vulnclass": "网络与内网",
+  "vulnclass": "提权",
   "section_map": [
     {
-      "heading": "AS-REP ROASTING",
-      "what": "枚举无需 Kerberos 预认证的用户并用 GetNPUsers/Rubeus 导出哈希离线爆破口令"
+      "heading": "2. AS-REP ROASTING",
+      "what": "枚举无 Kerberos 预认证用户并离线破解 AS-REP 哈希（GetNPUsers/Rubeus + hashcat 18200）"
     },
     {
-      "heading": "KERBEROASTING",
-      "what": "请求 SPN 服务账户 TGS 票据并以 hashcat 离线破解服务账户 NTLM 哈希"
+      "heading": "3. KERBEROASTING",
+      "what": "请求带 SPN 服务账户的 TGS 并离线破解，/tgtdeleg 优先获取 RC4 票据加速破解"
     },
     {
-      "heading": "TICKET FORGING — GOLDEN, SILVER, DIAMOND, SAPPHIRE",
-      "what": "利用 krbtgt 或服务账户哈希伪造黄金/白银/钻石/蓝宝石票据冒充任意用户并规避检测"
+      "heading": "4. TICKET FORGING — GOLDEN, SILVER, DIAMOND, SAPPHIRE",
+      "what": "利用 krbtgt 或服务账户哈希伪造黄金/白银/钻石/蓝宝石票据，实现任意用户模拟与隐蔽持久化"
     },
     {
-      "heading": "DELEGATION ATTACKS",
-      "what": "滥用非约束委派、约束委派 S4U2Proxy 及 RBCD 模拟管理员访问目标服务"
+      "heading": "5. DELEGATION ATTACKS",
+      "what": "滥用非约束/约束委派与 RBCD，通过 S4U2Self+S4U2Proxy 以受控机器账户模拟任意用户访问目标服务"
     },
     {
-      "heading": "PASS-THE-TICKET & OVERPASS-THE-HASH",
-      "what": "直接注入 ccache/kirbi 票据复用认证及用 NTLM 哈希换取 TGT 实现纯 Kerberos 登录"
+      "heading": "6. PASS-THE-TICKET & OVERPASS-THE-HASH",
+      "what": "注入 .kirbi/.ccache 票据直接使用，或用 NTLM 哈希换取 TGT 实现纯 Kerberos 认证规避 NTLM 日志"
     },
     {
-      "heading": "CHAIN: UNCONSTRAINED DELEGATION + PRINTERBUG → DCSYNC",
-      "what": "在非约束委派主机上 Rubeus 监视并经 PrinterBug/PetitPotam 强制 DC 认证捕获域控 TGT 完成 DCSync"
+      "heading": "2. DANGEROUS ACE TYPES",
+      "what": "梳理 GenericAll/GenericWrite/WriteDACL/WriteOwner/ForceChangePassword 等危险 ACE 对用户、组、计算机对象的攻击面"
     },
     {
-      "heading": "DANGEROUS ACE TYPES",
-      "what": "梳理 GenericAll/GenericWrite/WriteDACL/WriteOwner 等危险 ACL 对用户、组、计算机对象的可利用效果"
+      "heading": "3. ACE-SPECIFIC EXPLOITATION",
+      "what": "针对各类 ACE 的具体利用：强制改密、定向 Kerberoast、影子凭据、RBCD 及 WriteOwner→WriteDACL 提权链"
     },
     {
-      "heading": "DCSYNC ATTACK",
-      "what": "利用域对象复制权限经 secretsdump/Mimikatz 拉取全域哈希包括 krbtgt 实现持久化"
+      "heading": "4. DCSYNC ATTACK",
+      "what": "凭目录复制权限（GetChanges/GetChangesAll）转储全域哈希（secretsdump/Mimikatz lsadump::dcsync），并列出默认持有者"
     },
     {
-      "heading": "SHADOW CREDENTIALS",
-      "what": "用 Whisker/pyWhisker 写入 msDS-KeyCredentialLink 后经 PKINIT 证书认证获取目标 TGT 与 NT 哈希"
+      "heading": "5. SHADOW CREDENTIALS",
+      "what": "向目标写入 msDS-KeyCredentialLink 影子凭据，经 PKINIT 证书认证获取 TGT 并提取 NT 哈希（pyWhisker/Whisker）"
     },
     {
-      "heading": "LAPS PASSWORD READING",
-      "what": "读取 ms-Mcs-AdmPwd 属性或经 CrackMapExec laps 模块获取主机本地管理员密码"
+      "heading": "2. ESSENTIAL CYPHER QUERIES",
+      "what": "BloodHound Cypher 查询集：DA 最短路径、DCSync 权限持有者、Kerberoastable、LAPS 读取者与 GPO 控制者"
     },
     {
-      "heading": "GPO ABUSE",
-      "what": "对可写 GPO 注入计划任务、启动脚本或本地管理员实现域内批量代码执行"
+      "heading": "3. ESC1 — ENROLLEE SUPPLIES SUBJECT",
+      "what": "滥用允许申请者自定义 SAN 的证书模板，冒充管理员申请证书并提取其 NT 哈希（Certipy/Certify）"
     },
     {
-      "heading": "ESSENTIAL CYPHER QUERIES",
-      "what": "BloodHound Cypher 查询定位 DCSync 权限、Kerberoastable 用户、LAPS 读取者及通往 DA 的攻击路径"
+      "heading": "9. ESC8 — NTLM RELAY TO HTTP ENROLLMENT",
+      "what": "强制 DC 认证并中继到 ADCS HTTP 注册接口，为 DC01$ 申请机器证书进而直接 DCSync"
     },
     {
-      "heading": "ESC1 — ENROLLEE SUPPLIES SUBJECT",
-      "what": "滥用允许自定义 SAN 的证书模板经 Certipy/Certify 申请管理员证书实现域提权"
+      "heading": "3. RESPONDER — CREDENTIAL CAPTURE",
+      "what": "LLMNR/NBT-NS/WPAD/mDNS 投毒捕获哈希，或关闭 SMB/HTTP 服务后配合 ntlmrelayx 纯中继"
     },
     {
-      "heading": "ESC8 — NTLM RELAY TO HTTP ENROLLMENT",
-      "what": "ntlmrelayx 中继强制认证流量至 certsrv 注册端点为域控机器账户签发证书进而 DCSync"
+      "heading": "4. NTLMRELAYX — RELAY EXECUTION",
+      "what": "将 NTLM 认证中继至 SMB/LDAP/ADCS/MSSQL，执行命令、dump SAM、自动设置 RBCD 或影子凭据"
+    },
+    {
+      "heading": "2. PETITPOTAM — MS-EFSR ABUSE",
+      "what": "滥用 MS-EFSR RPC 接口强制目标主机向攻击者发起认证（未授权/已授权变体及 EFS 函数列表）"
     }
   ]
 }

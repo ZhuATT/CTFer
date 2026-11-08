@@ -1,76 +1,88 @@
 {
-  "use_when": "在红队演练或渗透测试规划初始访问（打点）阶段需要选择钓鱼投递、凭据攻击、边界设备0day或云配置错误等突破口时阅读本篇，重点涵盖鱼叉钓鱼与HTML走私、MOTW宏绕过、VBA免杀、容器化载荷及Mythic C2基础设施，区别于提权与横向移动等后渗透内容。",
+  "use_when": "在红队/渗透测试规划初始突破阶段（MITRE TA0001）需要设计钓鱼投递、绕过EDR/杀软并搭建完整攻击链时阅读本篇，重点涵盖鱼叉钓鱼、HTML走私、MOTW容器绕过、VBA/MSI/PE载荷免杀与Mythic C2，区别于后渗透提权与横向移动阶段的内容。",
   "triggers": [
     "初始访问",
     "initial access",
+    "MITRE TA0001",
     "鱼叉钓鱼",
     "spear phishing",
-    "credential stuffing",
-    "凭据填充",
-    "密码喷射",
-    "password spraying",
     "HTML走私",
-    "HTML smuggling",
+    "HTML Smuggling",
     "MOTW",
-    "宏病毒",
-    "VBA stomping",
-    "EvilClippy",
+    "VBA宏病毒",
+    "DLL劫持",
+    "DLL侧加载",
     "COM劫持",
-    "DLL side-loading",
-    "供应链攻击",
-    "水坑攻击",
-    "OAuth consent phishing",
-    "Mythic C2"
+    "EDR绕过",
+    "杀软绕过",
+    "AMSI",
+    "LOLBIN",
+    "口令喷射",
+    "OAuth钓鱼",
+    "AiTM",
+    "VBA Stomping"
   ],
   "vulnclass": "其他",
   "section_map": [
     {
       "heading": "Typical Initial Access Vectors",
-      "what": "钓鱼、凭据复用、密码喷射、边界设备0day、云配置错误、移动端与协作应用滥用等全量初始访问向量清单"
+      "what": "钓鱼邮件、口令喷射、VPN/RDP爆破、边缘设备零日、云配置错误、供应链投毒等初始立足手法总清单"
     },
     {
       "heading": "Command & Control",
-      "what": "双阶段Mythic C2架构：一阶段轻量Merlin/Poseidon/Apollo侦察，二阶段内存执行Nighthawk/Cobalt Strike"
+      "what": "两阶段Mythic C2架构：先用Merlin/Poseidon/Apollo轻量侦察再切换内存型全功能C2"
+    },
+    {
+      "heading": "Endpoint Defense Evasion",
+      "what": "拆解AV静态/启发式/云信誉/模拟/行为检测链及逐环节对应的免杀对抗策略"
     },
     {
       "heading": "Hosting Payloads",
-      "what": "利用OneDrive/S3/Azure CDN/Lambda等高信誉云服务托管载荷及LOLBINS间接执行技巧"
+      "what": "借OneDrive/S3/Lambda等高信誉云服务与CDN托管载荷规避网关封锁"
     },
     {
       "heading": "Windows Script Host",
-      "what": "WSH脚本投递手法：文件dropper、DotNetToJScript、XLAM自启动、LNK武器化与HTML走私实现细节"
+      "what": "WSH脚本与LNK/CHM/HTML走私/XLAM投放等经典文件感染向量分析"
     },
     {
       "heading": "Containerized Malware",
-      "what": "利用ISO/IMG/7z/CAB等容器格式不传播MOTW标记的特性绕过Office默认宏拦截"
+      "what": "利用ISO/IMG/VHD等容器不传播MOTW标记的特性绕过Office宏默认拦截"
     },
     {
       "heading": "Chains Recipe",
-      "what": "投递-容器-触发-载荷-诱饵完整攻击链配方及野外样本分析与成功利用命令示例"
+      "what": "按投递-容器-触发-载荷-诱饵五要素构造完整初始访问攻击链"
+    },
+    {
+      "heading": "Successful Strategies",
+      "what": "实战成功过的XLSTART投放、MSI静默安装与LOLBIN加载DLL等命令配方"
     },
     {
       "heading": "VBA Infection Strategies",
-      "what": "VBA宏感染策略总览：执行、dropper、COM劫持路径及MOTW默认宏阻断的影响分析"
+      "what": "MOTW默认拦截宏背景下VBA执行、文件投放与持久化的各类滥用策略"
     },
     {
       "heading": "COM Hijack",
-      "what": "通过HKCU注册表覆盖HKLM默认COM服务器实现延迟执行与持久化的劫持手法"
+      "what": "通过HKCU注册表覆盖COM服务器实现延迟触发的持久化执行"
     },
     {
       "heading": "VBA Stream Manipulation",
-      "what": "VBA Stomping伪造PerformanceCache、VBA Purging清除痕迹及EvilClippy工具用法"
-    },
-    {
-      "heading": "Perimeter Defense Evasion",
-      "what": "绕过SWG与安全DNS检测的域名信誉管理、Domain Fronting及云资源滥用策略"
-    },
-    {
-      "heading": "Antivirus",
-      "what": "AV静态/启发式/云信誉/仿真/行为多层检测原理及自定义恶意软件、环境键控等对应绕过手法"
+      "what": "VBA Stomping性能缓存替换与EvilClippy隐藏宏代码降低检测"
     },
     {
       "heading": "Evasion Tactics",
-      "what": "VBA代码混淆、沙箱逃逸检测、Office文件加密免杀与受信路径利用技巧"
+      "what": "VBA代码混淆、沙箱环境识别与Office加密硬编码口令等逃逸技巧"
+    },
+    {
+      "heading": "MSI Shenanigans",
+      "what": "MSI安装包类型、手工构造、后门化现有MSI与MSIX应用包格式滥用"
+    },
+    {
+      "heading": "Executables",
+      "what": "PE静态检测对抗、攻击性CI/CD管线与PE后门化/水印/属性克隆及签名考量"
+    },
+    {
+      "heading": "Emerging Initial-Access",
+      "what": "恶意广告木马化工具、AiTM/OAuth钓鱼与AI/LLM提示注入、RAG投毒等新型入口"
     }
   ]
 }

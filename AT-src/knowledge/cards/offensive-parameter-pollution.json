@@ -1,88 +1,88 @@
 {
-  "use_when": "在渗透测试或漏洞赏金中探测Web应用重复参数处理缺陷并利用前后端/网关解析不一致绕过WAF、越权或篡改业务参数时阅读本篇，重点涵盖各框架取参规则、服务端/客户端HPP、GraphQL别名污染、数组表示法混淆与参数遮蔽编码绕过，区别于针对单参数的常规注入检测思路。",
+  "use_when": "在Web渗透测试与漏洞挖掘中需要利用重复参数污染（HPP）绕过WAF、认证与访问控制或篡改业务数据时阅读本篇，重点涵盖前后端参数解析差异、GraphQL/WebSocket参数污染、参数隐匿编码及Burp Suite工具链，区别于单参数直接注入类漏洞的攻击思路。",
   "triggers": [
     "HTTP参数污染",
-    "HTTP Parameter Pollution",
     "HPP",
+    "parameter pollution",
     "重复参数注入",
     "duplicate parameter",
     "参数覆盖",
     "WAF绕过",
     "WAF bypass",
-    "服务端HPP",
-    "server-side HPP",
-    "客户端HPP",
-    "client-side HPP",
-    "参数遮蔽",
-    "parameter cloaking",
-    "参数优先级",
+    "前后端解析差异",
+    "parsing differences",
+    "参数优先级混淆",
+    "parameter precedence",
+    "认证绕过",
+    "authentication bypass",
+    "越权",
+    "IDOR",
     "GraphQL别名污染",
-    "JSON重复键",
-    "CSRF Token绕过",
-    "OAuth redirect_uri",
-    "认证绕过"
+    "alias pollution",
+    "参数隐匿",
+    "parameter cloaking"
   ],
   "vulnclass": "逻辑漏洞",
   "section_map": [
     {
       "heading": "Mechanisms",
-      "what": "梳理ASP.NET/IIS取首个、PHP/Apache取末个、Perl逗号拼接、Flask组数组等各技术栈对重复参数的解析差异"
+      "what": "HPP原理与ASP.NET/PHP/JSP/Perl/Flask/Express各技术栈对重复参数的取值差异图解"
+    },
+    {
+      "heading": "Parameter Handling Behaviors",
+      "what": "各服务器框架处理重复参数的取首值/取末值/逗号拼接/数组化行为清单"
     },
     {
       "heading": "Notes and modern caveats",
-      "what": "Express querystring/qs解析器差异、Spring列表绑定、JSON重复键与重复Cookie在现代网关的优先级缝隙"
+      "what": "Express query parser、Spring绑定器、API网关、JSON重复键与Cookie处理的现代解析陷阱"
     },
     {
-      "heading": "Testing Parameter Handling",
-      "what": "发送param=value1&param=value2观察各层取首值/末值/拼接值以判定参数处理行为"
+      "heading": "Testing Techniques",
+      "what": "URL、表单、混合位置参数污染的注入测试手法总览"
     },
     {
-      "heading": "Vulnerable Scenarios",
-      "what": "定位参数覆盖点、请求转发代理、手工解析查询串、多层处理链及OAuth/SAML认证流程等薄弱面"
+      "heading": "JSON Parameter Pollution",
+      "what": "JSON重复键及Cookie/自定义头重复值的污染测试与信任判定"
     },
     {
       "heading": "GraphQL Parameter Pollution",
-      "what": "利用别名查询绕过速率限制、重复变量与批量变更实现GraphQL参数污染"
+      "what": "别名污染绕过限速、重复变量污染与批量变更操作的利用手法"
     },
     {
       "heading": "WebSocket Parameter Pollution",
-      "what": "在WS升级请求URL与消息JSON中注入重复token/room参数观察服务端信任哪个值"
+      "what": "WebSocket升级请求URL与消息载荷中的重复参数污染测试"
     },
     {
       "heading": "Parameter Array Notation Pollution",
-      "what": "利用param[]、param[0]索引及混合表示法差异混淆PHP/Express/Rails解析器"
+      "what": "PHP括号、Express qs解析器、Rails数字索引数组记法及混合记法混淆测试"
     },
     {
       "heading": "Parameter Cloaking",
-      "what": "借助URL编码、双重编码、Unicode归一化、大小写与空字节变体伪装重复参数绕过过滤"
+      "what": "URL编码变形、大小写、双重编码、Unicode归一化与空字节隐匿参数绕过过滤"
     },
     {
-      "heading": "Access Control Bypass",
-      "what": "重复access/admin/user参数实现权限覆盖、用户冒充与管理员越权"
-    },
-    {
-      "heading": "Request Forgery Enhancement",
-      "what": "重复CSRF Token绕过校验并覆盖受限URL增强SSRF攻击"
-    },
-    {
-      "heading": "API Vulnerabilities",
-      "what": "API网关与后端参数优先级错位、GraphQL重复变量、OAuth重定向操纵及头/Cookie跨层污染"
+      "heading": "Common HPP Vulnerabilities",
+      "what": "HPP四大攻击向量：访问控制绕过、请求伪造增强（CSRF/SSRF）、数据篡改、API漏洞"
     },
     {
       "heading": "Impact Scenarios",
-      "what": "认证与WAF绕过、借重复XML参数触发XXE、网关取首值后端取末值造成IDOR"
+      "what": "认证绕过、WAF绕过、XXE注入、API网关与后端优先级不一致导致IDOR的影响场景"
     },
     {
       "heading": "Tools",
-      "what": "Burp Repeater/Intruder、Param Miner、HPP Finder、OWASP ZAP与Schemathesis检测工具清单"
+      "what": "Burp Suite Pro、OWASP ZAP、Param Miner、HPP Finder等参数污染测试工具"
+    },
+    {
+      "heading": "Exploiting HPP for Web Application Testing",
+      "what": "越权参数覆盖、CSRF令牌污染、API重复字段及HTTP请求走私的实战利用步骤"
     },
     {
       "heading": "Real-World Test Cases",
-      "what": "电商价格/数量篡改、银行转账金额与收款人覆盖、CMS权限绕过及社交分享按钮污染实战用例"
+      "what": "电商价格数量篡改、银行转账金额与收款人覆盖、CMS权限绕过及社交分享按钮污染用例"
     },
     {
-      "heading": "Real-World Cases and CVEs",
-      "what": "CVE-2021-41773 Apache路径穿越、CVE-2018-8033 OFBiz认证绕过及OAuth账户接管等案例复盘"
+      "heading": "Notable Parameter Pollution Vulnerabilities",
+      "what": "CVE-2021-41773、CVE-2018-8033、OAuth redirect_uri污染与GraphQL限速绕过等真实漏洞案例"
     }
   ]
 }

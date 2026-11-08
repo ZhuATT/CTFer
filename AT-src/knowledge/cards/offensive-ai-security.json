@@ -1,72 +1,84 @@
 {
-  "use_when": "在对 LLM/AI 应用与 MLOps 平台开展红队评估、测试提示词注入与越狱绕过时阅读本篇，重点涵盖直接/间接提示词注入、系统提示词提取、RAG投毒、模型窃取、过度代理及 garak/LLMFuzzer 自动化探测，区别于传统 Web 渗透的 AI 专属攻击面与 BigML/Azure ML/Vertex AI 平台利用手法。",
+  "use_when": "在对 LLM/AI 应用与聊天机器人进行红队评估、测试提示词注入与越狱风险时阅读本篇，重点涵盖直接/间接提示注入、系统提示词提取、编码绕过、RAG/向量库投毒、插件过度代理、MLOps 平台攻击及模型窃取与训练数据投毒，区别于传统 Web 应用漏洞扫描的通用手法。",
   "triggers": [
     "提示词注入",
     "Prompt Injection",
     "LLM越狱",
-    "Jailbreak",
-    "DAN",
-    "间接提示词注入",
+    "jailbreak",
+    "间接提示注入",
     "系统提示词提取",
+    "system prompt extraction",
+    "过度代理",
+    "excessive agency",
+    "不安全输出处理",
+    "insecure output handling",
     "模型窃取",
-    "Model Extraction",
+    "model extraction",
     "训练数据投毒",
     "RAG投毒",
-    "多模态注入",
-    "过度代理",
-    "不安全输出处理",
-    "Policy Puppetry",
     "garak",
     "LLMFuzzer",
+    "DAN",
     "OWASP LLM Top 10",
-    "MITRE ATLAS",
-    "AI红队"
+    "MLOps平台攻击"
   ],
-  "vulnclass": "其他",
+  "vulnclass": "逻辑漏洞",
   "section_map": [
     {
-      "heading": "Shortcut",
-      "what": "AI系统渗透快速路线：组件识别、信息收集、漏洞评估、利用链组合与后渗透"
-    },
-    {
       "heading": "Mechanisms",
-      "what": "AI/LLM漏洞核心成因：指令与数据边界模糊、训练数据依赖、黑盒性、过度代理、输出处理与供应链缺陷"
+      "what": "剖析 LLM 漏洞成因机理：指令歧义、训练/输入数据污染、黑盒性、插件过度代理、策略层冲突与记忆投毒等"
     },
     {
       "heading": "Preparation",
-      "what": "目标AI系统调研、OWASP LLM Top 10对照、信任边界与RAG数据流梳理及MLOps平台与模型供应链侦察"
+      "what": "测试前侦察：摸清模型能力与数据流、绘制信任边界、盘点 MLOps 平台与 HuggingFace 等模型供应链来源"
     },
     {
       "heading": "Specific Techniques",
-      "what": "提示词注入/越狱、敏感信息泄露、不安全输出处理、插件滥用、模型DoS、函数调用滥用与RAG专项攻击等具体测试手法"
+      "what": "具体测试手法清单：直接/间接提示注入、敏感信息泄露、输出处理缺陷、插件滥用、模型 DoS、模型窃取与 RAG 投毒"
     },
     {
       "heading": "Prompt Injection Samples",
-      "what": "可直接复用的注入payload样例：忽略指令、DAN角色扮演、虚拟化攻击、同义词混淆与语法攻击"
+      "what": "即用型提示注入载荷样例：DAN 角色、虚拟化攻击、同义词混淆与语法攻击等"
     },
     {
       "heading": "Advanced Testing",
-      "what": "进阶测试：模糊测试、系统提示词提取、长上下文定时炸弹指令与多模态隐藏指令注入"
+      "what": "进阶测试：模糊测试、对抗扰动、系统提示词提取、长上下文定时炸弹指令与图像/PDF 多模态隐藏注入"
     },
     {
       "heading": "MLOps platform attacks",
-      "what": "BigML/Azure ML/Vertex AI平台攻击：数据集下载、模型导出窃取与MLOKit检测验证"
-    },
-    {
-      "heading": "Indirect Prompt Injection",
-      "what": "间接注入七步打法：枚举函数与可注入源、提取系统提示词、语义/令牌预授权绕过与迭代注入观察"
+      "what": "针对 BigML/Azure ML/Vertex AI 平台的数据集下载、模型导出与令牌窃取攻击及蓝队应有检测点"
     },
     {
       "heading": "Bypass Techniques",
-      "what": "LLM安全防护绕过手法：指令忽略、角色扮演、Base64/零宽字符混淆、多轮对话引导与Policy Puppetry"
+      "what": "绕过 LLM 安全防护与内容过滤的技巧总览：指令覆盖、角色扮演、编码混淆、语言利用与 Policy Puppetry"
+    },
+    {
+      "heading": "Indirect Prompt Injection",
+      "what": "间接注入七步法：枚举函数与可注入数据源、诱取系统提示词、伪造语义/令牌授权并注入载荷诱导执行"
     },
     {
       "heading": "Vulnerabilities",
-      "what": "AI系统常见脆弱代码模式：提示词拼接、输出未净化引发XSS/SQLi/命令注入、向量库租户隔离缺失与插件权限过宽"
+      "what": "AI 系统常见脆弱代码模式总览：提示构造、输出使用、插件调用、编排框架、数据存储与训练数据管理缺陷"
+    },
+    {
+      "heading": "Output Parsing and Usage",
+      "what": "LLM 输出未净化直拼引发的 XSS、SQL 注入、命令注入与 SSRF 风险代码模式"
+    },
+    {
+      "heading": "RAG/Vector Systems",
+      "what": "RAG 与向量库缺陷：租户隔离缺失、嵌入未加密、检索过宽导致敏感上下文泄露与跨租户数据外泄"
     },
     {
       "heading": "Methodologies",
-      "what": "OWASP LLM Top 10与MITRE ATLAS框架下的侦察、garak/LLMFuzzer自动化扫描及人工红队测试流程"
+      "what": "OWASP LLM Top 10、MITRE ATLAS、NIST AI RMF 方法论与自动化扫描加手工红队的分阶段测试流程"
+    },
+    {
+      "heading": "Chaining and Escalation",
+      "what": "漏洞链式利用场景：提示注入升级为 SSRF/XSS/命令注入、间接注入致敏感数据泄露、插件致主机命令执行与模型窃取"
+    },
+    {
+      "heading": "Remediation Recommendations",
+      "what": "修复建议：纵深防御检查清单、函数调用失效关闭控制与智能体/RAG 出站及溯源管控"
     }
   ]
 }

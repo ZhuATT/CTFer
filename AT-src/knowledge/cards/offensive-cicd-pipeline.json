@@ -1,88 +1,88 @@
 {
-  "use_when": "在红队横向至企业DevOps环境需要攻陷GitHub Actions、Jenkins、GitLab CI、Azure DevOps流水线并升级为供应链代码执行时阅读本篇，重点涵盖表达式注入、workflow_run工件投毒、Groovy脚本控制台与沙箱逃逸、Runner注册令牌劫持、服务连接窃取及制品投毒等手法与gato、jenkins-attack-framework工具化利用，区别于传统Web应用漏洞挖掘视角。",
+  "use_when": "在渗透测试或供应链攻击评估中需要对 GitHub Actions、Jenkins、GitLab CI、Azure DevOps 四大 CI/CD 平台实施流水线利用与凭据窃取时阅读本篇，重点涵盖表达式注入、pull_request_target/workflow_run 滥用、Groovy 脚本控制台 RCE 与沙箱逃逸、Runner 注册令牌劫持、服务连接窃取、制品投毒及 gato/jenkins-attack-framework 工具链，区别于传统 Web 漏洞挖掘的构建系统信任边界与供应链（T1195.002）利用视角。",
   "triggers": [
     "CI/CD流水线攻击",
-    "GitHub Actions",
+    "供应链攻击",
+    "T1195.002",
     "表达式注入",
+    "GitHub Actions",
     "pull_request_target",
     "workflow_run",
     "GITHUB_TOKEN",
-    "供应链攻击",
-    "supply chain compromise",
+    "gato",
     "Jenkins",
-    "Groovy脚本控制台",
-    "Groovy沙箱逃逸",
+    "Groovy脚本控制台RCE",
+    "沙箱逃逸",
     "反序列化",
+    "ysoserial",
     "共享库注入",
     "GitLab CI",
-    "Runner注册令牌",
-    "CI变量提取",
+    "Runner注册令牌滥用",
     "Azure DevOps",
     "服务连接窃取",
-    "制品投毒",
-    "artifact poisoning"
+    "制品投毒"
   ],
   "vulnclass": "RCE",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "CI/CD攻击七步流程：枚举仓库流水线配置、定位触发模型、映射令牌权限范围、按访问级别选择注入向量并凭据横向"
+      "what": "CI/CD 攻击七步流程：枚举流水线配置、映射令牌范围、按访问级别选择注入向量并凭捕获凭据横向移动"
     },
     {
       "heading": "GitHub Actions Expression Injection",
-      "what": "利用PR标题/issue正文/分支名等不可信数据流入${{ }}表达式实现Runner命令注入，以及workflow_run事件下的工件投毒获取默认分支权限执行"
+      "what": "借 PR 标题/issue 正文向 ${{ }} 表达式注入 Shell 命令、滥用 workflow_run 制品投毒并以 gato 枚举自托管 Runner"
     },
     {
       "heading": "Groovy Script Console RCE",
-      "what": "通过Jenkins脚本控制台Groovy执行系统命令、反弹Shell并调用CredentialsProvider直接读取凭据存储明文密码"
+      "what": "经脚本控制台直接执行命令、反弹 Shell 并用 CredentialsProvider 导出凭据存储明文密码"
     },
     {
       "heading": "Groovy Sandbox Escape",
-      "what": "利用元编程、反射与evaluate绕过Pipeline Groovy沙箱在控制器实现代码执行"
+      "what": "通过元编程、方法指针与反射绕过 Groovy 沙箱实现 Jenkins 控制器代码执行"
     },
     {
       "heading": "Jenkins Remoting Deserialization",
-      "what": "针对50000端口JNLP协议用ysoserial生成CommonsCollections反序列化载荷攻击Java Remoting通道"
+      "what": "对暴露的 50000 端口用 ysoserial 生成载荷并经 JNLP 协议投递触发 Java 反序列化 RCE"
     },
     {
       "heading": "Shared Library Injection",
-      "what": "污染Jenkins共享库仓库使所有引用@Library的流水线执行外传环境变量的恶意代码实现供应链扩散"
+      "what": "篡改 @Library 共享库在保留原功能避免检测的同时注入环境变量外传后门实现全消费者 RCE"
     },
     {
       "heading": "YAML Injection via Merge Requests",
-      "what": "通过Fork的.gitlab-ci.yml在目标Runner上执行env泄露、CI_JOB_TOKEN调用API拉取变量与文件系统凭据搜集"
+      "what": "借 fork 的 MR 流水线在目标 Runner 上执行恶意 .gitlab-ci.yml 以 dumping 环境变量并搜刮 runner 文件系统密钥"
     },
     {
       "heading": "Runner Registration Token Abuse",
-      "what": "用窃取的注册令牌注册恶意GitLab Runner以截获构建任务、窃取环境变量密钥并篡改发布产物"
+      "what": "用窃取的注册令牌以宽泛 tag 匹配注册恶意 Runner 拦截任务、捕获变量并篡改部署制品"
     },
     {
       "heading": "CI Variable Extraction",
-      "what": "以失陷令牌调用GitLab REST API枚举项目级/组级/实例级CI变量及保护与掩码属性"
+      "what": "以泄露令牌调 GitLab API 逐级枚举项目/组/实例级 CI 变量提取受保护密钥"
     },
     {
       "heading": "Protected Branch Bypass",
-      "what": "利用合并请求流水线与分支流水线间的信任边界在保护上下文中打印DEPLOY_KEY等部署密钥"
+      "what": "利用 MR 流水线与分支流水线的信任差异在受保护上下文中打印 DEPLOY_KEY、AWS 密钥等敏感变量"
     },
     {
       "heading": "Pipeline Agent Abuse",
-      "what": "利用Azure自托管Agent构建间状态残留搜集.kube/.aws/.docker缓存凭据、历史工件与工作目录残留密钥"
+      "what": "在自托管 Agent 上执行侦察命令搜集 .kube/.aws/.docker 缓存凭据与遗留制品实现持久化"
     },
     {
       "heading": "Service Connection Theft",
-      "what": "通过AzureCLI任务注入提取服务主体令牌并枚举KeyVault等Azure云资源实现云上横向"
+      "what": "借 AzureCLI 任务提取服务主体令牌与托管身份并横向枚举 Azure 资源和 KeyVault 机密"
+    },
+    {
+      "heading": "Variable Group Extraction",
+      "what": "用被盗 PAT 调 Azure DevOps REST API 列出变量组与服务连接凭据"
     },
     {
       "heading": "Artifact Poisoning",
-      "what": "在构建与部署交接环节篡改上传制品、共享缓存跨任务投毒及Dockerfile注入后门层实现供应链植入"
+      "what": "在构建-部署交接处篡改上传制品、污染共享缓存、跨节点改 stash 文件并向 Dockerfile 注入后门层实现供应链植入"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "防御视角：工作流文件变更告警、表达式注入元字符特征、令牌范围异常检测及SHA固定、临时Runner、OIDC等加固措施"
-    },
-    {
-      "heading": "Engagement Cheatsheet",
-      "what": "四大平台攻击向量、所需最低权限与影响等级的实战速查对照表"
+      "what": "蓝军视角监控工作流改动、异常 Runner 注册、令牌越权与制品哈希变化，落地 SHA 固定、临时 Runner、OIDC 等防御措施"
     }
   ]
 }

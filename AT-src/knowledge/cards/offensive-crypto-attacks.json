@@ -1,72 +1,76 @@
 {
-  "use_when": "在渗透测试中评估目标应用加密Cookie、签名Token、RSA公钥及会话令牌等密码学实现缺陷时阅读本篇，重点涵盖CBC填充预言机、ECB分组拼接与逐字节解密、哈希长度扩展、RSA参数攻击、MT19937随机数预测及AES-GCM nonce重用等手法与padbuster、RsaCtfTool、hashpump工具链，区别于对数学原语本身的破译或业务逻辑类漏洞挖掘。",
+  "use_when": "在渗透测试中面对加密Cookie、签名令牌、RSA公钥或会话随机数等密码学实现缺陷需要黑盒识别与利用时阅读本篇，重点涵盖CBC填充Oracle、ECB分组拼接、哈希长度扩展、RSA弱参数、MT19937状态克隆、AES-GCM nonce重用及弱KDF爆破，区别于针对加密数学原语本身的破解，聚焦开发者误用实现导致的可利用漏洞。",
   "triggers": [
-    "填充预言机",
+    "填充Oracle攻击",
     "Padding Oracle",
-    "CBC",
     "PKCS7",
+    "CBC",
     "padbuster",
     "ECB模式",
-    "分组拼接攻击",
     "哈希长度扩展",
     "hashpump",
     "Merkle-Damgard",
     "RsaCtfTool",
+    "小公钥指数",
+    "Hastad广播攻击",
     "Bleichenbacher",
+    "PKCS#1 v1.5",
     "Coppersmith",
-    "小公钥指数攻击",
     "MT19937",
     "梅森旋转",
-    "时序攻击",
-    "nonce重用",
-    "AES-GCM",
-    "PBKDF2"
+    "时间侧信道攻击",
+    "AES-GCM nonce重用",
+    "GHASH"
   ],
   "vulnclass": "密码学缺陷",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "密码学攻击面识别、算法指纹识别与漏洞分类的六步实战工作流"
+      "what": "从识别加密触点、指纹算法模式、分类漏洞类到选工具执行利用的六步攻击流程"
     },
     {
       "heading": "Padding Oracle Attacks",
-      "what": "CBC模式PKCS7填充预言机识别及padbuster自动化解密与伪造任意明文"
+      "what": "利用CBC/PKCS7填充校验回显差异，用padbuster或自定义Vaudenay脚本解密密文块并伪造任意明文"
     },
     {
       "heading": "ECB Block Manipulation",
-      "what": "ECB模式重复密文块检测、逐字节解密密钥外秘密与密文块拼接重排攻击"
+      "what": "通过重复明文探测ECB确定性、逐字节解密附加密钥及分组拼接伪造结构化数据"
     },
     {
       "heading": "Hash Length Extension",
-      "what": "利用Merkle-Damgard结构伪造H(secret||message)型MAC及hashpump密钥长度爆破"
+      "what": "针对H(secret||message)型MAC用hashpumpy追加数据伪造签名并爆破密钥长度"
     },
     {
       "heading": "RSA Attacks",
-      "what": "RsaCtfTool自动化分析、小公钥指数、Hastad广播、Bleichenbacher PKCS1v1.5与Coppersmith格攻击恢复密钥"
+      "what": "RsaCtfTool自动分析、小指数开根、Hastad广播CRT恢复、Bleichenbacher PKCS#1 v1.5 oracle及Coppersmith部分因子恢复"
     },
     {
       "heading": "Weak PRNG Exploitation",
-      "what": "由624个输出逆向tempering克隆MT19937状态及时间种子窗口爆破预测随机数"
+      "what": "逆向temper变换从624个输出恢复MT19937内部状态克隆预测随机数及爆破时间种子"
     },
     {
       "heading": "Timing Side-Channel Attacks",
-      "what": "利用字节级MAC/令牌比较的执行时间差逐字节恢复秘密值及统计去噪采样技巧"
+      "what": "逐字节统计响应时间中位数差异恢复MAC、令牌等秘密值的比较侧信道攻击"
     },
     {
       "heading": "AES-GCM Nonce Reuse",
-      "what": "同密钥同nonce下恢复明文异或并求解GF(2^128)多项式提取GHASH认证密钥伪造标签"
+      "what": "同密钥同nonce重用时恢复明文XOR并通过GF(2^128)多项式求解GHASH密钥H伪造认证标签"
     },
     {
       "heading": "Key Derivation Weaknesses",
-      "what": "无盐单轮SHA-256派生密钥的字典爆破与PBKDF2迭代次数OWASP基线检测"
+      "what": "爆破单次SHA-256无盐派生密钥及按OWASP标准检测PBKDF2不足迭代次数"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "填充预言机探测、ECB探测、长度扩展等攻击行为的检测指标与认证加密等修复优先级"
+      "what": "各类密码学攻击的流量检测指标与修复优先级（AEAD迁移、HMAC、OAEP、常量时间比较、Argon2id）"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "按加密Cookie、RSA公钥、会话令牌等目标匹配工具的速查表及密文长度识别启发式"
+      "what": "目标类型与工具技术速查表及密文长度识别启发式（8/16字节分组、GCM标签、哈希定长）"
+    },
+    {
+      "heading": "Key References",
+      "what": "Vaudenay、Bleichenbacher、Coppersmith等经典论文引用及CWE编号与工具仓库链接"
     }
   ]
 }

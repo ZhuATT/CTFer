@@ -1,88 +1,88 @@
 {
-  "use_when": "在授权红队/渗透测试中需要评估目标软件供应链的依赖混淆与包命名空间抢占风险时阅读本篇，重点涵盖 npm/.npmrc 作用域映射缺陷、pip --extra-index-url 双索引、NuGet feed 优先级、Maven/Gradle 仓库顺序、GOPROXY 及 Docker 镜像标签等全生态仓库解析漏洞利用，以及 lock 文件与源码地图侦察内部包名、interactsh DNS 金丝雀安全 PoC 回连取证，区别于传统 Web 漏洞测试的供应链攻击视角。",
+  "use_when": "在授权渗透测试或红队供应链评估中需要挖掘目标内部包名并利用公共/私有仓库解析差异实施依赖混淆攻击时阅读本篇，重点涵盖npm作用域抢占、pip --extra-index-url索引顺序、NuGet/Maven/Gradle/GOPROXY/Ruby Gems/Docker镜像多生态利用手法及interactsh DNS金丝雀安全PoC，区别于传统Web应用单点漏洞测试的渗透视角。",
   "triggers": [
     "依赖混淆",
     "Dependency Confusion",
     "供应链攻击",
     "供应链投毒",
-    "命名空间抢占",
-    "namespace squatting",
+    "命名空间攻击",
+    "包抢注",
+    "npm scope混淆",
     ".npmrc",
-    "npm scope",
-    "--extra-index-url",
-    "PyPI抢注",
-    "pip私服",
-    "NuGet feed",
-    "Maven仓库顺序",
+    "extra-index-url",
+    "index-url",
+    "pip.conf",
+    "NuGet",
+    "packageSourceMapping",
     "GOPROXY",
+    "Go module proxy",
+    "Ruby Gems",
     "Docker镜像标签混淆",
     "interactsh",
     "Burp Collaborator",
-    "DNS canary",
-    "package-lock.json",
-    "confused"
+    "DNS canary"
   ],
   "vulnclass": "配置错误",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "依赖混淆九步攻击链总览：侦察内部包名→公网发布高版本PoC→监控回连取证→清理上报"
+      "what": "依赖混淆攻击九步流程：侦察内部包名、验证公共仓库可抢注、发布高版本PoC并监控回连后清理下架"
     },
     {
       "heading": "Reconnaissance for Internal Package Names",
-      "what": "多源搜集目标内部私有包名的侦察方法论总述"
+      "what": "多渠道收集目标内部包名：锁文件、JS源码映射、报错堆栈、GitHub代码搜索与招聘信息挖掘"
     },
     {
       "heading": "Lock File Analysis",
-      "what": "解析 package-lock.json/yarn.lock/Pipfile.lock 提取指向私有 registry 的依赖名并比对公网404"
-    },
-    {
-      "heading": "JavaScript Source Maps",
-      "what": "从生产 JS bundle 的 sourceMappingURL 与 webpack chunk 清单提取 node_modules 内部模块名"
-    },
-    {
-      "heading": "Error Messages and Stack Traces",
-      "what": "触发 404/API 报错从 Cannot find module 堆栈及 Wayback 缓存泄露内部包名"
-    },
-    {
-      "heading": "GitHub Repository Mining",
-      "what": "用 gh api 代码搜索目标 org 的 .npmrc、requirements.txt、NuGet.config 等 registry 配置"
+      "what": "解析package-lock.json/yarn.lock/requirements.txt/Pipfile.lock提取指向私有源且公共仓库404的内部依赖名"
     },
     {
       "heading": "npm Scope Confusion",
-      "what": "利用 .npmrc 作用域映射缺失使内部 @scope/无作用域包回退公网 npm 解析并抢注"
+      "what": "利用.npmrc未绑定作用域注册表或无作用域内部包名使解析回退公共npm的手法与配置对照"
+    },
+    {
+      "heading": "Scoped Package Confusion",
+      "what": "检测@targetcorp作用域在公共npm未被注册占用并抢注以触发依赖混淆"
     },
     {
       "heading": "npm PoC Package",
-      "what": "preinstall 钩子携带主机名/用户名/CI 标记的 DNS+HTTP 最小元数据安全回连 PoC"
+      "what": "构造preinstall钩子PoC包，经DNS金丝雀与HTTP回传主机名/用户名/CI标志等最小元数据"
     },
     {
       "heading": "PyPI Namespace Attacks",
-      "what": "pip --extra-index-url 双索引取最高版本缺陷利用与 --index-url 独占安全配置对比及 setup.py 钩子 PoC"
+      "what": "pip双索引解析缺陷驱动的Python内部包抢注投毒攻击面"
+    },
+    {
+      "heading": "--extra-index-url vs --index-url",
+      "what": "对比pip两种索引配置：extra双源取最高版本可被投毒，index独占私有源才安全"
     },
     {
       "heading": "NuGet Feed Priority Exploitation",
-      "what": "多 feed 最高版本优先抢注利用与 MSBuild .targets 构建期 Exec 回调执行"
+      "what": "多feed并存跨源取最高版本导致投毒，配合MSBuild .targets构建期回连PoC与packageSourceMapping加固建议"
     },
     {
       "heading": "Maven and Gradle Repository Ordering",
-      "what": "Maven Central 先于私有仓库顺序遍历时的 groupId:artifactId 坐标抢注利用"
+      "what": "central仓库先于私有Nexus被遍历时抢注groupId:artifactId坐标实施混淆"
     },
     {
       "heading": "Go Module Proxy Abuse",
-      "what": "GOPROXY 链公共代理优先的模块路径抢注与 init() 回连 PoC"
+      "what": "GOPROXY默认公共代理优先使corp域module路径可被抢占并经init()函数回连取证"
     },
     {
       "heading": "Ruby Gems and Docker Image Confusion",
-      "what": "gem 名抢注 extconf.rb 安装期回调与未限定镜像名解析 Docker Hub 的投毒"
+      "what": "gem名抢注经extconf.rb安装钩子执行，未限定镜像名回退Docker Hub推送木马镜像投毒"
     },
     {
       "heading": "Safe PoC Methodology",
-      "what": "interactsh/Burp Collaborator DNS 金丝雀带外检测、最小回连数据约束与 PoC 包描述模板"
+      "what": "interactsh/Burp Collaborator DNS金丝雀选型、最小化回连数据约束与PoC包安全描述模板"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "各生态 registry 加固对照表与安装期异常外联、999.x 版本跳变等检测信号"
+      "what": "各生态安全注册表配置对照表及安装期出网行为、999.x版本跳变等检测信号与加固指引"
+    },
+    {
+      "heading": "Engagement Cheatsheet",
+      "what": "从confused扫描、PoC发布、回连监控取证到注册表清理下架的十二步作战速查表"
     }
   ]
 }

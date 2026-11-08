@@ -1,88 +1,88 @@
 {
-  "use_when": "在渗透测试前期侦察、红队目标画像或威胁情报组织溯源中需要系统化开展开源情报收集时阅读本篇，重点涵盖Sock Puppet行动安全、加密货币与L2链上追踪、图像/视频地理定位、阴影时间分析与Shodan/crt.sh基础设施测绘，区别于漏洞利用与内网渗透类技术。",
+  "use_when": "在渗透测试前期侦察或威胁情报溯源中需要系统性收集并关联公开来源情报时阅读本篇，重点涵盖匿名马甲账号OpSec、加密货币链上追踪、图像/视频地理定位与时间定位、APT威胁行为者归因、社媒与基础设施OSINT及Deepfake鉴伪，区别于主动扫描与漏洞利用，仅利用公开信息源开展被动情报收集。",
   "triggers": [
     "OSINT",
     "开源情报",
-    "OSINT methodology",
+    "OSINT方法论",
     "情报收集",
     "Sock Puppet",
-    "马甲账号",
+    "匿名马甲",
     "加密货币追踪",
+    "链上分析",
     "钱包画像",
     "反向图片搜索",
-    "EXIF元数据",
-    "地理定位",
-    "阴影分析",
+    "图片地理定位",
     "时间定位",
-    "威胁组织溯源",
+    "阴影分析",
+    "威胁行为者归因",
     "APT归因",
     "用户名枚举",
+    "人脸搜索",
     "Shodan",
     "crt.sh",
-    "Maltego",
-    "Deepfake检测"
+    "被动DNS"
   ],
   "vulnclass": "信息泄露",
   "section_map": [
     {
       "heading": "OpSec",
-      "what": "创建不可关联的Sock Puppet马甲账号、浏览器容器隔离与一次性VoIP号码等调查行动安全规范"
+      "what": "创建不可关联的Sock Puppet马甲账号、浏览器隔离与一次性VoIP号码等调查反溯源措施"
     },
     {
       "heading": "Cryptocurrency Investigation",
-      "what": "链上交易流追踪、钱包画像、交易所与NFT溯源及Arkham/TRM/Chainalysis等分析工具"
-    },
-    {
-      "heading": "Layer 2 / Rollup Analysis",
-      "what": "zkSync/Arbitrum/StarkNet等L2与隐私协议混币桥的资金追踪方法学及桥语义陷阱"
+      "what": "链上交易追踪、L2/隐私协议分析、钱包画像与交易所/NFT调查手法"
     },
     {
       "heading": "Image Analysis",
-      "what": "多引擎反向图片搜索、EXIF元数据提取与街景比对实现图像地理定位"
+      "what": "多引擎反向图片搜索、EXIF元数据提取与街景/地图比对进行地理定位"
     },
     {
       "heading": "Image Forensics",
-      "what": "ELA误差水平分析、克隆检测与C2PA内容凭证验证识别图像篡改与AI伪造"
+      "what": "ELA误差分析、克隆检测与C2PA验证鉴别图像篡改与来源"
     },
     {
       "heading": "Video Analysis",
-      "what": "视频线索提取、Bluesky/Mastodon平台API调查技巧、音频频谱识别与FFmpeg关键帧拼接全景"
+      "what": "视频元数据提取、TikTok/Bluesky/Mastodon平台特性调查、音频线索与关键帧分析"
     },
     {
       "heading": "Chronolocation and Time Analysis",
-      "what": "阴影方位与太阳高度角计算、天文星象匹配及历史卫星影像确定拍摄时间"
+      "what": "利用SunCalc阴影分析、Stellarium天文计算与历史卫星影像交叉确定拍摄时间"
     },
     {
       "heading": "Threat Actor Investigation",
-      "what": "以APT组织为中心的IOC采集、证书与托管基础设施测绘、样本聚类及归因置信度纪律"
+      "what": "以APT组织为中心的种子报告收集、IOC收割与基础设施映射工作流"
     },
     {
-      "heading": "Russia-Specific Pivots",
-      "what": "利用EGRUL工商注册、zakupki政府采购、RU WHOIS与Telegram生态进行俄系组织溯源"
+      "heading": "Attribution Discipline",
+      "what": "区分能力与意图、三独立信号法则与置信度标注的归因纪律"
     },
     {
-      "heading": "China-Specific Pivots",
-      "what": "利用国家企业信用信息公示系统、ICP备案统一社会信用代码与微博/微信公众号进行中式溯源"
+      "heading": "Russia‑Specific Pivots",
+      "what": "利用EGRUL工商注册、zakupki政府采购、RU WHOIS与VK等俄语平台溯源"
+    },
+    {
+      "heading": "China‑Specific Pivots",
+      "what": "利用国家企业信用信息公示系统、ICP备案、统一社会信用代码与微博/知乎等中文平台溯源"
     },
     {
       "heading": "People & Social Media Investigation",
-      "what": "Sherlock/WhatsMyName用户名枚举、PimEyes人脸搜索与Maltego社交图谱关系分析"
+      "what": "WhatsMyName/Sherlock跨平台用户名枚举、PimEyes人脸搜索与Maltego社交图谱分析"
     },
     {
       "heading": "Infrastructure OSINT",
-      "what": "Shodan/Censys资产测绘与crt.sh/SecurityTrails证书透明度及被动DNS透视"
+      "what": "Shodan/Censys资产测绘、crt.sh证书透明度与SecurityTrails被动DNS查询"
     },
     {
       "heading": "Malware & Artifact Analysis Workflow",
-      "what": "样本静态指纹提取、沙箱动态IOC采集、SSDEEP/YARA聚类与STIX报告规范化"
+      "what": "样本静态三分类、沙箱动态分析、SSDEEP/TLSH聚类与STIX 2.1报告输出"
     },
     {
       "heading": "Telegram/WeChat Investigation",
-      "what": "TGStat频道增长与转发图分析、Telegram Desktop导出取证及微信公众号存证取证"
+      "what": "TGStat频道增长与转发图分析、微信公众号搜狗检索与早期存档取证"
     },
     {
       "heading": "Synthetic Media Verification",
-      "what": "使用Sensity AI/Hive/Reality Defender检测AI生成与深度伪造媒体内容"
+      "what": "使用Sensity、Hive Moderation、Reality Defender检测深度伪造与AI生成内容"
     }
   ]
 }

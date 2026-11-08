@@ -1,76 +1,80 @@
 {
-  "use_when": "在对 REST/gRPC/WebSocket 三类 API 架构进行授权渗透测试时阅读本篇，重点涵盖 OWASP API Security Top 10 2023 的 BOLA/IDOR、BFLA、批量赋值、速率限制绕过、SSRF 及 gRPC 反射与跨站 WebSocket 劫持手法，区别于传统 Web 页面漏洞的单点测试思路。",
+  "use_when": "在授权渗透测试中针对 REST/gRPC/WebSocket 三类 API 开展越权与认证类漏洞挖掘时阅读本篇，重点涵盖 OWASP API Top 10 2023 的 BOLA/IDOR、BFLA、批量赋值、限流绕过、SSRF 云元数据、HTTP 方法篡改及 gRPC 反射枚举、CSWSH 跨站 WebSocket 劫持手法，区别于传统 Web 页面漏洞测试的 API 专属攻击面与协议层利用。",
   "triggers": [
     "API安全测试",
-    "API penetration testing",
+    "OWASP API Top 10",
     "BOLA",
     "IDOR",
-    "水平越权",
+    "对象级越权",
     "BFLA",
-    "垂直越权",
-    "OWASP API Security Top 10",
-    "批量赋值",
+    "功能级越权",
     "Mass Assignment",
-    "速率限制绕过",
-    "rate limit bypass",
-    "HTTP动词篡改",
-    "verb tampering",
+    "批量赋值",
+    "SSRF",
+    "云元数据",
+    "169.254.169.254",
+    "Verb Tampering",
+    "HTTP方法篡改",
     "参数污染",
-    "gRPC安全测试",
+    "gRPC",
     "grpcurl",
-    "protobuf",
-    "元数据注入",
-    "WebSocket安全"
+    "CSWSH",
+    "跨站WebSocket劫持",
+    "限流绕过"
   ],
   "vulnclass": "越权",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "API 测试十步流程总览：从接口面测绘、认证枚举到越权与限流测试"
+      "what": "API 渗透十步流程总览：从 OpenAPI/gRPC 反射测绘到 BOLA/BFLA/限流/WebSocket/SSRF 测试与报告"
     },
     {
       "heading": "OWASP API Top 10 2023 -- BOLA and IDOR",
-      "what": "替换对象 ID 重放请求并跨 HTTP 方法自动化枚举实现水平越权测试"
+      "what": "替换对象标识符越权测试：顺序 ID 与 UUID 枚举脚本及跨 GET/PUT/DELETE 方法授权检查"
     },
     {
       "heading": "Broken Authentication and Excessive Data Exposure",
-      "what": "登录接口撞库探测、令牌生命周期弱点与响应中过度数据暴露检测"
+      "what": "登录撞库限流探测、过期/改密后令牌与畸形 Bearer 值验证及响应中 PII 数据过度暴露检查"
     },
     {
       "heading": "Rate Limiting and Resource Consumption",
-      "what": "测量限流响应头、分页滥用与超大负载提交测试资源消耗限制"
+      "what": "测量 x-ratelimit/retry-after 响应头、分页 per_page 滥用与超大 JSON 载荷资源耗尽测试"
     },
     {
       "heading": "BFLA and Mass Assignment",
-      "what": "低权限令牌遍历管理端点测试功能级越权并注入 role/is_admin 属性提权"
+      "what": "普通用户令牌遍历 admin 接口测功能级越权及注入 role/is_admin/permissions 等属性实现批量赋值提权"
     },
     {
       "heading": "REST Verb Tampering and Content-Type Switching",
-      "what": "遍历异常 HTTP 方法、方法覆盖头与切换 XML/表单序列化及重复键参数污染绕过控制"
+      "what": "遍历全部 HTTP 方法、X-HTTP-Method-Override 绕过 WAF、切换表单/XML 内容类型与重复键参数污染"
     },
     {
       "heading": "SSRF via API Parameters",
-      "what": "向 webhook/导入/头像 URL 参数注入内网地址与云元数据端点 169.254.169.254"
+      "what": "向 webhook_url/import_url/avatar_url 参数注入 169.254.169.254 云元数据与内网地址探测 SSRF"
     },
     {
       "heading": "gRPC Security Testing",
-      "what": "gRPC 反射服务枚举、grpcurl 构造越权请求、元数据注入与 mitmproxy 拦截 protobuf 流量"
+      "what": "grpcurl 反射枚举服务方法、gRPC 版 BOLA/BFLA 测试、metadata 元数据注入与 mitmproxy 插件拦截 protobuf 流量"
     },
     {
       "heading": "WebSocket Security Testing",
-      "what": "websocat 测试 Origin 校验绕过、消息注入模糊测试与跨站 WebSocket 劫持验证"
+      "what": "websocat 测 Origin 校验绕过、Python 消息注入模糊测试与 CSWSH 跨站 WebSocket 劫持验证页"
     },
     {
       "heading": "API Versioning and Security Misconfiguration",
-      "what": "枚举 API 版本与旧版控制缺失、探测 swagger/actuator 调试端点及 CORS 配置错误"
+      "what": "枚举 v1/internal/dev 等旧版本、探测 swagger/actuator 调试端点与安全响应头审计"
+    },
+    {
+      "heading": "CORS misconfiguration testing",
+      "what": "以恶意 Origin 与 null Origin 触发 OPTIONS 预检检查 Access-Control 跨域配置缺陷"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "蓝军视角下各攻击留下的流量特征与告警痕迹（429 突发、404 爆发、异常 Origin 等）"
+      "what": "蓝军视角：各攻击手法在网关日志/SIEM/WAF 中留下的检测特征与告警痕迹"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "按侦察/认证/授权/输入处理/协议/基础设施分阶段的动作与工具速查表"
+      "what": "按侦察/认证/授权/输入处理/协议/基础设施阶段划分的动作与工具速查表"
     }
   ]
 }

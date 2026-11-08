@@ -1,76 +1,72 @@
 {
-  "use_when": "在授权渗透测试中针对 API 业务逻辑层实施自动化扫描器难以发现的高级滥用攻击时阅读本篇，重点涵盖 API 调用链绕过、GraphQL 内省/批量爆破、JWT 算法混淆与 kid/jku 注入、竞态条件与 Webhook SSRF，区别于传统注入类漏洞测试的业务流程/状态机/信任链滥用视角。",
+  "use_when": "在授权渗透测试中针对 API 应用挖掘自动化扫描器无法覆盖的高级业务逻辑漏洞时阅读本篇，重点涵盖 API 调用链绕过支付流程、GraphQL 内省与批量查询爆破、分页光标伪造、Webhook SSRF 劫持、竞态条件并发滥用及 jwt_tool 算法混淆/kid/jku 注入与 Arjun 隐藏端点发现，区别于常规 Web 漏洞单点签名检测的单请求视角。",
   "triggers": [
-    "API业务逻辑漏洞",
-    "API chaining",
-    "调用链绕过",
-    "GraphQL",
-    "内省查询",
-    "introspection",
-    "批量查询爆破",
-    "JWT攻击",
-    "算法混淆",
-    "none算法绕过",
-    "kid注入",
-    "jku滥用",
-    "声明篡改",
-    "竞态条件",
-    "race condition",
+    "API滥用",
+    "业务逻辑绕过",
+    "business logic bypass",
+    "API调用链",
+    "GraphQL批量查询",
+    "GraphQL内省",
+    "查询深度DoS",
+    "分页数据枚举",
+    "光标伪造",
     "Webhook劫持",
     "SSRF",
-    "分页数据枚举",
+    "竞态条件",
+    "race condition",
+    "JWT算法混淆",
+    "none算法",
+    "kid注入",
+    "jku注入",
     "API密钥泄露",
-    "jwt_tool"
+    "jwt_tool",
+    "Arjun"
   ],
   "vulnclass": "逻辑漏洞",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "十步API攻击流程总览：端点测绘、业务工作流建模、竞态/JWT/GraphQL测试到影响定级"
+      "what": "十步 API 攻击工作流：端点测绘、业务工作流建模、竞态测试、JWT 分析、GraphQL/分页/Webhook/密钥泄露逐项检测"
     },
     {
       "heading": "Business Logic Bypass via API Chaining",
-      "what": "通过跳过支付直接确认订单、价格操纵、负数数量与状态篡改等调用链滥用绕过业务流程"
+      "what": "通过跳过支付直接确认订单、加购高价品计算后删除的价格操纵、负数数量与币种混淆等调用链绕过业务流程"
     },
     {
       "heading": "GraphQL Batching and Abuse",
-      "what": "利用内省查询泄露schema、单请求批量登录绕过限速实施爆破、查询深度与字段重复实现DoS响应放大"
+      "what": "内省查询导出类型与 mutation、单请求批量登录爆破绕过限速、查询深度 DoS 与字段重复响应放大"
     },
     {
       "heading": "Pagination Exploitation",
-      "what": "滥用per_page/page参数与伪造base64游标实现全量数据枚举，并注入sort/filter参数探测隐藏字段"
+      "what": "探测分页边界与超大 per_page 全量拉取、Base64 光标伪造越权访问任意记录及排序/过滤参数注入"
     },
     {
       "heading": "Webhook Hijacking and SSRF",
-      "what": "注册攻击者控制的Webhook截获事件数据，并将回调URL指向127.0.0.1/云元数据/内网服务实施SSRF"
+      "what": "注册攻击者回调地址拦截数据、枚举现有 Webhook 发现内网 URL 并指向 127.0.0.1 与云元数据地址实施 SSRF"
     },
     {
       "heading": "Race Conditions in API Transactions",
-      "what": "用Python asyncio/aiohttp或GNU parallel并发请求实现一次性优惠券重复兑换与余额超额转账"
+      "what": "用 asyncio/aiohttp 与 GNU parallel 发送并发请求，重复兑换一次性优惠券、超额转账耗尽账户余额"
     },
     {
       "heading": "JWT Manipulation",
-      "what": "jwt_tool实施RS256转HS256算法混淆、none算法绕过、kid路径穿越/SQL注入、jku指向伪造JWKS及role/exp声明篡改"
+      "what": "jwt_tool 执行 RS256→HS256 算法混淆、none 算法绕过、kid 路径穿越/SQL 注入、jku 指向自建 JWKS 伪造令牌及 claim 篡改提权"
     },
     {
       "heading": "API Key Leakage Patterns",
-      "what": "用gh搜索公开仓库泄露的AKIA/sk_live密钥，从JS bundle与报错响应中提取api_key/token等凭据"
+      "what": "GitHub 代码搜索 AKIA/sk_live 前缀泄露密钥、从 JavaScript 打包文件与服务报错信息中提取密钥"
     },
     {
       "heading": "Undocumented Endpoint Discovery",
-      "what": "用Arjun/ParamSpider挖掘隐藏参数，按internal/debug/admin命名规律爆破未文档化端点并从JS中提取API路由"
+      "what": "Arjun/ParamSpider 挖掘隐藏参数、按 internal/debug/admin 等命名规律爆破端点并从 JS 文件提取 API 路由"
     },
     {
       "heading": "Resource Exhaustion and Algorithmic Complexity",
-      "what": "通过ReDoS正则回溯测量响应时间放大与Billion Laughs XML实体扩展耗尽服务端资源"
+      "what": "搜索参数触发 ReDoS 并测量响应时间膨胀、XML 实体膨胀 Billion Laughs 耗尽服务端资源"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "防守视角：行为分析检测乱序状态转移、查询复杂度限制、Webhook出站监控与数据库序列化失败日志"
-    },
-    {
-      "heading": "Engagement Cheatsheet",
-      "what": "按发现/逻辑/认证/数据/基础设施五个阶段对照所需工具的速查表"
+      "what": "防守视角：行为分析检测乱序结账与状态机违规、网关限制 GraphQL 复杂度、外连监控与 JWT 头部异常告警"
     }
   ]
 }

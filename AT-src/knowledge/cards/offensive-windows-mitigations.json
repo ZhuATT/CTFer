@@ -1,72 +1,88 @@
 {
-  "use_when": "在Windows二进制漏洞利用与内核提权研究中需要识别并检测DEP、ASLR、CFG、/GS栈Cookie等缓解机制、规划绕过策略时阅读本篇，重点涵盖编译链接器开关控制、WinDbg异常码定位阻断原因、Set-ProcessMitigation审计与ROP链在不同缓解组合下的成败对比，区别于纯漏洞复现或Linux侧栈溢出利用的角度。",
+  "use_when": "在 Windows 二进制漏洞利用与攻防研究中需要理解、检测并验证 DEP/NX、ASLR、栈Cookie(/GS)、CFG、CET 影子栈、堆防护及 VBS/HVCI 等缓解机制并规划绕过思路时阅读本篇，重点涵盖 WinDbg/dumpbin/Set-ProcessMitigation 缓解检测、Cookie 泄露与部分覆写/Write-What-Where 等绕过手法及 SMEP/SMAP/kCFG 内核缓解与 CLFS 内核提权链，区别于 Linux 基础栈溢出利用教学与纯防御加固配置类文档。",
   "triggers": [
     "Windows缓解机制",
-    "Windows mitigations",
     "DEP",
     "数据执行保护",
-    "NX",
     "ASLR",
     "地址空间布局随机化",
-    "KASLR",
+    "栈Cookie",
+    "security cookie",
+    "/GS",
     "CFG",
-    "控制流防护",
-    "kCFG",
+    "Control Flow Guard",
+    "控制流完整性",
     "CET",
     "Shadow Stack",
     "影子栈",
-    "/GS",
-    "栈Cookie",
-    "stack cookie",
-    "SEHOP",
     "ROP链",
-    "WinDbg"
+    "缓解绕过",
+    "mitigation bypass",
+    "WinDbg",
+    "Page Heap",
+    "HVCI"
   ],
   "vulnclass": "RCE",
   "section_map": [
     {
-      "heading": "Context",
-      "what": "以近年真实CVE与进程退出码/WinDbg异常码对照表说明各类缓解机制何时阻断利用尝试"
-    },
-    {
-      "heading": "Windows Mitigations Relevance",
-      "what": "梳理竞态、类型混淆、整数溢出等bug类别与缓解机制及Week8绕过手法的交互关系"
-    },
-    {
       "heading": "Day 1: DEP and ASLR Fundamentals",
-      "what": "DEP与ASLR两大基础缓解的原理学习、实验环境搭建与崩溃转储识别练习"
-    },
-    {
-      "heading": "Transitioning from Linux to Windows Debugging",
-      "what": "提供pwndbg到WinDbg的命令映射表便于从Linux利用迁移到Windows调试"
-    },
-    {
-      "heading": "Standardized Vulnerable Targets",
-      "what": "给出含栈溢出、堆溢出、DEP触发、函数指针调用的统一漏洞测试套件与Winsock靶机服务端源码"
-    },
-    {
-      "heading": "Per-Binary Mitigation Control",
-      "what": "用cl编译器与链接器开关(/NXCOMPAT、/DYNAMICBASE、/GS、/guard:cf、/CETCOMPAT)按二进制粒度启停各项缓解"
+      "what": "DEP/NX 与 ASLR 两大基础缓解原理、编译链接开关配置及 Week5 ROP 利用在防护下的失效对照"
     },
     {
       "heading": "Graduated Mitigation Introduction",
-      "what": "按DEP、叠加ASLR、叠加栈Cookie的渐进式分层缓解实验流程"
+      "what": "按 DEP→ASLR→/GS→CFG→全量防护逐步叠加缓解的分阶段实验流程与崩溃结果对比"
     },
     {
-      "heading": "Step 1: DEP Only",
-      "what": "仅启用DEP的编译方法并用dumpbin /headers验证NX兼容标志"
+      "heading": "Data Execution Prevention (DEP) / NX bit",
+      "what": "DEP 硬件级内存页不可执行机制、WinDbg 查看内存保护属性及系统 DEP 策略配置"
     },
     {
-      "heading": "Step 2: DEP + ASLR",
-      "what": "对比无ASLR与开ASLR二进制上ROP链ret2lib调WinExec的成败以验证地址随机化效果"
+      "heading": "Address Space Layout Randomization (ASLR)",
+      "what": "ASLR 实现内部机制、高熵 VA 验证与跨重启/跨进程的模块基址随机化实测"
     },
     {
-      "heading": "Finding Gadget Addresses with WinDbg",
-      "what": "用WinDbg的x符号查询与s -b内存搜索命令定位WinExec及pop rcx; ret gadget"
+      "heading": "Stack Cookies (/GS)",
+      "what": "/GS 栈 Cookie 工作原理、MSVC 危险函数启发式触发条件及 WinDbg 下 Cookie XOR 校验分析"
     },
     {
-      "heading": "Step 3: DEP + ASLR + Stack Cookies",
-      "what": "通过fgets尺寸不匹配触发/GS栈Cookie校验失败并按退出码0xC0000409与__fastfail分析保护行为"
+      "heading": "Stack Cookie Bypass Techniques",
+      "what": "信息泄露泄露 Cookie、部分覆写(LSB)、函数指针覆写与异常处理四大类 /GS 绕过手法"
+    },
+    {
+      "heading": "Intel CET Shadow Stack",
+      "what": "Intel CET 影子栈硬件级返回地址防护原理、专用指令及绕过考量"
+    },
+    {
+      "heading": "Exploitation Scenarios",
+      "what": "多阶段格式化字符串泄露 Cookie/ASLR 地址与 Write-What-Where 数据型攻击完整利用场景"
+    },
+    {
+      "heading": "Day 3: Control Flow Integrity (CFG, CET, XFG)",
+      "what": "CFG、CET、XFG 三代控制流完整性防护的原理、保护范围与粗粒度局限对比"
+    },
+    {
+      "heading": "Deep Dive: CFG Bitmap Structure and Validation",
+      "what": "CFG 位图结构校验机制、间接调用合法性判定及 __fastfail(int 0x29) 终止码分析"
+    },
+    {
+      "heading": "Day 4: Heap Protections and Memory Integrity",
+      "what": "堆防护体系：Page Heap、Segment Heap、MemGC、ACG、CIG、AppVerifier 及 AppContainer/LPEC 进程隔离"
+    },
+    {
+      "heading": "Testing Heap Protections",
+      "what": "启用 Page Heap 与 AppVerifier 精确检测堆溢出和 UAF 的实验流程与崩溃特征"
+    },
+    {
+      "heading": "Day 5: Virtualization-Based Security (VBS) and HVCI",
+      "what": "VBS/HVCI/Credential Guard/KDP 虚拟化防护检测启用及 BYOVD 带签名漏洞驱动攻击场景"
+    },
+    {
+      "heading": "Kernel-Level CPU Mitigations",
+      "what": "SMEP、SMAP、KPTI/KVA Shadow、Retpoline、kCFG 内核级 CPU 缓解原理与 CR4 寄存器检测方法"
+    },
+    {
+      "heading": "Appendix A: CLFS Deep Dive",
+      "what": "CLFS 日志驱动架构、CVE-2025-29824 UAF 分析及从 UAF 到内核读写与 Token 窃取提权的利用链"
     }
   ]
 }

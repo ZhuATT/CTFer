@@ -1,88 +1,88 @@
 {
-  "use_when": "在 Web 渗透测试与漏洞赏金中挖掘并发时序类业务逻辑缺陷（TOCTOU）时阅读本篇，重点涵盖 Turbo Intruder 单包攻击、Last-Byte 同步、限流绕过、双花/重复提现、会话锁绕过及数据库隔离级别验证手法，区别于单请求顺序触发的常规逻辑漏洞测试。",
+  "use_when": "在渗透测试与漏洞赏金中对支付提现、优惠券核销、注册验证、MFA等有状态业务做并发竞态（TOCTOU）漏洞挖掘时阅读本篇，重点涵盖Turbo Intruder单包攻击、Last-Byte同步、双花/重复提现、PHP会话锁绕过、数据库隔离级别测试及WebSocket/云函数并发利用，区别于常规注入或越权类单请求漏洞测试。",
   "triggers": [
-    "竞争条件",
+    "竞态条件",
     "race condition",
-    "条件竞争",
     "TOCTOU",
-    "time-of-check to time-of-use",
+    "时间检查到使用",
+    "Turbo Intruder",
     "单包攻击",
     "single-packet attack",
-    "Last-Byte Sync",
-    "末字节同步",
-    "Turbo Intruder",
-    "限流绕过",
-    "rate limit bypass",
+    "Last-Byte同步",
     "并发请求",
-    "双花",
+    "双花攻击",
     "double spend",
-    "双重提现",
-    "优惠券重复核销",
+    "重复提现",
+    "优惠券重用",
+    "限速绕过",
+    "rate limit bypass",
+    "MFA绕过",
     "会话锁绕过",
-    "Dirty COW",
-    "idempotency key"
+    "数据库隔离级别",
+    "WebSocket竞态",
+    "Dirty COW"
   ],
   "vulnclass": "逻辑漏洞",
   "section_map": [
     {
-      "heading": "Shortcut",
-      "what": "快速定位易受竞争条件影响的功能、复制关键请求并同时并发发送的操作入口"
-    },
-    {
       "heading": "Mechanisms",
-      "what": "解析 TOCTOU、Read-Modify-Write、线程安全与资源分配四类竞争条件成因及余额篡改、优惠券重用等脆弱场景"
+      "what": "竞态条件四大类型（TOCTOU、读改写、线程安全、资源分配）与余额操纵、令牌重用等高危场景原理"
     },
     {
-      "heading": "Identifying Race Condition Vulnerabilities",
-      "what": "筛选资金交易、库存、优惠券、投票、注册等状态变更目标及并行请求工具与同区域 VPS 低延迟等测试前置条件"
+      "heading": "Target Functionality Selection",
+      "what": "筛选金融交易、库存、优惠券、注册、投票等状态变更与限量资源功能作为竞态测试目标"
     },
     {
       "heading": "Testing Methodology",
-      "what": "基线行为分析、同时发送 10-100 个相同请求探测状态异常、时间窗口操纵的三步测试法"
+      "what": "基线行为分析、并发请求探测与时间窗口操控的标准竞态测试流程"
     },
     {
-      "heading": "Advanced Testing Techniques",
-      "what": "Python 线程 Event 门控同步并发、HTTP/2 单包攻击与 Last-Byte-Sync 末字节同步等网络级微秒级时序操纵技术"
+      "heading": "Thread Synchronization Testing",
+      "what": "用 threading.Event 门闩等待后同时释放多线程实现精准同步并发攻击"
     },
     {
-      "heading": "Vulnerabilities",
-      "what": "汇总金融双花、令牌重用、MFA 绕过、上传下载竞态、购物车与拍卖抢拍等竞争条件漏洞影响模式"
+      "heading": "Network-Level Timing Manipulation",
+      "what": "HTTP/2 单包攻击与 Last-Byte 同步技术实现微秒级请求对齐绕过并发限制"
+    },
+    {
+      "heading": "Rate-Limiter and CAPTCHA Races",
+      "what": "跨会话/IP 并发请求探测共享限速计数器与验证码/OTP 重用绕过"
     },
     {
       "heading": "Session Handling Bypass",
-      "what": "多次认证获取多个 PHPSESSID 并为每个并发请求分配独立会话以绕过 PHP session 文件锁"
+      "what": "认证获取多个 PHPSESSID 并为每个并发请求分配独立会话以绕过 PHP 会话文件锁"
     },
     {
       "heading": "Database Isolation Level Testing",
-      "what": "通过 PostgreSQL/MySQL 各隔离级别、FOR UPDATE 行锁与 advisory 咨询锁测试并发事务竞态窗口"
+      "what": "PostgreSQL/MySQL 各隔离级别、FOR UPDATE 行锁与 advisory lock 下的并发事务竞态测试"
     },
     {
       "heading": "WebSocket Race Conditions",
-      "what": "并发发送 WebSocket 消息与同时发起多个握手升级探测消息处理与房间加入竞态"
+      "what": "WebSocket 消息并发处理与多连接 Upgrade 握手并行的竞态测试手法"
     },
     {
       "heading": "Cloud & Serverless Race Conditions",
-      "what": "测试 AWS Lambda 并发调用与保留并发限制、DynamoDB 条件写及 GCP/Azure 云函数的并行执行竞态"
+      "what": "AWS Lambda 并发调用与预留并发绕过、DynamoDB 条件写、GCP/Azure 函数并发触发测试"
     },
     {
-      "heading": "Tools",
-      "what": "Turbo Intruder、Racepwn、Raceocat 等专用竞争工具及 Python asyncio/Go 协程并发脚本编写"
+      "heading": "Race Condition Testing Tools",
+      "what": "Turbo Intruder、Racepwn、Race-the-Web、Raceocat 等专用竞态测试工具清单与用法"
     },
     {
       "heading": "Multi-Endpoint Race Conditions",
-      "what": "针对商品-购物车-结账等多步链式请求，用 Burp 单包攻击并发执行最终确认步骤"
+      "what": "商品-购物车-结账等多请求链路在 Burp 中以并行单包攻击同时执行最终步骤"
     },
     {
       "heading": "Single-Endpoint Race Conditions",
-      "what": "并发切换攻击者与受害者邮箱触发确认链接竞态实现账户接管"
+      "what": "并行请求在攻击者与受害者邮箱间快速切换实现邮箱确认竞态与账号接管"
     },
     {
-      "heading": "Remediation Recommendations",
-      "what": "悲观锁、乐观并发控制、幂等 API、分布式锁与数据库唯一约束等竞争条件防御方案"
+      "heading": "Connection Pool Exhaustion Races",
+      "what": "以长连接占满数据库/Redis 连接池后测试排队与超时清理逻辑中的竞态"
     },
     {
-      "heading": "Real World Cases and CVEs",
-      "what": "剖析 Dirty COW、runc 容器逃逸、GitHub GraphQL 提权及 PayPal 双花等真实 CVE 与 HackerOne 案例影响"
+      "heading": "Notable Race Condition Vulnerabilities",
+      "what": "Dirty COW 提权、runc 容器逃逸、GitHub GraphQL 提权、PayPal/Shopify 双付等真实 CVE 与案例"
     }
   ]
 }

@@ -1,84 +1,88 @@
 {
-  "use_when": "在对 Android/iOS 移动应用开展渗透测试或漏洞赏金移动端排查时阅读本篇，重点涵盖 apktool/jadx 静态反编译、Frida/Objection 动态Hook、SSL Pinning 与 root/越狱检测绕过、导出组件与深链/URL Scheme 攻击面、不安全本地存储及 Firebase/S3 云配置泄露，区别于纯 Web/API 渗透方法论。",
+  "use_when": "在移动 App（Android/iOS）渗透测试、移动方向众测或应用商店侦察需要系统化评估客户端安全时阅读本篇，重点涵盖 apktool/jadx 反编译、Frida/Objection 动态 Hook、SSL Pinning 与 root/越狱检测绕过、drozer 导出组件与 URL Scheme/深链攻击面、Keychain/Keystore 存储审计、生物识别绕过及 Firebase/S3 云配置泄露，区别于通用 Web 渗透方法论（聚焦移动客户端二进制与移动特有攻击面）。",
   "triggers": [
-    "移动应用渗透",
-    "mobile pentest",
-    "apktool",
+    "移动应用渗透测试",
+    "APK反编译",
+    "iOS砸壳",
     "jadx",
-    "Frida",
+    "apktool",
+    "Frida Hook",
     "Objection",
-    "SSL pinning bypass",
-    "证书校验绕过",
+    "SSL Pinning绕过",
+    "证书绑定绕过",
     "root检测绕过",
     "越狱检测绕过",
-    "drozer",
     "导出组件",
+    "drozer",
+    "URL Scheme劫持",
     "Intent重定向",
-    "URL Scheme滥用",
-    "深链劫持",
+    "PendingIntent劫持",
+    "Keychain泄露",
     "不安全数据存储",
-    "Keychain dump",
-    "JavaScriptInterface",
-    "Firebase未授权访问",
-    "生物识别绕过"
+    "生物识别绕过",
+    "Firebase未授权"
   ],
   "vulnclass": "其他",
   "section_map": [
     {
+      "heading": "Quick Workflow",
+      "what": "五步移动渗透流程：静态反编译→Frida 动态 Hook 与 TLS 拦截→导出组件/深链攻击面测绘→存储与密钥审计→后端 API 按 Web 方法论测试"
+    },
+    {
       "heading": "Lab Setup",
-      "what": "搭建 Android root 环境、iOS 越狱设备与 Burp/Frida 抓包测试环境"
+      "what": "搭建 Android root/Magisk/Frida server 与 iOS 越狱（palera1n/checkra1n）测试环境并配置 Burp 系统信任 CA"
     },
     {
       "heading": "Static Analysis",
-      "what": "用 apktool/jadx 反编译 APK、class-dump 提取 iOS 头文件并审计 Manifest/Info.plist 与硬编码密钥端点"
+      "what": "用 apktool/jadx 反编译 APK、frida-ios-dump/bagbak 砸壳提取 IPA，审计 Manifest/Info.plist、grep 端点密钥与原生 so 逆向"
     },
     {
       "heading": "Dynamic Analysis & Frida",
-      "what": "Frida Hook 通用绕过 SSL Pinning、root/越狱检测及 Objection 一键式探测命令"
+      "what": "Frida 通用 Hook 脚本（SSL pinning、root/越狱检测绕过）与 Objection 一键命令（sslpinning disable、keychain dump、intent launch_activity）"
     },
     {
       "heading": "SSL / TLS Interception",
-      "what": "修改 network-security-config 重打包或 Frida 动态绕过证书校验实现中间人抓包"
+      "what": "修改 network_security_config 重打包签名或 Frida 实时绕过证书绑定，利用 ATS 豁免实现移动端 MITM 抓包"
     },
     {
       "heading": "Exported / IPC Attack Surface",
-      "what": "drozer 打导出 Activity/Provider/Receiver、Intent 重定向与 PendingIntent 劫持及 iOS URL Scheme/XPC 滥用"
+      "what": "drozer 测试 Android 导出四大组件、PendingIntent/Intent 重定向劫持，以及 iOS URL Scheme、Universal Links 与 XPC Mach 服务的越权调用"
     },
     {
       "heading": "Insecure Data Storage",
-      "what": "审计 shared_prefs/SQLite 明文存储、Android Keystore 误用与 iOS Keychain 可访问性配置缺陷"
+      "what": "adb 提取 /data/data 审计 SharedPrefs/SQLite 明文存储、Android Keystore 误用（IV 复用/无认证绑定）与 iOS Keychain kSecAttrAccessible 弱配置"
     },
     {
       "heading": "WebView Vulnerabilities",
-      "what": "利用 addJavascriptInterface 反射调用实现 RCE、file:// 跨域任意读文件与 WKWebView JS 桥问题"
+      "what": "addJavascriptInterface 反射调用 Runtime 实现 RCE、file:// 与 Content:// 任意文件读取、WKWebView JS 桥与目录读权限风险"
     },
     {
       "heading": "Biometric / Auth Bypass",
-      "what": "Hook BiometricPrompt/LAContext 回调绕过未与密钥绑定的生物识别认证"
+      "what": "Hook BiometricPrompt/LAContext 认证回调伪造成功结果，绕过未与密钥绑定的指纹/Face ID 认证流程"
     },
     {
       "heading": "Firebase / Cloud Misconfig (highest hit-rate)",
-      "what": "Firebase 未授权读写、Firestore 规则过宽与 S3/嵌入 API Key 泄露的探测手法"
+      "what": "提取 Firebase URL 测试 .json 未授权读写、Firestore 规则放行、S3/GCS/Azure 桶公开访问及内嵌 API 密钥导致云接管（truffleHog/gitleaks）"
     },
     {
       "heading": "Mobile API Testing",
-      "what": "逆向客户端请求签名与设备绑定头、利用旧版 API 端点与可预测推送主题越权接收消息"
+      "what": "提取设备绑定头与 HMAC 签名算法伪造请求、测试仅限移动端的无限流接口、旧版 API 弱认证与可预测推送主题越权订阅"
     },
     {
       "heading": "App Tampering & Repackaging",
-      "what": "Smali 补丁修改业务逻辑后重签名安装，或用 LSPosed 免改包绕过签名校验"
+      "what": "smali 修改业务逻辑（如 premium=true）后 apktool 重编译并用 apksigner 签名，或用 LSPosed 模块免修改绕过签名校验"
     },
     {
       "heading": "iOS Specifics",
-      "what": "审查 entitlements、App Group 共享容器与任意应用可调用的 URL Scheme 边界"
+      "what": "codesign 审计 entitlements（keychain-access-groups、app-groups、associated-domains）、任意应用调用 URL Scheme 及 App Group 共享容器跨应用数据越界"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "对照 Frida 端口/Magisk/模拟器/反调试/应用完整性校验等检测机制及绕过手段"
+      "what": "客户端检测手段（Frida 端口 27042、Magisk 路径、模拟器指纹、ptrace 反调试、Play Integrity）与对应绕过手法对照"
     },
     {
       "heading": "Engagement Checklist",
-      "what": "移动渗透全流程核查清单：从拉包反编译到导出组件、存储、云端配置逐项验证"
+      "what": "移动渗透交付全流程检查清单：拉包反编译→绕过抓包→组件/深链/存储/生物识别/云配置/签名绑定逐项测试"
     }
   ]
 }

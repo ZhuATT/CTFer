@@ -1,88 +1,88 @@
 {
-  "use_when": "在 CTF Pwn/二进制漏洞利用中面对 ASLR/PIE/NX/RELRO/Canary/CET/MTE 等多重保护组合，或已获得任意写原语需要'最后一公里'转化为代码执行时阅读本篇，重点涵盖 checksec 保护识别、格式化字符串泄露、ROP/SROP/ret2dlresolve 绕过、GOT/堆钩子/_IO_FILE FSOP/__exit_funcs/TLS_dtor_list 按 glibc 版本选择覆盖目标及 one_gadget/modprobe_path，区别于基础栈溢出与堆攻击教程，专讲保护绕过决策与写原语转 RCE。",
+  "use_when": "在 CTF/渗透测试中面对开启 ASLR/PIE/NX/RELRO/Canary 等防护的二进制需要识别并绕过保护、将任意写原语转化为代码执行时阅读本篇，重点涵盖 checksec 判读、GOT 覆写、__malloc_hook/_IO_FILE/TLS_dtor_list 按 glibc 版本选靶、seccomp ORW 与 Python/Lua/chroot 沙箱逃逸及 V8 addrof/fakeobj 利用，区别于单纯栈溢出与 ROP 链构造的基础篇。",
   "triggers": [
     "二进制漏洞利用",
     "pwn",
     "checksec",
-    "ASLR",
+    "ASLR绕过",
     "PIE",
-    "NX",
+    "Canary绕过",
     "RELRO",
-    "Canary",
-    "GOT劫持",
+    "GOT覆写",
     "ROP",
     "ret2libc",
-    "ret2dlresolve",
-    "SROP",
-    "格式化字符串",
     "one_gadget",
     "__malloc_hook",
-    "_IO_FILE",
     "FSOP",
     "TLS_dtor_list",
-    "指针混淆"
+    "modprobe_path",
+    "seccomp",
+    "ORW",
+    "沙箱逃逸",
+    "pyjail",
+    "V8"
   ],
   "vulnclass": "RCE",
   "section_map": [
     {
       "heading": "1. PROTECTION IDENTIFICATION",
-      "what": "用 checksec/readelf 快速识别 RELRO/NX/PIE/Canary/FORTIFY 等各项保护及对应编译选项"
+      "what": "用 checksec/readelf 判读 RELRO/Canary/NX/PIE/FORTIFY 保护及对应编译选项速查表"
     },
     {
       "heading": "2. ASLR BYPASS",
-      "what": "信息泄露/部分覆盖/ret2dlresolve/SROP 等绕过地址随机化并给出各区域 ASLR 熵位表"
-    },
-    {
-      "heading": "3. PIE BYPASS",
-      "what": "泄露 .text 返回地址推算 PIE 基址及利用页偏移末 12 位固定的 1/16 部分覆盖"
-    },
-    {
-      "heading": "4. NX / DEP BYPASS",
-      "what": "ROP/ret2libc/ret2csu/SROP/mprotect 链与 JIT spray 打开代码执行路径"
-    },
-    {
-      "heading": "5. RELRO BYPASS",
-      "what": "按 RELRO 等级选择 GOT 直写或改打 __malloc_hook/_IO_FILE/exit_funcs 等替代目标"
+      "what": "信息泄露、部分覆盖、ret2dlresolve、ret2PLT 等绕过地址随机化及 x86-64 各内存区熵值"
     },
     {
       "heading": "6. CANARY BYPASS",
-      "what": "%N$p 泄露 canary、fork 子进程逐字节爆破及覆写 fs:[0x28] TLS canary 源头"
+      "what": "格式化字符串泄露 canary、fork 逐字节爆破、TLS fs:[0x28] 覆盖与 __stack_chk_fail GOT 改写"
     },
     {
       "heading": "8. CET (Control-flow Enforcement Technology)",
-      "what": "Intel 影子栈/IBT 检测原理及转 JOP、ENDBR gadget 链与纯数据攻击绕过"
+      "what": "影子栈与 IBT 校验限制下改用 JOP/ENDBR gadget 与数据型攻击绕过控制流防护"
     },
     {
-      "heading": "9. MTE (Memory Tagging Extension, ARM)",
-      "what": "ARM MTE 4bit 内存标签的 1/16 爆破、同标签区越界利用与标签侧信道推断"
-    },
-    {
-      "heading": "10. DECISION TREE",
-      "what": "按 NX/Canary/PIE/ASLR/RELRO/CET/MTE 保护组合逐层决策的完整利用路径选择树"
-    },
-    {
-      "heading": "2. COMBINED PROTECTION SCENARIOS",
-      "what": "典型 CTF 保护组合(如 NX+ASLR+Canary+Full RELRO+PIE)的泄露-覆写-触发组合拳流程"
+      "heading": "1. PROTECTION × BYPASS × PRIMITIVE MATRIX",
+      "what": "各保护机制对应绕过手法、所需原语与成功率的组合速查矩阵及多保护叠加场景打法"
     },
     {
       "heading": "1. TARGET SELECTION BY GLIBC VERSION",
-      "what": "覆盖目标×glibc 版本兼容矩阵，标明 __malloc_hook 等钩子在 2.34 已移除等差异"
+      "what": "按 glibc 版本（2.24/2.34 分界）筛选 GOT/hook/_IO_FILE/TLS_dtor_list 等可用劫持目标"
     },
     {
       "heading": "2. GOT OVERWRITE",
-      "what": "将 printf/free/atoi 等 GOT 改写为 system 并以 /bin/sh 参数触发，附 fmtstr_payload 用法"
+      "what": "Partial RELRO 下将 printf/free@GOT 改写为 system 并借下一次函数调用触发执行"
     },
     {
       "heading": "3. __malloc_hook / __free_hook (glibc < 2.34)",
-      "what": "one_gadget 覆盖堆钩子及 realloc+N 跳过 push 调整栈约束的技巧"
+      "what": "hook 写入 one_gadget/system、free(\"/bin/sh\") 触发及 realloc 偏移调整栈对齐技巧"
     },
     {
       "heading": "4. _IO_FILE VTABLE",
-      "what": "FSOP 经 _IO_list_all 触发及 _IO_str_jumps/_IO_wfile_jumps/House of Cat 分版本打法"
+      "what": "FSOP 按 glibc 版本选择 _IO_str_jumps/_IO_wfile_jumps/House of Cat 劫持 vtable 并经 exit/abort 触发"
     },
     {
       "heading": "6. TLS_dtor_list (glibc ≥ 2.34)",
-      "what": "glibc 2.34+ 首选目标：伪造经 pointer guard 混淆的线程局部析构链并经 exit 触发"
+      "what": "glibc 2.34 后伪造线程局部析构链条目，配合 pointer guard 混淆在 exit 时触发任意函数"
+    },
+    {
+      "heading": "8. modprobe_path (KERNEL)",
+      "what": "内核任意写改 modprobe_path 指向攻击者脚本，执行非法格式文件使其以 root 运行"
+    },
+    {
+      "heading": "3. LUA SANDBOX ESCAPE",
+      "what": "受限 Lua 环境绕过方法与 LuaJIT FFI 直接调用 C 函数实现逃逸"
+    },
+    {
+      "heading": "1. __builtins__ RECOVERY VIA SUBCLASS WALKING",
+      "what": "pyjail 中经 __subclasses__ 遍历定位 os._wrap_close 并经 __globals__ 取回 os.system 等内建"
+    },
+    {
+      "heading": "3. ORW (OPEN-READ-WRITE) CHAIN",
+      "what": "seccomp 禁 execve 时用 ROP/shellcode 拼 open-read-write 或 openat/sendfile 替代读 flag"
+    },
+    {
+      "heading": "3. EXPLOITATION PRIMITIVES",
+      "what": "V8 利用原语 addrof 泄露对象地址与 fakeobj 伪造对象并组合成任意读写"
     }
   ]
 }

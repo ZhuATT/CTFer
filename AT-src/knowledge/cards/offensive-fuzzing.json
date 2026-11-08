@@ -1,88 +1,88 @@
 {
-  "use_when": "在对文件解析器、网络协议、内核驱动、EDR杀毒引擎、嵌入式固件等目标开展模糊测试挖掘内存破坏及逻辑漏洞时阅读本篇，重点涵盖AFL++/libFuzzer/Honggfuzz/syzkaller选型、harness编写、种子语料构建、插桩编译、CmpLog与定向fuzz及crash triage崩溃分类，区别于Web漏洞扫描与已知CVE利用类技能。",
+  "use_when": "在需要对文件解析器、网络协议、内核驱动、EDR杀毒引擎或语言运行时等目标开展模糊测试以挖掘内存破坏类漏洞时阅读本篇，重点涵盖AFL++/libFuzzer/Honggfuzz/syzkaller选型、插桩编译、Harness编写、种子语料构建与崩溃去重归因及快照/差分等进阶手法，区别于Web漏洞利用与常规渗透测试类文档。",
   "triggers": [
     "模糊测试",
-    "fuzzing",
-    "漏洞挖掘",
+    "Fuzzing",
     "AFL++",
     "libFuzzer",
     "Honggfuzz",
     "syzkaller",
     "内核Fuzz",
+    "灰盒模糊测试",
     "覆盖率引导",
-    "harness",
-    "种子语料",
-    "崩溃分类",
-    "crash triage",
-    "ASan",
     "CmpLog",
+    "afl-clang-fast",
+    "Fuzzing Harness",
+    "种子语料",
+    "afl-cmin",
     "持久模式",
     "快照模糊测试",
-    "定向模糊测试",
-    "IOCTL",
-    "EDR"
+    "ASan",
+    "崩溃去重",
+    "KASAN",
+    "IOCTL模糊测试"
   ],
   "vulnclass": "其他",
   "section_map": [
     {
       "heading": "Fuzzer Types",
-      "what": "黑盒/灰盒/快照/白盒/混合模糊器在覆盖率与速度上的选型对比，含定向、文法、符号执行、内核等灰盒变体"
+      "what": "黑盒/灰盒/快照/白盒/组合五类模糊测试器及灰盒子变体（定向、语法、符号辅助、内核）的选型对比"
     },
     {
       "heading": "1. Research Target",
-      "what": "映射目标全部输入面（文件/网络/IPC/系统调用/IOCTL）并定位补丁代码、复杂解析器等高价值区域"
+      "what": "枚举文件、网络、IPC、系统调用、IOCTL等输入面并定位历史补丁、复杂解析器等高价值代码区域"
     },
     {
       "heading": "2. Instrument and Build",
-      "what": "使用afl-clang-fast、libFuzzer+ASan/UBSan、CmpLog及MSVC /fsanitize=address进行插桩编译配置"
+      "what": "用afl-clang-fast、libFuzzer+ASan/UBSan及CmpLog编译选项对目标进行插桩构建"
     },
     {
       "heading": "3. Write Harness",
-      "what": "编写libFuzzer入口、Honggfuzz HF_ITER持久模式、AFL++ __AFL_LOOP及macOS Mach IPC动态调用harness"
+      "what": "编写libFuzzer入口、Honggfuzz HF_ITER与AFL++ __AFL_LOOP持久模式及macOS Mach IPC等Fuzzing Harness"
     },
     {
       "heading": "4. Build Seed Corpus",
-      "what": "从测试套件、bug报告与网络爬取构建种子语料并用afl-cmin最小化、afl-tmin裁剪输入"
+      "what": "从测试套件、漏洞报告与真实样本采集种子并用afl-cmin/afl-tmin最小化语料与输入"
     },
     {
       "heading": "5. Launch Fuzzing",
-      "what": "AFL++主从并行加Cmplog、libFuzzer多worker、QEMU二进制模式、Nyx快照及多fuzzer共享语料的Ensemble启动方式"
+      "what": "AFL++主从并行cmplog、libFuzzer、QEMU二进制、Nyx快照与多引擎共享语料的启动命令"
     },
     {
       "heading": "6. Monitor and Unstick",
-      "what": "进度停滞时启用CmpLog、加载字典、切换AFLGo定向、QSYM/Driller符号辅助及MOpt调度器提速"
+      "what": "进度停滞时启用CmpLog、字典、AFLGo定向与QSYM符号执行辅助及MOpt调度器解卡"
     },
     {
       "heading": "7. Triage Crashes",
-      "what": "崩溃样本最小化、ASan符号化、基于覆盖哈希分桶去重及ASAN/UBSAN/TSAN/MSAN环境变量速查"
+      "what": "崩溃最小化、ASan符号化与覆盖哈希分桶去重流程及各Sanitizer环境变量速查"
     },
     {
       "heading": "Oracle Selection",
-      "what": "按内存安全、未初始化读、并发、内核内存等漏洞类别选择ASan/MSan/TSan/KASAN/KCFI等检测oracle及幂等、差分、不变量属性oracle"
+      "what": "按内存安全、未初始化读、并发、未定义行为与逻辑漏洞类别选择ASan/MSan/TSan/KASAN及差分、幂等等属性Oracle"
     },
     {
       "heading": "Kernel (Linux) — syzkaller",
-      "what": "syzkaller配置QEMU多虚拟机、限制enable_syscalls深挖子系统、KASAN/KCFI内核选项、TUN/TAP网络注入与栈回溯解码"
+      "what": "syzkaller配置系统调用白名单、KASAN/KCFI内核编译选项、kcov覆盖过滤与崩溃栈解码复现"
     },
     {
       "heading": "EDR / Windows Scanning Engines",
-      "what": "用wtf对mpengine.dll/微过滤驱动做快照fuzz、FilterConnectCommunicationPort与DeviceIoControl的IOCTL模糊测试及mpengine.dll跨平台loadlibrary方案"
+      "what": "wtf快照Harness、FilterConnectionPort与IOCTL模糊测试模式及mpengine.dll跨平台加载库Fuzz"
     },
     {
       "heading": "Rust",
-      "what": "cargo fuzz、miri解释器检测UB、careful边界检查、loom并发测试全流程及unsafe块关注点"
+      "what": "cargo属性测试、miri解释器查UB、cargo-fuzz崩溃挖掘与loom并发检测的全流程Rust Fuzz管线"
     },
     {
       "heading": "Embedded / Binary-Only",
-      "what": "无源码目标使用LibAFL、Retrowrite/QASAN二进制重写获得覆盖率与ASan及Nautilus文法fuzz"
+      "what": "用LibAFL、Retrowrite/QASAN二进制重写与Nautilus语法Fuzz应对无源码目标"
     },
     {
       "heading": "Language Ecosystems",
-      "what": "Go原生fuzz、Python Atheris、JS引擎Fuzzilli、Wasm差分fuzz与Echidna智能合约fuzz入口"
+      "what": "Go原生Fuzz、Python Atheris、JS引擎Fuzzilli、Wasm差分与智能合约Echidna等语言生态工具"
     },
     {
       "heading": "Crash Analysis Quick Reference",
-      "what": "Linux core dump与gdb/addr2line分析、Windows LocalDumps与PageHeap、内核KASAN栈解码及崩溃复现性控制"
+      "what": "Linux core dump与gdb分析、Windows LocalDumps+PageHeap及内核KASAN/KMSAN日志解码速查"
     }
   ]
 }

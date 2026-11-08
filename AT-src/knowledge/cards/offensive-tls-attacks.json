@@ -1,9 +1,8 @@
 {
-  "use_when": "在渗透测试中对目标 HTTPS/TLS 服务做加密配置审计与传输层漏洞利用时阅读本篇，重点涵盖 POODLE/DROWN/FREAK/BEAST 协议降级、Heartbleed 内存泄露、CRIME/BREACH 压缩预言机、Frida/Objection 证书固定绕过及 0-RTT 重放手法，区别于 Web 应用层漏洞挖掘的传输层安全评估。",
+  "use_when": "在渗透测试中对目标 HTTPS/TLS 传输层做安全审计与漏洞利用时阅读本篇，重点涵盖 POODLE/DROWN/FREAK/BEAST 协议降级攻击、Heartbleed 心脏出血、CRIME/BREACH 压缩预言机、证书校验绕过与移动端 SSL Pinning 绕过、HSTS 绕过及 TLS 1.3 0-RTT 重放，区别于 SQL 注入/XSS 等 Web 应用层漏洞利用手法。",
   "triggers": [
+    "TLS/SSL攻击",
     "testssl.sh",
-    "sslyze",
-    "sslscan",
     "POODLE",
     "DROWN",
     "FREAK",
@@ -13,68 +12,73 @@
     "Heartbleed",
     "心脏出血",
     "协议降级攻击",
-    "SSLv3",
-    "TLS剥离",
-    "HSTS绕过",
+    "证书校验绕过",
+    "SSL Pinning绕过",
     "证书固定绕过",
     "Frida",
     "Objection",
+    "HSTS绕过",
+    "sslstrip",
     "0-RTT重放",
-    "mTLS"
+    "mTLS攻击"
   ],
   "vulnclass": "密码学缺陷",
   "section_map": [
     {
+      "heading": "Quick Workflow",
+      "what": "TLS 审计八步总流程：枚举协议与套件、识别弱协议、检测已知漏洞、压缩预言机、证书校验到移动端绕过与取证"
+    },
+    {
       "heading": "TLS Enumeration and Scanning",
-      "what": "使用 testssl.sh/sslyze/sslscan/tlsx 枚举协议版本、密码套件、证书链与批量扫描"
+      "what": "使用 testssl.sh/sslyze/sslscan/tlsx 枚举协议版本、密码套件、证书链并进行批量扫描与 JSON 输出"
     },
     {
       "heading": "Protocol Downgrade Attacks",
-      "what": "利用 SSLv2/SSLv3 与出口密码套件实施 POODLE、DROWN、FREAK 降级攻击检测与密钥复用比对"
+      "what": "POODLE 利用 SSLv3 CBC 填充缺陷、DROWN 借 SSLv2 跨协议解密 TLS 会话、FREAK 强制降级 RSA_EXPORT 出口级密钥"
     },
     {
       "heading": "BEAST Attack",
-      "what": "利用 TLS 1.0 CBC 可预测 IV 结合选择明文注入实现逐块解密"
+      "what": "利用 TLS 1.0 CBC 可预测 IV 结合浏览器明文注入实现逐块解密的检测与缓解"
     },
     {
       "heading": "CRIME and BREACH",
-      "what": "基于 TLS 层与 HTTP 层压缩预言机逐字节恢复 Cookie 等秘密值及缓解条件判断"
+      "what": "TLS 层压缩（CRIME）与 HTTP gzip 压缩（BREACH）预言机逐字节恢复密钥及 Python 探测脚本与缓解措施"
     },
     {
       "heading": "Heartbleed (CVE-2014-0160)",
-      "what": "利用 OpenSSL 心跳扩展缓冲区越读每次泄露 64KB 内存获取私钥与会话凭据"
+      "what": "OpenSSL 心跳扩展缓冲区越读，单次泄漏 64KB 内存中的私钥、会话 Cookie 与凭据"
     },
     {
       "heading": "Certificate Validation Bypass",
-      "what": "通过代码审计 grep 定位 verify=False、TrustAllCerts 等禁用证书校验的危险模式"
+      "what": "审计代码库中 verify=False/TrustAllCerts/NODE_TLS_REJECT_UNAUTHORIZED 等禁用证书校验的漏洞模式"
     },
     {
       "heading": "Certificate Pinning Bypass",
-      "what": "使用 Objection 与 Frida 脚本运行时绕过 Android/iOS 证书固定并植入系统 CA"
+      "what": "用 Objection/Frida 运行时 Hook 绕过移动端 SSL Pinning 并在 Root 设备安装系统 CA 证书实现抓包"
     },
     {
       "heading": "HSTS Bypass and TLS Stripping",
-      "what": "利用首访劫持、子域名范围缺失、NTP 时钟操纵与 sslstrip2/mitmproxy 绕过 HSTS"
+      "what": "利用首次访问剥离、子域名范围缺失、NTP 时钟操纵与 sslstrip2/mitmproxy 实现中间人降级"
     },
     {
       "heading": "TLS 1.3 -- 0-RTT Replay",
-      "what": "通过 openssl 会话恢复重放 0-RTT 早期数据攻击非幂等接口"
+      "what": "用 openssl 双连接测试服务器是否接受 0-RTT 早期数据并重放非幂等请求（转账/下单）"
     },
     {
       "heading": "mTLS Attacks",
-      "what": "枚举客户端证书要求并利用伪造证书、CA 校验缺失与证书中继攻击双向认证"
+      "what": "枚举 mTLS 要求、伪造/中继客户端证书及利用缺失 CA 校验绕过双向认证"
     },
     {
       "heading": "Certificate Transparency Monitoring",
-      "what": "通过 crt.sh、certstream、subfinder/amass 从证书透明日志侦察子域名与新签发证书"
+      "what": "通过 crt.sh/certstream 实时监控 CT 日志并用 subfinder/amass 枚举子域名做侦察"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "防御视角监控降级探测、异常心跳、压缩预言机探测与 JA3/JA4 指纹及修复优先级"
+      "what": "防御方监控指标：降级探测、异常心跳、压缩预言机探测、JA3/JA4 指纹与 0-RTT 重放防护及加固优先级"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "漏洞-检测工具-判定指标的速查表及各 TLS 协议版本风险等级总结"
+      "what": "各 TLS 漏洞对应工具命令、判断指标速查表及 SSLv2 到 TLS 1.3 协议版本风险总结"
     }
   ]
 }

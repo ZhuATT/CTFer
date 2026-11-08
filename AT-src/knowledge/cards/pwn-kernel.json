@@ -1,88 +1,88 @@
 {
-  "use_when": "在内核 CTF pwn 或真实 CVE 本地提权（LPE）场景下需要从 UAF/竞态/越界/类型混淆漏洞构造完整内核利用链时阅读本篇，重点涵盖 SLUB 堆喷射与 cross-cache 跨缓存、msg_msg/pipe_buffer/sk_buff 利用原语、commit_creds/modprobe_path 提权及 KASLR/SMEP/SMAP/KPTI 缓解绕过，区别于用户态二进制保护绕过与常规 Linux 提权枚举技巧。",
+  "use_when": "在 CTF 内核 pwn 或真实环境利用 Linux 内核漏洞进行本地提权时阅读本篇，重点涵盖 UAF/OOB/竞态等漏洞类型与利用原语构建、SLUB 堆喷射与跨缓存攻击、commit_creds/modprobe_path 提权路径及 KASLR/SMEP/SMAP/KPTI/FG-KASLR 缓解绕过，区别于用户态二进制保护绕过与常规 Linux 配置类提权。",
   "triggers": [
     "内核提权",
     "kernel exploitation",
-    "LPE",
     "UAF",
-    "释放后重用",
-    "DirtyPipe",
-    "脏管道",
-    "SLUB",
-    "堆喷射",
-    "cross-cache",
-    "msg_msg",
-    "pipe_buffer",
-    "sk_buff",
-    "setxattr",
-    "userfaultfd",
+    "内核ROP",
     "commit_creds",
+    "prepare_kernel_cred",
     "modprobe_path",
     "KASLR",
     "SMEP",
-    "KPTI"
+    "SMAP",
+    "KPTI trampoline",
+    "ret2usr",
+    "SLUB",
+    "跨缓存攻击",
+    "msg_msg",
+    "pipe_buffer",
+    "DirtyPipe",
+    "userfaultfd",
+    "堆喷射",
+    "seq_operations"
   ],
   "vulnclass": "提权",
   "section_map": [
     {
       "heading": "2. ENVIRONMENT SETUP",
-      "what": "QEMU 自编译内核启动、GDB 远程调试与 initramfs 重打包的实验环境搭建"
+      "what": "QEMU编译自编内核与关闭缓解、GDB远程调试加载符号、initramfs解包修改重打包"
     },
     {
       "heading": "3. COMMON VULNERABILITY TYPES",
-      "what": "UAF/OOB读写/竞态/整数溢出/类型混淆/双重释放等内核漏洞类型及对应CVE示例"
+      "what": "UAF、OOB读写、竞态、整数溢出、类型混淆、double free等内核漏洞分类及对应CVE"
     },
     {
       "heading": "4. PRIVILEGE ESCALATION TARGETS",
-      "what": "commit_creds(prepare_kernel_cred(0))、modprobe_path覆写、cred结构清零、命名空间逃逸四类提权手法"
+      "what": "commit_creds(prepare_kernel_cred(0))、modprobe_path覆写、cred结构直改、命名空间逃逸四种提权目标"
     },
     {
       "heading": "5. KERNEL ROP",
-      "what": "通过ops函数指针与seq_operations劫持获取RIP控制及内核栈迁移gadget选择"
+      "what": "受控RIP来源、seq_operations劫持（kmalloc-32）、内核栈迁移gadget选择"
     },
     {
       "heading": "7. RETURNING TO USERSPACE",
-      "what": "swapgs+iretq、KPTI trampoline跳板与信号处理器三种提权后干净返回用户态的路径"
+      "what": "swapgs+iretq、KPTI trampoline、信号处理器三种提权后干净返回用户态方式"
+    },
+    {
+      "heading": "9. DECISION TREE",
+      "what": "按漏洞类型、已有原语与缓解措施选择利用路径与提权方法的总决策树"
     },
     {
       "heading": "1. SLUB ALLOCATOR OVERVIEW",
-      "what": "SLUB分配器slab/cache/freelist机制及freelist随机化与硬化对喷射手感的影响"
+      "what": "SLUB分配器slab/cache/freelist概念、freelist随机化与硬化机制"
     },
     {
       "heading": "3. CROSS-CACHE ATTACK",
-      "what": "通过排空目标缓存、整页释放交还buddy再重分配实现跨slab缓存的页级UAF利用"
+      "what": "跨缓存攻击：耗尽目标缓存、释放整页归还buddy、换缓存重分配实现页级UAF别名"
     },
     {
       "heading": "4. msg_msg EXPLOITATION",
-      "what": "msg_msg结构布局及篡改m_ts/next指针配合MSG_COPY实现越界读与链式任意读"
+      "what": "msg_msg结构布局、篡改m_ts/next实现任意读链、按头0x30精确命中kmalloc缓存的喷射"
     },
     {
       "heading": "5. pipe_buffer EXPLOITATION",
-      "what": "劫持pipe_buffer的ops指针控制RIP与泄露内核地址及DirtyPipe页缓存任意覆写"
+      "what": "pipe_buffer的ops函数指针劫持控RIP、读ops泄露KASLR基址及DirtyPipe(CVE-2022-0847)"
     },
     {
       "heading": "7. setxattr / userfaultfd / FUSE PRIMITIVES",
-      "what": "setxattr任意大小堆写原语与userfaultfd/FUSE挂起页错误稳定竞态窗口"
+      "what": "setxattr任意大小内核堆写、userfaultfd/FUSE阻塞页错误稳定竞态窗口"
     },
     {
       "heading": "1. KASLR (Kernel Address Space Layout Randomization)",
-      "what": "kallsyms/dmesg/OOB读/eBPF等多渠道泄露内核基址及9位熵爆破与基址计算"
+      "what": "KASLR九种泄露方法（kallsyms/OOB读/dmesg/eBPF等）与基址计算公式"
     },
     {
       "heading": "2. SMEP (Supervisor Mode Execution Prevention)",
-      "what": "SMEP禁止内核执行用户页下的纯内核ROP及旧内核CR4位翻转绕过"
-    },
-    {
-      "heading": "3. SMAP (Supervisor Mode Access Prevention)",
-      "what": "SMAP禁止内核访问用户内存下用copy_from_user gadget与内核堆伪造结构绕过"
+      "what": "SMEP绕过：纯内核ROP、CR4翻转（4.15前legacy）、JIT代码与内核shellcode"
     },
     {
       "heading": "4. KPTI (Kernel Page Table Isolation)",
-      "what": "利用swapgs_restore_regs_and_return_to_usermode跳板切换页表后安全返回用户态的ROP收尾"
+      "what": "KPTI页表隔离影响及swapgs_restore_regs_and_return_to_usermode蹦床ROP链构造"
     },
     {
-      "heading": "5. FG-KASLR (Function Granularity KASLR)",
-      "what": "函数级地址随机化下转向.data段modprobe_path/core_pattern数据攻击与函数指针泄露"
+      "heading": "8. MITIGATION INTERACTION MATRIX",
+      "what": "ret2usr/内核ROP/modprobe_path/commit_creds等攻击与各缓解措施的兼容性矩阵"
     }
   ]
 }

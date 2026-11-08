@@ -1,76 +1,88 @@
 {
-  "use_when": "在IoT/嵌入式设备渗透测试或智能家居、工控(ICS/OT)系统评估中需要从硬件接口到云端的全链路攻击方法论时阅读本篇，重点涵盖UART/JTAG/SWD接口侦察、SPI/eMMC固件提取、binwalk解包分析、U-Boot与安全启动绕过、BLE/Zigbee/Z-Wave无线攻击及MQTT/Modbus/BACnet工控协议利用，区别于纯Web应用漏洞的单点测试视角。",
+  "use_when": "在对智能硬件、嵌入式设备或IoT/工控系统做渗透测试需要物理层与固件层攻击方法时阅读本篇，重点涵盖UART/U-Boot调试口利用、flashrom/binwalk固件提取与解包、默认口令与CGI命令注入、安全启动绕过与故障注入、BLE/Zigbee/Sub-GHz无线协议重放及MQTT/Modbus无认证协议利用，区别于纯Web应用与常规内网渗透的方法论。",
   "triggers": [
     "IoT渗透测试",
-    "嵌入式设备安全",
-    "UART串口",
-    "JTAG",
-    "SWD",
-    "SPI flash",
-    "flashrom",
-    "芯片拆焊",
-    "binwalk",
     "固件提取",
+    "binwalk",
+    "UART串口",
     "U-Boot",
-    "安全启动绕过",
-    "故障注入",
-    "电压毛刺",
-    "硬编码密钥",
+    "SPI NOR",
+    "flashrom",
+    "eMMC",
+    "OTA劫持",
+    "硬编码凭据",
     "默认口令",
     "命令注入",
-    "BLE/Zigbee/Z-Wave无线攻击",
-    "MQTT未授权订阅",
-    "Modbus/BACnet工控协议"
+    "Ghidra",
+    "安全启动绕过",
+    "故障注入",
+    "BLE GATT",
+    "Zigbee",
+    "Sub-GHz",
+    "Modbus",
+    "MQTT匿名订阅"
   ],
-  "vulnclass": "其他",
+  "vulnclass": "未授权访问",
   "section_map": [
     {
-      "heading": "Quick Workflow",
-      "what": "五步法总览：硬件侦察→获取固件→解包分析→运行时立足→横向扩展至App/云端/邻接设备"
+      "heading": "Hardware Reconnaissance",
+      "what": "检查PCB识别SoC/Flash型号及UART、JTAG、SWD调试接口并选用逻辑分析仪、CH341A等硬件工具"
     },
     {
-      "heading": "Hardware Reconnaissance",
-      "what": "识别PCB上SoC/闪存/调试焊盘，用万用表、逻辑分析仪、Bus Pirate定位UART/JTAG/SWD接口并爆破串口波特率"
+      "heading": "Bootloader Console Drop",
+      "what": "在U-Boot倒计时时按键中断自启动，篡改bootargs注入init=/bin/sh获取免登录root shell"
     },
     {
       "heading": "Flash Dumping",
-      "what": "flashrom经CH341A在线或拆焊提取SPI NOR、eMMC转SD读卡、NAND ECC处理及mitmproxy中间人抓取OTA固件"
+      "what": "用flashrom对SPI NOR在板读取或拆焊芯片，eMMC转SD卡座、NAND配合ubireader提取固件"
+    },
+    {
+      "heading": "OTA Capture",
+      "what": "搭建captive AP配合mitmproxy透明代理中间人抓取设备OTA固件下载链接"
     },
     {
       "heading": "Firmware Analysis",
-      "what": "binwalk递归解包与熵分析、SquashFS/JFFS2/UBIFS文件系统挂载、挖掘硬编码密钥、shadow默认凭证、setuid及脆弱busybox/dropbear版本"
+      "what": "binwalk递归解包与熵分析判断加密，挂载SquashFS、JFFS2、UBIFS文件系统"
+    },
+    {
+      "heading": "Embedded-Linux Quick Wins",
+      "what": "在rootfs中搜硬编码私钥与凭据、telnet/SSH默认口令、setuid程序及busybox/dropbear/lighttpd等漏洞组件版本"
+    },
+    {
+      "heading": "CGI / Web Admin Auditing",
+      "what": "Ghidra反汇编MIPS/ARM架构CGI程序，定位system/popen拼接参数的命令注入与cookie明文比对认证缺陷"
     },
     {
       "heading": "Runtime Exploitation",
-      "what": "telnet/SSH默认口令与root/序列号尝试、GoAhead等CGI参数命令注入、mtd_debug重刷分区及/dev/mem物理内存读写提权"
+      "what": "运行时爆破默认口令（含root/序列号）、Web管理命令注入、mtd_debug重刷分区及老内核/dev/mem物理内存读写"
     },
     {
       "heading": "Bootloader / Secure Boot Attacks",
-      "what": "U-Boot中断自启动改bootargs注入init=/bin/sh、tftpboot加载恶意内核、签名降级/回滚绕过及ChipWhisperer电压时钟毛刺攻击"
+      "what": "U-Boot环境变量篡改与tftpboot加载恶意内核，安全启动经降级刷机、回滚熔丝未烧、OTP密钥提取绕过"
     },
     {
-      "heading": "RTOS Targets",
-      "what": "FreeRTOS/Zephyr/ThreadX/ESP-IDF/QNX攻击面评估及OpenOCD/SAM-BA经SWD/JTAG读取受保护MCU固件"
+      "heading": "Fault Injection (Voltage / Clock Glitching)",
+      "what": "用ChipWhisperer/PicoEMP在签名校验指令窗口施加电压或时钟毛刺使设备接受未签名镜像"
+    },
+    {
+      "heading": "MCU Reverse Engineering",
+      "what": "经SWD/JTAG用OpenOCD读取未开读保护的MCU固件，SAM-BA读Atmel芯片并导入Ghidra逆向"
     },
     {
       "heading": "Wireless Protocols",
-      "what": "bettercap/gatttool枚举BLE特征写入、KillerBee嗅探重放Zigbee及Touchlink已知传输密钥、Z-Wave S0、LoRaWAN重放与rtl_433重放433MHz固定码"
+      "what": "BLE GATT枚举与未授权写入、Zigbee嗅探重放与Touchlink已知传输密钥、Z-Wave S0、LoRaWAN密钥不轮换及Sub-GHz固定码重放"
     },
     {
       "heading": "ICS / OT Protocols",
-      "what": "pymodbus无认证读写保持寄存器、BACnet who-is属性读取、OPC-UA None安全策略信息泄露及Snap7未认证控制西门子PLC"
+      "what": "Modbus/BACnet/S7等工控协议无认证寄存器读写与属性读取，OPC-UA匿名浏览地址空间信息泄露"
     },
     {
       "heading": "MQTT / CoAP",
-      "what": "mosquitto空凭证通配符#订阅全量主题窃取控制指令、coap-client无认证PUT操作及DTLS PSK固定不轮换缺陷"
+      "what": "空凭据连接MQTT broker通配符订阅#窃取保留消息并重放控制命令，CoAP资源未授权PUT与DTLS PSK硬编码"
     },
     {
       "heading": "Companion Mobile App / Cloud API",
-      "what": "jadx/apktool反编译App提取API地址与MQTT凭证、frida绕过SSL pinning，测试序列号绑定抢设备、IDOR与无鉴权直播流"
-    },
-    {
-      "heading": "Pivoting Across Devices",
-      "what": "借ARP/DHCP投毒、Zigbee/Z-Wave网关桥接、BLE中心角色劫持与云账号失陷实现跨设备横向控制"
+      "what": "jadx反编译APP提取API地址与MQTT凭据、frida绕过SSL pinning，云端测试按序列号抢占设备与/devices接口IDOR"
     }
   ]
 }

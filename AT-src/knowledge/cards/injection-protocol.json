@@ -1,88 +1,88 @@
 {
-  "use_when": "在渗透测试中怀疑 CDN/反向代理与源站对 HTTP 请求边界解析不一致或 H2 降级出现异常请求拼接时阅读本篇，重点涵盖 CL.TE/TE.CL/TE.TE 八种混淆变体、H2.CL/H2.TE/CL.0 失步、Fat GET、客户端失步(CSD)与走私转缓存投毒利用链及主流 CDN 行为矩阵，区别于普通 CRLF 头注入与参数层注入类漏洞。",
+  "use_when": "在对部署CDN/反向代理的目标排查前后端HTTP消息边界分歧（请求走私）或发现响应头/邮件头可注入CRLF时阅读本篇，重点涵盖CL.TE/TE.CL/TE.TE八种Transfer-Encoding混淆变体、H2.CL/H2.TE降级走私、CL.0与Fat GET、客户端脱同步(CSD)、走私转缓存投毒链、HPP参数污染及PHP mail()第五参数RCE，区别于SQL/XSS等应用层参数注入——本篇聚焦RFC 7230报文分帧与协议解析层差异而非参数值注入。",
   "triggers": [
-    "请求走私",
-    "HTTP Request Smuggling",
+    "HTTP请求走私",
+    "Request Smuggling",
     "CL.TE",
     "TE.CL",
     "TE.TE",
     "CL.0",
-    "传输编码混淆",
-    "Transfer-Encoding: chunked",
+    "Transfer-Encoding混淆",
     "H2.CL",
     "H2.TE",
-    "HTTP/2降级走私",
-    "客户端失步",
-    "Client-Side Desync",
+    "Fat GET",
+    "客户端脱同步",
     "CSD",
     "缓存投毒",
-    "Fat GET",
-    "队列投毒",
-    "消息边界分歧",
-    "Request Smuggler",
-    "h2csmuggler"
+    "CRLF注入",
+    "HPP",
+    "HTTP参数污染",
+    "h2csmuggler",
+    "Rapid Reset",
+    "PHP mail() RCE",
+    "SMTP smuggling"
   ],
   "vulnclass": "中间件漏洞",
   "section_map": [
     {
-      "heading": "2. CL.TE VULNERABILITIES",
-      "what": "前端信任 Content-Length 后端信任 chunked 的走私手法与 13 字节载荷构造"
-    },
-    {
-      "heading": "3. TE.CL VULNERABILITIES",
-      "what": "前端解析 chunked 后端只读 CL，在 chunk 体内嵌套第二个请求并精确计算长度"
+      "heading": "1. QUICK START",
+      "what": "CL.TE与TE.CL首批探测报文的字节级构造及前后端请求边界分歧判定逻辑"
     },
     {
       "heading": "4. TE.TE VULNERABILITIES",
-      "what": "八种 Transfer-Encoding 混淆变体（TAB、前导空格、跨行冒号等）探测前后端解析差异"
-    },
-    {
-      "heading": "5. HTTP/2 REQUEST SMUGGLING",
-      "what": "H2 转 H1 降级时伪头部映射错乱与头部值内嵌请求字节的走私测试方向"
-    },
-    {
-      "heading": "6. CLIENT-SIDE DESYNC",
-      "what": "浏览器 fetch no-cors 请求体差异造成的客户端失步与 JavaScript PoC 形态"
-    },
-    {
-      "heading": "7. TOOLS",
-      "what": "Burp HTTP Request Smuggler、defparam/smuggler 等自动化走私探测工具"
+      "what": "八种Transfer-Encoding混淆变体逐对枚举前后端解析器差异并映射回CL.TE/TE.CL利用"
     },
     {
       "heading": "8. DETECTION DECISION TREE",
-      "what": "按代理拓扑与 CL/TE 优先级选择 CL.TE/TE.CL/TE.TE 探测路径的决策树"
+      "what": "按能否同发TE+CL及CL/TE优先级分支选择探测变体并以二次请求或带外信号确认的决策树"
     },
     {
       "heading": "1. H2.CL — HTTP/2 Content-Length Desync",
-      "what": "H2 帧长度与 content-length 头不一致的字节级走私载荷及 GGET 确认法"
+      "what": "构造content-length:0与H2 DATA帧不一致使后端把残余字节解析为走私请求的字节级载荷与确认手法"
     },
     {
       "heading": "2. H2.TE — HTTP/2 Transfer-Encoding Desync",
-      "what": "H2 违规 transfer-encoding 头被降级透传至后端触发 chunked 解析失步及混淆变体"
+      "what": "代理降级H1时透传H2规范禁用的transfer-encoding头引发后端chunked解析脱同步及大小写等混淆变体"
     },
     {
       "heading": "3. CL.0 — CONNECTION CLOSE DESYNC",
-      "what": "后端完全忽略请求体的 CL.0 失步，针对重定向/静态文件/健康检查端点检测"
+      "what": "利用重定向/静态页/204等不消费请求体的端点在无需TE头的情况下把残余字节留给同连接下一请求"
     },
     {
       "heading": "4. FAT GET REQUEST SMUGGLING",
-      "what": "携带 body 的 GET 请求在前端转发后端忽略时形成失步及代理产品行为矩阵"
+      "what": "带body的GET请求被代理转发而后端忽略导致的脱同步及结合缓存将走私响应挂到静态URL的投毒"
     },
     {
       "heading": "5. REQUEST SMUGGLING → CACHE POISONING CHAIN",
-      "what": "走私请求响应与合法 URL 错配实现定向缓存投毒与响应队列错位利用"
+      "what": "走私请求的响应错位匹配合法URL缓存实现定向投毒与响应队列错位(Response Queue Misalignment)利用链"
     },
     {
       "heading": "6. CLIENT-SIDE DESYNC (CSD)",
-      "what": "利用 fetch() 与 CL.0 端点毒化浏览器自身连接的完整 JS PoC 模板与暂停型失步"
+      "what": "用浏览器fetch的no-cors请求毒化受害者自身连接窃取同站响应的JavaScript PoC模板与暂停式脱sync变体"
     },
     {
       "heading": "7. CDN / REVERSE PROXY BEHAVIOR MATRIX",
-      "what": "HAProxy/Nginx/Cloudflare/AWS ALB 等产品的 CL+TE 处理、H2 降级与连接复用对照表"
+      "what": "HAProxy/Nginx/Cloudflare/AWS ALB/Envoy等产品对CL+TE共存、H2降级、GET body转发与连接复用的行为矩阵"
     },
     {
-      "heading": "8. TESTING METHODOLOGY",
-      "what": "架构识别、时间型失步探测的安全序列与影响升级检查清单"
+      "heading": "3. EXPLOITATION SCENARIOS",
+      "what": "CRLF注入实现Set-Cookie会话固定、双CRLF响应体XSS、缓存投毒与日志注入的利用场景"
+    },
+    {
+      "heading": "2. h2c (HTTP/2 CLEARTEXT) SMUGGLING",
+      "what": "借h2c明文升级绕过代理访问限制直达后端及h2csmuggler工具用法与101升级检测"
+    },
+    {
+      "heading": "5. STREAM MULTIPLEXING ABUSE",
+      "what": "单包发送触发竞态条件、RST_STREAM洪水(CVE-2023-44487 Rapid Reset)与PRIORITY优先级操纵"
+    },
+    {
+      "heading": "3. ATTACK SCENARIOS",
+      "what": "HPP与WAF绕过、SSRF、CSRF及支付业务逻辑漏洞组合的攻击场景"
+    },
+    {
+      "heading": "2.4 PHP mail() 5th param RCE",
+      "what": "利用PHP mail()第五个附加参数注入实现命令执行的邮件头注入进阶手法"
     }
   ]
 }

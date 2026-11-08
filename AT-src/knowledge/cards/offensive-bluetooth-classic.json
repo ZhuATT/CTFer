@@ -1,72 +1,76 @@
 {
-  "use_when": "在近场无线渗透中针对车载套件、工业传感器、旧医疗设备与音频外设等采用蓝牙经典(BR/EDR)协议的目标进行测试时阅读本篇，重点涵盖hcitool/bluetoothctl/redfang设备发现、SDP服务枚举、SPP未授权访问、KNOB弱密钥协商与BlueBorne补丁级检测，区别于BLE低功耗蓝牙攻击方向。",
+  "use_when": "在红队/渗透测试中对使用经典蓝牙(BR/EDR ≤4.0)的车载、工业传感器、音频配件等目标进行设备发现、SDP服务枚举与未授权配置文件滥用时阅读本篇，重点涵盖hcitool/sdptool/rfcomm工具链、SPP无认证调试口、KNOB弱密钥协商与BlueBorne补丁级检测及HID键盘注入，区别于BLE低功耗蓝牙攻击方法。",
   "triggers": [
-    "蓝牙经典",
+    "蓝牙攻击",
     "Bluetooth Classic",
+    "经典蓝牙",
     "BR/EDR",
     "hcitool",
     "sdptool",
     "bluetoothctl",
-    "redfang",
+    "redfang 隐蔽设备扫描",
     "SDP服务发现",
-    "SPP串口协议",
-    "Serial Port Profile",
+    "SPP串口配置文件",
     "rfcomm",
+    "未授权调试口",
     "KNOB攻击",
     "CVE-2019-9506",
+    "密钥协商降级",
+    "internalblue",
     "BlueBorne",
     "CVE-2017-1000251",
     "HID欺骗",
-    "键鼠注入",
-    "音频窃听",
-    "internalblue",
-    "BlueSnarf"
+    "键盘注入"
   ],
   "vulnclass": "网络与内网",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "蓝牙经典攻击五步流程：发现设备、SDP枚举、逐Profile测未授权访问、配对加密检测与近场物理攻击"
+      "what": "经典蓝牙攻击五步流程总览：设备发现、SDP服务枚举、逐配置文件未授权测试、配对加密检查与近距离物理攻击"
     },
     {
       "heading": "Discovery",
-      "what": "使用hcitool/bluetoothctl扫描可发现设备，并用redfang暴力穷举非可发现设备MAC地址"
+      "what": "使用hcitool/bluetoothctl扫描可发现设备，redfang暴力枚举非可发现设备MAC地址（每OUI前缀约7小时）"
     },
     {
       "heading": "Service Discovery (SDP)",
-      "what": "sdptool browse枚举目标全部服务Profile并对照OPP/FTP/HSP/SPP/HID/A2DP各攻击面"
+      "what": "sdptool枚举设备全部服务记录及各配置文件（OPP/FTP/HSP/SPP/HID/A2DP）的攻击价值映射"
     },
     {
       "heading": "SPP Abuse",
-      "what": "通过rfcomm绑定串口通道连接工业/IoT设备常无认证的调试串口并进入CLI"
+      "what": "rfcomm绑定串口通道无认证连接工业/IoT设备，screen交互其CLI调试菜单"
     },
     {
       "heading": "KNOB (CVE-2019-9506)",
-      "what": "借助internalblue固件补丁强制配对协商1字节加密密钥使链路密钥可被暴力破解"
+      "what": "利用internalblue打Broadcom固件补丁强制配对协商1字节加密密钥使链路密钥可暴力破解"
     },
     {
       "heading": "BlueBorne (CVE-2017-1000251 et al.)",
-      "what": "检测各蓝牙栈缓冲区溢出/信息泄露家族漏洞并使用Armis扫描器判断补丁级别"
+      "what": "用Armis blueborne-scanner检测Linux/Android/Windows/iOS蓝牙栈缓冲区溢出与信息泄露的补丁级别"
     },
     {
       "heading": "HID Spoofing (PoC)",
-      "what": "在Just Works或弱PIN配对成功后注册HID设备类实施键盘按键注入"
+      "what": "经Just Works或弱PIN配对成功后注册自定义HID键盘设备类实施按键注入攻击"
     },
     {
       "heading": "Audio Eavesdropping",
-      "what": "重配对目标耳机后经HSP/HFP成为对端接收通话音频实现窃听"
+      "what": "通过PIN爆破或KNOB重配对接管HSP/HFP对端角色窃听目标通话音频"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "从发现、枚举、SPP连接、补丁扫描到KNOB测试的完整交战命令速查清单"
+      "what": "实战六步速查：发现→逐设备服务枚举→SPP连接探索→补丁级扫描→KNOB测试→按设备记录配置文件与认证状态"
     },
     {
       "heading": "Detection",
-      "what": "说明蓝牙经典攻击的检测面：环境内普遍无IDS、主动inquiry可见性低、重配对提示可能暴露"
+      "what": "分析经典蓝牙攻击的检测面：多数环境无原生蓝牙IDS、主动inquiry可被监测、重配对提示可能暴露"
     },
     {
       "heading": "Reporting",
-      "what": "按设备记录芯片组与固件版本、映射BlueBorne/KNOB/BlueFrag等CVE适用性及具体Profile滥用结果"
+      "what": "报告要点：识别芯片组与固件版本、映射BlueBorne/KNOB/BlueFrag等CVE适用性、记录具体配置文件滥用证据"
+    },
+    {
+      "heading": "Key References",
+      "what": "internalblue、knobattack.com、Armis BlueBorne与蓝牙核心规范Volume 2等关键参考链接"
     }
   ]
 }

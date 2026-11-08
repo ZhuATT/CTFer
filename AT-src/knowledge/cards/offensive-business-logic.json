@@ -1,72 +1,88 @@
 {
-  "use_when": "在电商/金融/SaaS等交易类应用完成OWASP Top 10表层测试后需要深入挖掘业务逻辑漏洞时阅读本篇，重点涵盖状态机绕过、价格/货币/数量篡改、优惠券叠加、退款滥用、逻辑边界竞态（HTTP/2单包攻击）与租户/角色越界，区别于注入、XSS等传统技术漏洞，聚焦产生直接财务影响的逻辑缺陷。",
+  "use_when": "在对电商/金融科技/SaaS等交易类应用完成OWASP Top 10基础排查后需要深挖业务逻辑漏洞时阅读本篇，重点涵盖状态机/工作流绕过、价格与币种篡改、优惠券叠加、退款滥用、逻辑竞态与租户/角色越界的组合利用，区别于扫描器可自动发现的通用技术漏洞。",
   "triggers": [
     "业务逻辑漏洞",
-    "business logic vulnerability",
+    "business logic",
     "状态机绕过",
-    "state machine bypass",
-    "工作流绕过",
-    "workflow bypass",
     "价格篡改",
-    "price manipulation",
-    "货币混淆",
-    "currency confusion",
+    "币种混淆",
     "优惠券叠加",
-    "coupon stacking",
-    "负数数量",
-    "negative quantity",
+    "购物车篡改",
     "退款滥用",
-    "refund abuse",
+    "超额退款",
     "竞态条件",
     "race condition",
+    "single-packet attack",
     "TOCTOU",
-    "单包攻击"
+    "mass assignment",
+    "参数污染",
+    "租户越权",
+    "幂等性",
+    "验证码绕过",
+    "限速绕过",
+    "薅羊毛"
   ],
   "vulnclass": "逻辑漏洞",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "五步方法论：绘制状态机、按状态/身份/输入/频率四轴探测假设、组合缺陷成链并量化单次攻击财务损失"
+      "what": "五步测试流程——状态机建模、逐轴（状态/身份/输入/频率）探测假设、组合缺陷成链并量化财务影响"
     },
     {
       "heading": "Reconnaissance — Mapping the Logic",
-      "what": "绘制用户流状态机（状态/转换/副作用），通过认证前后JS差分、feature flag grep、OpenAPI路径枚举发现隐藏端点"
+      "what": "绘制各用户流程的状态、转换与副作用，定位可跳过、可逆或可跨角色调用的转换"
+    },
+    {
+      "heading": "Hidden / Internal Endpoints",
+      "what": "比对认证前后JS包、grep特性开关并用OpenAPI/Swagger枚举UI从未调用的隐藏路由"
     },
     {
       "heading": "Workflow / State-Machine Bypass",
-      "what": "跳过必需步骤、重放旧支付令牌、一次性动作重放、状态降级后改价及枚举HTTP动词直接调用后端转换"
+      "what": "跳过必需步骤直达后续端点、重放无幂等的一次性操作、状态降级回可编辑态及直接调用隐藏后台端点"
     },
     {
       "heading": "Price / Quantity / Currency Manipulation",
-      "what": "负数/浮点/溢出数量、客户端价格字段篡改、JPY/VND/BTC货币单位混淆、优惠券大小写与空格叠加及购物车SKU调换"
+      "what": "负数/零/浮点/溢出数量、客户端可控价格字段、低汇率币种支付与SKU调包篡改测试"
+    },
+    {
+      "heading": "Coupon / Discount Logic",
+      "what": "同券多次/大小写/空白叠加、跨商品用券、负折扣变加价及篡改appliedAt复活过期券"
     },
     {
       "heading": "Refund / Chargeback / Payout Abuse",
-      "what": "超额退款、按订单而非按件退款、退款转储值余额、提现前竞态替换收款账户IBAN"
+      "what": "超额退款、部分退货全额退款、退款转可转让储值与提现账户替换竞态"
     },
     {
       "heading": "Identity / Tenant / Role Boundary",
-      "what": "重复role参数污染提权、隐藏tenantId替换计费对象、模型字段mass assignment及共享令牌间接越权访问内部数据"
+      "what": "参数污染last-wins提权、隐藏域tenantId替换计费、共享令牌对象链接绕过数据API角色检查"
+    },
+    {
+      "heading": "Mass Assignment / Field Whitelist",
+      "what": "向更新接口注入isAdmin/credits/tenantId等模型全字段探测字段白名单缺失"
     },
     {
       "heading": "Race Conditions on Logic Boundaries",
-      "what": "Burp单包攻击并发绕过一次性检查：优惠券核销、2FA爆破、并行提现、礼品卡多花与库存超卖放大套利"
+      "what": "TOCTOU逻辑检查竞态、Burp HTTP/2单包并行请求、优惠券/提现/礼品卡并发兑换放大利用"
     },
     {
       "heading": "Anti-Automation / Fraud Defeat",
-      "what": "验证码token重用、镜像API版本端点、XFF头轮换绕过限速，设备指纹与速率计数器绕过及邮箱别名薅注册奖励"
+      "what": "验证码token重放、镜像端点与XFF头轮换绕限速、设备指纹与风控阈值边界探测"
+    },
+    {
+      "heading": "Free Trial / Sign-Up Abuse",
+      "what": "邮箱加号/点号别名、VOIP号码回收与设备ID轮换反复白嫖试用及推荐奖励自套利"
     },
     {
       "heading": "Subscription / Quota / Tier Abuse",
-      "what": "降级后缓存保功能、循环升降级重置配额净增额度、增值服务重复叠加只扣一次费"
+      "what": "降级后保留付费功能、周期中升降级重置配额与附加项重复叠加"
     },
     {
       "heading": "Time-Based Logic",
-      "what": "伪造Date/X-Request-Time头时间旅行、促销窗口价格缓存利用与刷新令牌不校验过期实现会话永续"
+      "what": "篡改Date/X-Request-Time头穿越服务器时间、促销窗口绕过与刷新令牌无限续期"
     },
     {
       "heading": "Combining Flaws — Where the Crits Live",
-      "what": "漏洞链模板：获取系统发放物→竞态/叠加倍增→转化为现金价值，附负总额退款转礼品卡套现真实赏金链"
+      "what": "按“获取-倍增-变现”模板串联单轴缺陷构造高价值利用链并量化每次执行的美元损失"
     }
   ]
 }

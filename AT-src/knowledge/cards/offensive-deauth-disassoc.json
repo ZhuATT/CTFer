@@ -1,68 +1,64 @@
 {
-  "use_when": "在无线渗透测试中需要强制 Wi-Fi 客户端掉线以捕获 WPA 握手包、诱导重连至 evil twin 或测试目标 PMF（802.11w）防护姿态时阅读本篇，涵盖单客户端定向 deauth、广播 deauth DoS、action-frame 绕过 PMF、beacon 泛洪及 aireplay-ng/mdk4 工具链与 WIPS 检测规避，区别于常规无线侦察与破解类主题。",
+  "use_when": "在无线渗透中需要对 802.11 网络实施解除认证/解除关联攻击以捕获 WPA 握手包、诱导客户端接入 Evil Twin 或测试 PMF(802.11w) 防护姿态时阅读本篇，重点涵盖 aireplay-ng 单客户端定向 deauth、mdk4 动作帧攻击与信标洪泛，区别于 WiFi 侦察与密码破解流程本身。",
   "triggers": [
-    "Deauth攻击",
-    "deauthentication",
-    "解除认证",
-    "disassociation",
+    "解除认证攻击",
+    "Deauth",
     "解除关联",
-    "802.11w",
-    "PMF",
-    "Protected Management Frames",
-    "受保护管理帧",
-    "握手包捕获",
+    "Disassociation",
+    "握手捕获",
     "handshake capture",
+    "aireplay-ng",
+    "airodump-ng",
+    "mdk4",
+    "PMF",
+    "802.11w",
+    "受保护管理帧",
     "广播deauth",
-    "拒绝服务",
     "DoS",
-    "无线DoS",
-    "action-frame攻击",
-    "管理帧攻击",
+    "信标洪泛",
     "beacon flooding",
-    "信标泛洪",
-    "aireplay-ng"
+    "evil twin",
+    "WIPS",
+    "动作帧攻击",
+    "action frame"
   ],
   "vulnclass": "网络与内网",
   "section_map": [
     {
-      "heading": "Deauth / Disassoc Attacks",
-      "what": "伪造 AP 身份发送 802.11 管理帧踢客户端下线的基础原理与 PMF 现状"
-    },
-    {
       "heading": "Quick Workflow",
-      "what": "定位目标客户端与 AP、选择攻击范围、核查 PMF 状态、发送 deauth 的四步流程"
+      "what": "四步攻击流程：定位目标客户端与AP、选择单播或广播范围、验证PMF状态、按合适速率发送deauth突发"
     },
     {
       "heading": "Single-Client Deauth (Preferred)",
-      "what": "用 aireplay-ng 对指定客户端发送 3-10 个 deauth 帧以触发重连并捕获握手包"
+      "what": "aireplay-ng 定向解除认证单一客户端以捕获握手、诱导接入邪恶双胞胎或测试重连行为"
     },
     {
       "heading": "Broadcast Deauth (DoS, Use Sparingly)",
-      "what": "对单 AP 全客户端或 BSSID 列表进行持续性广播 deauth 的 DoS 打法（需授权）"
+      "what": "aireplay-ng 持续广播与 mdk4 按列表对多AP实施全客户端断连拒绝服务"
     },
     {
       "heading": "PMF (802.11w) Awareness",
-      "what": "通过 airodump-ng 查看 beacon RSN 中 PMF 状态并判断经典 deauth 是否失效"
+      "what": "通过 airodump-ng 信标RSN能力位判断 PMF Required/Capable/Off 状态及对应deauth有效性"
     },
     {
       "heading": "Action-Frame Attacks Against PMF",
-      "what": "用 mdk4 的 auth 洪泛、CTS 帧攻击、SAE 洪泛等动作帧手法绕过 802.11w 保护"
+      "what": "mdk4 认证洪泛、CTS帧虚拟载波侦听滥用、SAE认证洪泛等动作帧攻击绕过PMF保护"
     },
     {
       "heading": "Beacon Flooding",
-      "what": "用 mdk4 高速泛洪伪造 beacon 以掩护 evil twin、压测漫游逻辑或瘫痪 WIPS 面板"
+      "what": "mdk4 高速伪造信标洪泛隐藏邪恶双胞胎、压测客户端漫游逻辑并淹没WIPS面板"
     },
     {
       "heading": "Rate Tuning and Detection",
-      "what": "调整 deauth 突发速率、burst-pause 周期与源 MAC 随机化以规避 WIPS 检测规则"
+      "what": "突发速率与防守检测信号对应表，配合MAC随机化与突发-暂停周期规避WIPS规则"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "侦察 PMF、单客户端 deauth、action-frame 兜底与授权 DoS 场景的完整命令速查"
+      "what": "实战速查命令序列：侦察PMF状态、单客户端deauth、动作帧攻击替代、授权DoS场景"
     },
     {
       "heading": "Reporting",
-      "what": "记录目标 BSSID/ESSID/PMF 状态、突发参数、实际效果及防守方可见的检测信号"
+      "what": "报告记录项：目标BSSID/ESSID/PMF状态、突发规模与时长、实际效果与防守方可见检测信号"
     }
   ]
 }

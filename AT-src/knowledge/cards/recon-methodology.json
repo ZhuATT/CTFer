@@ -1,88 +1,88 @@
 {
-  "use_when": "在众测/授权渗透项目启动阶段需要确立测试路线并开展信息收集与攻击面测绘时阅读本篇，重点涵盖主路由（现象到漏洞类映射）、子域名枚举、指纹识别、端点发现、.git/.env泄露检查与 Java 中间件矩阵，区别于各漏洞类的专项利用手册。",
+  "use_when": "在众测或授权渗透开局拿到新目标需要系统化信息收集并规划测试路线时阅读本篇，重点涵盖子域名枚举、端口与Web指纹识别、端点/参数发现、源码与配置文件泄露检测、Spring Boot Actuator等Java中间件指纹矩阵及现象到漏洞类型的总路由，区别于各专项漏洞利用技能的深入利用手法。",
   "triggers": [
     "信息收集",
-    "侦察方法论",
-    "资产测绘",
+    "Recon",
     "子域名枚举",
     "subfinder",
     "amass",
-    "虚拟主机发现",
-    "指纹识别",
-    "httpx",
-    "目录爆破",
+    "massdns",
     "ffuf",
-    "arjun",
-    "LinkFinder",
-    "gau",
-    "GitHub dorks",
-    ".git泄露",
-    ".env泄露",
+    "目录爆破",
+    "Arjun",
+    "Wappalyzer",
+    "nmap",
+    "httpx",
     "nuclei",
+    "信息泄露",
+    ".git泄露",
     "Spring Boot Actuator",
-    "heapdump"
+    "heapdump",
+    "GitHub dorks",
+    "bug bounty",
+    "众测"
   ],
-  "vulnclass": "信息泄露",
+  "vulnclass": "其他",
   "section_map": [
     {
       "heading": "Step 2: Route by observed behavior",
-      "what": "按输入反射、服务端外联、文件接受等信号将现象路由到 XSS、SSRF、XXE、IDOR、请求走私等漏洞方向的路由表"
+      "what": "按输入反射、服务端外连、对象ID等18种信号将现象映射到XSS/SSRF/IDOR/竞态等漏洞方向的路由总表"
     },
     {
       "heading": "1. RECON HIERARCHY",
-      "what": "从目标选定、范围定义到资产发现、技术指纹、端点发现、逐类漏洞测试的侦察层级模型"
+      "what": "侦察分层递进流程：范围定义→资产发现→技术指纹→端点发现→漏洞测试"
     },
     {
       "heading": "2. SUBDOMAIN ENUMERATION (CRITICAL FIRST STEP)",
-      "what": "被动证书透明查询与主动 DNS 爆破解析子域，subfinder/amass/crt.sh/massdns/ffuf 实操命令"
-    },
-    {
-      "heading": "Virtual Host Discovery",
-      "what": "ffuf 与 gobuster 的 vhost 模式通过 Host 头爆破探测隐藏虚拟主机"
+      "what": "subfinder/amass/crt.sh被动枚举、massdns/ffuf主动爆破及vhost虚拟主机发现"
     },
     {
       "heading": "3. SERVICE AND PORT DISCOVERY",
-      "what": "nmap/masscan 快速与全量端口扫描并用 httpx 批量探测存活 HTTP 服务"
+      "what": "nmap/masscan端口扫描与httpx批量HTTP存活探测手法"
     },
     {
       "heading": "4. WEB TECHNOLOGY FINGERPRINTING",
-      "what": "借助 Server 头、X-Powered-By、会话 Cookie、HTML 注释与 JS 框架文件识别目标技术栈"
+      "what": "通过Server头、Cookie、meta generator及Wappalyzer/whatweb识别Web技术栈"
     },
     {
       "heading": "5. ENDPOINT DISCOVERY",
-      "what": "目录爆破、arjun/x8 隐藏参数挖掘、JS 源码与 Wayback 历史 URL 提取及 Swagger/GraphQL 接口发现"
+      "what": "ffuf目录爆破、Arjun/x8隐藏参数发现、gau/LinkFinder JS端点挖掘与Swagger/GraphQL路径探测"
     },
     {
       "heading": "6. SOURCE CODE RECON",
-      "what": "GitHub dorks、trufflehog/gitleaks 密钥扫描与 .env、备份文件等敏感路径暴露检查"
+      "what": "GitHub dorks与trufflehog/gitleaks扫描git历史泄露密钥及.env等敏感文件路径检查"
     },
     {
       "heading": "7. ZSEANO'S TESTING METHODOLOGY",
-      "what": "深耕单一项目的测试哲学、单页输入点测试序列与按参数语义推断漏洞类型"
+      "what": "深耕单程序的测试哲学、逐输入点测试序列与参数故事推断服务端行为"
     },
     {
       "heading": "8. BUG BOUNTY PROGRAM TRIAGE (WHERE TO SPEND TIME)",
-      "what": "按范围大小、P2/P3 支付与技术迁移选择高价值项目并按认证、上传、支付流等功能排序测试优先级"
+      "what": "按范围/付费/技术变更筛选高价值项目及认证、上传、后台等高概率漏洞功能优先级"
     },
     {
       "heading": "9. NUCLEI TEMPLATES (AUTOMATED SCANNING)",
-      "what": "nuclei 按 CVE、暴露、配置错误分类与严重度过滤对目标及子域名列表自动化扫描"
+      "what": "nuclei按CVE/暴露/错误配置分类对目标与子域名列表批量自动化扫描"
     },
     {
       "heading": "10. COMMON MISCONFIGURATIONS (QUICK WINS)",
-      "what": "CORS 通配、S3 桶公开、目录列出、.git/.env 泄露、默认凭据、GraphQL 内省等快速得分检查清单"
+      "what": "CORS通配符、S3公开桶、.git/.env泄露、调试模式、默认口令、GraphQL内省等速查清单"
     },
     {
       "heading": "12. JAVA MIDDLEWARE FINGERPRINT MATRIX",
-      "what": "Tomcat/JBoss/WebLogic/Spring Boot Actuator/Jenkins/GlassFish 的识别路径、默认口令及 env/heapdump/jolokia 利用优先级"
+      "what": "Tomcat/JBoss/WebLogic/Jenkins/GlassFish等中间件检测路径、默认口令与关键指标矩阵"
+    },
+    {
+      "heading": "Spring Boot Actuator Exploitation Priority",
+      "what": "Actuator利用优先级：env泄露凭据、heapdump内存搜密码、jolokia与gateway路由SpEL注入RCE"
     },
     {
       "heading": "13. INFORMATION LEAK DETECTION CHECKLIST",
-      "what": "版本控制元数据、备份文件、API 文档调试端点与云凭据等泄露路径检测清单"
+      "what": "版本控制/.git/.svn、备份文件模式、API文档与调试端点、云凭据泄露路径检测清单"
     },
     {
       "heading": "浏览器侦察四步（Playwright MCP——headless 会话必读）",
-      "what": "headless 会话先等待 MCP 就绪再按 navigate/snapshot/网络请求抓取/点击四步做浏览器侦察与 JS 蒸馏"
+      "what": "headless会话先WaitForMcpServers就绪再导航/快照/过滤抓取API请求/点击的浏览器侦察流程"
     }
   ]
 }

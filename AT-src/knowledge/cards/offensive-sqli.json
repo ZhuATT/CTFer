@@ -1,11 +1,10 @@
 {
-  "use_when": "在渗透测试与漏洞赏金场景下需要对 Web 应用、REST API、GraphQL、WebSocket 入口进行 SQL 注入检测、盲注利用与提权/RCE 时阅读本篇，重点涵盖报错/联合/布尔/时间盲注、MySQL/MSSQL/PostgreSQL/Oracle 针对性利用、WAF 绕过及 sqlmap/Ghauri 自动化管线，区别于防御侧 SQLi 告警规则与 ORM 安全编码类文档。",
+  "use_when": "在渗透测试与漏洞赏金场景下需要对 Web 应用及 API 开展 SQL 注入检测、数据提取与注入后提权/RCE 时阅读本篇，重点涵盖报错/UNION/布尔/时间盲注、GraphQL/WebSocket/REST 注入向量、MySQL/MSSQL/PostgreSQL/Oracle 针对性利用、NoSQL 与 Neo4j 注入、WAF 绕过及 sqlmap/Ghauri 自动化与云环境（IMDS 凭据窃取、连接池投毒）攻击路径，区别于仅罗列 payload 的速查表，提供端到端进攻方法论。",
   "triggers": [
     "SQL注入",
     "SQL injection",
     "SQLi",
     "报错注入",
-    "联合查询注入",
     "UNION SELECT",
     "布尔盲注",
     "时间盲注",
@@ -15,58 +14,75 @@
     "xp_cmdshell",
     "LOAD_FILE",
     "INTO OUTFILE",
-    "写Webshell",
+    "pg_read_file",
+    "COPY FROM PROGRAM",
+    "information_schema",
     "NoSQL注入",
     "MongoDB注入",
     "GraphQL注入",
-    "ORM注入",
-    "tamper脚本"
+    "ORM注入"
   ],
   "vulnclass": "SQL注入",
   "section_map": [
     {
-      "heading": "Quick Workflow",
-      "what": "SQL注入测试五步法：输入入口测绘、注入探测、识别数据库类型、提取数据提权及报告修复建议"
+      "heading": "Basic Probes — All Input Vectors",
+      "what": "对 URL 参数、POST、Cookie、Header 等全部输入向量插入基础探测 payload 判断经典注入"
     },
     {
-      "heading": "Detection",
-      "what": "全入口基础探针与报错/布尔/时间盲注判定，及 JSON 操作符、GraphQL、WebSocket、REST API 过滤器注入探针"
+      "heading": "Error-Based Detection",
+      "what": "触发 SQL 语法错误回显以识别数据库类型、版本与查询结构"
+    },
+    {
+      "heading": "Boolean-Based Blind",
+      "what": "利用 OR/AND 真假条件对比响应大小与内容差异的布尔盲注手法"
+    },
+    {
+      "heading": "Time-Based Blind",
+      "what": "MySQL SLEEP、PostgreSQL pg_sleep、MSSQL WAITFOR DELAY、Oracle DBMS_LOCK 各库延时盲注"
+    },
+    {
+      "heading": "GraphQL → SQLi Pivot",
+      "what": "向 GraphQL filter 参数注入 ' OR 1=1 -- 实现 SQLi 转向"
     },
     {
       "heading": "Automation Workflow",
-      "what": "sublist3r/httpx/waybackurls/gf 构建注入目标管线，sqlmap/Ghauri 批量检测与 arjun/hakrawler 隐藏参数发现"
+      "what": "sublist3r/httpx/waybackurls/gf 管线批量喂给 sqlmap，Ghauri 打盲注，Arjun 发现隐藏参数"
     },
     {
-      "heading": "Exploitation",
-      "what": "UNION 列数与字符串列判定、information_schema 表列枚举及布尔/时间盲注逐字符提取数据"
+      "heading": "Enumerate Schema",
+      "what": "UNION 查询读取版本号并经 information_schema/all_tables 枚举表名列名"
     },
     {
-      "heading": "Database-Specific Exploitation",
-      "what": "MySQL LOAD_FILE/INTO OUTFILE 写 webshell、MSSQL xp_cmdshell 与注册表读取、PostgreSQL COPY FROM PROGRAM、Oracle 权限枚举与 PL/SQL 执行"
+      "heading": "MySQL / MariaDB",
+      "what": "LOAD_FILE 读文件、INTO OUTFILE 写 webshell 及非系统库 schema 泄露"
+    },
+    {
+      "heading": "MSSQL",
+      "what": "xp_cmdshell 执行系统命令、xp_regread 读注册表及 OPENROWSET 链接服务器横向"
+    },
+    {
+      "heading": "PostgreSQL",
+      "what": "pg_read_file 读文件、COPY FROM PROGRAM 执行系统命令及 K8s serviceaccount token 外带"
+    },
+    {
+      "heading": "Oracle",
+      "what": "USER_ROLE_PRIVS 权限枚举与 DBMS_JAVA.RUNJAVA 执行 PL/SQL 命令"
     },
     {
       "heading": "NoSQL & Graph Injection",
-      "what": "MongoDB $ne/$regex/$where 操作符注入与 Neo4j Cypher 注入（CVE-2024-34517）及旧版提权利用"
+      "what": "MongoDB $ne/$regex/$where 操作符注入与 Neo4j Cypher 注入绕过（CVE-2024-34517）"
     },
     {
       "heading": "WAF Bypass Techniques",
-      "what": "大小写、注释、URL/十六进制/双重编码、空字节等绕过手法及 sqlmap tamper 组合与 HTTP/2 走私投递"
+      "what": "大小写变换、注释拆分、URL/Hex/双重编码、空字节、JSON wrapper 绕 WAF 及 sqlmap tamper 组合与 HTTP/2 走私"
     },
     {
       "heading": "Cloud-Specific Attack Paths",
-      "what": "AWS IMDS 凭据窃取与 RDS Proxy 打断、Azure 托管实例 xp_cmdshell RCE、GCP 版本指纹及 Lambda 连接池 SET ROLE 投毒"
+      "what": "AWS IMDS 凭据窃取与 RDS kill、Azure SQL RCE、GCP Cloud SQL 指纹及 Lambda 连接池 SET ROLE 投毒"
     },
     {
       "heading": "ORM CVE Tracking (2023–2025)",
-      "what": "Sequelize/TypeORM/Hibernate/Prisma 原生查询注入 CVE 特征及参数化查询安全写法对照"
-    },
-    {
-      "heading": "Quick-Reference Cheatsheet",
-      "what": "MySQL/MSSQL/PostgreSQL/Oracle 版本查询、延时函数、字符串拼接与 schema 来源速查表"
-    },
-    {
-      "heading": "Detection & Monitoring Queries",
-      "what": "Splunk SPL 与 AWS CloudWatch Insights 识别 UNION/SELECT 等注入特征的蓝队检测规则"
+      "what": "Sequelize CVE-2023-22578、TypeORM、Hibernate、Prisma raw query 注入 CVE 及参数化安全写法"
     }
   ]
 }

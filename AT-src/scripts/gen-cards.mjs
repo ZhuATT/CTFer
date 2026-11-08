@@ -20,11 +20,13 @@ import { fileURLToPath } from "node:url";
 import { Agent } from "@earendil-works/pi-agent-core";
 import { createChannelFromConfig } from "../dist/channel.js";
 import { loadSecrets } from "../dist/secrets.js";
+import { extractHeadingsFromMd, buildKnowledge } from "./build-knowledge.mjs"; // F-6a/F-7b：全文标题清单 + 末尾自动重组 catalog
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, "..");
-const SKILLS_DIR = join(ROOT_DIR, "knowledge", "skills");
-const CARDS_DIR = join(ROOT_DIR, "knowledge", "cards");
+const KNOWLEDGE_DIR = join(ROOT_DIR, "knowledge");
+const SKILLS_DIR = join(KNOWLEDGE_DIR, "skills");
+const CARDS_DIR = join(KNOWLEDGE_DIR, "cards");
 
 mkdirSync(CARDS_DIR, { recursive: true });
 
@@ -51,6 +53,7 @@ const SYSTEM_PROMPT = `你是一个网络安全知识库元数据专家。你的
    [
      { "heading": "章节原文标题（去掉前缀 #）", "what": "中文一句话简述该节技术手法或操作" }
    ]
+   section_map 的 heading 必须逐字复制原文标题（含编号与标点，禁止改写/翻译/去编号）——标题清单已覆盖全文，重要章节即使不在正文截断段内也应入图（what 可从标题提炼一句话）。
    无需计算行号，行号由后续程序自动补齐。
 
 【范例格式】：
@@ -179,9 +182,13 @@ async function callLlmForCard(channel, mdContent, maxRetries = 2) {
 				}
 			});
 
-			// 语料前 30,000 字符已足够覆盖 TOC、各章节骨架及核心 payload
+			// F-6a：全文标题清单（覆盖全文，深部章节 what 从标题提炼）+ 前 30k 正文（省 token 不变）
+			const headings = extractHeadingsFromMd(mdContent);
+			const tocLines = headings.map((h) => `L${h.line} ${"#".repeat(h.level)} ${h.text}`).join("\n");
 			const truncated = mdContent.slice(0, 30_000);
-			await agent.prompt(`请阅读以下安全技能文档并输出检索卡 JSON：\n\n${truncated}`);
+			await agent.prompt(
+				`请阅读以下安全技能文档并输出检索卡 JSON：\n\n【全文标题清单（行号+标题，已覆盖全文）】\n${tocLines}\n\n【正文（前 30000 字符）】\n${truncated}`,
+			);
 
 			const finalText = texts[texts.length - 1] || "";
 			if (!finalText.trim()) {
@@ -296,49 +303,35 @@ async function main() {
 	}
 	console.log("================================================\n");
 
-	runSmokeCheck();
+	// F-7b：gen-cards 末尾自动重组 catalog（mtime 双保险——重生成忘 build 会让运行时用旧图零告警）；
+	// throw 则自然中断（catalog 坏时 smoke 无意义）。执行顺序约定：重组 → smoke 永远用新 catalog。
+	const built = buildKnowledge();
+	console.log(`✓ catalog 已重组：${built.count} 篇${built.warnings.length > 0 ? `（警告 ${built.warnings.length} 条非精确对齐，跑 node scripts/build-knowledge.mjs 看清单）` : ""}`);
+	await runSmokeCheck();
 }
 
-function runSmokeCheck() {
-	console.log("--- 10 条 Smoke Query 扫视 (人工快速复核) ---");
-	const cardFiles = readdirSync(CARDS_DIR).filter((f) => f.endsWith(".json"));
-	const cards = cardFiles.map((f) => {
-		const name = basename(f, ".json");
-		const data = JSON.parse(readFileSync(join(CARDS_DIR, f), "utf-8"));
-		return { name, ...data };
-	});
-
+async function runSmokeCheck() {
+	console.log("--- 10 条 Smoke Query 扫视（真工具 executeKnowledgeSearch）---");
+	// F-6b：删手抄计分副本（空格分词/无中文 bigram/与真工具漂移——SSRF top1 曾记错篇），
+	// mjs 纯 node 不能 import TS，动态 import dist 产物。
+	let m;
+	try {
+		m = await import("../dist/tools/knowledge.js");
+	} catch {
+		console.warn("! dist/tools/knowledge.js 不可用，先 npm run build 再跑 smoke；本次跳过");
+		return;
+	}
+	const catalogPath = join(KNOWLEDGE_DIR, "catalog.json");
+	if (!existsSync(catalogPath)) {
+		console.warn("! catalog.json 不存在，跳过 smoke");
+		return;
+	}
+	const catalog = JSON.parse(readFileSync(catalogPath, "utf-8"));
 	for (const q of SMOKE_QUERIES) {
-		const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
-		const matches = [];
-
-		for (const card of cards) {
-			let score = 0;
-			const triggers = (card.triggers || []).map((t) => String(t).toLowerCase());
-			const useWhen = String(card.use_when || "").toLowerCase();
-			const sections = (card.section_map || []).map((s) => `${s.heading} ${s.what}`.toLowerCase());
-
-			for (const term of terms) {
-				if (triggers.some((t) => t.includes(term))) score += 10;
-				if (useWhen.includes(term)) score += 3;
-				if (sections.some((s) => s.includes(term))) score += 1;
-			}
-
-			if (score > 0) {
-				matches.push({ name: card.name, score, use_when: card.use_when });
-			}
-		}
-
-		matches.sort((a, b) => b.score - a.score);
-		const top = matches.slice(0, 2);
-		console.log(`\nQuery: [${q}] -> 命中 ${matches.length} 篇`);
-		if (top.length === 0) {
-			console.log("  (未命中)");
-		} else {
-			for (const m of top) {
-				console.log(`  - [得分 ${m.score}] ${m.name}: ${m.use_when}`);
-			}
-		}
+		const { results } = m.executeKnowledgeSearch(q, catalog, join(KNOWLEDGE_DIR, "skills"));
+		console.log(`\nQuery: [${q}] -> 命中 ${results.length} 篇`);
+		for (const r of results.slice(0, 2)) console.log(`  - [得分 ${r.score}] ${r.name}: ${r.use_when}`);
+		if (results.length === 0) console.log("  (未命中)");
 	}
 	console.log("\n--------------------------------------------");
 }

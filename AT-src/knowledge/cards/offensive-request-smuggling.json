@@ -1,80 +1,88 @@
 {
-  "use_when": "在渗透测试中针对反向代理、负载均衡器与CDN多层架构检测HTTP请求走私（CL.TE、TE.CL、TE.TE、H2.CL/H2.TE降级）时阅读本篇，重点涵盖时间延迟与差分响应探测、Transfer-Encoding头部混淆绕过、请求/响应队列投毒、缓存投毒及客户端去同步等现代变体手法，区别于常规Web应用层漏洞测试。",
+  "use_when": "在渗透测试中评估反向代理/负载均衡/CDN多层架构下前后端对Content-Length与Transfer-Encoding解析不一致导致的HTTP请求走私风险时阅读本篇，重点涵盖CL.TE/TE.CL/TE.TE探测报文、HTTP/2与HTTP/3降级及h2c升级变体、WAF绕过、缓存投毒、响应队列投毒与客户端去同步(CSD)利用及smuggler.py等工具，区别于常规Web漏洞测试的代理失步专项手法。",
   "triggers": [
     "HTTP请求走私",
     "HTTP Request Smuggling",
+    "请求走私",
     "CL.TE",
     "TE.CL",
     "TE.TE",
     "Transfer-Encoding",
     "Content-Length",
+    "GPOST",
     "去同步",
-    "proxy desync",
+    "desync",
+    "H2.CL",
+    "h2c升级",
+    "HTTP/2降级",
     "WAF绕过",
     "缓存投毒",
-    "cache poisoning",
     "响应队列投毒",
-    "请求劫持",
-    "request hijacking",
-    "HTTP/2走私",
-    "h2csmuggler",
     "客户端去同步",
-    "header obfuscation",
-    "GPOST"
+    "WebSocket走私",
+    "smuggler.py"
   ],
   "vulnclass": "中间件漏洞",
   "section_map": [
     {
       "heading": "Mechanisms",
-      "what": "前后端服务器对CL/TE头解析差异导致HTTP去同步的原理，及CL.TE、TE.CL、TE.TE与H2.CL/H2.TE等变体机制"
-    },
-    {
-      "heading": "Identifying Vulnerable Applications",
-      "what": "架构侦察：识别Nginx、HAProxy、Varnish、Amazon ALB/CloudFront等代理与CDN多层架构"
+      "what": "讲解前后端服务器对CL/TE头解析差异导致CL.TE、TE.CL、TE.TE及H2.CL/H2.TE失步的走私原理"
     },
     {
       "heading": "Basic Detection Tests",
-      "what": "CL.TE与TE.CL的时间延迟探测载荷及GPOST未知方法确认技巧（注意关闭Burp自动更新CL）"
+      "what": "用时间延迟报文与二次发送GPOST确认手法探测CL.TE、TE.CL、TE.TE三类漏洞"
     },
     {
       "heading": "Advanced Detection Techniques",
-      "what": "差分测试、Transfer-Encoding混淆变体与HTTP/2重复content-length、伪头部异常等探测手法"
+      "what": "差分响应与延时测试、Transfer-Encoding混淆变形及HTTP/2重复content-length等专项探测"
     },
     {
-      "heading": "Vulnerabilities",
-      "what": "安全控制绕过、请求/响应队列投毒、缓存投毒及Nginx/Apache/NodeJS服务器特定解析差异与影响面"
+      "heading": "Security Control Bypass",
+      "what": "借走私请求绕过WAF检测、访问控制与身份认证的利用场景"
+    },
+    {
+      "heading": "Request/Response Queue Poisoning",
+      "what": "劫持他人请求窃取Cookie令牌、污染响应队列与缓存投毒的危害手法"
+    },
+    {
+      "heading": "Server-Specific Vulnerabilities",
+      "what": "Nginx下划线Transfer-Encoding、Apache分块解析与NodeJS多头部处理的特有差异"
     },
     {
       "heading": "Tools",
-      "what": "Burp HTTP Request Smuggler扩展、smuggler.py、h2csmuggler、Turbo Intruder、Param Miner等工具清单"
+      "what": "Burp HTTP Request Smuggler、smuggler.py、h2csmuggler、Turbo Intruder、h2spec等专用工具清单"
     },
     {
       "heading": "Basic Request Smuggling Test Patterns",
-      "what": "CL.TE、TE.CL、HTTP/2降级与h2c升级四类标准攻击载荷模板"
+      "what": "CL.TE、TE.CL、HTTP/2降级与h2c升级四类走私payload模板"
     },
     {
       "heading": "Advanced Exploitation Techniques",
-      "what": "请求劫持窃取Cookie、响应队列投毒伪造响应与WebSocket升级劫持载荷构造"
+      "what": "请求劫持、伪造响应的响应队列投毒与WebSocket升级劫持利用报文"
     },
     {
       "heading": "Defense Testing",
-      "what": "补丁后复测验证：头部大小写/空格变体、chunk大小操纵与HTTP/2严格性检查"
+      "what": "补丁后用头部大小写变形与chunk大小篡改做回归验证及HTTP/2严格性检查"
+    },
+    {
+      "heading": "Real-World Exploitation Workflow",
+      "what": "探测失步→确定向量→构造payload→执行验证→记录影响的五步实战流程"
     },
     {
       "heading": "Modern Desync Variants",
-      "what": "HTTP/3(QUIC)翻译去同步、客户端去同步(CSD)、WebSocket走私、CONNECT隧道、暂停型去同步与头部超限等新型变体"
+      "what": "HTTP/3 QUIC流操纵、客户端去同步CSD、WebSocket走私、CONNECT隧道、暂停式与头部超长变体"
     },
     {
       "heading": "Detection Bypass Techniques (Advanced)",
-      "what": "头部名混淆（空格/制表符/空字节）、多重Content-Length变体、HTTP/2伪头部走私与TE值污染绕过"
+      "what": "头名空格/制表符混淆、重复Content-Length与HTTP/2伪头部走私绕过检测"
     },
     {
       "heading": "Real-World CVEs",
-      "what": "CVE-2023-45853、CVE-2023-38545、CVE-2022-31629、CVE-2020-11724等真实走私相关漏洞案例"
+      "what": "MiniZinc、curl SOCKS5、PHP响应拆分、Apache路径穿越与Varnish HTTP/2失步等真实CVE案例"
     },
     {
       "heading": "Remediation Recommendations",
-      "what": "统一RFC解析器、网关剥离hop-by-hop头、禁用h2c升级、HTTP/2隔离与监控重复CL/TE头等修复建议"
+      "what": "统一RFC解析器、禁用h2c升级、QUIC流管理、WebSocket升级校验与连接复用监控等修复建议"
     }
   ]
 }

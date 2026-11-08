@@ -1,88 +1,88 @@
 {
-  "use_when": "在渗透测试与漏洞赏金中挖掘并利用 Web 前端跨站脚本漏洞时阅读本篇，重点涵盖存储型/反射型/DOM型/盲注 XSS 的发现流程、上下文感知 payload 构造、CSP/WAF/过滤器绕过及 mXSS、Polyglot、原型链污染到 XSS 的进阶利用链，区别于 SQL 注入等服务端注入类漏洞文档。",
+  "use_when": "在渗透测试与漏洞赏金中需要挖掘并利用 Web 应用的客户端脚本注入时阅读本篇，重点涵盖存储型/反射型/DOM 型/Blind XSS 探测、上下文感知 payload、CSP 与 WAF（Cloudflare/Akamai 等）绕过、mXSS/Polyglot、Service Worker 与 WebView 劫持及会话劫持等影响升级，并附 Sanitizer API/Trusted Types 修复建议，区别于仅关注服务端处理的注入类漏洞（如 SQL 注入/SSTI）的测试思路。",
   "triggers": [
     "XSS",
     "跨站脚本",
     "存储型XSS",
     "反射型XSS",
+    "DOM XSS",
     "DOM型XSS",
-    "盲XSS",
+    "Blind XSS",
+    "盲打XSS",
+    "CSP bypass",
     "CSP绕过",
+    "WAF bypass",
     "WAF绕过",
     "polyglot",
     "mXSS",
-    "变异XSS",
+    "mutation XSS",
     "DOM clobbering",
-    "事件处理器注入",
-    "innerHTML",
-    "document.write",
     "XSS Hunter",
     "Dalfox",
-    "DOM Invader",
-    "Trusted Types",
-    "原型链污染"
+    "innerHTML",
+    "document.write"
   ],
   "vulnclass": "XSS",
   "section_map": [
     {
-      "heading": "Mechanisms",
-      "what": "XSS 漏洞原理与存储/反射/DOM/盲注四大类型分类及 LLM 生成内容型 XSS 攻击流程"
-    },
-    {
-      "heading": "Blind XSS",
-      "what": "识别无即时回显的隐蔽存储型 XSS 并借 XSS Hunter 等回调平台在管理面板/日志查看器中触发 payload"
+      "heading": "Types of XSS",
+      "what": "存储型/反射型/DOM 型/Blind XSS 的分类图解与攻击触发链路差异"
     },
     {
       "heading": "LLM-Generated Content XSS",
-      "what": "通过提示注入与 RAG 向量库投毒诱导 AI 输出未经净化的恶意脚本的攻击面"
+      "what": "通过提示注入与 RAG 向量库投毒诱导大模型输出未净化的恶意脚本"
     },
     {
-      "heading": "Discovery Techniques",
-      "what": "输入入口盘点、Burp 插件、WaybackURLs/Gau/GF 参数收集与 Google Dork 定位反射点的方法"
+      "heading": "Manual Testing",
+      "what": "枚举 URL 参数、表单、HTTP 头、文件上传、WebSocket 等输入入口并观察过滤与回显行为"
+    },
+    {
+      "heading": "Additional Discovery Methods",
+      "what": "Burp 插件、WaybackURLs/Gau/Gxss/Dalfox 流水线、Google Dorks 与 Arjun 隐藏参数及报错页挖掘"
     },
     {
       "heading": "Context-Aware Testing",
-      "what": "按 HTML 主体/属性/JS 字符串/CSS/URL 五种反射上下文定制专属 payload 的测试思路"
+      "what": "判定回显上下文（HTML/属性/JavaScript/CSS/URL）并定制对应 payload"
     },
     {
       "heading": "Bypass Techniques",
-      "what": "标签过滤、字符串过滤、括号过滤绕过及 alert 替代函数与事件处理器替换手法"
+      "what": "标签/字符串过滤绕过、WAF 绕过、alert 与事件处理器替代、反引号绕括号过滤等手法集"
     },
     {
-      "heading": "WAF Bypass Techniques",
-      "what": "针对 Cloudflare/Akamai/AWS WAF/Imperva/F5 BIG-IP/Wordfence 的专项绕过 payload"
+      "heading": "Common XSS Patterns",
+      "what": "HTML/JavaScript/URL/DOM 四类上下文的典型 payload 及 location source 与 innerHTML/eval 等 sink 清单"
     },
     {
       "heading": "CSP Bypass Techniques",
-      "what": "CSP 关键指令解析及利用 unsafe-inline 配置错误、JSONP 端点滥用、CSP 反射注入与 Trusted Types 缺口绕过"
+      "what": "利用过度宽松配置、JSONP 端点滥用、CSP 注入与 Trusted Types 缺口绕过内容安全策略"
     },
     {
       "heading": "Mutation XSS (mXSS)",
-      "what": "利用浏览器解析差异使合法 HTML 发生变异以绕过 WAF 与净化器"
+      "what": "利用浏览器解析器差异让合法 HTML 变异执行以绕过 WAF 与净化器"
     },
     {
       "heading": "Polyglot XSS",
-      "what": "构造单一 payload 在 HTML/属性/JS 等多种上下文中均能执行的万能测试语句"
+      "what": "构造单一 payload 在 HTML/JS/属性等多上下文通用执行"
     },
     {
       "heading": "Progressive Web App (PWA) XSS",
-      "what": "通过恶意 Service Worker 注册、Manifest 注入与推送通知实现持久化 XSS"
+      "what": "Service Worker 劫持、Manifest 注入与推送通知载荷实现持久化控制"
     },
     {
       "heading": "Mobile WebView XSS",
-      "what": "Android addJavascriptInterface 实现原生命令执行与 iOS WKWebView evaluateJavaScript 注入漏洞"
+      "what": "Android addJavascriptInterface/loadDataWithBaseURL 与 iOS WKWebView 注入乃至原生代码执行"
     },
     {
-      "heading": "Tools",
-      "what": "Burp Suite/XSStrike/Dalfox/DOM Invader 等挖掘工具与 XSS Hunter/XSS.Report 盲打平台及 AI 辅助扫描器清单"
+      "heading": "WAF Bypass Techniques",
+      "what": "针对 Cloudflare/Akamai/AWS WAF/Imperva/F5/Wordfence 的绕过 payload"
     },
     {
-      "heading": "Testing Methodologies",
-      "what": "侦察、初始测试、上下文分析、过滤绕过、影响评估的标准测试流程与 cookie 窃取/会话劫持升级"
+      "heading": "Blind XSS Tools",
+      "what": "XSS Hunter/XSS.Report/Hookbin/Canarytokens 盲打回连检测平台"
     },
     {
-      "heading": "Remediation Recommendations",
-      "what": "Sanitizer API、Trusted Types、nonce+strict-dynamic 严格 CSP 与 Fetch-Metadata/CORP/COEP 防御方案"
+      "heading": "Sanitizer API (Native Browser Protection)",
+      "what": "浏览器原生 Sanitizer API 白名单净化与 DOMPurify 回退的修复方案"
     }
   ]
 }

@@ -1,68 +1,88 @@
 {
-  "use_when": "在渗透测试中拿到容器内 Shell 需要逃逸到宿主机时阅读本篇，重点涵盖特权容器挂载宿主文件系统与 nsenter、Docker Socket 滥用、CAP_SYS_ADMIN 等危险 Capabilities 利用、cgroup release_agent 逃逸及 runc CVE-2019-5736/Leaky Vessels 漏洞利用与 deepce/CDK 自动化枚举，区别于常规 Linux 本地提权和 K8s 集群横向移动。",
+  "use_when": "在红队拿到容器内 shell 后需要逃逸到宿主机时阅读本篇，重点涵盖 .dockerenv 指纹识别、--privileged 特权容器挂载宿主磁盘、docker.sock 滥用、CAP_SYS_ADMIN/PTRACE 能力利用、cgroup notify_on_release 逃逸及 runc CVE-2019-5736/CVE-2024-21626 与 DirtyPipe 内核利用，区别于常规 Linux 主机提权，专门针对 Docker/containerd 运行时隔离缺陷。",
   "triggers": [
     "容器逃逸",
-    "container escape",
+    "Container Escape",
     "Docker逃逸",
     "特权容器",
-    "privileged",
+    "--privileged",
     "docker.sock",
-    "Docker Socket滥用",
-    "nsenter",
+    "Docker Socket Abuse",
     "CAP_SYS_ADMIN",
     "CAP_SYS_PTRACE",
-    "release_agent",
-    "notify_on_release",
+    "CAP_NET_ADMIN",
+    "nsenter",
     "cgroup逃逸",
-    "runc漏洞",
+    "notify_on_release",
+    "release_agent",
+    "runc",
     "CVE-2019-5736",
     "CVE-2024-21626",
     "Leaky Vessels",
-    "shocker",
     "DirtyPipe",
     "deepce"
   ],
   "vulnclass": "提权",
   "section_map": [
     {
-      "heading": "Quick Workflow",
-      "what": "容器逃逸六步流程：确认容器环境、枚举能力与挂载、识别逃逸向量、执行突破、验证宿主机访问并横向移动"
-    },
-    {
       "heading": "Phase 1: Container Detection and Enumeration",
-      "what": "通过 .dockerenv、cgroup 条目、PID 1 与命名空间 inode 检测容器环境，并用 deepce/CDK/amicontained/capsh 枚举 Capabilities 与攻击面"
+      "what": "通过 .dockerenv、cgroup 条目与 PID 1 判断容器环境，并用 deepce/CDK/amicontained/capsh 枚举能力、命名空间与 socket 攻击面"
     },
     {
       "heading": "Phase 2: Privileged Container Breakout",
-      "what": "特权容器直接挂载宿主磁盘读取 shadow、植入 SSH 公钥与 cron 后门，nsenter 进入宿主命名空间及 mknod 访问宿主设备"
+      "what": "利用 --privileged 特权容器几乎无隔离的特性实施逃逸的总览"
+    },
+    {
+      "heading": "Mount Host Filesystem",
+      "what": "挂载宿主块设备 /dev/sda1 读取 shadow 并植入 SSH 公钥、cron 反弹 shell 与后门用户实现持久化"
+    },
+    {
+      "heading": "nsenter to Host Namespaces",
+      "what": "配合 hostPID 用 nsenter 进入宿主 PID 1 的 mount/net/pid 命名空间获取宿主 shell"
     },
     {
       "heading": "Phase 3: Docker Socket Abuse",
-      "what": "检测可写的 /var/run/docker.sock 与 containerd.sock，通过 Docker API/ctr 创建挂载宿主根目录的特权容器实现逃逸"
+      "what": "滥用挂载进容器的 /var/run/docker.sock 与 containerd.sock 控制宿主运行时"
+    },
+    {
+      "heading": "Escape via Docker Socket",
+      "what": "用 Docker CLI 或 curl 直调 Docker API 创建特权容器绑定宿主根目录并 exec 获取 shell"
     },
     {
       "heading": "Phase 4: Capability-Based Escapes",
-      "what": "利用 CAP_SYS_ADMIN 挂载、CAP_SYS_PTRACE 注入宿主进程、CAP_NET_ADMIN 流量劫持及 CAP_DAC_READ_SEARCH 的 shocker open_by_handle_at 逃逸"
+      "what": "利用单项危险 Linux capabilities 在非特权容器下逃逸的手法合集"
+    },
+    {
+      "heading": "CAP_DAC_READ_SEARCH Escape",
+      "what": "利用 open_by_handle_at 的 shocker 技术绕过文件权限读取容器外的宿主文件"
     },
     {
       "heading": "Phase 5: Cgroup Escape (notify_on_release)",
-      "what": "cgroup v1 经典逃逸：创建子 cgroup 并开启 notify_on_release，将 release_agent 指向容器内 payload 触发宿主机执行命令"
+      "what": "cgroup v1 release_agent 机制在宿主机上执行命令的逃逸总览"
+    },
+    {
+      "heading": "Classic Cgroup Release Agent Escape",
+      "what": "创建子 cgroup、写入 release_agent 指向容器内 payload 并触发宿主执行反弹 shell 的完整步骤"
     },
     {
       "heading": "Phase 6: Runtime CVE Exploitation",
-      "what": "runc/containerd 漏洞利用：CVE-2019-5736 覆写宿主 runc 二进制、CVE-2024-21626 泄漏文件描述符访问宿主文件系统、CVE-2020-15257 主机网络访问 containerd API"
+      "what": "针对 runc/containerd 容器运行时已知 CVE 的版本检测与利用"
+    },
+    {
+      "heading": "CVE-2019-5736: runc Overwrite",
+      "what": "通过 /proc/self/exe 覆写宿主 runc 二进制，待管理员 docker exec 时执行攻击者 payload"
+    },
+    {
+      "heading": "CVE-2024-21626: Leaky Vessels (runc)",
+      "what": "利用 Dockerfile WORKDIR 指向泄漏的 /proc/self/fd 文件描述符读写宿主文件系统"
     },
     {
       "heading": "Phase 7: Kernel Exploits from Container",
-      "what": "容器内利用共享内核漏洞 DirtyPipe/DirtyCow/OverlayFS/nftables 提权，并检查 seccomp 与 AppArmor 限制"
+      "what": "利用容器共享宿主内核的 DirtyPipe/DirtyCow/OverlayFS 漏洞逃逸，并检查 seccomp 与 AppArmor 限制"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "蓝队视角：监控容器内 mount 调用、release_agent 写入、Docker Socket API 访问、危险 Capabilities 及部署 Falco 规则检测逃逸"
-    },
-    {
-      "heading": "Engagement Cheatsheet",
-      "what": "实战速查：特权模式/Socket/cgroup 版本检测一行命令与挂载逃逸、nsenter、cgroup release_agent 逃逸快捷利用"
+      "what": "蓝军监控容器逃逸的审计要点：mount 调用、release_agent 写入、docker.sock 访问及 Falco 规则示例"
     }
   ]
 }

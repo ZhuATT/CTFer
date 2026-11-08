@@ -1,88 +1,88 @@
 {
-  "use_when": "在针对 macOS 端点的渗透测试中需要绕过 TCC/Gatekeeper/SIP 防护、逃逸沙箱或向签名进程注入代码时阅读本篇，重点涵盖 TCC.db 修改、com.apple.quarantine 隔离属性移除、DYLD_INSERT_LIBRARIES、dylib 劫持、XPC PID 重用及各版本 CVE（MacDirtyCow、CVE-2023-32364），区别于通用 Linux 提权与 Linux 安全绕过手法。",
+  "use_when": "在红队针对 macOS 端点的渗透测试中需要绕过 TCC/Gatekeeper/SIP 等系统防护机制或实施 dylib/XPC/Electron 进程注入以提权并持久化时阅读本篇，重点涵盖 Mojave 至 Sequoia 各版本 TCC 绕过 CVE 矩阵、quarantine 隔离属性清除、entitlement 滥用与 MDM/PPPC 配置文件滥用，区别于通用 Linux 提权与常规 Web 漏洞利用思路。",
   "triggers": [
+    "macOS安全绕过",
     "TCC绕过",
-    "TCC bypass",
     "TCC.db",
     "Gatekeeper绕过",
     "com.apple.quarantine",
-    "隔离属性移除",
     "SIP绕过",
-    "csrutil",
+    "DYLD_INSERT_LIBRARIES",
+    "动态库劫持",
+    "@rpath",
+    "XPC",
+    "PID复用攻击",
+    "task_for_pid",
+    "Mach端口",
+    "沙箱逃逸",
+    "ELECTRON_RUN_AS_NODE",
     "MacDirtyCow",
     "CVE-2023-32364",
-    "DYLD_INSERT_LIBRARIES",
-    "dylib劫持",
-    "dylib hijacking",
-    "XPC PID重用",
-    "task_for_pid",
-    "entitlement滥用",
     "完全磁盘访问",
-    "Hardened Runtime",
-    "沙箱逃逸",
+    "entitlement滥用",
     "LaunchAgent持久化"
   ],
   "vulnclass": "提权",
   "section_map": [
     {
       "heading": "1. TCC (TRANSPARENCY, CONSENT, CONTROL) OVERVIEW",
-      "what": "TCC 权限框架与 TCC.db 数据库位置、六类绕过机制及 Terminal FDA 继承/Finder 自动化等已知模式"
+      "what": "TCC权限框架、TCC.db数据库位置及FDA继承/自动化滥用/TCC SQL注入等六类绕过分类与Terminal FDA继承等已知模式"
     },
     {
       "heading": "2. GATEKEEPER BYPASS",
-      "what": "移除 com.apple.quarantine 隔离属性及签名/公证检查流程的多种绕过技术"
+      "what": "移除com.apple.quarantine隔离属性及BOM/DMG/签名嵌套代码等绕过Gatekeeper公证校验的手法与检查流程图"
     },
     {
       "heading": "3. SIP (SYSTEM INTEGRITY PROTECTION)",
-      "what": "SIP 保护路径、csrutil 配置、rootless entitlement 及 Shrootless/MacDirtyCow/Migraine 等历史 CVE 绕过"
+      "what": "SIP保护路径、csrutil配置、rootless类entitlement滥用及Shrootless/MacDirtyCow/Migraine等历史CVE绕过"
     },
     {
       "heading": "4. SANDBOX ESCAPE",
-      "what": "Office 宏对话框与 LaunchAgent 滥用、XPC/Mach 端口 IPC 逃逸及浏览器渲染进程逃逸链"
+      "what": "Office宏对话框/LaunchAgent写入、XPC/Apple Events/Mach端口等IPC逃逸与浏览器渲染器到浏览器进程的逃逸链"
     },
     {
       "heading": "5. CODE SIGNING & ENTITLEMENTS",
-      "what": "codesign 检查签名与 entitlement，滥用 disable-library-validation、get-task-allow 等绕过 Hardened Runtime 与库验证"
+      "what": "codesign/spctl审计签名与entitlement，滥用disable-library-validation/allow-dyld-environment-variables等权限绕过Hardened Runtime与库校验"
     },
     {
       "heading": "6. PERSISTENCE AFTER BYPASS",
-      "what": "绕过后通过 LaunchAgent/LaunchDaemon、登录项、cron 与 dylib 劫持实现重启存活持久化"
+      "what": "LaunchAgent/LaunchDaemon/登录项/Cron/Dylib劫持/Folder Action等可存活重启的持久化手段对照"
     },
     {
       "heading": "7. macOS SECURITY BYPASS DECISION TREE",
-      "what": "按执行未签名程序、访问 TCC 资源、绕 SIP、逃沙箱、进程注入等目标选择攻击路径的决策树"
+      "what": "按执行未签名二进制、访问TCC资源、绕SIP、沙箱逃逸、注入签名进程、持久化等目标选择绕过路径的决策树"
     },
     {
       "heading": "1. TCC BYPASS BY macOS VERSION",
-      "what": "Mojave 至 Sequoia 各 macOS 版本对应 TCC 绕过 CVE 与手法的版本对照矩阵"
+      "what": "Mojave至Sequoia各版本TCC绕过CVE与技法矩阵（含CVE-2023-32364 SQL注入、CVE-2024-44133 HM Surf、CVE-2024-44243 StorageKit）"
     },
     {
       "heading": "2. TCC BYPASS BY PROTECTION TYPE",
-      "what": "按摄像头麦克风、完全磁盘访问 FDA、自动化 Apple Events、定位、录屏等防护类型对应的绕过手法"
+      "what": "按摄像头麦克风/完全磁盘访问FDA/Apple Events自动化/定位服务/屏幕录制分类的针对性TCC绕过途径"
     },
     {
       "heading": "3. MDM / PPPC PROFILE ABUSE",
-      "what": "利用恶意 MDM 注册或被攻陷 MDM 服务器推送 PPPC 描述文件预授权 TCC 权限"
-    },
-    {
-      "heading": "4. TCC INSPECTION & RECONNAISSANCE",
-      "what": "枚举 TCC 数据库、读取 access 表授权值与遍历运行进程 entitlement 的侦察命令"
+      "what": "伪造PPPC描述文件预授权TCC权限、恶意MDM注册与攻陷Jamf/Mosyle/Kandji等MDM服务器的攻击向量"
     },
     {
       "heading": "1. DYLD_INSERT_LIBRARIES INJECTION",
-      "what": "DYLD_INSERT_LIBRARIES 环境变量注入的前提条件限制与批量发现无 Hardened Runtime 可注入目标"
+      "what": "DYLD环境变量预加载恶意dylib注入的Hardened Runtime/SIP/SUID限制条件与可注入目标批量枚举"
     },
     {
       "heading": "2. DYLIB HIJACKING",
-      "what": "利用弱链接 LC_LOAD_WEAK_DYLIB、@rpath 可写目录与 dylib 代理转发实现动态库劫持"
+      "what": "LC_LOAD_WEAK_DYLIB弱引用劫持、@rpath可写目录劫持与dylib代理转发(重导出原库)等动态库劫持技术"
     },
     {
       "heading": "3. XPC EXPLOITATION",
-      "what": "XPC 服务发现、PID 重用竞态攻击与无校验/仅 Bundle ID 等客户端校验缺陷利用"
+      "what": "特权XPC服务发现、PID复用竞态攻击时间线与缺失audit token等客户端校验弱点利用"
     },
     {
       "heading": "4. MACH PORT MANIPULATION",
-      "what": "通过 task_for_pid 获取任务端口实现目标进程内存读写与线程注入及端口命名空间操纵"
+      "what": "task_for_pid获取任务端口实现目标进程内存读写与线程注入及bootstrap服务名抢占、异常端口劫持"
+    },
+    {
+      "heading": "6. ELECTRON / CHROMIUM INJECTION",
+      "what": "ELECTRON_RUN_AS_NODE/NODE_OPTIONS/--inspect调试旗标注入Electron应用并继承其TCC权限，含Electron fuses检查"
     }
   ]
 }

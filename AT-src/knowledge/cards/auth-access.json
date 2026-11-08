@@ -1,88 +1,88 @@
 {
-  "use_when": "在渗透测试与漏洞挖掘中需要对 API/Web 应用做对象级越权（IDOR/BOLA）与功能级越权（BFLA）测试、绕过 401/403 访问控制及利用 CORS 配置错误时阅读本篇，重点涵盖 A-B 双账号重放测试、Mass Assignment 提权、Django/Prisma/Ransack 过滤器注入、路径变形与 X-Original-URL 头绕过、null origin 与 Vary: Origin 缓存投毒、B 端后台 sellerId 实战方法论，区别于认证缺陷与 WAF 绕过类技能。",
+  "use_when": "在渗透测试与漏洞挖掘中需要系统化测试对象级/功能级越权、绕过401/403访问控制并利用CORS/CSRF/点击劫持等访问控制类漏洞时阅读本篇，重点涵盖IDOR/BOLA/BFLA、Django ORM与Ransack过滤注入、路径变形与X-Original-URL绕过、null Origin与Vary缺失缓存投毒、SameSite Lax绕过及JSONP劫持，区别于认证缺陷或SQL注入等非授权类漏洞的利用思路。",
   "triggers": [
     "越权",
     "IDOR",
     "BOLA",
     "BFLA",
-    "水平越权",
-    "垂直越权",
+    "不安全直接对象引用",
+    "Mass Assignment",
+    "Django ORM filter injection",
+    "Ransack",
     "403绕过",
     "X-Original-URL",
-    "Tomcat路径参数",
-    "mass assignment",
-    "批量赋值",
-    "CORS配置错误",
-    "CORS misconfiguration",
+    "X-Forwarded-For",
+    "verb tampering",
+    "byp4xx",
+    "CORS",
     "null origin",
     "Vary: Origin",
-    "Django filter injection",
-    "Ransack",
-    "verb tampering",
-    "B端后台",
-    "JSON CSRF"
+    "JSONP劫持",
+    "CSRF",
+    "SameSite Lax",
+    "点击劫持"
   ],
   "vulnclass": "越权",
   "section_map": [
     {
+      "heading": "1. IDOR vs BOLA vs BFLA",
+      "what": "区分对象级越权IDOR/BOLA与功能级越权BFLA的概念与影响差异"
+    },
+    {
       "heading": "3. A-B TESTING METHODOLOGY",
-      "what": "双账号A-B重放请求系统性验证对象级越权的标准测试流程"
-    },
-    {
-      "heading": "5. HORIZONTAL vs VERTICAL PRIVILEGE ESCALATION",
-      "what": "区分同级用户互访数据与低权访问高权功能的越权类型及组合利用"
-    },
-    {
-      "heading": "7. PARAMETER POLLUTION & TYPE CONFUSION",
-      "what": "数组/重复参数与JSON字符串整型混淆绕过ID校验逻辑"
+      "what": "双账号A-B对照重放请求系统性验证对象级越权"
     },
     {
       "heading": "8. BFLA (FUNCTION LEVEL) ATTACKS",
-      "what": "普通用户直调admin端点及从JS bundle/Swagger发现隐藏管理接口"
+      "what": "低权用户探测用户管理、批量操作等隐藏管理员功能端点的手法"
     },
     {
       "heading": "10. MASS ASSIGNMENT → PRIVILEGE ESCALATION",
-      "what": "注册/更新请求注入role/isAdmin等隐藏字段实现权限提升"
+      "what": "注册/更新接口提交role、isAdmin、verified等隐藏字段批量赋值实现提权"
     },
     {
       "heading": "14. ORM FILTER CHAIN LEAKS",
-      "what": "Django/Prisma/Ransack过滤器注入逐字符盲提取密码与关系遍历泄露"
+      "what": "Django/Prisma/Ransack过滤器注入逐字符提取密码及关系字段遍历泄露"
     },
     {
       "heading": "15. B端后台 IDOR 实战方法论（经验沉淀）",
-      "what": "B端商家后台sellerId越权模式、JS bundle接口分析、网关302排查与报告论证要点"
+      "what": "B端商家后台sellerId信任缺陷挖掘、JS bundle分析、批量导出接口优先级与302网关排查"
     },
     {
       "heading": "1. PATH MANIPULATION BYPASSES",
-      "what": "尾斜杠/大小写/URL双重编码/null字节/分号路径参数等路径变形绕过403"
+      "what": "尾斜杠、大小写、双重URL编码、分号路径参数等路径变形绕过401/403"
     },
     {
       "heading": "2. HTTP METHOD BYPASS",
-      "what": "换用POST/PUT/PATCH等动词及X-HTTP-Method-Override覆写头绕过方法级ACL"
+      "what": "换用PUT/PATCH等动词及X-HTTP-Method-Override覆盖头绕过方法级ACL"
     },
     {
       "heading": "3. HEADER-BASED BYPASS",
-      "what": "X-Original-URL/X-Rewrite-URL改写路径与X-Forwarded-For伪造内网IP过白名单"
-    },
-    {
-      "heading": "6. TECHNOLOGY-SPECIFIC BYPASSES",
-      "what": "Apache/Nginx/IIS ADS/Tomcat分号/Spring后缀等服务器专属绕过技巧"
-    },
-    {
-      "heading": "8. DECISION TREE",
-      "what": "401/403按路径→方法→头→协议逐级尝试的组合绕过决策树"
+      "what": "X-Original-URL/X-Rewrite-URL改写后端路由及X-Forwarded-For伪造IP白名单绕过"
     },
     {
       "heading": "5. NULL ORIGIN EXPLOITATION",
-      "what": "沙箱iframe产生null源并被服务端反射以读取带凭据的API响应"
-    },
-    {
-      "heading": "6. SUBDOMAIN XSS → CORS BYPASS CHAIN",
-      "what": "子域XSS配合*.target.com通配CORS跨源读取敏感API数据"
+      "what": "sandbox iframe/data URI制造Origin:null配合凭据包含窃取认证API数据"
     },
     {
       "heading": "7. VARY: ORIGIN CACHING ISSUE",
-      "what": "响应缺失Vary: Origin导致CDN缓存ACAO头投毒窃取受害者凭据响应"
+      "what": "反射Origin但缺失Vary:Origin头导致CDN缓存投毒跨域读取响应"
+    },
+    {
+      "heading": "1. JSONP Hijacking — Complete Attack Scenario",
+      "what": "JSONP回调跨域窃取认证数据、水坑攻击与蜜罐去匿名化场景"
+    },
+    {
+      "heading": "3. TOKEN BYPASS TECHNIQUES",
+      "what": "CSRF令牌缺失、未校验、静态可预测及双提交Cookie缺陷等绕过手法"
+    },
+    {
+      "heading": "13. SAMESITE=LAX ADVANCED BYPASS TECHNIQUES",
+      "what": "window.open两分钟窗口、302跳转链及GET伪装POST绕过SameSite=Lax"
+    },
+    {
+      "heading": "4. BYPASS TECHNIQUES",
+      "what": "点击劫持frame-busting脚本绕过、ALLOW-FROM缺陷与双框架攻击"
     }
   ]
 }

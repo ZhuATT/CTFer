@@ -1,72 +1,88 @@
 {
-  "use_when": "在红队授权行动中需要清除操作痕迹、对抗取证时间线分析与沙箱动态检测时阅读本篇，重点涵盖wevtutil/ETW补丁/Invoke-Phant0m日志致盲、Timestomp/SetMACE时间戳伪造、NTFS ADS载荷隐藏、sdelete/shred安全删除、USN日志/MFT磁盘痕迹销毁及反虚拟机沙箱检测，区别于攻击利用类技能而聚焦痕迹清除与取证规避并附蓝队检测视角。",
+  "use_when": "在红队授权攻击收尾或对抗主机/网络取证需要清除痕迹时阅读本篇，重点涵盖wevtutil/Invoke-Phant0m日志致盲、Timestomp与SetMACE时间戳伪造、NTFS ADS隐藏payload、sdelete/shred安全删除及MFT/USN磁盘痕迹抹除，区别于漏洞利用与C2框架类技能，聚焦证据销毁手法与蓝队检测视角。",
   "triggers": [
     "反取证",
-    "Anti-Forensics",
+    "anti-forensics",
     "痕迹清除",
+    "日志清理",
     "wevtutil",
-    "Clear-EventLog",
-    "ETW致盲",
-    "EtwEventWrite",
     "Invoke-Phant0m",
-    "Timestomp",
+    "ETW绕过",
+    "EtwEventWrite",
     "时间戳伪造",
+    "Timestomp",
     "SetMACE",
     "NTFS ADS",
-    "交替数据流",
+    "备用数据流",
     "sdelete",
     "shred",
-    "utmpdump",
-    "USN Journal",
     "MFT",
-    "反沙箱",
-    "Sandbox Evasion"
+    "USN Journal",
+    "utmpdump",
+    "journalctl",
+    "沙箱检测"
   ],
   "vulnclass": "其他",
   "section_map": [
     {
-      "heading": "Quick Workflow",
-      "what": "反取证七步流程：先枚举日志设施、尽早致盲ETW/Sysmon/auditd遥测、内存态操作最小化落地、伪造时间戳、选择性清日志、清内存痕迹并验证清理"
+      "heading": "Wevtutil Approach",
+      "what": "用wevtutil按通道清理Security/PowerShell/Sysmon日志并在清除前导出evtx备份"
     },
     {
-      "heading": "Windows Event Log Clearing",
-      "what": "wevtutil按通道清除与导出备份、Clear-EventLog批量清理、补丁ntdll!EtwEventWrite致盲ETW及Invoke-Phant0m击杀事件日志服务线程"
+      "heading": "PowerShell Clear-EventLog",
+      "what": "Clear-EventLog清经典日志并用wevtutil包装循环清空所有有记录的事件通道"
     },
     {
-      "heading": "Linux Log Clearing",
-      "what": "truncate截断与sed按IP/时间窗选择性删除syslog/auth.log、journalctl vacuum清理systemd日志及utmpdump/二进制编辑抹除utmp/wtmp登录记录"
+      "heading": "ETW Provider Patching",
+      "what": "内存补丁ntdll!EtwEventWrite首字节为RET致盲ETW源，及Invoke-Phant0m击杀日志服务线程使其空转"
     },
     {
-      "heading": "Timestamp Manipulation",
-      "what": "Windows下PowerShell属性赋值、Meterpreter timestomp与SetMACE直改MFT伪造MACE时间，Linux下touch -t/-r克隆及debugfs改ctime对抗时间线分析"
+      "heading": "Syslog and Auth Log Manipulation",
+      "what": "truncate截断保inode防告警、sed按来源IP/时间窗删行并处理gzip轮转日志"
     },
     {
-      "heading": "Filesystem Anti-Forensics",
-      "what": "利用NTFS Alternate Data Streams将载荷隐藏于良性文件流并从ADS执行，sdelete/cipher /w与shred/dd覆写实现安全删除及fstrim处理SSD"
+      "heading": "Systemd Journal Clearing",
+      "what": "journalctl flush/rotate后vacuum-time/vacuum-size清除或缩减journal并保留良性近期条目"
     },
     {
-      "heading": "Disk Artifact Manipulation",
-      "what": "fsutil删除/禁用USN变更日志、读取USN核对自身痕迹，以及填充卷空间强制MFT条目复用覆盖已删文件元数据"
+      "heading": "utmp/wtmp/btmp Binary Editing",
+      "what": "C程序与utmpdump对wtmp/utmp做二进制编辑，抹除指定用户的登录会话记录"
+    },
+    {
+      "heading": "Windows Timestomp",
+      "what": "PowerShell改文件时间戳、Meterpreter timestomp复制MACE值、SetMACE直改MFT属性绕过API日志"
+    },
+    {
+      "heading": "Linux Timestamp Manipulation",
+      "what": "touch设定/克隆时间戳与debugfs改写ext4下标准API无法修改的ctime"
+    },
+    {
+      "heading": "NTFS Alternate Data Streams",
+      "what": "将payload写入良性文件的ADS流隐藏不改可见大小，并借wmic/PowerShell从流读取执行"
+    },
+    {
+      "heading": "Secure Deletion",
+      "what": "sdelete/cipher /w与shred/dd多次覆写文件及分区空闲空间实现防恢复删除"
+    },
+    {
+      "heading": "MFT and USN Journal",
+      "what": "fsutil删除/禁用USN变更日志，并填满卷强制MFT条目复用以抹除已删文件元数据"
     },
     {
       "heading": "Memory Artifact Removal",
-      "what": "清除PSReadline与bash命令历史、避免LSASS凭据落盘、ssh-add -D删凭据及exec新进程丢弃内存痕迹以对抗 live 取证"
+      "what": "清PowerShell/bash命令历史、LSASS凭证痕迹并exec新进程摆脱内存残留对抗活取证"
     },
     {
       "heading": "Network Forensics Evasion",
-      "what": "DNS-over-Https解析C2绕过DNS日志、HTTPS/域前置伪装加密C2流量、SSH隧道加密横向移动及openssl加密外传数据"
+      "what": "DoH解析C2域名规避DNS日志、HTTPS域前置伪装、SSH隧道加密横向流量及openssl加密外传"
     },
     {
       "heading": "Anti-VM and Sandbox Detection",
-      "what": "通过WMI厂商/型号查询、VM特有进程名及低内存、少核、小磁盘、近期开机等特征检测虚拟机与沙箱环境并中止执行"
+      "what": "WMI查厂商/型号、VM专用进程名与低内存少核短开机等特征识别沙箱分析环境"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "蓝队检测视角：1102/104日志清除事件、$FILE_NAME与$STANDARD_INFORMATION时间不一致、Sysmon EID 2、USN缺失、日志截断异常及ADS枚举等反取证指标"
-    },
-    {
-      "heading": "Engagement Cheatsheet",
-      "what": "按痕迹类别对照Windows/Linux清除技术（日志、登录记录、历史、删除、timestomp、ETW、ADS、磁盘、网络、沙箱）与MITRE ATT&CK编号的速查表"
+      "what": "蓝队检测视角：1102/104清日志自身留痕、$SI与$FILE_NAME时间戳不一致、Sysmon EID 2、ETW内联钩子扫描与ADS枚举"
     }
   ]
 }

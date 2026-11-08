@@ -1,80 +1,88 @@
 {
-  "use_when": "在对使用 802.1X/EAP 认证的企业 WiFi（WPA/WPA2/WPA3-Enterprise）进行渗透测试时阅读本篇，重点涵盖 EAP 方法识别、eaphammer 邪恶双子恶意 RADIUS 捕获 MSCHAPv2 挑战响应、asleap/hashcat 离线破解、EAP-TLS 客户端证书窃取（DPAPI/NDES/AD CS）及域内横向，区别于 WPA-PSK 破解等预共享密钥场景（本篇网络无共享密钥，攻击点在请求者证书信任验证与内层认证协议）。",
+  "use_when": "在对企业 802.1X 认证的公司 Wi-Fi 做无线渗透/红队时需要识别 EAP 方法、搭建 Evil-Twin RADIUS 捕获并离线破解 MSCHAPv2 挑战响应、窃取 EAP-TLS 客户端证书或用破解出的域凭据横向切入域内时阅读本篇，重点涵盖 eaphammer、asleap/hashcat 5500、NDES/SCEP 与 AD CS 证书模板及 supplicant 服务器证书校验绕过，区别于传统 WPA-PSK 抓握手破解的家用无线思路。",
   "triggers": [
     "WPA-Enterprise",
+    "企业无线攻击",
     "802.1X",
-    "企业WiFi渗透",
-    "EAP方法识别",
-    "PEAP-MSCHAPv2",
+    "EAP",
+    "PEAP",
     "EAP-TTLS",
     "EAP-TLS",
     "EAP-GTC",
-    "eaphammer",
-    "邪恶双子AP",
-    "恶意RADIUS",
-    "asleap",
+    "EAP-FAST",
+    "MSCHAPv2",
     "NetNTLMv1",
-    "hashcat 5500",
-    "证书验证绕过",
-    "BYOD信任劫持",
-    "DPAPI证书窃取",
+    "邪恶双胞胎",
+    "Evil Twin",
+    "eaphammer",
+    "asleap",
+    "RADIUS",
+    "服务器证书校验绕过",
     "NDES",
     "SCEP",
-    "AD CS自动注册"
+    "客户端证书窃取"
   ],
   "vulnclass": "认证绕过",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "企业 WiFi 攻击五步流程总览：识别 EAP 方法→恶意 RADIUS 捕获→离线破解域凭据→转入 AD 攻击链"
+      "what": "五步总流程：识别 EAP 方法、MSCHAPv2 走伪 RADIUS 抓凭据、EAP-TLS 走证书路径攻击、离线破解后切入域"
     },
     {
       "heading": "EAP Method Identification",
-      "what": "用 tshark/airodump-ng 监听 802.1X 交换，按 EAP Type 编号识别 PEAP/TTLS/TLS/FAST/GTC/LEAP 方法"
+      "what": "用 tshark/airodump-ng 监听 802.1X 交换并按 EAP Type 编号区分 PEAP/TTLS/TLS/FAST/GTC 等方法"
     },
     {
       "heading": "Evil-Twin RADIUS (PEAP-MSCHAPv2 / TTLS-MSCHAPv2)",
-      "what": "eaphammer 搭建恶意 AP+RADIUS 捕获用户名与 MSCHAPv2 挑战响应，asleap 与 hashcat -m 5500 离线破解或送 crack.sh 彩虹表"
+      "what": "用 eaphammer 起伪 AP+RADIUS 引诱客户端上线抓取 MSCHAPv2 的 User/Challenge/Response，再用 asleap 或 hashcat -m 5500 离线破解"
     },
     {
       "heading": "Why Evil-Twin Works",
-      "what": "解析请求者不校验 RADIUS 证书 CA 链与 CN/SAN 导致自签证书被接受的根因及 GPO 证书校验固化防御"
+      "what": "解释 supplicant 不校验 RADIUS 证书 CA 链与 CN 导致自签名证书被接受的原理及 GPO/SCEP 加固对策"
     },
     {
       "heading": "Supplicant Validation Bypass",
-      "what": "检查 Windows 无线配置 XML 中 ServerNames/TrustedRootCA 字段缺失或通配，以及 BYOD 首次'信任'点击劫持"
+      "what": "审计各平台无线配置中的服务器证书校验设置与 BYOD 信任行为以判断邪恶双胞胎可行性"
+    },
+    {
+      "heading": "Windows",
+      "what": "检查部署的无线 Profile XML 的 ServerNames/TrustedRootCA 字段，缺失或通配即 evil-twin 成功"
+    },
+    {
+      "heading": "iOS / macOS / Android (BYOD)",
+      "what": "BYOD 首次连接点 Trust 后按哈希信任攻击者证书，无受控信任锚"
     },
     {
       "heading": "EAP-TLS Targets",
-      "what": "EAP-TLS 使用客户端证书无密码可抓，转向证书存储与签发路径的三类攻击面（本机窃取、NDES/SCEP、AD CS）"
+      "what": "证书认证的 EAP-TLS 线上无凭据可破，转向攻击证书存储与证书签发路径"
     },
     {
       "heading": "Cert Theft from User Profile",
-      "what": "从 Windows DPAPI 证书库、macOS Keychain、Android KeyStore（root+Frida）、iOS Keychain 窃取客户端证书私钥"
+      "what": "从 Windows DPAPI 证书库、macOS Keychain、Android KeyStore(Frida) 与 iOS Keychain 窃取客户端证书"
     },
     {
       "heading": "NDES / SCEP Misconfig",
-      "what": "发现 NDES 端点（/certsrv/mscep/mscep.dll）并用窃取或弱质询密码经 sscep 注册客户端证书"
+      "what": "发现 NDES 端点并利用被盗/弱 challenge 口令经 sscep 直接登记客户端证书"
     },
     {
       "heading": "AD CS Auto-Enrollment with Permissive ACL",
-      "what": "域用户对客户端认证模板拥有 Enroll 权限即可自助签发证书（ESC1 类滥用）"
+      "what": "域用户对客户端认证模板持 Enroll 权限可自铸证书，对应 ESC1 类攻击"
     },
     {
       "heading": "EAP-GTC",
-      "what": "GTC 内层明文传输，邪恶双子直接捕获明文密码无需离线破解"
+      "what": "GTC 内层明文传输，evil-twin 命中后直接抓到明文口令无需离线破解"
     },
     {
       "heading": "Post-Crack Pivot",
-      "what": "破解出的域凭据用 nxc 验证与全网密码喷洒，bloodhound-python 进行初始 AD 枚举"
+      "what": "用破解出的域凭据经 nxc 验证与口令喷射、bloodhound-python 枚举后移交 AD 攻击链"
     },
     {
       "heading": "Detection Considerations",
-      "what": "WIPS 规则、RADIUS 失败日志、事件 11005 等检测信号及伪造 BSSID、CA 签名证书、时段掩护规避技巧"
+      "what": "梳理 WIPS 伪 ESSID、RADIUS 失败激增、事件 11005 等防御信号并给出降低可探测性的操作建议"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "从 EAP 识别到凭据域验证的全套实战命令速查"
+      "what": "从 EAP 识别、eaphammer 部署、挑战抓取、破解、域验证到横向的六步速查命令集"
     }
   ]
 }

@@ -1,88 +1,88 @@
 {
-  "use_when": "在渗透测试中发现用户输入进入 HTML/JS/CSS 上下文或电子表格导出场景、需要挖掘并利用 XSS 时阅读本篇，重点涵盖注入上下文矩阵、Cloudflare/Akamai/Imperva 厂商 WAF 绕过、CSP 的 JSONP/base-uri/DOM Clobbering 绕过、Service Worker 持久化与 CSV 公式注入，区别于基础的 payload 字典速查类文档。",
+  "use_when": "在渗透测试中发现用户输入进入 HTML/JS/CSS 上下文或被导出为电子表格，需要完成从注入上下文判定、WAF/CSP 绕过到 Cookie 窃取、CSRF 乃至 WordPress RCE 的完整 XSS 利用链时阅读本篇，重点涵盖盲 XSS、二阶 XSS、DOM Clobbering、悬挂标记无 JS 外带及 CSV 公式注入（DDE/IMPORTXML/WEBSERVICE），区别于基础 payload 字典聚焦非显而易见的进阶实战手法。",
   "triggers": [
     "XSS",
     "跨站脚本",
-    "反射型XSS",
     "存储型XSS",
-    "DOM XSS",
+    "盲XSS",
     "Blind XSS",
-    "盲打XSS",
-    "WAF绕过",
+    "二阶XSS",
+    "DOM XSS",
     "CSP绕过",
     "JSONP",
+    "strict-dynamic",
+    "base-uri",
+    "WAF绕过",
+    "Cloudflare",
     "DOM Clobbering",
-    "mXSS",
-    "Service Worker持久化",
-    "CSS数据外带",
+    "悬挂标记注入",
     "Dangling Markup",
-    "悬空标记注入",
     "CSV注入",
+    "公式注入",
     "DDE",
-    "HttpOnly绕过",
-    "XS-Leaks"
+    "HttpOnly绕过"
   ],
   "vulnclass": "XSS",
   "section_map": [
     {
       "heading": "1. INJECTION CONTEXT MATRIX",
-      "what": "按 HTML 主体/属性/JS 字符串/URL 等反射上下文选择对应 payload 的判定矩阵"
-    },
-    {
-      "heading": "2. MULTI-REFLECTION ATTACKS",
-      "what": "同一页面多处反射时利用双反射、三反射与双参数组合触发 XSS 的 payload 构造"
+      "what": "按HTML标签外/属性值/JS字符串/URL协议等注入上下文选择对应payload的判定矩阵"
     },
     {
       "heading": "3. ADVANCED INJECTION VECTORS",
-      "what": "PHP_SELF 路径注入、文件名/SVG/EXIF 上传 XSS、postMessage 无 origin 校验与 XML 命名空间注入等进阶注入面"
+      "what": "DOM插入注入、PHP_SELF路径注入、文件上传/EXIF元数据注入、postMessage无origin校验与XML命名空间等进阶向量"
     },
     {
       "heading": "4. CSP BYPASS TECHNIQUES",
-      "what": "利用 JSONP 端点、AngularJS CDN、base-uri 缺失与悬空标记绕过 CSP 脚本限制"
+      "what": "利用白名单域JSONP端点、AngularJS CDN、Angular表达式与base-uri缺失实现CSP绕过"
     },
     {
       "heading": "5. FILTER AND WAF BYPASS",
-      "what": "参数名攻击、编码链、标签变形与碎片化注入等过滤与 WAF 绕过手法"
+      "what": "参数名攻击、双重编码链、标签大小写变形、碎片化注入与无事件处理器向量绕过过滤"
     },
     {
       "heading": "6. SECOND-ORDER XSS",
-      "what": "输入先存储编码、后于另一上下文未再转义渲染的二阶 XSS 触发与打到后台管理员的思路"
+      "what": "输入被存储编码后二次渲染未再编码触发XSS，重点攻击后台管理员查看上下文"
     },
     {
       "heading": "7. BLIND XSS METHODOLOGY",
-      "what": "对不回显参数注入远程 JS 回调 payload 并用收集器窃取 Cookie/DOM 的盲打流程"
+      "what": "联系表单/UA/Referer等非即时反射参数的盲XSS远程JS回调收集与信息收集器搭建"
     },
     {
       "heading": "8. XSS EXPLOITATION CHAIN",
-      "what": "Cookie 窃取、键盘记录、CSRF token 读取及 WordPress XSS 到 RCE 的完整利用链"
-    },
-    {
-      "heading": "10. XSS TESTING PROCESS (ZSEANO METHOD)",
-      "what": "先无害标签再残缺标签再编码探测的五步过滤器测试流程与同过滤器横向扩展思路"
-    },
-    {
-      "heading": "3. HttpOnly Bypass Strategies",
-      "what": "代理浏览器请求、CSRF via XSS、会话骑劫与键盘记录等绕过 HttpOnly 的替代利用方式"
-    },
-    {
-      "heading": "4. XS-Leaks (Cross-Site Leak) Scenarios",
-      "what": "利用搜索时间侧信道、帧计数与缓存探测推断跨站页面信息的 XS-Leaks 手法"
+      "what": "Cookie窃取、键盘记录、读取CSRF token跨防护、WordPress插件编辑器XSS到RCE及浏览器JS远控shell"
     },
     {
       "heading": "8. WAF BYPASS BY VENDOR",
-      "what": "针对 Cloudflare/Akamai/Imperva/WordFence/Fortiweb 的厂商定制绕过 payload 集"
+      "what": "Cloudflare/Akamai/Imperva/WordFence/Fortiweb各厂商WAF的针对性绕过payload"
     },
     {
       "heading": "10. CSS INJECTION DATA EXFILTRATION",
-      "what": "属性选择器逐字符爆破与 @font-face unicode-range 侧信道实现 CSS 数据外带"
+      "what": "仅能注入CSS时用属性选择器逐字符爆破、unicode-range字体侧信道与@import链式外带token"
     },
     {
       "heading": "3. Modern Framework XSS",
-      "what": "React dangerouslySetInnerHTML、Vue v-html、Angular 沙箱逃逸与 Next.js SSR 的框架型 XSS 触发点"
+      "what": "React dangerouslySetInnerHTML、Vue v-html、Angular bypassSecurityTrust与Next.js SSR的框架特有XSS sink"
     },
     {
       "heading": "5. Service Worker XSS Persistence",
-      "what": "注册恶意 Service Worker 拦截 fetch 请求实现补丁修复后仍存活的 XSS 持久化"
+      "what": "注册恶意Service Worker劫持fetch响应，实现XSS被修补后仍持续注入控制"
+    },
+    {
+      "heading": "2. BYPASS TECHNIQUES BY DIRECTIVE",
+      "what": "按script-src self/CDN白名单/unsafe-eval/nonce/strict-dynamic及缺失object-src、base-uri等CSP指令逐条绕过"
+    },
+    {
+      "heading": "2. CORE TECHNIQUE",
+      "what": "悬挂标记注入核心原理：未闭合属性吞噬后续页面内容实现无JavaScript的数据外带"
+    },
+    {
+      "heading": "3. EXFILTRATION VECTORS",
+      "what": "悬挂标记的img标签、表单action劫持、base标签劫持、meta刷新跳转等外带向量"
+    },
+    {
+      "heading": "1. Non-Obvious Techniques",
+      "what": "CSV公式注入四个危险前缀字符及DDE打开即RCE、Google Sheets IMPORTXML外带、LibreOffice WEBSERVICE本地文件读取"
     }
   ]
 }

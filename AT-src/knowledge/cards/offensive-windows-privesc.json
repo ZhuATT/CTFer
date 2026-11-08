@@ -1,80 +1,88 @@
 {
-  "use_when": "在Windows渗透测试或红队作业中已获得普通用户Shell、需要提权至NT AUTHORITY\\SYSTEM或本地管理员时阅读本篇，重点涵盖SeImpersonate令牌窃取、服务路径/DACL配置错误、AlwaysInstallElevated、DLL劫持、UAC绕过及PrintNightmare利用，区别于Linux提权与域内横向移动手法。",
+  "use_when": "在渗透测试/红队作业中拿到 Windows 普通用户 Shell 需要提权至 NT AUTHORITY\\SYSTEM 或本地管理员时阅读本篇，重点涵盖 SeImpersonate 土豆家族令牌窃取、未加引号服务路径与弱 DACL 服务提权、AlwaysInstallElevated、DLL 劫持、UAC 绕过、PrintNightmare 及 SAM/DPAPI/LSA 凭据窃取，区别于 Linux 提权与域内横向移动手法。",
   "triggers": [
     "Windows提权",
+    "SeImpersonatePrivilege",
     "土豆提权",
-    "SeImpersonate",
-    "令牌窃取",
     "JuicyPotato",
     "PrintSpoofer",
     "GodPotato",
-    "Unquoted Service Path",
-    "Weak Service DACL",
+    "令牌窃取",
+    "未加引号服务路径",
+    "服务DACL提权",
     "AlwaysInstallElevated",
-    "MSI提权",
     "DLL劫持",
-    "WinPEAS",
-    "UAC Bypass",
-    "fodhelper.exe",
-    "计划任务提权",
-    "注册表Autoruns",
+    "Phantom DLL",
+    "UAC绕过",
+    "fodhelper",
     "PrintNightmare",
     "CVE-2021-34527",
-    "Mimikatz"
+    "SAM数据库",
+    "DPAPI",
+    "Mimikatz",
+    "凭据窃取"
   ],
   "vulnclass": "提权",
   "section_map": [
     {
-      "heading": "Quick Workflow",
-      "what": "从自动化枚举到令牌检查、服务/DLL/UAC/凭据逐层推进的九步提权流程"
-    },
-    {
       "heading": "Automated Enumeration",
-      "what": "使用WinPEAS、PowerUp、SharpUp、Seatbelt、BeRoot批量收集提权面"
+      "what": "用 WinPEAS/PowerUp/SharpUp/Seatbelt/beRoot 一键枚举提权面"
     },
     {
       "heading": "Token Impersonation",
-      "what": "利用SeImpersonate/SeAssignPrimaryToken权限通过Potato家族工具窃取SYSTEM令牌"
+      "what": "whoami /priv 检查 SeImpersonate/SeAssignPrimaryToken 令牌窃取前提"
     },
     {
-      "heading": "Service Misconfigurations",
-      "what": "未加引号服务路径、弱服务DACL与可写服务二进制的替换重启利用"
+      "heading": "JuicyPotato (Windows Server 2008-2016, Windows 7-10 before 1809)",
+      "what": "滥用 COM DCOM 认证协商 SYSTEM 令牌并按系统版本选择 CLSID"
+    },
+    {
+      "heading": "Unquoted Service Paths",
+      "what": "wmic/PowerUp 查带空格未加引号服务路径并在解析缝隙投放恶意 exe"
+    },
+    {
+      "heading": "Weak Service DACLs",
+      "what": "accesschk 枚举服务权限后 sc config 修改 binpath 执行提权命令"
+    },
+    {
+      "heading": "Writable Service Binaries",
+      "what": "icacls 验证可写后备份替换服务二进制并重启服务触发载荷"
     },
     {
       "heading": "AlwaysInstallElevated",
-      "what": "注册表双键为1时用msfvenom生成恶意MSI以SYSTEM权限安装提权"
+      "what": "双注册表键均为 1 时 msfvenom 生成恶意 MSI 以 SYSTEM 静默安装"
     },
     {
-      "heading": "DLL Hijacking",
-      "what": "DLL搜索顺序劫持、幻影DLL加载与可写PATH目录注入及恶意DLL模板"
+      "heading": "Search Order Hijacking",
+      "what": "procmon 监控 NAME NOT FOUND 定位可劫持 DLL 与可写 PATH 目录"
     },
     {
-      "heading": "UAC Bypass",
-      "what": "通过fodhelper、eventvwr、CMSTP劫持HKCU注册表从中完整性提升至高完整性"
+      "heading": "Phantom DLL Hijacking",
+      "what": "投放服务缺失的幽灵 DLL（wlbsctrl/wbemcomn/fveapi）触发加载"
+    },
+    {
+      "heading": "fodhelper.exe Bypass",
+      "what": "写 HKCU ms-settings 命令注册表键触发自动提权进程绕过 UAC"
     },
     {
       "heading": "Scheduled Task Abuse",
-      "what": "枚举SYSTEM计划任务、替换可写动作二进制及新建SYSTEM任务提权"
+      "what": "枚举 SYSTEM 计划任务、替换可写动作二进制或注册新 SYSTEM 任务"
     },
     {
       "heading": "Registry Autoruns",
-      "what": "劫持Run/RunOnce自启动项指向的可写二进制等待管理员登录触发提权"
+      "what": "检查 Run/RunOnce 自启动项二进制可写性并劫持等待管理员登录或重启"
     },
     {
       "heading": "PrintNightmare -- CVE-2021-34527",
-      "what": "利用Print Spooler加载任意DLL以SYSTEM身份执行实现本地/远程提权"
+      "what": "利用 Print Spooler 驱动加载任意 DLL 以 SYSTEM 执行添加管理员"
     },
     {
-      "heading": "Credential Harvesting",
-      "what": "SAM/SYSTEMhive离线导出、DPAPI解密、LSA秘密转储与凭据管理器收割"
+      "heading": "SAM Database Extraction",
+      "what": "reg save 或卷影副本导出 SAM/SYSTEM/SECURITY 后 secretsdump 离线解密"
     },
     {
-      "heading": "Detection / Defender View",
-      "what": "各提权技术的检测指标与Sysmon及Windows安全日志事件ID对照表"
-    },
-    {
-      "heading": "Engagement Cheatsheet",
-      "what": "五阶段提权作战速查命令与收尾清理恢复清单"
+      "heading": "DPAPI and LSA Secrets",
+      "what": "Mimikatz/SharpDPAPI 解密 DPAPI 凭据 blob 并 dump LSA 服务账号密码"
     }
   ]
 }

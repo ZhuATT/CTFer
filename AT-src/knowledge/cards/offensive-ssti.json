@@ -1,72 +1,88 @@
 {
-  "use_when": "在渗透测试中对模板渲染端点（render_template_string/Template拼接用户输入）进行SSTI探测、模板引擎指纹识别并升级至RCE时阅读本篇，重点涵盖Jinja2/Twig/Freemarker/Thymeleaf等12类引擎的polyglot探测、MRO遍历RCE链、WAF/过滤绕过、盲注OOB及SSRF/反弹shell链式利用（tplmap/SSTImap），区别于客户端模板注入与通用命令注入场景。",
+  "use_when": "在渗透测试中针对模板渲染端点探测服务端模板注入（SSTI）、指纹识别模板引擎并构造 RCE 利用链时阅读本篇，重点涵盖 Jinja2/Twig/Freemarker/Velocity/Pebble/Thymeleaf/Smarty/Mako/ERB/EJS/Pug 等引擎载荷、WAF 绕过、盲注 OOB 外带及 SSRF/文件读取/反弹 Shell 链式利用，区别于仅覆盖客户端模板注入或单一引擎 Payload 的资料。",
   "triggers": [
     "SSTI",
     "服务端模板注入",
     "模板注入",
-    "模板引擎指纹",
     "Jinja2",
     "Twig",
     "Freemarker",
+    "Velocity",
     "Thymeleaf",
     "SpEL",
-    "Velocity",
     "MRO遍历",
     "__subclasses__",
     "__globals__",
-    "polyglot探测",
     "WAF绕过",
     "时间盲注",
-    "OOB带外",
-    "interactsh",
+    "OOB DNS外带",
     "tplmap",
-    "原型污染"
+    "SSTImap",
+    "原型污染",
+    "反弹Shell",
+    "云元数据"
   ],
   "vulnclass": "SSTI",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "八步渗透流程：映射注入面→探测与指纹→确认服务端执行→RCE→链式扩大影响的完整方法论"
+      "what": "从注入面测绘、探测、指纹识别到 RCE 与链式利用的八步测试流程"
     },
     {
       "heading": "1. Engine Detection and Fingerprinting",
-      "what": "polyglot万能探测串、{{7*'7'}}决策树、各引擎报错签名及时间/OOB盲检测定位具体模板引擎"
+      "what": "算术探测、决策树、报错签名与盲检测定位模板引擎类型"
+    },
+    {
+      "heading": "1.1 Polyglot Probes",
+      "what": "${{<%[%'\"}} 通用探测式与 {{config}}、{$smarty.version} 等引擎收窄载荷"
     },
     {
       "heading": "2. Jinja2 / Python",
-      "what": "MRO遍历与__subclasses__枚举、Popen/lipsum/cycler/namespace等多条RCE链及Flask config与文件读写"
+      "what": "Jinja2 MRO 遍历、多种 RCE 链与文件读写及 Flask 配置信息泄露"
+    },
+    {
+      "heading": "2.1 MRO Traversal and Subclass Enumeration",
+      "what": "遍历 __mro__ 与 __subclasses__ 并运行时定位 Popen 类下标"
+    },
+    {
+      "heading": "2.2 RCE Chains",
+      "what": "subprocess.Popen、__globals__、request.application、cycler、lipsum 等 RCE 载荷"
     },
     {
       "heading": "3. Twig / PHP",
-      "what": "Twig 1.x的_self.env回调与2.x/3.x的filter/map/sort/reduce函数回调执行系统命令及信息泄露"
+      "what": "Twig 1.x _self.env 回调与 2.x/3.x filter/map/sort/reduce 回调命令执行"
     },
     {
       "heading": "4. Java Template Engines",
-      "what": "Freemarker Execute/ObjectConstructor、Velocity Runtime.exec、Pebble反射链、Thymeleaf双下划线SpEL预处理注入"
+      "what": "Freemarker Execute/ObjectConstructor、Velocity Runtime.exec、Pebble 反射链与 Thymeleaf SpEL 利用"
+    },
+    {
+      "heading": "4.4 Thymeleaf -- SpEL via Preprocessing",
+      "what": "__${...}__ 预处理表达式注入 SpEL 实现命令执行与文件读取"
     },
     {
       "heading": "5. Other Engines",
-      "what": "Smarty {php}标签与math命令执行、Mako模块、ERB Ruby命令执行、Handlebars/EJS/Pug/Nunjucks原型污染链"
+      "what": "Smarty、Mako、ERB、Handlebars、EJS、Pug/Nunjucks 各引擎 RCE 载荷集"
     },
     {
       "heading": "6. Filter and WAF Bypass",
-      "what": "attr()替代点号、下划线十六进制编码、波浪线字符串拼接、请求参数走私与HTTP参数污染绕过WAF"
+      "what": "字符限制绕过、字符串拼接构造、编码走私与请求参数拼接等过滤规避手法"
+    },
+    {
+      "heading": "6.5 WAF Evasion Techniques",
+      "what": "参数分割、HPP 参数污染、双重 URL 编码与换行注入绕过 WAF 规则"
     },
     {
       "heading": "7. Blind Exploitation",
-      "what": "时间盲注延时构造、interactsh/Collaborator OOB DNS回连确认、报错推断与布尔逐字符提取"
+      "what": "时间盲注、OOB DNS 回调外带与布尔/报错逐字符推断提取数据"
     },
     {
       "heading": "8. Chained Exploitation",
-      "what": "SSTI转SSRF读云元数据、SSH密钥/K8s token等敏感文件读取、反弹shell、提权枚举与DNS/HTTP分块数据外传"
+      "what": "串联 SSRF 云元数据、敏感文件读取、反弹 Shell、提权枚举与数据外带"
     },
     {
-      "heading": "Detection / Defender View",
-      "what": "模板定界符与MRO/Java反射攻击特征、失陷指标识别及沙箱环境与过滤白名单等防御加固"
-    },
-    {
-      "heading": "Engagement Cheatsheet",
-      "what": "侦察到取证的各阶段行动速查表与tplmap/SSTImap/ffuf/arjun工具命令参考"
+      "heading": "Tool Quick Reference",
+      "what": "tplmap/SSTImap 扫描与命令执行及 waybackurls/ffuf 参数发现速查"
     }
   ]
 }

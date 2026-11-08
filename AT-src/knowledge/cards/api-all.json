@@ -1,88 +1,88 @@
 {
-  "use_when": "在渗透测试中对 REST、GraphQL 或移动端 API 目标进行安全评估时阅读本篇，重点涵盖端点与 OpenAPI/Swagger 文档侦察、BOLA/BFLA 越权与批量赋值、JWT 令牌滥用及 GraphQL 内省与批量请求利用，区别于传统 Web 页面漏洞的单点检测思路。",
+  "use_when": "在对 REST/GraphQL/移动端 API 目标做渗透测试需要端点侦察、越权与令牌滥用时阅读本篇，重点涵盖 OpenAPI/Swagger 文档挖掘、BOLA/BFLA 与批量赋值、alg:none/RS256 混淆、GraphQL 内省与批量查询及限流绕过，区别于传统单点 Web 漏洞检测的 API 全攻击面方法论。",
   "triggers": [
     "API安全",
+    "API侦察",
+    "Swagger",
+    "openapi.json",
     "BOLA",
-    "越权",
-    "对象级越权",
+    "水平越权",
+    "IDOR",
     "BFLA",
     "mass assignment",
     "批量赋值",
-    "JWT滥用",
+    "JWT",
     "alg:none",
-    "RS256 confusion",
-    "算法混淆",
+    "RS256混淆",
+    "kid",
+    "jku",
     "GraphQL",
-    "introspection",
-    "内省",
-    "GraphQL batching",
-    "隐藏参数",
-    "Swagger",
-    "OpenAPI",
-    "速率限制绕过",
-    "X-Forwarded-For"
+    "内省查询",
+    "限流绕过",
+    "X-Forwarded-For",
+    "隐藏参数"
   ],
   "vulnclass": "越权",
   "section_map": [
     {
-      "heading": "Part 1: API Recon & Docs",
-      "what": "枚举 API 可达入口、文档与版本暴露面，在漏洞利用前完成侦察"
+      "heading": "2. RECON CHECKLIST",
+      "what": "API侦察总清单：前端JS路由挖掘、常见文档路径与版本漂移探测"
     },
     {
-      "heading": "2. RECON CHECKLIST",
-      "what": "grep 前端 JS 提取 API 路径、探测 swagger/openapi 文档路径与 v1/v2/mobile/legacy 版本漂移"
+      "heading": "Common documentation and schema paths",
+      "what": "swagger.json/openapi.json/api-docs/graphql 等文档与schema常见路径字典"
+    },
+    {
+      "heading": "Version and product drift",
+      "what": "探测 /api/v1、/api/mobile/v1、/legacy 等版本与产品漂移的旧接口面"
     },
     {
       "heading": "3. WHAT TO EXTRACT FROM DOCS",
-      "what": "从 API 文档提取未公开可选字段、admin 请求示例、仍存活的废弃端点与 additionalProperties 宽松 schema 线索"
+      "what": "从文档提取未文档化字段、管理员请求示例与 additionalProperties 等schema提示"
     },
     {
-      "heading": "Part 2: API Authorization & BOLA",
-      "what": "以双账号创建/读取/更新/删除流回放系统化测试对象级与功能级越权及批量赋值"
+      "heading": "1. CORE TEST LOOP",
+      "what": "双账号A/B令牌重放增删改查流的越权测试主循环"
     },
     {
       "heading": "2. TEST SURFACES",
-      "what": "对象读取、嵌套资源、admin 内部功能与 PUT/PATCH/DELETE 变体等同路由测试面"
+      "what": "对象读取、嵌套资源、admin功能及 PUT/PATCH/DELETE 变体的测试面"
     },
     {
       "heading": "3. QUICK PAYLOADS",
-      "what": "role/isAdmin/org/verified 等隐藏 JSON 字段的批量赋值提权 payload"
+      "what": "role/isAdmin/org/verified 等批量赋值快速payload"
     },
     {
       "heading": "4. WHAT TESTERS MISS",
-      "what": "头部/Cookie/GraphQL 参数中的对象 ID、同路由多动词弱鉴权与父子资源校验缺失等易漏点"
-    },
-    {
-      "heading": "Part 3: API Auth & JWT Abuse",
-      "what": "JWT/Bearer/API Key 令牌信任边界、声明滥用、头部伪造与速率限制绕过"
+      "what": "头部/cookie/GraphQL参数中的对象ID、共享路由弱授权与子资源缺校验等易漏点"
     },
     {
       "heading": "1. TOKEN TRIAGE",
-      "what": "审查 alg/kid/jku/x5u 头、角色/租户/scope 声明及签发者与受众不匹配"
+      "what": "检查 JWT 的 alg/kid/jku/x5u 头与 role/org/tenant/scope 声明及issuer/audience不匹配"
     },
     {
       "heading": "2. QUICK ATTACK PICKS",
-      "what": "alg:none 无签名令牌、RS256→HS256 公钥混淆、kid 注入、jku/x5u 远程密钥劫持与弱密钥离线爆破"
+      "what": "alg:none、RS256转HS256混淆、kid注入穿越、jku/x5u 远程密钥控制与弱密钥破解"
     },
     {
       "heading": "3. HIDDEN FIELDS AND BATCH ABUSE",
-      "what": "批量赋值字段清单、X-Forwarded-For/X-Real-IP 伪造与批量登录/对象抓取请求滥用"
+      "what": "批量赋值字段清单与单请求内登录数组、批量取对象等滥用手法"
     },
     {
       "heading": "4. RATE LIMIT BYPASS FAMILIES",
-      "what": "伪造 IP 头、User-Agent 轮换与路径大小写/斜杠变体绕过速率限制"
+      "what": "X-Forwarded-For/X-Real-IP/UA轮换/路径大小写变形绕过限流"
     },
     {
       "heading": "1. GRAPHQL FIRST PASS",
-      "what": "__typename/__schema 内省查询及内省被禁时的报错提示与 __type 已知类型探测"
+      "what": "__schema/__typename 内省查询及受限时报错提示与 __type 探测绕过"
     },
     {
       "heading": "2. HIGH-VALUE GRAPHQL TESTS",
-      "what": "GraphQL IDOR、批量操作、admin 隐藏字段与嵌套关联对象鉴权缺口"
+      "what": "GraphQL IDOR、批量操作、隐藏字段与嵌套对象弱校验的高价值测试"
     },
     {
       "heading": "3. HIDDEN PARAMETER DISCOVERY",
-      "what": "比对 admin 文档、宽松 schema 与前端/移动端富请求体挖掘隐藏参数"
+      "what": "通过管理员文档、宽松schema、前端富请求体与移动端点发现未文档化参数"
     }
   ]
 }

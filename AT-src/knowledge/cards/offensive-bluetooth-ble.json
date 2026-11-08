@@ -1,80 +1,80 @@
 {
-  "use_when": "在针对智能锁、可穿戴设备、车载BLE手机钥匙、医疗设备等物联网蓝牙外设进行渗透测试时阅读本篇，重点涵盖GATT枚举、特征值未授权读写、Just Works配对嗅探与crackle破解LTK及配套App逆向，区别于经典蓝牙与Wi-Fi等传统无线攻击手法。",
+  "use_when": "在近场无线渗透中对智能锁、可穿戴、车载数字钥匙等 BLE/IoT 设备做 GATT 枚举与未授权特征值读写测试时阅读本篇，重点涵盖 bettercap/gatttool 枚举、Just Works 配对降级嗅探、crackle 破解 LTK、btproxy 主动 MITM 中继与配套 App 逆向，区别于 Wi-Fi 及传统网络层攻击方法论。",
   "triggers": [
     "BLE",
-    "蓝牙低功耗",
     "Bluetooth Low Energy",
+    "低功耗蓝牙",
     "GATT枚举",
-    "GATT",
     "特征值读写",
-    "未授权访问",
+    "未授权写入",
     "Just Works",
     "配对降级",
-    "LE Secure Connections",
     "LE Legacy Pairing",
-    "LTK",
+    "LE Secure Connections",
+    "LTK破解",
     "crackle",
     "Sniffle",
     "Ubertooth",
+    "配对嗅探",
+    "蓝牙中间人",
+    "btproxy",
     "bettercap",
     "gatttool",
-    "蓝牙中间人",
-    "中继攻击",
-    "智能锁"
+    "智能锁破解"
   ],
   "vulnclass": "未授权访问",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "BLE攻击五步流程：枚举GATT树、测试未授权读写、检查配对方式、中间人配对、逆向配套App"
+      "what": "BLE攻击五步流程：GATT枚举、免认证读写探测、配对方式审查、MITM配对与配套App逆向"
     },
     {
       "heading": "Discovery + GATT Enumeration",
-      "what": "使用bettercap、bluetoothctl、gatttool发现设备并枚举服务/特征值，厂商自定义128位UUID即攻击面"
+      "what": "用bettercap/bluetoothctl/gatttool发现设备并枚举服务与特征值，定位厂商自定义128位UUID攻击面"
     },
     {
       "heading": "Characteristic Auth-Free Read/Write",
-      "what": "遍历所有可读/可写特征值进行无认证读写探测，覆盖门锁unlock、灯控、PIN读取等常见缺陷"
+      "what": "遍历全部可读/可写特征值做免认证读取与恶意写入，如门锁unlock直接写开、可穿戴PIN可读"
     },
     {
       "heading": "Pairing Method Identification",
-      "what": "通过bluetoothctl识别Just Works/Numeric Comparison/Passkey Entry等配对方式并评估其安全强度"
+      "what": "通过bluetoothctl配对提示识别Just Works/数值比较/Passkey/OOB方式，Just Works即无MITM防护可被降级利用"
     },
     {
       "heading": "Sniffing the Pairing Exchange",
-      "what": "用Sniffle(TI CC1352)或Ubertooth多信道抓取配对流量，再用crackle破解LE Legacy Pairing的LTK"
+      "what": "用Sniffle(TI CC1352)/Ubertooth抓配对报文，crackle对LE Legacy Pairing猜解TK秒级恢复LTK"
     },
     {
       "heading": "Active MITM During Pairing",
-      "what": "利用btproxy/mirage在Just Works配对时充当双方合法对端，实时读取与篡改GATT操作"
+      "what": "用btproxy/mirage-action-with-mitm在设备与受害者手机间中继，Just Works下成为双方合法对端实时篡改GATT"
     },
     {
       "heading": "Companion App Reverse Engineering",
-      "what": "adb拉取APK后用jadx反编译，grep定位writeCharacteristic提取厂商专有BLE命令字节格式"
+      "what": "adb拉取APK后jadx反编译，grep定位writeCharacteristic还原厂商私有命令的字节格式"
     },
     {
       "heading": "Smart Locks",
-      "what": "测试unlock特征值未授权写入、滚动令牌窗口期内重放及固件硬编码LTK"
+      "what": "测试unlock特征值免认证写、滚动令牌重放窗口与固件硬编码LTK"
     },
     {
       "heading": "Cars (BLE Phone-as-Key)",
-      "what": "用两台SDR设备扩展BLE手机钥匙通信距离实施中继攻击及配对状态机缺陷测试"
+      "what": "车载BLE数字钥匙的双SDR中继扩程攻击（特斯拉2022研究）与配对状态机缺陷"
     },
     {
       "heading": "Medical Devices",
-      "what": "以近距离攻击者身份经未授权GATT读取PHI遥测数据及远程配置胰岛素泵等高危功能"
+      "what": "未认证GATT遥测近场读取PHI及胰岛素泵/起搏器远程配置风险的谨慎披露协调"
     },
     {
       "heading": "Beacons (iBeacon, Eddystone)",
-      "what": "利用0000/12345678等默认口令重新配置信标实施重品牌伪造攻击"
+      "what": "用默认口令(0000/12345678)接管iBeacon/Eddystone信标实施重品牌追踪混淆"
     },
     {
       "heading": "Detection Considerations",
-      "what": "BLE缺乏类WIDS入侵检测，多次Just Works配对提示是主要暴露风险点"
+      "what": "BLE缺乏类WIDS原生入侵检测，厂商云异常检测稀少，多次配对提示或引发用户警觉"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "实战速查：bettercap侦察枚举、gatttool遍历读写、bluetoothctl配对探测、Sniffle+crackle破解的完整命令链"
+      "what": "从bettercap发现、gatttool探测、Sniffle抓包crackle解密到jadx逆向的六步实战命令速查"
     }
   ]
 }

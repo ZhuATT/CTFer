@@ -1,72 +1,88 @@
 {
-  "use_when": "在渗透测试或漏洞赏金中对 GraphQL API 开展全链路攻击时阅读本篇，重点涵盖内省查询与字段建议盲重建 schema、Relay 节点 ID 越权、批处理暴破限速绕过、深度炸弹 DoS、WebSocket 订阅劫持及 multipart 文件上传滥用，并附 InQL/CrackQL/clairvoyance/graphw00f 等工具用法，区别于通用 REST 接口渗透方法论。",
+  "use_when": "在对 GraphQL API 开展渗透测试或漏洞赏金评估需要全生命周期攻击方法时阅读本篇，重点涵盖内省禁用后的字段建议盲重建Schema、Relay node ID 越权、变量注入、批量请求绕限速爆破OTP、深度炸弹DoS 与 WebSocket 订阅劫持，区别于常规 REST API 按路由逐点测试的单端点聚合攻击面思路。",
   "triggers": [
+    "GraphQL",
     "GraphQL安全",
     "内省查询",
     "introspection",
     "__schema",
-    "字段建议猜测",
+    "__type",
+    "字段建议",
     "field suggestion",
     "clairvoyance",
-    "graphw00f",
-    "InQL",
-    "Relay节点ID",
+    "Relay node",
     "GraphQL IDOR",
-    "批处理暴破",
+    "批量攻击",
     "batching attack",
     "CrackQL",
-    "OTP绕过",
-    "深度炸弹",
+    "InQL",
+    "graphql-cop",
     "别名放大",
-    "订阅劫持",
-    "跨站WebSocket劫持",
-    "multipart上传"
+    "深度炸弹",
+    "OTP绕过",
+    "跨站WebSocket劫持"
   ],
-  "vulnclass": "越权",
+  "vulnclass": "其他",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "GraphQL 攻击全流程速览：端点发现、指纹识别、schema 获取、授权测试、注入、批处理到链式升级的 12 步操作"
+      "what": "十二步GraphQL攻击全流程速览：从端点发现、指纹识别到链式利用与升级"
     },
     {
       "heading": "1 -- Endpoint Discovery and Fingerprinting",
-      "what": "探测常见 GraphQL 路径、以 __typename 验证端点，并用 graphw00f 指纹与 graphql-cop 一次性配置审计"
+      "what": "探测常见GraphQL路径以__typename确认端点，graphw00f指纹识别与graphql-cop一次性配置审计"
     },
     {
       "heading": "2 -- Introspection and Blind Schema Reconstruction",
-      "what": "全量 __schema 内省拖取 schema；被禁用时用 __type 查询、字段建议 oracle、clairvoyance 字典与 JS bundle 爬取盲重建"
+      "what": "全量__schema内省dump、__type定点查询与内省被禁用后的Schema重建手法"
+    },
+    {
+      "heading": "Bypassing Disabled Introspection",
+      "what": "利用Did you mean字段建议oracle配合clairvoyance字典盲重建Schema，以及Apollo Sandbox与JS bundle提取查询"
     },
     {
       "heading": "3 -- Authentication and Authorization Bypass",
-      "what": "伪造 Base64 Relay node ID 横向越权枚举、嵌套对象授权缺口、分页游标篡改及无 token/低权限调用敏感 mutation"
+      "what": "Relay node ID伪造、嵌套对象越权、游标篡改与mutation跨用户/低权限提权测试"
+    },
+    {
+      "heading": "IDOR Through Relay Node IDs",
+      "what": "解码base64的Type:ID全局node接口ID并伪造遍历其他用户对象数据"
     },
     {
       "heading": "4 -- Injection Through Resolvers",
-      "what": "经变量与参数注入 SQL/NoSQL/时间盲注、指令洪泛打崩解析器（CVE-2024-47614）及 URL 参数 SSRF 打云元数据"
+      "what": "通过变量与参数注入SQL/NoSQL payload、@include指令洪泛崩溃解析器及URL参数SSRF打元数据接口"
     },
     {
       "heading": "5 -- Batching Attacks",
-      "what": "数组批量与别名批量在单 HTTP 请求内携带数百次登录/OTP 尝试绕过限速，配合 BatchQL/CrackQL 自动化暴破"
+      "what": "数组与别名批量请求绕过HTTP级限速，实施登录暴力破解与OTP/2FA穷举，配合BatchQL/CrackQL自动化"
+    },
+    {
+      "heading": "OTP / 2FA Bypass",
+      "what": "分块批量提交全部4位OTP验证码，单次HTTP请求内穷举绕过尝试次数限制"
     },
     {
       "heading": "6 -- Denial of Service",
-      "what": "深度炸弹嵌套循环关系、别名放大重复调用昂贵 resolver、循环 fragment 递归及 @defer/@stream 增量投递耗尽资源"
+      "what": "深度炸弹嵌套、别名放大、循环fragment无限递归与@defer/@stream增量交付滥用耗尽服务端资源"
     },
     {
       "heading": "7 -- Subscription Abuse and WebSocket Hijacking",
-      "what": "空 connection_init 未授权订阅敏感事件流、长连接 JWT 过期不失效及 Origin 校验缺失导致的 CSWSH 劫持"
+      "what": "未授权connection_init订阅敏感事件流、长连接JWT过期复用与graphql-ws协议攻击面"
+    },
+    {
+      "heading": "Cross-Site WebSocket Hijacking (CSWSH)",
+      "what": "恶意页面利用cookie认证且未校验Origin头的WebSocket端点劫持订阅并外传数据"
     },
     {
       "heading": "8 -- Information Disclosure and File Upload",
-      "what": "类型不匹配触发堆栈路径泄露、Hasura x-hasura-role 头注入与 Federation _service SDL 泄露、multipart 规范上传路径穿越与类型绕过"
+      "what": "类型不匹配触发报错堆栈泄露、Hasura头注入与Apollo _service SDL泄露、multipart规范文件上传攻击"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "各类攻击的检测与加固对照表：关闭内省、限制批量大小/查询深度/别名数、GraphQL Armor 与持久化查询等防护"
+      "what": "按攻击类别对照检测与加固方案：禁用内省、GraphQL Armor深度/成本限制、批量上限与持久化查询"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "按侦察、盲 schema 恢复、授权、注入、批量、DoS、订阅、上传、信息泄露分类的实战命令速查清单"
+      "what": "按侦察、盲Schema恢复、越权、注入、批量、DoS、订阅、上传、信息泄露分阶段的速查命令与payload清单"
     }
   ]
 }

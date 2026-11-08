@@ -1,88 +1,104 @@
 {
-  "use_when": "在Web渗透测试与漏洞赏金(SRC/众测)中对XML解析入口进行XXE漏洞挖掘与利用时阅读本篇，重点涵盖经典文件读取、Blind XXE带外回连、SVG/DOCX/EPUB/SAML格式注入、XInclude、Billion Laughs、php://filter绕过及云原生K8s/CI-CD链利用，区别于通用SSRF与文件上传漏洞的常规测试思路。",
+  "use_when": "在Web渗透测试或SRC众测中发现XML解析入口需要验证XXE并实现文件读取、SSRF与数据外带时阅读本篇，重点涵盖经典/盲/报错型XXE、参数实体、XInclude、SVG/DOCX/SAML/EPUB等格式利用、Kubernetes与CI/CD云原生场景及过滤绕过手法，区别于仅讲通用SSRF或文件上传漏洞的文档。",
   "triggers": [
     "XXE",
-    "XML External Entity",
     "XML外部实体注入",
+    "XML External Entity",
     "Blind XXE",
     "盲XXE",
-    "带外OOB",
+    "out-of-band",
     "XInclude",
-    "SVG XXE",
-    "SOAP XXE",
-    "SAML XXE",
-    "Billion Laughs",
-    "十亿笑声",
-    "报错XXE",
-    "php://filter",
+    "参数实体",
+    "外部DTD",
+    "报错型XXE",
     "XXE SSRF",
-    "外部实体",
-    "DTD",
+    "云元数据",
+    "169.254.169.254",
+    "php://filter",
+    "SVG XXE",
+    "SAML XXE",
+    "十亿笑声攻击",
     "Burp Collaborator",
     "Interactsh",
-    "169.254.169.254"
+    "Kubernetes XXE"
   ],
   "vulnclass": "XXE",
   "section_map": [
     {
-      "heading": "Shortcut",
-      "what": "快速测试路径：定位XML数据入口、区分经典/盲XXE、搭建回连监听并尝试读取/etc/hostname等系统文件"
-    },
-    {
       "heading": "Mechanisms",
-      "what": "XXE原理：DTD外部实体解析缺陷导致文件泄露、SSRF、拒绝服务及借助expect://或Java反序列化的RCE链"
+      "what": "XXE漏洞成因、DTD外部实体解析机制与经典/盲/报错/XInclude四类攻击及文件泄露、SSRF、DoS、RCE影响面"
     },
     {
       "heading": "Identify XML Injection Points",
-      "what": "枚举XML注入面：REST/GraphQL API、DOCX/SVG文件上传、JSON转XML、SOAP/XML-RPC/SAML遗留接口与隐藏解析器"
+      "what": "梳理API端点、文件上传、格式转换、SOAP/XML-RPC遗留接口及Content-Type转换等XML注入入口"
     },
     {
       "heading": "Test Basic XXE Patterns",
-      "what": "基础payload测试：经典file:///读文件、盲XXE外带DTD回连及无法定义DTD时的XInclude攻击"
+      "what": "经典file://文件读取、盲XXE外部DTD带外探测与XInclude基础payload测试"
     },
     {
       "heading": "Billion Laughs Attack Steps",
-      "what": "代理中转换请求体为XML并插入嵌套实体(lol1-lol9)实现指数膨胀DoS的操作流程"
+      "what": "代理改包转换XML后插入嵌套实体引用实现指数膨胀拒绝服务的操作步骤"
     },
     {
       "heading": "Check Alternative XML Formats",
-      "what": "在SVG图片、DOCX/XLSX内部XML(word/document.xml)及SOAP信封中注入XXE payload"
+      "what": "在SVG图片、DOCX/XLSX内部XML文档及SOAP消息中注入实体payload"
     },
     {
       "heading": "SAML 2.0 XXE Testing",
-      "what": "测试SAML AuthnRequest、Response断言与加密断言回绕中的XXE以攻击SSO集成点"
+      "what": "针对SAML AuthnRequest、断言响应及加密断言注入实体读取文件或外带数据"
     },
     {
       "heading": "E-book Format Exploitation (EPUB)",
-      "what": "解包EPUB的ZIP结构并向META-INF/container.xml或content.opf注入XXE后重打包上传图书馆/电商系统"
-    },
-    {
-      "heading": "Parameter Entity Testing",
-      "what": "利用参数实体嵌套定义eval/exfil实体实现盲XXE文件内容外带"
+      "what": "解压EPUB的ZIP包后在container.xml/content.opf注入XXE攻击电子书系统"
     },
     {
       "heading": "Error-Based XXE",
-      "what": "构造file:///nonexistent/%file;路径让报错消息携带文件内容实现数据提取"
+      "what": "构造指向不存在文件的错误路径让解析报错信息中回显目标文件内容"
+    },
+    {
+      "heading": "XXE via Content-Type Manipulation",
+      "what": "将application/json请求头改为application/xml诱导JSON端点按XML解析"
     },
     {
       "heading": "Cloud-Native & Kubernetes XXE",
-      "what": "K8s Admission Webhook/ConfigMap窃取serviceaccount token及Jenkins/GitLab/GitHub Actions/Maven供应链XXE利用"
+      "what": "利用K8s准入Webhook与ConfigMap解析XML窃取ServiceAccount令牌并提权"
+    },
+    {
+      "heading": "CI/CD Pipeline XXE",
+      "what": "Jenkins/GitLab CI/GitHub Actions处理XML报表时窃取master.key、config.toml与SSH私钥"
+    },
+    {
+      "heading": "File Disclosure via XXE",
+      "what": "通过file协议读取/etc/passwd、/etc/shadow、应用配置与数据库凭据等敏感文件"
     },
     {
       "heading": "SSRF via XXE",
-      "what": "借XXE打内网服务与AWS IMDS/Azure/GCP云元数据，用jar://或开放重定向绕过元数据Header防护"
+      "what": "借实体解析探测内网服务并窃取AWS/Azure/GCP云元数据凭据及头部防护绕过"
     },
     {
       "heading": "Bypass Techniques",
-      "what": "大小写变体、URL编码、CDATA区段与XML命名空间混淆绕过XXE过滤器"
+      "what": "大小写变换、替代协议file/gopher/jar/netdoc、URL编码、CDATA与XML命名空间等过滤绕过手法"
     },
     {
       "heading": "PHP Wrapper inside XXE",
-      "what": "php://filter/convert.base64-encode读取index.php源码及内网响应绕过XML解析限制"
+      "what": "用php://filter/convert.base64-encode封装读取源码实现base64编码回显"
     },
     {
-      "heading": "Tools",
-      "what": "XXEinjector、oxml_sec、OWASP ZAP及Burp Collaborator/Interactsh带外检测工具清单"
+      "heading": "Data Exfiltration (for Blind XXE)",
+      "what": "托管恶意DTD配合参数实体嵌套把文件内容拼入回调URL实现带外数据外带"
+    },
+    {
+      "heading": "XXE OOB with DTD and PHP filter",
+      "what": "外部DTD结合php://filter编码目标文件并通过log.php回调外带的组合利用"
+    },
+    {
+      "heading": "Comprehensive XXE Testing Checklist",
+      "what": "覆盖基础实体、协议探测、格式变体、绕过技巧的完整XXE测试清单"
+    },
+    {
+      "heading": "Remediation Recommendations",
+      "what": "禁用DTD与外部实体解析、各语言安全解析器配置及API网关XML威胁防护加固"
     }
   ]
 }

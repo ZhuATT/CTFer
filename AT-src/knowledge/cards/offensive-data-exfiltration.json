@@ -1,9 +1,7 @@
 {
-  "use_when": "在授权红队后渗透阶段需要将窃取的目标数据绕过出网限制与流量检测外带时阅读本篇，重点涵盖dnscat2/iodine等DNS隧道、CDN域前置HTTPS隐蔽信道、S3预签名URL云存储死信箱、邮件与隐写术外带及定时分块传输，区别于漏洞利用与权限提升类打点技法。",
+  "use_when": "在红队授权测试后渗透阶段需要将窃取数据隐蔽传出目标网络并绕过 DLP/IDS/代理检测时阅读本篇，重点涵盖 DNS 隧道、HTTPS 域前置、ICMP 隧道、云存储死信箱、邮件外传、隐写术、隐蔽通道与数据暂存分块加密等全链路手法，区别于打点入侵与权限提升阶段的技术文档。",
   "triggers": [
-    "数据外带",
-    "Data Exfiltration",
-    "数据窃取",
+    "数据外传",
     "DNS隧道",
     "dnscat2",
     "iodine",
@@ -13,64 +11,70 @@
     "ICMP隧道",
     "icmpsh",
     "ptunnel-ng",
-    "云存储死信箱",
-    "S3 presigned URL",
-    "邮件外带",
-    "草稿箱外传",
     "隐写术",
     "steghide",
+    "LSB隐写",
+    "云存储死信箱",
+    "预签名URL",
+    "慢速滴传",
+    "PacketWhisper",
     "chisel",
-    "时间隐蔽信道"
+    "AES-256-GCM",
+    "隐蔽通道"
   ],
-  "vulnclass": "信息泄露",
+  "vulnclass": "网络与内网",
   "section_map": [
     {
       "heading": "Quick Workflow",
-      "what": "外带八步流程：盘点目标数据、暂存去元数据、压缩分块、AES加密、按出网环境选信道、控速传输、SHA-256校验与痕迹清理"
+      "what": "外传八步流程：数据盘点、暂存去元数据、压缩分块、加密、通道选择、匹配基线速率传输、SHA-256 校验与清理痕迹"
     },
     {
       "heading": "DNS Exfiltration",
-      "what": "dnscat2/iodine/dns2tcp三大DNS隧道工具搭建与文件传输，TXT/CNAME记录base32编码查询外带、慢速滴水及PacketWhisper免服务器外带"
+      "what": "DNS 通道外传：dnscat2/iodine/dns2tcp 隧道搭建、TXT/CNAME 查询编码与 PacketWhisper 慢速滴传规避检测"
     },
     {
       "heading": "HTTPS Tunneling",
-      "what": "stunnel将流量封装为TLS443、CDN域前置伪装SNI与Host分离隐藏收集服务器、滥用Slack webhook/GitHub Gist/Pastebin合法服务信道传数据"
+      "what": "stunnel TLS 包装、CDN 域前置隐藏真实 Host、滥用 Slack Webhook/GitHub Gist/Pastebin 等合法服务外传"
     },
     {
       "heading": "ICMP Tunneling",
-      "what": "icmpsh反向ICMP shell、ptunnel-ng把SSH封装进ping隧道、原始socket构造ICMP报文分块嵌入payload外带"
+      "what": "icmpsh 反弹、ptunnel-ng 封装 SSH 与原生 ICMP 报文构造（载荷控制在 64 字节内防 IDS）实现 ping 通道外传"
     },
     {
       "heading": "Cloud Storage Dead Drops",
-      "what": "生成S3预签名URL、Azure Blob SAS令牌、GCS签名URL实现目标机免凭据PUT上传，轮换桶规避检测"
+      "what": "S3 预签名 URL、Azure Blob SAS Token、GCS 签名 URL 实现目标侧免凭据上传云存储死信箱并轮换桶名"
     },
     {
       "heading": "Email-Based Exfiltration",
-      "what": "smtplib伪装附件外发、exchangelib走EWS发送、草稿箱方法仅在草稿存数据不产生发送与网络传输证据"
+      "what": "SMTP 伪装附件外发、Exchange EWS（exchangelib）发信及草稿邮件法（数据存草稿、无发送记录）"
     },
     {
       "heading": "Steganography",
-      "what": "steghide/zsteg/OpenStego图片隐写、PIL实现PNG LSB嵌入、WAV音频LSB嵌入及EXIF注释/PDF自定义元数据藏数据"
+      "what": "steghide/OpenStego 图像隐写、PIL 与 WAV LSB 像素/采样点嵌入、exiftool EXIF 注释与 PDF 自定义元数据藏数据"
     },
     {
       "heading": "Encoding and Encryption",
-      "what": "base64/base32/hex按信道分块编码、XOR异或加密、AES-256-GCM与openssl aes-256-cbc加解密文件全流程"
+      "what": "Base64/Hex/Base32 分块适配通道尺寸、XOR 循环异或与 PBKDF2+AES-256-GCM 文件加密解密实现"
     },
     {
       "heading": "Covert Channels",
-      "what": "自定义HTTP头部编码夹带数据、chisel反向SOCKS隧道、scapy IP ID字段逐字节编码及低速率时间信道传密钥口令"
+      "what": "自定义 HTTP 头编码外传、chisel SOCKS 隧道、scapy IP ID 字段逐字节编码与基于延时的近无感时间隐蔽通道"
     },
     {
       "heading": "Data Staging",
-      "what": "Linux/Windows伪装目录暂存、tar压缩加密按64KB分块生成manifest、cron与计划任务定时定量传输规避流量阈值"
+      "what": "Linux/Windows 隐蔽目录暂存管线（打包加密按 64KB 分块、生成 SHA-256 清单）与 Cron/计划任务定时分片传输"
     },
     {
       "heading": "Detection / Defender View",
-      "what": "按技术对照检测信号：DNS高熵长标签、JA3/SNI不匹配、ICMP大载荷等及对应防守工具与流量伪装规避要点"
+      "what": "各外传通道对应的检测信号（DNS 长标签高熵、JA3/SNI 不匹配、ICMP 大载荷）与防御工具及规避要点对照"
     },
     {
       "heading": "Engagement Cheatsheet",
-      "what": "按仅53端口、有Web、仅ping、有云权限等出网场景选择信道与工具的速查表和外带前RoE合规检查清单"
+      "what": "按出口限制场景（仅 53 端口、ping 可用、内容检测、极端监控）快速匹配通道与工具的速查表"
+    },
+    {
+      "heading": "Pre-Exfil Checklist",
+      "what": "外传前 RoE 授权确认、egress 通道识别、金丝雀文件测试、速率低于检测阈值与事后安全删除核查清单"
     }
   ]
 }
