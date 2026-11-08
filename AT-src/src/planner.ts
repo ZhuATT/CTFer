@@ -20,7 +20,6 @@ import { renderTriggers, type TriggerEvent } from "./triggers.js";
 import type { Secrets } from "./secrets.js";
 import { normalizeSummary } from "./contracts.js";
 import { createListAssetsTool } from "./tools/assets.js";
-import { createSearchKnowledgeTool, isKnowledgeReady } from "./tools/knowledge.js";
 
 const FACTS_PAGE = 20;
 const TODO_MAX = 20;
@@ -310,9 +309,6 @@ export function createPlannerTools(
 	const tools = [addStepTool, concludeTaskTool, proveGoalTool, todoTool, listFactsTool, nodeDetailTool];
 	if (opts.assetsDb) {
 		tools.push(createListAssetsTool({ assetsDb: opts.assetsDb, taskId: opts.taskId }));
-	}
-	if (isKnowledgeReady()) {
-		tools.push(createSearchKnowledgeTool({ db: opts.db, taskId: opts.taskId, workerType: "planner" }));
 	}
 	return tools;
 }

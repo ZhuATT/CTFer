@@ -8,7 +8,8 @@
 		"node": ">=22.19.0"
 	},
 	"scripts": {
-		"build": "tsc -p tsconfig.json",
+		"build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+		"run": "npm run build && node dist/index.js run",
 		"test": "vitest --run",
 		"smoke": "node dist/index.js",
 		"smoke:block": "node dist/index.js --block-test"

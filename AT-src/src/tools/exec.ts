@@ -8,6 +8,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Type } from "@earendil-works/pi-ai";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 
@@ -16,12 +17,26 @@ const BASH_TIMEOUT_MS_MAX = 300_000;
 const BASH_OUTPUT_MAX = 8_000; // LLM-facing 截断
 const READ_MAX_BYTES = 64_000;
 
+/** 知识库物理根：src/tools 与 dist/tools 同深度，../../ 均回 AT-src（F-2 同源） */
+const KNOWLEDGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../knowledge");
+const KNOWLEDGE_PREFIX = "knowledge/";
+
 /** 路径守卫：相对 task 目录解析后必须仍在 task 目录内。返回绝对路径。 */
 export function resolveInside(taskDir: string, relPath: string): string {
 	if (typeof relPath !== "string" || relPath.trim() === "") throw new Error("path 必填");
 	const abs = resolve(taskDir, relPath);
 	if (abs !== taskDir && !abs.startsWith(taskDir + sep)) {
 		throw new Error(`路径逃逸 task 目录（拒绝）：${relPath}`);
+	}
+	return abs;
+}
+
+/** 知识库路径解析（F-1）：剥 knowledge/ 前缀 → 对物理根解析 + 包含性校验，防 knowledge/../../ 逃逸。 */
+function resolveKnowledgePath(p: string): string {
+	const rest = p.slice(KNOWLEDGE_PREFIX.length);
+	const abs = resolve(KNOWLEDGE_ROOT, rest);
+	if (abs !== KNOWLEDGE_ROOT && !abs.startsWith(KNOWLEDGE_ROOT + sep)) {
+		throw new Error(`知识库路径逃逸（拒绝）：${p}`);
 	}
 	return abs;
 }
@@ -86,17 +101,37 @@ export function createReadTool(taskDir: string): AgentTool<any> {
 	return {
 		name: "Read",
 		label: "Read",
-		description: "读 task 目录内的文件（相对路径，如 evidence/probe.txt）。超 64KB 截断。",
+		description:
+			"读文件。task 内相对路径（如 evidence/probe.txt）；知识库文件用 knowledge/ 前缀（如 knowledge/skills/ad-attacks.md）。默认整读（超 64KB 截断）；长文件给 offset/limit 按行窗口读（1-based 行号，输出带行号前缀，如 offset=412 limit=50）。",
 		parameters: Type.Object({
-			path: Type.String({ description: "task 目录内相对路径" }),
+			path: Type.String({ description: "task 目录内相对路径，或 knowledge/ 前缀的知识库路径" }),
+			offset: Type.Optional(Type.Number({ description: "1-based 起始行号" })),
+			limit: Type.Optional(Type.Number({ description: "读取行数，默认 100" })),
 		}),
 		execute: async (_id, params: any) => {
-			const abs = resolveInside(taskDir, String(params?.path ?? ""));
-			if (!existsSync(abs)) throw new Error(`文件不存在：${params?.path}`);
-			if (!statSync(abs).isFile()) throw new Error(`不是文件：${params?.path}`);
+			const p = String(params?.path ?? "");
+			// F-1 双根：knowledge/ 前缀 → 全局知识库物理根；否则 task 目录（Write/Bash 无 knowledge 分支=结构性只读）
+			const abs = p.startsWith(KNOWLEDGE_PREFIX) ? resolveKnowledgePath(p) : resolveInside(taskDir, p);
+			if (!existsSync(abs)) throw new Error(`文件不存在：${p}`);
+			if (!statSync(abs).isFile()) throw new Error(`不是文件：${p}`);
+			// 行窗口分支（offset 或 limit 任一给出）：整载切行，输出带行号前缀
+			if (params?.offset !== undefined || params?.limit !== undefined) {
+				const lines = readFileSync(abs, "utf-8").split(/\r?\n/);
+				const total = lines.length;
+				const start = Math.max(1, Number(params?.offset) || 1);
+				const limit = Math.max(1, Number(params?.limit) || 100);
+				if (start > total) throw new Error(`offset 超出文件末尾（共 ${total} 行）`);
+				const end = Math.min(total, start + limit - 1);
+				const body = lines
+					.slice(start - 1, end)
+					.map((line, i) => `L${start + i}| ${line}`)
+					.join("\n");
+				return textResult(`${p}: L${start}-L${end}（全文 ${total} 行）\n${body}`);
+			}
+			// 整读分支：64KB 截断现状不变（evidence 小文件场景）
 			const buf = readFileSync(abs);
 			const body = buf.length > READ_MAX_BYTES ? `${buf.subarray(0, READ_MAX_BYTES).toString("utf-8")}\n…（截断，共 ${buf.length} 字节）` : buf.toString("utf-8");
-			return textResult(`${params?.path} (${buf.length}B):\n${body}`);
+			return textResult(`${p} (${buf.length}B):\n${body}`);
 		},
 	};
 }

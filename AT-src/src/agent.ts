@@ -115,8 +115,14 @@ export interface RunWorkerStepOptions {
 }
 
 /** worker user 首条（p2fix 审7 精简态势版）。standardsIndex：standards/INDEX.md 内容
- * （P2F-8 渐进披露——索引坐 user 首条固定小开销，正文按需 Read/Grep）。 */
-export function renderStepPrompt(step: NodeRow, situational: WorkerSituationalView, standardsIndex?: string): string {
+ * （P2F-8 渐进披露——索引坐 user 首条固定小开销，正文按需 Read/Grep）。
+ * knowledgeReady（F-2/FD3）：引导句与工具装配同条件——只在 search_knowledge 实际装配时渲染。 */
+export function renderStepPrompt(
+	step: NodeRow,
+	situational: WorkerSituationalView,
+	standardsIndex?: string,
+	knowledgeReady = false,
+): string {
 	const payload = JSON.parse(step.payload) as { summary: string; note?: string };
 	return [
 		`【你领到的 step】#${step.id}`,
@@ -135,7 +141,7 @@ export function renderStepPrompt(step: NodeRow, situational: WorkerSituationalVi
 		"4. 完成即停，不要领取或执行其他 step。",
 		"",
 		"开工按 step 方向查阅 standards/ 下相关手册（评级细则/方法论），有则先读相关节，没有就跳过。",
-		"不熟的漏洞类/绕过手法/中间件打法，先 search_knowledge 查章节地图再按行号精读。",
+		...(knowledgeReady ? ["不熟的漏洞类/绕过手法/中间件打法，先 search_knowledge 查章节地图再按行号精读。"] : []),
 	].join("\n");
 }
 
@@ -242,7 +248,7 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		onAbort = () => doAbort();
 		opts.abortSignal?.addEventListener("abort", onAbort, { once: true });
 
-		await agent.prompt(renderStepPrompt(step, situational, standardsIndex));
+		await agent.prompt(renderStepPrompt(step, situational, standardsIndex, isKnowledgeReady()));
 	} finally {
 		if (timeout) clearTimeout(timeout);
 		if (onAbort) opts.abortSignal?.removeEventListener("abort", onAbort);

@@ -11,6 +11,7 @@ import {
 	type KnowledgeEntry,
 } from "../src/tools/knowledge.js";
 import { buildKnowledge } from "../scripts/build-knowledge.mjs";
+import { renderStepPrompt } from "../src/agent.js";
 
 describe("知识库检索核心 executeKnowledgeSearch", () => {
 	const mockCatalog: KnowledgeEntry[] = [
@@ -289,5 +290,18 @@ describe("知识库构建器 buildKnowledge (零 LLM)", () => {
 
 	it("无 knowledge/catalog.json 时 isKnowledgeReady() 返回 false", () => {
 		expect(isKnowledgeReady("/non/existent/path/catalog.json")).toBe(false);
+	});
+});
+
+describe("引导句条件渲染（F-2/FD3）", () => {
+	const step = { id: 1, kind: "step", payload: JSON.stringify({ summary: "探测" }) } as any;
+
+	it("knowledgeReady=false → 无引导句；true → 有（与工具装配同条件）", () => {
+		expect(renderStepPrompt(step, {} as any, undefined, false)).not.toContain("search_knowledge");
+		expect(renderStepPrompt(step, {} as any, undefined, true)).toContain("search_knowledge");
+	});
+
+	it("isKnowledgeReady 从模块根寻址（不受启动目录影响）", () => {
+		expect(isKnowledgeReady()).toBe(true);
 	});
 });

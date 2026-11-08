@@ -34,6 +34,31 @@ describe("Read/Write 工具", () => {
 	});
 });
 
+describe("Read 双根与行窗口（F-1）", () => {
+	const read = createReadTool(dir);
+	const KB = "knowledge/skills/ad-attacks.md"; // 仓库内真文件（AD 攻击链手册）
+
+	it("knowledge/ 前缀无窗口整读 → 全局知识库真文件可读", async () => {
+		const r = await read.execute("f1", { path: KB });
+		expect((r.content[0] as { text: string }).text).toContain("Kerberos");
+	});
+
+	it("offset=1 limit=3 → 行号前缀 L1-L3 / L1|", async () => {
+		const r = await read.execute("f2", { path: KB, offset: 1, limit: 3 });
+		const text = (r.content[0] as { text: string }).text;
+		expect(text).toContain("L1-L3");
+		expect(text).toContain("L1|");
+	});
+
+	it("knowledge/../../ 逃逸 → 拒", async () => {
+		await expect(read.execute("f3", { path: "knowledge/../../package.json" })).rejects.toThrow(/逃逸/);
+	});
+
+	it("offset 超出末尾 → 报错带总行数", async () => {
+		await expect(read.execute("f4", { path: KB, offset: 999_999 })).rejects.toThrow(/末尾/);
+	});
+});
+
 describe("Bash 工具", () => {
 	it("bash -c 执行 + 输出返回", async () => {
 		const bash = createBashTool(dir);

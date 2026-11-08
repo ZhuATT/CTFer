@@ -10,11 +10,15 @@
  */
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Database } from "better-sqlite3";
 import { Type } from "@earendil-works/pi-ai";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { logActivity } from "../db.js";
+
+/** 知识库物理根：src/tools 与 dist/tools 同深度，../../ 均回 AT-src（F-2：寻址去 cwd，启动目录不再是隐变量） */
+const KNOWLEDGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../knowledge");
 
 export interface KnowledgeEntry {
 	name: string;
@@ -203,7 +207,6 @@ export function formatSearchResults(
 	lines.push(
 		`针对 "${query}" 检索到 ${results.length} 篇相关技能地图${isFallback ? " (正文兜底扫描命中)" : ""}：`,
 	);
-	lines.push("（消费纪律：先查下方章节地图，再用原生 Read(offset, limit) 按行号精读，别凭记忆编造 payload）\n");
 
 	for (let i = 0; i < results.length; i++) {
 		const r = results[i];
@@ -224,14 +227,14 @@ export function formatSearchResults(
 	return finalLines.join("\n").trim();
 }
 
-/** 判断知识库 catalog 是否就绪 */
+/** 判断知识库 catalog 是否就绪（F-2：默认从模块根寻址，不再依赖 process.cwd()） */
 export function isKnowledgeReady(customPath?: string): boolean {
-	const p = customPath ?? resolve(process.cwd(), "knowledge", "catalog.json");
+	const p = customPath ?? join(KNOWLEDGE_ROOT, "catalog.json");
 	return existsSync(p);
 }
 
 export function createSearchKnowledgeTool(opts: SearchKnowledgeOptions = {}): AgentTool<any> {
-	const knowledgeDir = opts.knowledgeDir ?? resolve(process.cwd(), "knowledge");
+	const knowledgeDir = opts.knowledgeDir ?? KNOWLEDGE_ROOT;
 	const catalogPath = join(knowledgeDir, "catalog.json");
 	const skillsDir = join(knowledgeDir, "skills");
 

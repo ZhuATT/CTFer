@@ -132,7 +132,6 @@ add_step 的 note 是 worker 理解方向的唯一上下文：为什么开（依
 【态势预取】
 （字段导读：steps=全量含 note；recent_facts=最新 20 条，counts 给总数；findings=全量；coverage.untouched=scope 内尚无 fact 锚定的资产（未测面），量化目标核对用 coverage.anchored/scope_total 实测值。）
 （counts 里 edge:* 为边计数，如 edge:produces=step→产出的边条数。）
-不熟的漏洞类/绕过手法/中间件打法，先 search_knowledge 查章节地图再按行号精读。
 {graphOverview 原始 JSON}
 
 【跨唤醒待办】
@@ -246,7 +245,7 @@ hint=调度层建议，steer=已插进 worker 会话的纠偏；结合当前态�
   - Planner 的系统提示词明文约定：*“资产图全局共享（多任务同一份，资产计数是全局在范围内的、非本任务独有）”*。
   - 新建任务若绑定了公司/范围，系统自动认领命中已有资产，无需通过项目简报重新序列化注入。
 
-## 三、planner 工具面（`planner.ts` + `tools/assets.ts` + `tools/knowledge.ts` · 八件）
+## 三、planner 工具面（`planner.ts` + `tools/assets.ts` · 七件；FD6 修订 D3：检索消费面=worker 单侧，planner 无 search_knowledge）
 
 ### add_step
 
@@ -302,13 +301,6 @@ note 必须写详细：为什么开（依据哪个 fact，引节点 id + 转述�
 语义导读：anchor_count=0 的资产表示尚未被任何 fact 锚定，即未测面（untouched coverage）。
 ```
 参数：`page?（页码，从 1 起）/ q?（host 或 url 模糊搜索关键词）`
-
-### search_knowledge（knowledge/catalog.json 存在才装配，K-4）
-
-```
-在通用渗透测试技能知识库中检索打法章节地图与行号。不熟的漏洞类/绕过手法/中间件打法，先查地图再按行号精读，别凭记忆编 payload。
-```
-参数：`query（检索关键词或概念，中英文均可，如 '时间盲注', 'IDOR', 'Docker 逃逸', 'Fastjson'）`
 
 ### 👥【对照】ARTEX Planner 工具面清单与工具描述（`agent/tools.go`）
 
@@ -439,7 +431,7 @@ ARTEX Planner 拥有丰富的领域探索工具面（包含 18+ 个工具，且�
 
 ## 五、worker user 首条（`agent.ts` · renderStepPrompt）
 
-组装模板（note/standards 索引缺席时对应行消失）：
+组装模板（note/standards 索引缺席时对应行消失；末行 search_knowledge 引导句仅在知识库装配时渲染——FD3 引导句与工具装配同条件，isKnowledgeReady() 为 true 才有）：
 
 ```
 【你领到的 step】#{id}
@@ -498,12 +490,14 @@ ARTEX Planner 拥有丰富的领域探索工具面（包含 18+ 个工具，且�
 ```
 参数：`command / timeout_ms?（默认 60000，上限 300000）`
 
-### Read
+### Read（F-1 双根 + 行窗口）
 
 ```
-读 task 目录内的文件（相对路径，如 evidence/probe.txt）。超 64KB 截断。
+读文件。task 内相对路径（如 evidence/probe.txt）；知识库文件用 knowledge/ 前缀（如 knowledge/skills/ad-attacks.md）。默认整读（超 64KB 截断）；长文件给 offset/limit 按行窗口读（1-based 行号，输出带行号前缀，如 offset=412 limit=50）。
 ```
-参数：`path（task 目录内相对路径）`
+参数：`path（task 目录内相对路径，或 knowledge/ 前缀的知识库路径）/ offset?（1-based 起始行号）/ limit?（读取行数，默认 100）`
+
+机制说明：knowledge/ 前缀对知识库物理根解析并做包含性校验（越界拒）；Write/Bash 无 knowledge 分支——worker 对知识库结构性只读。
 
 ### Write
 
@@ -553,13 +547,19 @@ endpoint 参数描述（submit_fact 与 submit_finding 同款，P1 修复后的 
 - 真实触发过 + 可复现才报；CVE/指纹/漏洞库推断 ≠ 确认——那只是 inferred fact，用 submit_fact；
 - poc：最小复现命令（别人复制粘贴就能打中）；
 - evidence：证据文件相对路径（Write 进 evidence/，内容=请求/响应关键部分）；
-- baseline_evidence：对照证据文件相对路径（evidence/ 或 evidence/traffic/har/ 下），或显式豁免 '不适用——<一句话原因>'。proof=攻击条件在场（带 payload/受害者 ID）的请求；baseline=同端点去除攻击条件（匿名/不带 payload）的请求——两者相减差异才能归因。写不了对照就写清楚为什么不适用；
+- baseline_evidence：对照证据文件相对路径（evidence/ 下，建议 evidence/baseline-*.txt），或显式豁免 '不适用——<一句话原因>'。proof=攻击条件在场（带 payload/受害者 ID）的请求；baseline=同端点去除攻击条件的请求——两者相减差异才能归因。写不了对照就写清楚为什么不适用；（evidence/traffic/har/ 是平台事后审计面，会话内尚未落盘，不要填）
 - vulnclass：漏洞类（越权/注入/未授权访问/信息泄露…）；severity：info/low/medium/high/critical 自评；
 - related_fact_ids：可选，支撑该漏洞的已有 fact 编号（血缘会连 proves 边）。
 severity 定级拿不准时，Read `standards/<目标厂商>.txt` 查该厂商评级细则（Grep 关键节，不全量读）；目标厂商不在列则按通用自评。
 提交后 state=reported，等待复测（P4），不要自己反复打同一洞。
 ```
 参数：`step_id / summary / vulnclass / severity / poc / evidence / baseline_evidence / baseline_note? / report? / endpoint?（同上）/ related_fact_ids?`
+
+finding 的 baseline_evidence 参数描述（F-4b）：
+
+```
+对照证据文件相对路径（evidence/ 下），或显式豁免 '不适用——<一句话原因>'。必填，值二选一
+```
 
 finding 的 endpoint 参数描述（P1 修复后）：
 
