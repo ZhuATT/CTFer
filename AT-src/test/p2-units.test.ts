@@ -8,7 +8,7 @@ import { renderTriggers, type TriggerEvent } from "../src/triggers.js";
 import { noreportCheck } from "../src/noreport.js";
 import { loadConfig, parseSimpleYaml } from "../src/config.js";
 import { appendHint, harvestHints } from "../src/hints.js";
-import { readControlStop, clearControl } from "../src/scheduler.js";
+import { readControlStop, clearControl, nextStep, type AgingOptions } from "../src/scheduler.js";
 import { renderPlannerUserMessage, PLANNER_SYSTEM_PROMPT } from "../src/planner-prompt.js";
 
 const dir = mkdtempSync(join(tmpdir(), "at1v4-p2-"));
@@ -189,5 +189,42 @@ describe("启动清扫（P2-3）", () => {
 		const row = getNode(db, TASK.name, stepIds[0])!;
 		expect(row.state).toBe("exhausted");
 		expect(row.completed_at).toBeNull(); // exhausted 不落 completed（接续跑语义）
+	});
+});
+
+describe("nextStep aging（R1-C）", () => {
+	const AGING: AgingOptions = { minutesPerBoost: 15, boostCap: 5 };
+
+	function seedTwoSteps(): { oldId: number; newId: number } {
+		initTask(db, TASK); // idempotent：已有 goal 时跳过
+		const [oldId] = addStep(db, TASK.name, [{ summary: "老单低分", priority: 2 }]).accepted.map((a) => a.id);
+		const [newId] = addStep(db, TASK.name, [{ summary: "新单高分", priority: 5 }]).accepted.map((a) => a.id);
+		db.prepare("UPDATE nodes SET created_at=strftime('%Y-%m-%dT%H:%M:%SZ','now','-60 minutes') WHERE id=?").run(oldId);
+		return { oldId, newId };
+	}
+
+	it("①现状回归：不传 aging → 高分新单先于低分老单", () => {
+		const { newId } = seedTwoSteps();
+		expect(nextStep(db, TASK.name)?.id).toBe(newId);
+	});
+
+	it("②aging 翻转：老单挂 60 分钟（有效 2+4=6）压过刚建高分单；不传 aging 则新单先（对照）", () => {
+		const { oldId } = seedTwoSteps();
+		expect(nextStep(db, TASK.name)?.id).not.toBe(oldId); // 对照：无 aging 新单先
+		expect(nextStep(db, TASK.name, AGING)?.id).toBe(oldId); // 老单上位
+	});
+
+	it("③cap 封顶：回拨 999 分钟加成恰为 5，与刚建 priority=5 同分 → id 小者先", () => {
+		initTask(db, TASK);
+		const [oldId] = addStep(db, TASK.name, [{ summary: "挂到底的单", priority: 0 }]).accepted.map((a) => a.id);
+		db.prepare("UPDATE nodes SET created_at=strftime('%Y-%m-%dT%H:%M:%SZ','now','-999 minutes') WHERE id=?").run(oldId);
+		const [newId] = addStep(db, TASK.name, [{ summary: "刚建的高分", priority: 5 }]).accepted.map((a) => a.id);
+		expect(nextStep(db, TASK.name, AGING)?.id).toBe(oldId);
+		expect(oldId).toBeLessThan(newId);
+	});
+
+	it("④关闭语义：boostCap=0 → 行为同①（高分新单先）", () => {
+		const { newId } = seedTwoSteps();
+		expect(nextStep(db, TASK.name, { minutesPerBoost: 15, boostCap: 0 })?.id).toBe(newId);
 	});
 });

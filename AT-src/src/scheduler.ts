@@ -68,11 +68,26 @@ export interface RunTaskResult {
 	plannerWakeups: number;
 }
 
-/** 领下一条 step：priority desc, id asc（高价值链路优先）。 */
-export function nextStep(db: Database, taskId: string): NodeRow | undefined {
+/** 领下一条 step：有效优先级 = priority + aging 加成（每 minutesPerBoost 分钟 +1，封顶 boostCap；cap=0 或不传退回纯 priority DESC）。同效值 id 小（先建）先走=FIFO。
+ * R1-C（首跑 R-1 饿死的机械保底层）：不依赖 planner 自觉，任何 open 单有界等待后必然上位。 */
+export interface AgingOptions {
+	minutesPerBoost: number;
+	boostCap: number;
+}
+
+export function nextStep(db: Database, taskId: string, aging?: AgingOptions): NodeRow | undefined {
+	const on = aging && aging.boostCap > 0 && aging.minutesPerBoost > 0 ? aging : undefined;
+	if (!on) {
+		return db
+			.prepare("SELECT * FROM nodes WHERE task_id=? AND kind='step' AND state='open' ORDER BY priority DESC, id ASC LIMIT 1")
+			.get(taskId) as NodeRow | undefined;
+	}
 	return db
-		.prepare("SELECT * FROM nodes WHERE task_id=? AND kind='step' AND state='open' ORDER BY priority DESC, id ASC LIMIT 1")
-		.get(taskId) as NodeRow | undefined;
+		.prepare(
+			"SELECT * FROM nodes WHERE task_id=? AND kind='step' AND state='open' " +
+				"ORDER BY (priority + MIN(CAST((julianday('now') - julianday(created_at)) * 1440.0 / ? AS INTEGER), ?)) DESC, id ASC LIMIT 1",
+		)
+		.get(taskId, on.minutesPerBoost, on.boostCap) as NodeRow | undefined;
 }
 
 /** stop 信号文件：control/stop（施工卡的"task 目录 CONTROL 文件"落位到 control/
@@ -283,6 +298,11 @@ export async function runTask(opts: RunTaskOptions): Promise<RunTaskResult> {
 	// worker step 没真正探成。阈值 cfg.run.circuitBreaker（默认 3）。
 	let consecutiveBlocked = 0;
 	const breakerThreshold = cfg.run.circuitBreaker ?? 3;
+	// R1-C：open step 等待 aging 参数（主循环前建一次；cap=0 = 关闭，退回纯 priority DESC）
+	const aging = {
+		minutesPerBoost: cfg.run.agingMinutesPerBoost ?? 15,
+		boostCap: cfg.run.agingBoostCap ?? 5,
+	};
 
 	try {
 		// 启动清扫（中断恢复语义）：v4 单进程，进程死 = 在跑全死，running 必是尸体
@@ -339,7 +359,7 @@ export async function runTask(opts: RunTaskOptions): Promise<RunTaskResult> {
 			events.push(...harvestHints(dir));
 
 			// ── 唤醒判定（方案 C，D6）：有新事件先让 planner 消费；空事件且有 open step 直接 worker ──
-			let step = nextStep(db, task.name);
+			let step = nextStep(db, task.name, aging);
 			if (events.length > 0 || !step) {
 				plannerWakeups += 1;
 				// P3pre-3（D3）：唤醒失败（抛错/传输层故障）→ 同一批事件重试 1 次 → 仍败终止。
@@ -415,7 +435,7 @@ export async function runTask(opts: RunTaskOptions): Promise<RunTaskResult> {
 					reason = "goal-closed";
 					break;
 				}
-				step = nextStep(db, task.name);
+				step = nextStep(db, task.name, aging);
 				if (!step) {
 					// planner 派 0（认定已覆盖/等依赖）且无 open——goal 未达的派 0 = 判停
 					reason = "planner-zero";

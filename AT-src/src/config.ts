@@ -37,6 +37,10 @@ export interface RunConfig {
 	budgetMs: number;
 	/** P3pre-2 熔断阈值：连续 blocked step 达此数终止 run（reason=channel-down）。缺省 3。 */
 	circuitBreaker?: number;
+	/** R1-C：open step 等待 aging——每挂满 N 分钟 priority 等效 +1。缺省 15。 */
+	agingMinutesPerBoost?: number;
+	/** R1-C：aging 加成上限，缺省 5——任何 open 单最长 (5−priority)×agingMinutesPerBoost 分钟后登上队首。0=关闭（退回纯 priority DESC）。 */
+	agingBoostCap?: number;
 }
 
 export interface AppConfig {
@@ -52,7 +56,7 @@ const DEFAULTS: AppConfig = {
 		worker: { model: "glm-5.3", api: "openai", keyEnv: "AT1_API_KEY" },
 		planner: { model: "glm-5.3", api: "openai", keyEnv: "AT1_API_KEY" },
 	},
-	run: { maxRounds: 20, budgetMs: 3_600_000, circuitBreaker: 3 },
+	run: { maxRounds: 20, budgetMs: 3_600_000, circuitBreaker: 3, agingMinutesPerBoost: 15, agingBoostCap: 5 },
 };
 
 /** 最简两层 YAML 解析：`key: {a: b, c: d}` 行内对象 + `key:` 嵌套块（缩进感知）。
@@ -121,6 +125,10 @@ export function loadConfig(path = CONFIG_PATH): AppConfig {
 		if (typeof r.maxRounds === "number" && r.maxRounds > 0) cfg.run.maxRounds = r.maxRounds;
 		if (typeof r.budgetMs === "number" && r.budgetMs > 0) cfg.run.budgetMs = r.budgetMs;
 		if (typeof r.circuitBreaker === "number" && r.circuitBreaker > 0) cfg.run.circuitBreaker = r.circuitBreaker;
+		if (typeof r.agingMinutesPerBoost === "number" && r.agingMinutesPerBoost > 0)
+			cfg.run.agingMinutesPerBoost = r.agingMinutesPerBoost;
+		// agingBoostCap 允许 0（显式关闭 aging）
+		if (typeof r.agingBoostCap === "number" && r.agingBoostCap >= 0) cfg.run.agingBoostCap = r.agingBoostCap;
 	}
 	return cfg;
 }
