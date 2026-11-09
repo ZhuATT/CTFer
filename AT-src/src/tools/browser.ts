@@ -9,14 +9,16 @@ import { HarRecorder } from "../har.js";
 
 const SNAPSHOT_MAX_CHARS = 8000; // LLM-facing 截断，防大页面吃 token
 
-/** CDP 附着会话：connectOverCDP 连池里的 Chrome，复用默认 context 的首个页面。 */
+/** CDP 附着会话：connectOverCDP 连池里的 Chrome，复用默认 context 的首个页面。
+ * LZ-1 懒启动：构造只存 provider，首次 page() 才真正 connect——纯 API step 零 chrome 生命周期。 */
 export class BrowserSession {
 	private browser?: Browser;
 	private cdpSession?: CDPSession;
+	private everConnected = false;
 	readonly recorder: HarRecorder;
 
 	constructor(
-		private readonly endpoint: string,
+		private readonly connect: () => Promise<string>,
 		private readonly harPath?: string,
 		recorder?: HarRecorder,
 	) {
@@ -25,7 +27,9 @@ export class BrowserSession {
 
 	async page(): Promise<Page> {
 		if (!this.browser) {
-			this.browser = await chromium.connectOverCDP(this.endpoint);
+			const endpoint = await this.connect();
+			this.browser = await chromium.connectOverCDP(endpoint);
+			this.everConnected = true;
 		}
 		const ctx = this.browser.contexts()[0] ?? (await this.browser.newContext());
 		const p = ctx.pages()[0] ?? (await ctx.newPage());
@@ -71,9 +75,10 @@ export class BrowserSession {
 		return p;
 	}
 
-	/** 只断连接不杀 Chrome——Chrome 归 browser-pool 管（所有权单一）。会话结束保证 flush HAR。 */
+	/** 只断连接不杀 Chrome——Chrome 归 browser-pool 管（所有权单一）。会话用过浏览器才 flush HAR
+	 * （LZ-1：从未起过浏览器不落盘，0KB HAR 消灭在此）。 */
 	async dispose(): Promise<void> {
-		if (this.harPath) {
+		if (this.harPath && this.everConnected) {
 			try {
 				this.recorder.flush(this.harPath);
 			} catch {

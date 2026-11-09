@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import http from "node:http";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { findExe, allocPort, probe } from "../src/browser-pool.js";
 
 describe("browser-pool 基件", () => {
@@ -34,5 +36,21 @@ describe("browser-pool 基件", () => {
 		const port = (srv.address() as { port: number }).port;
 		expect(await probe(port)).toBe(true);
 		await new Promise<void>((r) => srv.close(() => r()));
+	});
+});
+
+describe("BrowserSession 懒启动（LZ-1）", () => {
+	it("未用过浏览器：构造不触发 connect，dispose 不落 HAR", async () => {
+		const { vi } = await import("vitest");
+		const { BrowserSession } = await import("../src/tools/browser.js");
+		const { HarRecorder } = await import("../src/har.js");
+		const recorder = { flush: vi.fn() } as unknown as HarRecorder;
+		const connect = vi.fn(async () => {
+			throw new Error("不应被调");
+		});
+		const s = new BrowserSession(connect, join(tmpdir(), "lz1-x", "x.har"), recorder);
+		await s.dispose();
+		expect(connect).not.toHaveBeenCalled();
+		expect(recorder.flush).not.toHaveBeenCalled();
 	});
 });

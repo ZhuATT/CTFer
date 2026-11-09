@@ -160,7 +160,9 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 	const texts: string[] = [];
 	// P3pre-2：传输层故障检测（pi 不抛错，错误以 message_end(stopReason="error") 过事件流）
 	let transportFailure: ChannelTransportFailure | undefined;
-	let pool: BrowserPool | undefined;
+	// LZ-1 懒启动：浏览器工具首次调用才起 Chrome——纯 API step（全程 Bash/curl）零 chrome 生命周期、零 0KB HAR。
+	// 状态不受影响：profile 目录（taskDir/.at1/chrome-profile）在磁盘上，起不起进程都在那。
+	const poolRef: { pool?: BrowserPool } = {};
 	let browserSession: BrowserSession | undefined;
 	let agent: Agent | undefined;
 	let unsubscribe: (() => void) | undefined;
@@ -169,11 +171,14 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 	let aborted = false;
 
 	try {
-		// P3pre-6 ①：BrowserPool 挪进 try 防护，配合 finally shutdown 杜绝 zombie chrome
+		// P3pre-6 ①：浏览器资源在 finally 统一收尾，杜绝 zombie chrome；
+		// LZ-1：池也懒——provider 首次被调才 BrowserPool.start（P3pre-6 的 zombie 防护语义不变）
 		if (opts.browser !== false) {
-			pool = await BrowserPool.start(taskDir);
 			const harPath = join(taskDir, "evidence", "traffic", "har", `${sessionId}.har`);
-			browserSession = new BrowserSession(pool.endpoint, harPath);
+			browserSession = new BrowserSession(async () => {
+				poolRef.pool ??= await BrowserPool.start(taskDir);
+				return poolRef.pool.endpoint;
+			}, harPath);
 		}
 
 		const tools: AgentTool<any>[] = [
@@ -270,7 +275,7 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		}
 		unsubscribe?.();
 		if (browserSession) await browserSession.dispose();
-		if (pool) await pool.shutdown();
+		if (poolRef.pool) await poolRef.pool.shutdown();
 	}
 
 	// 收尾：计量落 activity（token 四列）+ step 三态
