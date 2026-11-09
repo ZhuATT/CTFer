@@ -15,6 +15,7 @@ import { createChannelFromConfig } from "../src/channel.js";
 import { createPlannerTools } from "../src/planner.js";
 import { renderStepPrompt, WORKER_SYSTEM_PROMPT } from "../src/agent.js";
 import { PLANNER_SYSTEM_PROMPT, renderPlannerUserMessage } from "../src/planner-prompt.js";
+import Database from "better-sqlite3";
 
 const dir = mkdtempSync(join(tmpdir(), "at1v4-p2fix-"));
 const db = openDb(join(dir, "t.db"));
@@ -343,5 +344,20 @@ describe("p2fix prompt 快照", () => {
 		expect(out).toContain("字段导读：steps=全量含 note");
 		expect(out).toContain("edge:* 为边计数");
 		expect(out).toContain("【本轮模式】收官判定：图上已无待办 step");
+	});
+
+	it("planner prompt 含 priority 语义句（R1-A）", () => {
+		expect(PLANNER_SYSTEM_PROMPT).toContain("数值大=先跑");
+		expect(PLANNER_SYSTEM_PROMPT).toContain("勿标 1/2 低值");
+	});
+
+	it("add_step 参数描述含 priority 语义（R1-A）", () => {
+		// 最小构造即可（构造阶段不触库不触盘，execute 才用 opts）；schema 断言走 TypeBox 即 JSON schema 对象
+		const db2 = new Database(":memory:");
+		const tools = createPlannerTools({ db: db2, taskId: "t", taskDir: join(tmpdir(), "r1a-probe") });
+		const tool = tools.find((t) => t.name === "add_step");
+		expect(tool).toBeTruthy();
+		const schema = (tool as any).parameters;
+		expect(schema.properties.steps.items.properties.priority.description).toContain("数值大=先跑");
 	});
 });

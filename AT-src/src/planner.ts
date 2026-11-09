@@ -169,7 +169,7 @@ export function createPlannerTools(
 				Type.Object({
 					summary: Type.String({ description: "一句话：测什么+为什么" }),
 					note: Type.Optional(Type.String({ description: "详细上下文：依据/已知/下一步，引证节点 id" })),
-					priority: Type.Optional(Type.Number({ description: "0-5，高价值链路优先被领，默认 0" })),
+					priority: Type.Optional(Type.Number({ description: "0-5，数值大=先跑（5 最先，0 最后，默认 0）；开局侦察/基础单勿标 1/2 低值" })),
 					parent_ids: Type.Optional(Type.Array(Type.Number(), { description: "由哪些节点推来（derives_from 血缘）" })),
 				}),
 				{ description: "1-4 条", minItems: 1, maxItems: 4 },

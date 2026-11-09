@@ -499,7 +499,7 @@ export function firstOpenStep(db: Database, taskId: string): NodeRow | undefined
 
 export interface GraphOverview {
 	goal: { id: number; text: string; state: string } | null;
-	steps: Array<{ id: number; summary: string; note?: string; state: string }>;
+	steps: Array<{ id: number; summary: string; note?: string; state: string; priority: number; open_age_min?: number }>;
 	recent_facts: Array<{ id: number; summary: string; from_step: number | null; confidence: string; created_at: string }>;
 	findings: Array<{ id: number; summary: string; severity: string; state: string }>;
 	counts: Record<string, number>;
@@ -535,7 +535,16 @@ export function graphOverview(db: Database, taskId: string, assetsDb?: Database)
 		goal: goalRow ? { id: goalRow.id, text: parsePayload<GoalPayloadLike>(goalRow).text, state: goalRow.state } : null,
 		steps: steps.map((s) => {
 			const p = parsePayload<StepPayloadLike>(s);
-			return { id: s.id, summary: p.summary, ...(p.note ? { note: p.note } : {}), state: s.state };
+			return {
+				id: s.id,
+				summary: p.summary,
+				...(p.note ? { note: p.note } : {}),
+				state: s.state,
+				priority: s.priority,
+				...(s.state === "open"
+					? { open_age_min: Math.max(0, Math.floor((Date.now() - Date.parse(s.created_at)) / 60_000)) }
+					: {}),
+			};
 		}),
 		recent_facts: facts.map((f) => {
 			const p = parsePayload<FactPayloadT>(f);
@@ -630,7 +639,10 @@ export function renderOverviewText(db: Database, taskId: string): string {
 	lines.push(`goal #${o.goal?.id} [${o.goal?.state}] ${o.goal?.text ?? "(无)"}`);
 	lines.push("");
 	lines.push("== steps ==");
-	for (const s of o.steps) lines.push(`  #${s.id} [${s.state}] ${s.summary}`);
+	for (const s of o.steps)
+		lines.push(
+			`  #${s.id} [${s.state}] (p${s.priority}${s.open_age_min !== undefined ? ` 挂${s.open_age_min}m` : ""}) ${s.summary}`,
+		);
 	lines.push("");
 	lines.push(`== facts (${o.counts["fact"] ?? 0} 条，recent 20) ==`);
 	for (const f of o.recent_facts) lines.push(`  #${f.id} (step#${f.from_step}, ${f.confidence}) ${f.summary}`);

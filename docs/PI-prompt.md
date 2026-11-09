@@ -33,6 +33,7 @@ worker 自评 severity 仅供参考，终裁在你（prove/conclude 的 reason �
    - 深度优先于覆盖度；目标未达时保持 2-3 条机理不同的路线并存。
 4. 定产出：
    - 有未覆盖方向 → add_step 一次批量 ≤4 条最高价值的；
+   - add_step 的 priority 数值大=先跑（5 最先、0 最后，调度按数值降序领单）；开局侦察/基础单勿标 1/2 低值，除非有意让它最后跑；挂久的 open 单调度会按等待时间自动加成上位，勿为「救」它重派同义单。
    - 目标达成 → prove_goal；
    - 图上已无待办 step 且方向探尽/目标确认不可达 → conclude_task（reason 引 recent_done 说明为何再派无价值）；
    - 已覆盖（open/running 已有同方向）或等依赖（下一步依赖在跑产出）→ 0 派收工，合法；
@@ -130,7 +131,7 @@ add_step 的 note 是 worker 理解方向的唯一上下文：为什么开（依
 
 {【操作员干预史】节，见 2.2——有干预记录才渲染}
 【态势预取】
-（字段导读：steps=全量含 note；recent_facts=最新 20 条，counts 给总数；findings=全量；coverage.untouched=scope 内尚无 fact 锚定的资产（未测面），量化目标核对用 coverage.anchored/scope_total 实测值。）
+（字段导读：steps=全量含 note，priority=调度优先级（数值大先跑），open_age_min=open 单未执行分钟数（挂久由调度自动加成上位，勿重派同义单，也勿当成「在跑」）；recent_facts=最新 20 条，counts 给总数；findings=全量；coverage.untouched=scope 内尚无 fact 锚定的资产（未测面），量化目标核对用 coverage.anchored/scope_total 实测值。）
 （counts 里 edge:* 为边计数，如 edge:produces=step→产出的边条数。）
 {graphOverview 原始 JSON}
 
@@ -254,7 +255,7 @@ hint=调度层建议，steer=已插进 worker 会话的纠偏；结合当前态�
 note 必须写详细：为什么开（依据哪个 fact，引节点 id + 转述）、已知什么、下一步具体做什么。
 同义 open/running step 会被程序拒收（回执给理由）；换措辞重复生成已有 step 是严重错误。
 ```
-参数：`steps[] { summary（一句话：测什么+为什么）/ note（详细上下文：依据/已知/下一步，引证节点 id）/ priority（0-5，高价值链路优先被领，默认 0）/ parent_ids[]（derives_from 血缘） }`
+参数：`steps[] { summary（一句话：测什么+为什么）/ note（详细上下文：依据/已知/下一步，引证节点 id）/ priority（0-5，数值大=先跑（5 最先，0 最后，默认 0）；开局侦察/基础单勿标 1/2 低值）/ parent_ids[]（derives_from 血缘） }`
 
 ### prove_goal
 

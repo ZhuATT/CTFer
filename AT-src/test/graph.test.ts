@@ -9,9 +9,11 @@ import {
 	graphOverview,
 	hashEvidence,
 	initTask,
+	renderOverviewText,
 	setStepState,
 	submitFact,
 	submitFinding,
+	addStep,
 } from "../src/graph.js";
 import type { TaskJson } from "../src/task.js";
 
@@ -181,5 +183,24 @@ describe("graphOverview / step 状态", () => {
 		expect(o.counts["edge:produces"]).toBe(1);
 		const done = getNode(db, TASK.name, stepIds[0])!;
 		expect(done.completed_at).toBeTruthy();
+	});
+
+	it("steps 回显 priority + open_age_min（R1-B）", () => {
+		const { stepIds } = initTask(db, TASK);
+		const [openId] = addStep(db, TASK.name, [{ summary: "aging 观察单", priority: 4 }]).accepted.map((a) => a.id);
+		setStepState(db, TASK.name, stepIds[0], "done");
+		// open 单回拨 30 分钟（created_at 带 Z 后缀，Date.parse 直接可用）
+		db.prepare("UPDATE nodes SET created_at=strftime('%Y-%m-%dT%H:%M:%SZ','now','-30 minutes') WHERE id=?").run(openId);
+
+		const o = graphOverview(db, TASK.name);
+		const open = o.steps.find((s) => s.id === openId)!;
+		const done = o.steps.find((s) => s.id === stepIds[0])!;
+		expect(open.priority).toBe(4);
+		expect(open.open_age_min).toBeGreaterThanOrEqual(29);
+		expect(done.open_age_min).toBeUndefined();
+		// 人读输出同步（操作员旁路观察）
+		const text = renderOverviewText(db, TASK.name);
+		expect(text).toContain("(p4");
+		expect(text).toContain("挂");
 	});
 });
