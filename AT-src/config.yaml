@@ -1,9 +1,13 @@
 # AT1 v4 运行配置（2026-10-21 二次拍板：worker 弃 gemini 切 glm-5.3-flash——gemini 对渗透动态验证
 # step 服务端 filter 硬拦，静态可过动态不可用，实机证据见 docs/P3-实机验收记录.md O-new）
-# worker：glm-5.3-flash 走 GLM Coding Plan /api/anthropic（AT1_API_KEY），思考 high（沿 gemini 批数值）。
-# planner：glm-5.3 走 GLM Coding Plan /api/anthropic（AT1_API_KEY 原值），思考 xhigh。
-# 两通道均 1M 上下文——contextWindow 是 pi 的输出预算钳制基准（非输入截断线），
-# 详见 docs/PI-prompt.md §8.2。可选字段全集见 config.default.yaml 头注。
+# worker：grok-4.6 走 relaycore https://api.relaycore.cn/v1（AT1_RELAYCORE2_KEY，2026-11-10 操作员指定从 grok-4.7 降级观察拒答差异），思考 medium
+#   （两代均支持 reasoning_effort low/medium/high/xhigh；grok-4.7 拒答渗透动作 5/10 见任务档 P-8，grok-4.6 待观察）。
+#   历史通道：①deepseek-v4.1-flash@relaycore（AT1_RELAYCORE_KEY，2026-11-10 当日超时不可用留档；generic-openai 兼容
+#   2026-11-09 烟测过）②本地中转 6780 glm-5.3-flash（AT1_RELAY_KEY）③bigmodel 直连（AT1_API_KEY）；
+#   worker 侧若现 3 连 blocked → channel-down 熔断即通道问题。
+# planner：glm-5.3 走本地中转 http://127.0.0.1:6780/v1（anthropic 形态，AT1_PLANNER_RELAY_KEY，2026-11-09 操作员指定新 key 切回，探活通过），
+#   思考 high（原 xhigh，同日操作员下调）。中转抖动史见任务档 D-4/D-5——若 planner 频繁超时/熔断，先查中转进程再归因；
+#   历史：bigmodel 直连（AT1_API_KEY 仍有效可回切）。
 channels:
-  worker: { model: glm-5.3-flash, api: anthropic, keyEnv: AT1_API_KEY, baseUrl: "https://open.bigmodel.cn/api/anthropic", thinkingLevel: high, contextWindow: 1000000, maxTokens: 65536 }
-  planner: { model: glm-5.3, api: anthropic, keyEnv: AT1_API_KEY, baseUrl: "https://open.bigmodel.cn/api/anthropic", thinkingLevel: xhigh, contextWindow: 1000000, maxTokens: 131072 }
+  worker: { model: grok-4.6, api: openai, keyEnv: AT1_RELAYCORE2_KEY, baseUrl: "https://api.relaycore.cn/v1", thinkingLevel: medium, contextWindow: 256000, maxTokens: 65536 }
+  planner: { model: glm-5.3, api: anthropic, keyEnv: AT1_PLANNER_RELAY_KEY, baseUrl: "http://127.0.0.1:6780/v1", thinkingLevel: high, contextWindow: 1000000, maxTokens: 131072 }
