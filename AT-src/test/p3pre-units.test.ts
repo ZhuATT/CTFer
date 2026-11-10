@@ -228,14 +228,18 @@ describe("P3pre-2 worker 透传 blocked", () => {
 		});
 
 		expect(result.aborted).toBe(false);
+		expect(result.outcome).toBe("blocked"); // 卡C：唯一权威判定
+		expect(result.reason).toBe("channel-error");
 		expect(result.transportError).toContain("429");
 		const st = db.prepare("SELECT state FROM nodes WHERE id=?").get(step.id) as { state: string };
 		expect(st.state).toBe("blocked"); // 不翻 done——429 事故的核心修正
 		const act = db.prepare("SELECT * FROM activity WHERE tool='channel'").get() as { is_error: number; summary: string; detail: string };
 		expect(act.is_error).toBe(1);
-		expect(act.summary).toContain("blocked");
-		expect(act.summary).toContain("429");
-		expect(act.detail).toContain("1113");
+		// 卡S：summary 带结构化 outcome/reason；429 原文在 detail JSON 的 transport_error（先限长后序列化，可解析）
+		expect(act.summary).toContain("blocked(channel-error)");
+		const detail = JSON.parse(act.detail) as { outcome: string; reason: string; transport_error: string };
+		expect(detail.outcome).toBe("blocked");
+		expect(detail.transport_error).toContain("1113");
 		db.close();
 	});
 
@@ -323,6 +327,11 @@ const CFG: AppConfig = {
 };
 
 const MOCK_USAGE = { turns: 1, input: 10, output: 5, cacheRead: 0, cacheWrite: 0 };
+/** 卡T：mock 计时固定值。 */
+const MOCK_TIMING = {
+	queue_wait_ms: 0, worker_elapsed_ms: 1, cleanup_elapsed_ms: 0,
+	started_at_utc: "2026-11-09T00:00:00Z", returned_at_utc: "2026-11-09T00:00:01Z", cleanup_end_utc: "2026-11-09T00:00:01Z",
+};
 const TRANSPORT_ERR = "传输层故障[http 429]：API error 429: quota";
 
 let uid = 0;
@@ -370,13 +379,27 @@ function makeScriptDeps(
 			workerIdx += 1;
 			const s = script.workers?.[workerIdx];
 			const { setStepState } = await import("../src/graph.js");
-			const base = { stepId: o.step.id, finalText: s?.summary ?? "", usage: MOCK_USAGE, facts: 0, findings: 0, newFactIds: [], newFindingIds: [], aborted: false };
+			const base = {
+				stepId: o.step.id, finalText: s?.summary ?? "", usage: MOCK_USAGE, facts: 0, findings: 0, newFactIds: [] as number[], newFindingIds: [] as number[],
+				sessionId: "mock", timing: MOCK_TIMING, aborted: false,
+			};
 			if (s?.blocked) {
 				setStepState(db, taskName, o.step.id, "blocked"); // 真实 runWorkerStep 收尾语义
-				return { ...base, transportError: TRANSPORT_ERR };
+				return { ...base, outcome: "blocked" as const, reason: "channel-error", deliveries: [], transportError: TRANSPORT_ERR };
 			}
-			setStepState(db, taskName, o.step.id, "done");
-			return base;
+			// 卡C：声称成功必须真实交付——无提交 = incomplete/no-delivery（不冒充 done）
+			if (s?.summary) {
+				writeFileSync(join(_taskDir, "ev.txt"), "curl → 200 越权");
+				const { submitFact } = await import("../src/graph.js");
+				const r = submitFact(db, {
+					taskId: taskName, taskDir: _taskDir, stepId: o.step.id,
+					payload: { summary: s.summary, evidence: "ev.txt", confidence: "observed" },
+				});
+				setStepState(db, taskName, o.step.id, "done");
+				return { ...base, newFactIds: [r.id], outcome: "done" as const, reason: "delivered", deliveries: [{ kind: "fact" as const, id: r.id, dedup: false }] };
+			}
+			setStepState(db, taskName, o.step.id, "incomplete");
+			return { ...base, outcome: "incomplete" as const, reason: "no-delivery", deliveries: [] };
 		},
 	};
 	return deps;
@@ -485,8 +508,8 @@ describe("P3pre-5 hint 建议级措辞 + config.circuitBreaker", () => {
 		expect(text).toContain("建议级");
 		expect(text).toContain("采纳/部分采纳/忽略");
 		expect(text).toContain("note 里说明取舍");
-		const bd = renderTriggers([stepDoneEvent({ id: 7, payload: JSON.stringify({ summary: "某方向" }) } as NodeRow, "blocked", [], [], "")]);
-		expect(bd).toContain("[blocked]");
+		const bd = renderTriggers([stepDoneEvent({ id: 7, payload: JSON.stringify({ summary: "某方向" }) } as NodeRow, "blocked", "channel-error", [], [], [], "")]);
+		expect(bd).toContain("[blocked/channel-error]");
 	});
 
 	it("circuitBreaker：默认 3；config.yaml 可覆写", () => {
@@ -585,9 +608,14 @@ describe("P3pre-6 ② 操作员干预史渲染窗口与 splice 卫生修", () =>
 				return { acceptedCount: 0, rejectedCount: 0, proved: false, usage: MOCK_USAGE, finalText: "" };
 			},
 			runWorkerStep: async (o: RunWorkerStepOptions): Promise<RunWorkerStepResult> => {
-				const { setStepState } = await import("../src/graph.js");
+				const { setStepState, submitFact } = await import("../src/graph.js");
+				writeFileSync(join(o.taskDir, "ev.txt"), "curl → 200 越权");
+				const r = submitFact(db, {
+					taskId: name, taskDir: o.taskDir, stepId: o.step.id,
+					payload: { summary: "mock 真实交付的观察 fact", evidence: "ev.txt", confidence: "observed" },
+				});
 				setStepState(db, name, o.step.id, "done");
-				return { stepId: o.step.id, finalText: "完成", usage: MOCK_USAGE, facts: 0, findings: 0, newFactIds: [], newFindingIds: [], aborted: false };
+				return { stepId: o.step.id, finalText: "完成", usage: MOCK_USAGE, facts: 1, findings: 0, newFactIds: [r.id], newFindingIds: [], outcome: "done", reason: "delivered", deliveries: [{ kind: "fact", id: r.id, dedup: false }], sessionId: "mock", timing: MOCK_TIMING, aborted: false };
 			},
 		};
 
@@ -629,9 +657,14 @@ describe("P3pre-6 ① worker 循环异常兜底（结构性缺口）与熔断安
 					// 模拟通道构造异常 / payload 坏 / BrowserPool 挂死
 					throw new Error("Missing API key in keyEnv: AT1_BAD_KEY");
 				}
-				const { setStepState } = await import("../src/graph.js");
+				const { setStepState, submitFact } = await import("../src/graph.js");
+				writeFileSync(join(o.taskDir, "ev.txt"), "curl → 200 越权");
+				const r = submitFact(db, {
+					taskId: name, taskDir: o.taskDir, stepId: o.step.id,
+					payload: { summary: "mock 真实交付的观察 fact", evidence: "ev.txt", confidence: "observed" },
+				});
 				setStepState(db, name, o.step.id, "done");
-				return { stepId: o.step.id, finalText: "完成", usage: MOCK_USAGE, facts: 0, findings: 0, newFactIds: [], newFindingIds: [], aborted: false };
+				return { stepId: o.step.id, finalText: "完成", usage: MOCK_USAGE, facts: 1, findings: 0, newFactIds: [r.id], newFindingIds: [], outcome: "done", reason: "delivered", deliveries: [{ kind: "fact", id: r.id, dedup: false }], sessionId: "mock", timing: MOCK_TIMING, aborted: false };
 			},
 		};
 

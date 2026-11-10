@@ -10,6 +10,7 @@ import { Type } from "@earendil-works/pi-ai";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { submitFact, submitFinding } from "../graph.js";
 import type { Confidence, Severity } from "../contracts.js";
+import type { DeliveryRef } from "../worker-outcome.js";
 
 export interface SubmitToolOptions {
 	db: Database;
@@ -17,6 +18,24 @@ export interface SubmitToolOptions {
 	taskDir: string;
 	sessionId?: string;
 	assetsDb?: Database;
+	/** 卡C：当前 step 约束——生产 worker 必传；交付回执仅当提交真实成功且挂在本 step 时才记。
+	 * 不传 = 独立使用场景（无交付门校验），签名向后兼容。 */
+	currentStepId?: number;
+	/** 卡C：成功交付回调（收集 kind/id/dedup）；拒收/抛错/挂错 step 均不调用。 */
+	onDelivered?: (ref: DeliveryRef) => void;
+}
+
+/** 交付回执统一记账点：只有 submit 真实返回（含 dedup）且挂对 step 才调用。
+ * 禁止解析人话回执或用调用尝试充数（11-9 §5.5）。 */
+function recordDelivery(
+	opts: SubmitToolOptions,
+	kind: DeliveryRef["kind"],
+	stepId: number,
+	res: { id: number; dedup: boolean },
+): void {
+	if (!opts.onDelivered) return;
+	if (opts.currentStepId !== undefined && stepId !== opts.currentStepId) return; // 挂错 step 不算交付
+	opts.onDelivered({ kind, id: res.id, dedup: res.dedup });
 }
 
 function textResult(text: string) {
@@ -71,6 +90,7 @@ export function createSubmitFactTool(opts: SubmitToolOptions): AgentTool<any> {
 			const msg = res.dedup
 				? `重复事实，返回已有 fact #${res.id}（幂等）`
 				: `已入库 fact #${res.id}（produces 边已落）`;
+			recordDelivery(opts, "fact", Number(params?.step_id), res); // 卡C：去重返回也算成功交付（dedup=true）
 			return { ...textResult(msg), structuredContent: { id: res.id, dedup: res.dedup } };
 		},
 	};
@@ -136,6 +156,7 @@ export function createSubmitFindingTool(opts: SubmitToolOptions): AgentTool<any>
 					...(params?.endpoint ? { endpoint: String(params.endpoint) } : {}),
 				},
 			});
+			recordDelivery(opts, "finding", Number(params?.step_id), res);
 			return {
 				...textResult(`finding #${res.id} 已入图（state=reported，等待复测）`),
 				structuredContent: { id: res.id },

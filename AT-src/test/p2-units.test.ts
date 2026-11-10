@@ -35,7 +35,7 @@ afterAll(() => {
 describe("renderTriggers（P2-0）", () => {
 	it("七类事件各有形状；空=心跳巡检文案", () => {
 		const events: TriggerEvent[] = [
-			{ type: "step_done", stepId: 2, summary: "探测首页", outcome: "done", conclusion: "标题 Example", newFactIds: [4], findingIds: [] },
+			{ type: "step_done", stepId: 2, summary: "探测首页", outcome: "done", reason: "delivered", conclusion: "标题 Example", newFactIds: [4], findingIds: [], deliveries: [{ kind: "fact", id: 4, dedup: false }] },
 			{ type: "finding", findingId: 7, severity: "high", summary: "越权读取" },
 			{ type: "goal_changed", action: "edited", text: "新目标" },
 			{ type: "hint", text: "重点看 /user/profile" },
@@ -45,8 +45,9 @@ describe("renderTriggers（P2-0）", () => {
 		];
 		const text = renderTriggers(events);
 		expect(text).toContain("先看这里");
-		expect(text).toContain("step #2 [done]");
+		expect(text).toContain("step #2 [done/delivered]");
 		expect(text).toContain("新 fact: #4");
+		expect(text).toContain("交付: fact #4"); // 卡S：交付引用结构化进渲染
 		expect(text).toContain("finding #7 [high]");
 		expect(text).toContain("目标修改");
 		expect(text).toContain("操作员插入一条指示");

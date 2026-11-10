@@ -23,7 +23,7 @@ import { dirname, join } from "node:path";
 import type { Database } from "better-sqlite3";
 import { loadTask, type TaskJson } from "./task.js";
 import { logActivity, openDb, type NodeRow } from "./db.js";
-import { goalAchieved, goalClosed, initTask, setStepState } from "./graph.js";
+import { goalAchieved, goalClosed, initTask, recordStepExecution, setStepState } from "./graph.js";
 import { runWorkerStep, type SteerableTarget, type RunWorkerStepResult } from "./agent.js";
 import { runPlanner } from "./planner.js";
 import { harvestHints } from "./hints.js";
@@ -482,9 +482,22 @@ export async function runTask(opts: RunTaskOptions): Promise<RunTaskResult> {
 			if (workerError || !result) {
 				const rawErr = workerError ?? "未知 worker 异常";
 				setStepState(db, task.name, step.id, "blocked");
+				// R-A（11-9 §13.2）：兜底也补写 last_execution——resume 后节点摘要不再缺该原因。
+				// 无真实 worker session：用明确标识为 scheduler 兑底的关联 ID（非模型会话），
+				// 同一次兑底 activity 与 last_execution 同 ID。不编造 stopReason/timing/交付：
+				// delivery_refs=[] 仅表示「兑底没拿到成功回执」，不删除已有 fact/finding。
+				const fallbackSessionId = `scheduler-fallback-s${step.id}-${Date.now()}`;
+				recordStepExecution(db, task.name, step.id, {
+					session_id: fallbackSessionId,
+					outcome: "blocked",
+					reason: "worker-error",
+					delivery_refs: [],
+					finished_at: new Date().toISOString(),
+				});
 				logActivity(db, {
 					task_id: task.name,
 					node_id: step.id,
+					session_id: fallbackSessionId,
 					worker: "scheduler",
 					kind: "result",
 					tool: "runWorkerStep",
@@ -493,7 +506,7 @@ export async function runTask(opts: RunTaskOptions): Promise<RunTaskResult> {
 					detail: rawErr.slice(0, 1000),
 				});
 				consecutiveBlocked += 1;
-				events.push(stepDoneEvent(step, "blocked", [], [], ""));
+				events.push(stepDoneEvent(step, "blocked", "worker-error", [], [], [], ""));
 				if (consecutiveBlocked >= breakerThreshold) {
 					logActivity(db, {
 						task_id: task.name,
@@ -508,11 +521,14 @@ export async function runTask(opts: RunTaskOptions): Promise<RunTaskResult> {
 				}
 				continue;
 			}
-			// P3pre-2 收尾三态：aborted→exhausted｜传输层故障→blocked｜else done
-			const outcome = result.aborted ? "exhausted" : result.transportError ? "blocked" : "done";
-			consecutiveBlocked = outcome === "blocked" ? consecutiveBlocked + 1 : 0;
+			// 卡S（§5.2）：agent 产出的唯一权威判定直接消费——禁止再用 aborted/transportError 重算另一套状态
+			const outcome = result.outcome;
+			// 卡S（§6.2）熔断分流：blocked 按原阈值累计；done 清零；incomplete/exhausted 不加亦不清
+			// （不当「通道修复成功」；planner 唤醒成功同样不清零）
+			if (outcome === "blocked") consecutiveBlocked += 1;
+			else if (outcome === "done") consecutiveBlocked = 0;
 			events.push(
-				stepDoneEvent(step, outcome, result.newFactIds, result.newFindingIds, result.finalText),
+				stepDoneEvent(step, outcome, result.reason, result.newFactIds, result.newFindingIds, result.deliveries, result.finalText),
 			);
 			for (const fid of result.newFindingIds) {
 				const f = db.prepare("SELECT payload FROM nodes WHERE task_id=? AND id=?").get(task.name, fid) as

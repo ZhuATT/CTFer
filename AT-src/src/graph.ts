@@ -14,9 +14,11 @@ import {
 	FindingPayload,
 	GoalPayload,
 	StepPayload,
+	StepLastExecutionPayload,
 	normalizeSummary,
 	type FactPayload as FactPayloadT,
 	type FindingPayload as FindingPayloadT,
+	type StepLastExecutionPayloadT,
 } from "./contracts.js";
 import { logActivity, nowIso, type EdgeRow, type NodeRow } from "./db.js";
 import { noreportCheck } from "./noreport.js";
@@ -349,7 +351,12 @@ export function addStep(db: Database, taskId: string, steps: AddStepInput[], ses
 	const accepted: AddStepOutcome["accepted"] = [];
 	const rejected: AddStepOutcome["rejected"] = [];
 	for (const s of steps) {
-		const payload = StepPayload.parse({ ...s, priority: undefined });
+		// 卡S：addStep 只接受原派单字段——last_execution 由 worker 收尾回写，planner 不能伪造
+		const payload = StepPayload.parse({
+			summary: s.summary,
+			...(s.note ? { note: s.note } : {}),
+			...(s.parent_ids ? { parent_ids: s.parent_ids } : {}),
+		});
 		const key = normalizeSummary(payload.summary);
 		if (openSummaries.has(key)) {
 			rejected.push({ summary: s.summary, reason: "已有 open/running step 同义（拒重兜底）" });
@@ -480,11 +487,27 @@ export function goalClosed(db: Database, taskId: string): boolean {
 export function setStepState(db: Database, taskId: string, stepId: number, state: string): void {
 	const step = getNode(db, taskId, stepId);
 	if (!step || step.kind !== "step") throw new Error(`step #${stepId} 不存在`);
-	const done = ["done", "exhausted", "blocked", "cancelled"].includes(state);
+	// 卡S：收尾状态含 incomplete（§5.3 四态）；completed_at 可查询
+	const done = ["done", "exhausted", "blocked", "cancelled", "incomplete"].includes(state);
 	db.prepare("UPDATE nodes SET state = ?, updated_at = ?, completed_at = COALESCE(completed_at, ?) WHERE id = ?").run(
 		state,
 		nowIso(),
 		done ? nowIso() : null,
+		stepId,
+	);
+}
+
+/** 卡S/§6.1：step 的 last_execution 回写（每 step 只存最近一次；不新增 attempt 管理）。
+ * 原地合并 payload JSON，不重写 summary/note 等旧内容；旧节点无字段=unknown。 */
+export function recordStepExecution(db: Database, taskId: string, stepId: number, le: StepLastExecutionPayloadT): void {
+	const step = getNode(db, taskId, stepId);
+	if (!step || step.kind !== "step") throw new Error(`step #${stepId} 不存在`);
+	const parsed = StepLastExecutionPayload.parse(le);
+	const raw = JSON.parse(step.payload) as Record<string, unknown>;
+	raw.last_execution = parsed;
+	db.prepare("UPDATE nodes SET payload = ?, updated_at = ? WHERE id = ?").run(
+		JSON.stringify(raw),
+		nowIso(),
 		stepId,
 	);
 }
@@ -499,7 +522,16 @@ export function firstOpenStep(db: Database, taskId: string): NodeRow | undefined
 
 export interface GraphOverview {
 	goal: { id: number; text: string; state: string } | null;
-	steps: Array<{ id: number; summary: string; note?: string; state: string; priority: number; open_age_min?: number }>;
+	steps: Array<{
+		id: number;
+		summary: string;
+		note?: string;
+		state: string;
+		priority: number;
+		open_age_min?: number;
+		/** 卡S/§6.1：最近执行摘要（旧节点缺字段不渲染）。 */
+		last_execution?: { outcome: string; reason: string; deliveries: number; finished_at?: string };
+	}>;
 	recent_facts: Array<{ id: number; summary: string; from_step: number | null; confidence: string; created_at: string }>;
 	findings: Array<{ id: number; summary: string; severity: string; state: string }>;
 	counts: Record<string, number>;
@@ -544,6 +576,16 @@ export function graphOverview(db: Database, taskId: string, assetsDb?: Database)
 				...(s.state === "open"
 					? { open_age_min: Math.max(0, Math.floor((Date.now() - Date.parse(s.created_at)) / 60_000)) }
 					: {}),
+				...(p.last_execution
+					? {
+							last_execution: {
+								outcome: p.last_execution.outcome,
+								reason: p.last_execution.reason,
+								deliveries: p.last_execution.delivery_refs.length,
+								...(p.last_execution.finished_at ? { finished_at: p.last_execution.finished_at } : {}),
+							},
+						}
+					: {}),
 			};
 		}),
 		recent_facts: facts.map((f) => {
@@ -565,6 +607,12 @@ interface GoalPayloadLike {
 interface StepPayloadLike {
 	summary: string;
 	note?: string;
+	last_execution?: {
+		outcome: string;
+		reason: string;
+		delivery_refs: Array<{ kind: string; id: number; dedup: boolean }>;
+		finished_at?: string;
+	};
 }
 
 // ── worker 精简态势（p2fix P2F-7 审7：worker 只看 goal + 本 step 血缘，不看全图） ──
@@ -641,7 +689,8 @@ export function renderOverviewText(db: Database, taskId: string): string {
 	lines.push("== steps ==");
 	for (const s of o.steps)
 		lines.push(
-			`  #${s.id} [${s.state}] (p${s.priority}${s.open_age_min !== undefined ? ` 挂${s.open_age_min}m` : ""}) ${s.summary}`,
+			`  #${s.id} [${s.state}] (p${s.priority}${s.open_age_min !== undefined ? ` 挂${s.open_age_min}m` : ""}) ${s.summary}` +
+				(s.last_execution ? ` ⟨最近执行: ${s.last_execution.outcome}/${s.last_execution.reason}，交付${s.last_execution.deliveries}⟩` : ""),
 		);
 	lines.push("");
 	lines.push(`== facts (${o.counts["fact"] ?? 0} 条，recent 20) ==`);

@@ -41,6 +41,22 @@ const CFG: AppConfig = {
 	run: { maxRounds: 10, budgetMs: 600_000 },
 };
 const MOCK_USAGE = { turns: 1, input: 10, output: 5, cacheRead: 0, cacheWrite: 0 };
+/** 卡T：mock 计时固定值。 */
+const MOCK_TIMING = {
+	queue_wait_ms: 0, worker_elapsed_ms: 1, cleanup_elapsed_ms: 0,
+	started_at_utc: "2026-11-09T00:00:00Z", returned_at_utc: "2026-11-09T00:00:01Z", cleanup_end_utc: "2026-11-09T00:00:01Z",
+};
+
+/** 卡C：mock 与真实 worker 同语义——交付引用取脚本钩子实际新增的 fact/finding 节点（真实 submit 的回执）。 */
+function deliveriesFromDb(db: import("better-sqlite3").Database, taskId: string, maxIdBefore: number): Array<{ kind: "fact" | "finding"; id: number; dedup: boolean }> {
+	const rows = db
+		.prepare("SELECT id, kind FROM nodes WHERE task_id = ? AND kind IN ('fact','finding') AND id > ? ORDER BY id")
+		.all(taskId, maxIdBefore) as Array<{ id: number; kind: string }>;
+	return rows.map((r) => ({ kind: r.kind as "fact" | "finding", id: r.id, dedup: false }));
+}
+function maxDeliveryId(db: import("better-sqlite3").Database, taskId: string): number {
+	return (db.prepare("SELECT COALESCE(MAX(id),0) AS m FROM nodes WHERE task_id=? AND kind IN ('fact','finding')").get(taskId) as { m: number }).m;
+}
 
 let uid = 0;
 let evCounter = 0;
@@ -89,12 +105,19 @@ function makeWorkerStub(script: Array<(o: RunWorkerStepOptions) => void>) {
 	let idx = -1;
 	return async (o: RunWorkerStepOptions): Promise<RunWorkerStepResult> => {
 		idx += 1;
+		const maxIdBefore = maxDeliveryId(o.db, o.task.name);
 		script[idx]?.(o);
 		const { setStepState } = await import("../src/graph.js");
-		setStepState(o.db, o.task.name, o.step.id, "done");
+		const deliveries = deliveriesFromDb(o.db, o.task.name, maxIdBefore);
+		// 卡C：mock 声称 done 必须有真实交付；无交付 = incomplete/no-delivery
+		const done = deliveries.length > 0;
+		setStepState(o.db, o.task.name, o.step.id, done ? "done" : "incomplete");
 		return {
 			stepId: o.step.id, finalText: "mock 完成", usage: MOCK_USAGE,
-			facts: 0, findings: 0, newFactIds: [], newFindingIds: [], aborted: false,
+			facts: 0, findings: 0, newFactIds: deliveries.filter((d) => d.kind === "fact").map((d) => d.id),
+			newFindingIds: deliveries.filter((d) => d.kind === "finding").map((d) => d.id),
+			outcome: done ? "done" : "incomplete", reason: done ? "delivered" : "no-delivery",
+			deliveries, sessionId: "mock", timing: MOCK_TIMING, aborted: false,
 		};
 	};
 }
@@ -221,6 +244,7 @@ describe("双 task 一 project 全链剧本", () => {
 		// ── task A：worker 登记资产 + 提交带 endpoint 的 facts + finding ──
 		const aWorkerStub = async (o: RunWorkerStepOptions): Promise<RunWorkerStepResult> => {
 			expect(o.assetsDb).toBeDefined();
+			const maxIdBefore = maxDeliveryId(o.db, o.task.name);
 			registerAsset(o.assetsDb!, o.task.name, { host: "internal.a.example.com", note: "内网资产线索" }, proj);
 			submitMockFact(o, "共享主机首页可未授权访问", "shared.example.com/");
 			submitMockFact(o, "秘密子域存在管理后台入口", "http://secret.a.example.com/x");
@@ -235,8 +259,14 @@ describe("双 task 一 project 全链剧本", () => {
 				assetsDb: o.assetsDb,
 			});
 			const { setStepState } = await import("../src/graph.js");
+			const deliveries = deliveriesFromDb(o.db, o.task.name, maxIdBefore);
 			setStepState(o.db, o.task.name, o.step.id, "done");
-			return { stepId: o.step.id, finalText: "A 完成", usage: MOCK_USAGE, facts: 3, findings: 1, newFactIds: [], newFindingIds: [], aborted: false };
+			return {
+				stepId: o.step.id, finalText: "A 完成", usage: MOCK_USAGE, facts: 3, findings: 1,
+				newFactIds: deliveries.filter((d) => d.kind === "fact").map((d) => d.id),
+				newFindingIds: deliveries.filter((d) => d.kind === "finding").map((d) => d.id),
+				outcome: "done", reason: "delivered", deliveries, sessionId: "mock", timing: MOCK_TIMING, aborted: false,
+			};
 		};
 		const aResult = await runTask({
 			tasksRoot: TASKS_ROOT, taskName: a.name, config: CFG, secrets: {},
@@ -254,10 +284,16 @@ describe("双 task 一 project 全链剧本", () => {
 		const bWorkerStub = async (o: RunWorkerStepOptions): Promise<RunWorkerStepResult> => {
 			bWorkerSeen.push(o);
 			if (bAssetCountAtStart === -1) bAssetCountAtStart = countAssets(o.assetsDb!); // scope resolve 后、B 自己产出前
+			const maxIdBefore = maxDeliveryId(o.db, o.task.name);
 			submitMockFact(o, "共享主机 api 接口未授权返回列表", "http://shared.example.com/api");
 			const { setStepState } = await import("../src/graph.js");
+			const deliveries = deliveriesFromDb(o.db, o.task.name, maxIdBefore);
 			setStepState(o.db, o.task.name, o.step.id, "done");
-			return { stepId: o.step.id, finalText: "B 完成", usage: MOCK_USAGE, facts: 1, findings: 0, newFactIds: [], newFindingIds: [], aborted: false };
+			return {
+				stepId: o.step.id, finalText: "B 完成", usage: MOCK_USAGE, facts: 1, findings: 0,
+				newFactIds: deliveries.filter((d) => d.kind === "fact").map((d) => d.id), newFindingIds: [],
+				outcome: "done", reason: "delivered", deliveries, sessionId: "mock", timing: MOCK_TIMING, aborted: false,
+			};
 		};
 		const bPlannerStub = makePlannerStub({
 			taskName: b.name,
@@ -325,11 +361,17 @@ describe("scope-add watcher 重载（P3-7）", () => {
 				mkdirSync(join(o.taskDir, "control"), { recursive: true });
 				writeFileSync(join(o.taskDir, "control", "scope.changed"), JSON.stringify({ added: ["b.example.com"] }));
 			}
+			const maxIdBefore = maxDeliveryId(o.db, o.task.name);
 			await sleep(120); // 给 watcher（10ms tick）留消费窗口
 			submitMockFact(o, workerCalls.length === 1 ? "A 面探测观察记录" : "B 面接续观察记录");
 			const { setStepState } = await import("../src/graph.js");
+			const deliveries = deliveriesFromDb(o.db, o.task.name, maxIdBefore);
 			setStepState(o.db, o.task.name, o.step.id, "done");
-			return { stepId: o.step.id, finalText: "完成", usage: MOCK_USAGE, facts: 1, findings: 0, newFactIds: [], newFindingIds: [], aborted: false };
+			return {
+				stepId: o.step.id, finalText: "完成", usage: MOCK_USAGE, facts: 1, findings: 0,
+				newFactIds: deliveries.filter((d) => d.kind === "fact").map((d) => d.id), newFindingIds: [],
+				outcome: "done", reason: "delivered", deliveries, sessionId: "mock", timing: MOCK_TIMING, aborted: false,
+			};
 		};
 
 		const plannerSeen: PlannerObservation[] = [];
@@ -427,10 +469,16 @@ describe("无 project 的 task（D6 向后兼容）", () => {
 		};
 		const workerStub = async (o: RunWorkerStepOptions): Promise<RunWorkerStepResult> => {
 			workerSeen.push(o);
+			const maxIdBefore = maxDeliveryId(o.db, o.task.name);
 			submitMockFact(o, "存量形态下的探测观察记录");
 			const { setStepState } = await import("../src/graph.js");
+			const deliveries = deliveriesFromDb(o.db, o.task.name, maxIdBefore);
 			setStepState(o.db, o.task.name, o.step.id, "done");
-			return { stepId: o.step.id, finalText: "完成", usage: MOCK_USAGE, facts: 1, findings: 0, newFactIds: [], newFindingIds: [], aborted: false };
+			return {
+				stepId: o.step.id, finalText: "完成", usage: MOCK_USAGE, facts: 1, findings: 0,
+				newFactIds: deliveries.filter((d) => d.kind === "fact").map((d) => d.id), newFindingIds: [],
+				outcome: "done", reason: "delivered", deliveries, sessionId: "mock", timing: MOCK_TIMING, aborted: false,
+			};
 		};
 
 		const result = await runTask({

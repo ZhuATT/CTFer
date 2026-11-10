@@ -7,7 +7,10 @@
  * 全图 steps/findings 是 planner 的视野）+【standards 索引】（渐进披露）。
  * abort（P2F-5）：内部 stepTimeout 与外部 abortSignal（stop watcher）并联，同一条优雅收尾路。
  * steer（P2F-11）：onAgent 把会话暴露给调度器，【操作员插话】经 agent.steer() 送达。
- * 收尾 = usage 落 activity（token 四列，R-2 从根消解）+ step state→done/exhausted/blocked 三态。
+ * 收尾 = usage 落 activity（token 四列，R-2 从根消解）+ 卡C 唯一判定表四态
+ *   （done/exhausted/blocked/incomplete，§5.3：agent 产出唯一权威 outcome/reason，
+ *   scheduler 直接消费不重算；done = 正常结束且有可追踪交付回执，不保证派单全部答完）。
+ * 卡T 计时：queue_wait/worker_elapsed/cleanup_elapsed + UTC 对账三点，落会话结果 JSON detail。
  * 传输层故障（P3pre-2）：pi 不抛错（错误走 message_end 事件 stopReason="error"），订阅层检测
  *   → step 翻 blocked + activity 落 is_error 账，planner 按 v1.2 blocked 重派规则接续。
  * steer 核销（P3pre-4）：送达账是乐观的——会话收尾核对未消费队列，有残留落 is_error 账。
@@ -30,6 +33,8 @@ import { createSearchKnowledgeTool, isKnowledgeReady } from "./tools/knowledge.j
 import type { TaskJson } from "./task.js";
 import type { Secrets } from "./secrets.js";
 import { BrowserPool } from "./browser-pool.js";
+import { decideOutcome, type DeliveryRef, type LocalCancelReason, type StepLastExecution, type StepTiming, type WorkerOutcome } from "./worker-outcome.js";
+import { recordStepExecution } from "./graph.js";
 
 export const WORKER_SYSTEM_PROMPT = [
 	// v2（2026-10-21 拍板，草案与块对照见 docs/PI-prompt.md §9.1）：
@@ -80,12 +85,25 @@ export interface RunWorkerStepResult {
 	usage: WorkerUsageTotals;
 	facts: number;
 	findings: number;
-	/** 本次会话新产出的 fact/finding 编号（P2 调度触发事件用）。 */
+	/** 本次会话新产出的 fact/finding 编号（P2 调度触发事件用；dedup 返回的旧 ID 不在内）。 */
 	newFactIds: number[];
 	newFindingIds: number[];
-	/** 会话被掐断（超时/stop watcher——P2 置 step=exhausted，planner 重派「接上次继续」）。 */
+	/** 卡C：唯一权威收尾判定（§5.3 判定表）——scheduler 直接消费，不自行重算。 */
+	outcome: WorkerOutcome;
+	/** 判定原因（step-timeout/operator-stop/channel-error/worker-error/provider-aborted/output-length/missing-final-message/unexpected-stop/no-delivery/delivered）。 */
+	reason: string;
+	/** 本会话成功 submit 回执（含 dedup 返回旧 ID；卡C §5.5）。 */
+	deliveries: DeliveryRef[];
+	/** 最终 assistant 消息的 stopReason（无则为 undefined）。 */
+	stopReason?: string;
+	/** 本会话 ID（对账/审计关联）。 */
+	sessionId: string;
+	/** 卡T：最小计时（§4.1）。 */
+	timing: StepTiming;
+	// ── 兼容暂留字段：仅供既有调用方/测试读取，不得作为调度器另一套判定源（卡C 第1点）──
+	/** 会话被本地取消（超时/stop watcher）。 */
 	aborted: boolean;
-	/** 传输层故障（P3pre-2：429/网络断连等——step=blocked，planner 直接重派）。 */
+	/** 传输层故障（P3pre-2）。 */
 	transportError?: string;
 }
 
@@ -147,17 +165,75 @@ export function renderStepPrompt(
 
 export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWorkerStepResult> {
 	const { db, task, taskDir, step } = opts;
-	// P2F-1：完整配置优先；无配置走 P1 兼容入口（单跑/测试）
+	// 卡T 计时（§4.1）：worker 入口即起表；queue_wait = 入口 UTC − 建单时间（负数锥 0，含停机时长）
+	const startedAtUtc = new Date().toISOString();
+	const entryMono = performance.now();
+	const queueWaitMs = Math.max(0, Date.parse(startedAtUtc) - Date.parse(step.created_at));
+	const sessionId = `${task.name}-worker-s${step.id}-${Date.now()}`;
+
+	// 卡T：入口 signal 已 aborted → 不建 agent、不发模型请求，直接落 exhausted/operator-stop
+	if (opts.abortSignal?.aborted) {
+		const timing: StepTiming = {
+			queue_wait_ms: queueWaitMs,
+			worker_elapsed_ms: Math.round(performance.now() - entryMono),
+			cleanup_elapsed_ms: 0,
+			started_at_utc: startedAtUtc,
+			returned_at_utc: new Date().toISOString(),
+			cleanup_end_utc: new Date().toISOString(),
+		};
+		setStepState(db, task.name, step.id, "exhausted");
+		logActivity(db, {
+			task_id: task.name,
+			node_id: step.id,
+			session_id: sessionId,
+			worker: "worker",
+			kind: "result",
+			tool: "runWorkerStep",
+			summary: `step #${step.id} exhausted(operator-stop)：入口 signal 已 aborted，未发模型请求`,
+			detail: JSON.stringify({ outcome: "exhausted", reason: "operator-stop", pre_aborted: true, timing }),
+		});
+		recordStepExecution(db, task.name, step.id, {
+			session_id: sessionId,
+			outcome: "exhausted",
+			reason: "operator-stop",
+			delivery_refs: [],
+			timing,
+			finished_at: new Date().toISOString(),
+		});
+		return {
+			stepId: step.id,
+			finalText: "",
+			usage: { turns: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			facts: 0,
+			findings: 0,
+			newFactIds: [],
+			newFindingIds: [],
+			outcome: "exhausted",
+			reason: "operator-stop",
+			deliveries: [],
+			sessionId,
+			timing,
+			aborted: true,
+		};
+	}
+
 	const channel = opts.channel
 		? createChannelFromConfig(opts.channel, opts.secrets)
 		: createChannel(opts.mode ?? "openai", opts.secrets);
-	const sessionId = `${task.name}-worker-s${step.id}-${Date.now()}`;
 
 	const situational = stepLineageView(db, task.name, step);
 	const standardsIndex = readStandardsIndex(taskDir);
 
 	const usage: WorkerUsageTotals = { turns: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
-	const texts: string[] = [];
+	// 卡C：最终 assistant 消息观测（message_end 必须落——文本为空也更新，不得从「最后非空历史文本」推断）
+	interface FinalAssistantObs {
+		stopReason?: string;
+		text: string;
+		errorMessage?: string;
+	}
+	let lastAssistant: FinalAssistantObs | undefined;
+	// 卡C：成功交付回执（submit 工具真实返回后经 onDelivered 收集，含 dedup）
+	const deliveries: DeliveryRef[] = [];
 	// P3pre-2：传输层故障检测（pi 不抛错，错误以 message_end(stopReason="error") 过事件流）
 	let transportFailure: ChannelTransportFailure | undefined;
 	// LZ-1 懒启动：浏览器工具首次调用才起 Chrome——纯 API step（全程 Bash/curl）零 chrome 生命周期、零 0KB HAR。
@@ -168,7 +244,14 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 	let unsubscribe: (() => void) | undefined;
 	let timeout: NodeJS.Timeout | undefined;
 	let onAbort: (() => void) | undefined;
+	// 卡T：本地取消首次生效原因（§4.2：首次生效后后来的 provider-aborted 不能覆盖）
+	let localCancel: LocalCancelReason | undefined;
 	let aborted = false;
+	// 卡T：清理阶段计时（finally 内赋值；prompt 返回点用于对账）
+	let workerElapsedMs = 0;
+	let returnedAtUtc = new Date().toISOString();
+	let cleanupElapsedMs = 0;
+	let cleanupEndUtc = new Date().toISOString();
 
 	try {
 		// P3pre-6 ①：浏览器资源在 finally 统一收尾，杜绝 zombie chrome；
@@ -197,8 +280,24 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 						}),
 				  ]
 				: []),
-			createSubmitFactTool({ db, taskId: task.name, taskDir, sessionId, assetsDb: opts.assetsDb }),
-			createSubmitFindingTool({ db, taskId: task.name, taskDir, sessionId, assetsDb: opts.assetsDb }),
+			createSubmitFactTool({
+				db,
+				taskId: task.name,
+				taskDir,
+				sessionId,
+				assetsDb: opts.assetsDb,
+				currentStepId: step.id, // 卡C：交付门约束——挂错 step 不记交付
+				onDelivered: (ref) => deliveries.push(ref),
+			}),
+			createSubmitFindingTool({
+				db,
+				taskId: task.name,
+				taskDir,
+				sessionId,
+				assetsDb: opts.assetsDb,
+				currentStepId: step.id,
+				onDelivered: (ref) => deliveries.push(ref),
+			}),
 			...(opts.assetsDb
 				? [createRegisterAssetTool({ assetsDb: opts.assetsDb, taskId: task.name, project: task.project })]
 				: []),
@@ -216,6 +315,7 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 			beforeToolCall: createGuard(db, {
 				taskId: task.name,
 				sessionId,
+				stepId: step.id, // 卡A：审计行挂 node_id，可关联
 				scopeHosts: opts.scopeHosts ?? task.scope.hosts,
 			}),
 		});
@@ -231,30 +331,59 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 				usage.output += u.output ?? 0;
 				usage.cacheRead += u.cacheRead ?? 0;
 				usage.cacheWrite += u.cacheWrite ?? 0;
+			} else if (ev.type === "tool_execution_end") {
+				// 卡A/§3.4：工具结束独立记账——不把 call 当执行成功；detail 只含 toolCallId/isError，
+				// 不复制正常正文或错误正文（新结果日志不写 Cookie/token 或任意工具输出）。
+				// isError 不表示 shell exit 语义，只表示工具执行层错误。
+				logActivity(db, {
+					task_id: task.name,
+					node_id: step.id,
+					session_id: sessionId,
+					worker: "worker",
+					kind: "result",
+					tool: ev.toolName,
+					is_error: ev.isError,
+					summary: ev.isError ? "tool error" : "tool success",
+					detail: JSON.stringify({ toolCallId: ev.toolCallId, isError: ev.isError }),
+				});
 			} else if (ev.type === "message_end") {
-				const msg = ev.message as { role?: string; content?: Array<{ type: string; text?: string }> };
-				if (msg.role === "assistant" && Array.isArray(msg.content)) {
-					const t = msg.content
-						.filter((c) => c.type === "text" && c.text?.trim())
-						.map((c) => c.text)
-						.join("\n");
-					if (t) texts.push(t);
+				const msg = ev.message as {
+					role?: string;
+					content?: Array<{ type: string; text?: string }>;
+					stopReason?: string;
+					errorMessage?: string;
+				};
+				if (msg.role === "assistant") {
+					// 卡C：文本为空也必须更新——最终消息观测不得跳过空消息
+					const t = Array.isArray(msg.content)
+						? msg.content
+								.filter((c) => c.type === "text" && c.text?.trim())
+								.map((c) => c.text)
+								.join("\n")
+						: "";
+					lastAssistant = { stopReason: msg.stopReason, text: t, errorMessage: msg.errorMessage };
 				}
 				transportFailure = transportFailureFromMessage(ev.message) ?? transportFailure;
 			}
 		});
 
-		// 双 abort 并联（P2F-5）：内部 stepTimeout / 外部 stop watcher——同一条优雅收尾路
-		const doAbort = () => {
+		// 双 abort 并联（P2F-5）：内部 stepTimeout / 外部 stop watcher——同一条优雅收尾路。
+		// 卡T：首次生效的本地取消原因记账，后来的不能覆盖（§4.2）
+		const doAbort = (why: LocalCancelReason) => {
 			aborted = true;
+			localCancel ??= why;
 			agent?.abort();
 		};
-		timeout = setTimeout(doAbort, opts.timeoutMs ?? 1_200_000); // 2026-10-21 拍板：step 超时默认 20min（原 10min 测试值）
-		onAbort = () => doAbort();
+		timeout = setTimeout(() => doAbort("step-timeout"), opts.timeoutMs ?? 1_200_000); // 2026-10-21 拍板：step 超时默认 20min（原 10min 测试值）
+		onAbort = () => doAbort("operator-stop");
 		opts.abortSignal?.addEventListener("abort", onAbort, { once: true });
 
 		await agent.prompt(renderStepPrompt(step, situational, standardsIndex, isKnowledgeReady()));
 	} finally {
+		// 卡T：清理阶段起点；先撤计时器/外部监听，清理慢不误记模型执行超时（§4.2）
+		const cleanupStartMono = performance.now();
+		returnedAtUtc = new Date().toISOString();
+		workerElapsedMs = Math.round(cleanupStartMono - entryMono);
 		if (timeout) clearTimeout(timeout);
 		if (onAbort) opts.abortSignal?.removeEventListener("abort", onAbort);
 		// P3pre-4 steer 两段式核销：watcher 送达账是乐观的（agent.steer() 入队即记"送达"），
@@ -276,11 +405,40 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		unsubscribe?.();
 		if (browserSession) await browserSession.dispose();
 		if (poolRef.pool) await poolRef.pool.shutdown();
+		// 卡T：清理阶段计时收口（含浏览器/池收尾全路径）
+		cleanupElapsedMs = Math.round(performance.now() - cleanupStartMono);
+		cleanupEndUtc = new Date().toISOString();
 	}
 
-	// 收尾：计量落 activity（token 四列）+ step 三态
-	// （P3pre-2：aborted→exhausted｜传输层故障→blocked｜else done；blocked 走 v1.2 重派规则）
-	const outcome = aborted ? "exhausted" : transportFailure ? "blocked" : "done";
+	// 收尾：唯一判定（卡C §5.3 判定表——agent 产出唯一权威 outcome/reason）
+	const verdict = decideOutcome({
+		localCancel,
+		channelError: transportFailure !== undefined,
+		hasFinalAssistant: lastAssistant !== undefined,
+		finalStopReason: lastAssistant?.stopReason,
+		deliveryCount: deliveries.length,
+	});
+	const outcome = verdict.outcome;
+	const reason = verdict.reason;
+	const timing: StepTiming = {
+		queue_wait_ms: queueWaitMs,
+		worker_elapsed_ms: workerElapsedMs,
+		cleanup_elapsed_ms: cleanupElapsedMs,
+		started_at_utc: startedAtUtc,
+		returned_at_utc: returnedAtUtc,
+		cleanup_end_utc: cleanupEndUtc,
+	};
+	// 卡A/§3.4：JSON 日志先限长文本字段再序列化（完整可解析，不粗切 JSON）
+	const resultDetail = JSON.stringify({
+		outcome,
+		reason,
+		stop_reason: lastAssistant?.stopReason ?? null,
+		final_text: (lastAssistant?.text ?? "").slice(0, 1000),
+		deliveries: deliveries.slice(0, 20),
+		turns: usage.turns,
+		transport_error: transportFailure ? transportFailure.raw.slice(0, 1000) : null,
+		timing,
+	});
 	logActivity(db, {
 		task_id: task.name,
 		node_id: step.id,
@@ -288,14 +446,23 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 		worker: "worker",
 		kind: "result",
 		tool: transportFailure ? "channel" : "runWorkerStep",
-		is_error: Boolean(transportFailure),
-		summary: transportFailure
-			? `step #${step.id} blocked：${transportFailure.label}，${usage.turns} 轮`
-			: `step #${step.id} ${aborted ? "掐断（超时/stop）" : "完成"}，${usage.turns} 轮`,
-		detail: transportFailure ? transportFailure.raw.slice(0, 1000) : (texts[texts.length - 1] ?? "").slice(0, 1000),
+		is_error: outcome === "blocked",
+		summary: `step #${step.id} ${outcome}(${reason})，${usage.turns} 轮`,
+		detail: resultDetail,
 		tokens: { input: usage.input, output: usage.output, cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite },
 	});
 	setStepState(db, task.name, step.id, outcome);
+	// 卡S/§6.1：最近执行摘要持久化（每 step 只存最新一次；旧节点无此字段=unknown）
+	const lastExecution: StepLastExecution = {
+		session_id: sessionId,
+		outcome,
+		reason,
+		...(lastAssistant?.stopReason ? { stop_reason: lastAssistant.stopReason } : {}),
+		delivery_refs: deliveries,
+		timing,
+		finished_at: cleanupEndUtc,
+	};
+	recordStepExecution(db, task.name, step.id, lastExecution);
 
 	const newFactIds = idsBySession(db, sessionId, "fact");
 	const newFindingIds = idsBySession(db, sessionId, "finding");
@@ -307,12 +474,18 @@ export async function runWorkerStep(opts: RunWorkerStepOptions): Promise<RunWork
 
 	return {
 		stepId: step.id,
-		finalText: texts[texts.length - 1] ?? "",
+		finalText: lastAssistant?.text ?? "",
 		usage,
 		facts: counts.find((c) => c.kind === "fact")?.n ?? 0,
 		findings: counts.find((c) => c.kind === "finding")?.n ?? 0,
 		newFactIds,
 		newFindingIds,
+		outcome,
+		reason,
+		deliveries,
+		...(lastAssistant?.stopReason ? { stopReason: lastAssistant.stopReason } : {}),
+		sessionId,
+		timing,
 		aborted,
 		...(transportFailure ? { transportError: transportFailure.label + "：" + transportFailure.raw } : {}),
 	};

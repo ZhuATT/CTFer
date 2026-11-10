@@ -23,12 +23,44 @@ export const FactPayload = z.object({
 });
 export type FactPayload = z.infer<typeof FactPayload>;
 
-/** step：一句话方向 + 打法说明（planner 写；P1 由 seed 夹具/调用方给）。 */
+/** 交付引用（卡S/§6.1：last_execution.delivery_refs 元素形状）。 */
+export const DeliveryRefPayload = z.object({
+	kind: z.enum(["fact", "finding"]),
+	id: z.number().int(),
+	dedup: z.boolean(),
+});
+export type DeliveryRefPayloadT = z.infer<typeof DeliveryRefPayload>;
+
+/** 最近一次执行摘要（卡S/§6.1：每 step 只存最新；不新增 attempt 管理；旧节点无此字段=unknown）。 */
+export const StepLastExecutionPayload = z.object({
+	session_id: z.string(),
+	outcome: z.enum(["done", "exhausted", "blocked", "incomplete"]),
+	reason: z.string().min(1),
+	stop_reason: z.string().optional(),
+	delivery_refs: z.array(DeliveryRefPayload).default([]),
+	timing: z
+		.object({
+			queue_wait_ms: z.number(),
+			worker_elapsed_ms: z.number(),
+			cleanup_elapsed_ms: z.number(),
+			started_at_utc: z.string(),
+			returned_at_utc: z.string(),
+			cleanup_end_utc: z.string(),
+		})
+		.optional(),
+	finished_at: z.string().optional(),
+});
+export type StepLastExecutionPayloadT = z.infer<typeof StepLastExecutionPayload>;
+
+/** step：一句话方向 + 打法说明（planner 写；P1 由 seed 夹具/调用方给）。
+ * last_execution（11-9 卡S）：worker 收尾回写的最近执行摘要——planner 创建 step 不可伪造
+ * （add_step 只收原派单字段）；显式声明防 zod strip。 */
 export const StepPayload = z.object({
 	summary: z.string().min(4).max(500),
 	note: z.string().max(3000).optional(),
 	asset_ids: z.array(z.number().int()).optional(),
 	parent_ids: z.array(z.number().int()).optional(),
+	last_execution: StepLastExecutionPayload.optional(),
 });
 export type StepPayload = z.infer<typeof StepPayload>;
 
